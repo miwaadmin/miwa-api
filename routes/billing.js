@@ -7,7 +7,7 @@ const { getUsageSummary } = require('../services/costTracker');
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key || key.startsWith('***')) {
-    throw new Error('Stripe is not configured. Add your STRIPE_SECRET_KEY to .env');
+    throw new Error('Stripe is not configured. Add your STRIPE_SECRET_KEY to server/.env');
   }
   return require('stripe')(key);
 }

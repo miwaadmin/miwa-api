@@ -312,7 +312,7 @@ let _workerStarted = false;
 
 /**
  * Start the background worker. Idempotent — calling multiple times is a no-op.
- * Called once from server.js at boot.
+ * Called once from server/index.js at boot.
  */
 function startWorker() {
   if (_workerStarted) return;

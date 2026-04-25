@@ -18,7 +18,7 @@ const os = require('os');
 const fs = require('fs');
 const crypto = require('crypto');
 
-// ── Env bootstrap (must happen before requiring ../../index) ─────────────────
+// ── Env bootstrap (must happen before requiring ../../server) ────────────────
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-for-smoke-tests-only';
 process.env.ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'admin@miwa.test';

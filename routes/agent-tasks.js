@@ -10,7 +10,7 @@
  *   GET    /stream              → SSE: live status updates for my tasks
  *   GET    /unread-count        → { count } for badge
  *
- * All endpoints require auth (applied by the mount in server.js).
+ * All endpoints require auth (applied by the mount in server/index.js).
  * Scope: a therapist can only see/act on their own tasks — enforced via the
  * WHERE therapist_id = req.therapist.id filter on every query.
  */
