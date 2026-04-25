@@ -1,8 +1,35 @@
 {
   "name": "miwa-api",
   "version": "1.0.0",
-  "main": "server.js",
+  "private": true,
+  "engines": {
+    "node": "22.x"
+  },
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node --test tests/scrubber.test.js tests/assistant.test.js tests/aiClient.test.js tests/smoke/auth.test.js tests/smoke/patients.test.js tests/smoke/stats.test.js tests/smoke/backup.test.js tests/smoke/db-safety.test.js tests/smoke/feedback.test.js tests/smoke/demo.test.js",
+    "test:smoke": "node --test tests/smoke/auth.test.js tests/smoke/patients.test.js tests/smoke/stats.test.js tests/smoke/backup.test.js tests/smoke/db-safety.test.js tests/smoke/feedback.test.js tests/smoke/demo.test.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "cookie-parser": "^1.4.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.5.1",
+    "googleapis": "^171.4.0",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
+    "mammoth": "^1.12.0",
+    "multer": "^2.1.1",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^8.0.5",
+    "openai": "^6.33.0",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^2.4.5",
+    "sql.js": "^1.12.0",
+    "stripe": "^21.0.1",
+    "twilio": "^5.13.1"
   }
 }

@@ -1,0 +1,17 @@
+node_modules/
+.env
+
+mftbrain.db
+mftbrain.db-shm
+mftbrain.db-wal
+
+uploads/*
+!uploads/.gitkeep
+generated_reports/*
+!generated_reports/.gitkeep
+
+npm-debug.log*
+logs/
+*.log
+.DS_Store
+Thumbs.db
