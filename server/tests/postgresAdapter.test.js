@@ -43,6 +43,49 @@ test('translateSqliteSql converts sqlite start-of-month helper', () => {
   );
 });
 
+test('translateSqliteSql converts parameterized relative datetime helpers', () => {
+  assert.equal(
+    translateSqliteSql("SELECT * FROM appointments WHERE scheduled_start BETWEEN datetime('now', '+' || ? || ' minutes') AND datetime('now', '+' || ? || ' minutes')"),
+    "SELECT * FROM appointments WHERE scheduled_start BETWEEN (CURRENT_TIMESTAMP + ($1::int * INTERVAL '1 minute')) AND (CURRENT_TIMESTAMP + ($2::int * INTERVAL '1 minute'))"
+  );
+  assert.equal(
+    translateSqliteSql("SELECT * FROM patients WHERE last_session_date < datetime('now', '-' || ? || ' days')"),
+    "SELECT * FROM patients WHERE last_session_date < (CURRENT_TIMESTAMP - ($1::int * INTERVAL '1 day'))"
+  );
+});
+
+test('translateSqliteSql converts concrete relative datetime helpers', () => {
+  assert.equal(
+    translateSqliteSql("INSERT INTO assessment_links (expires_at) VALUES (datetime('now', '+30 days'))"),
+    "INSERT INTO assessment_links (expires_at) VALUES ((CURRENT_TIMESTAMP + INTERVAL '30 days'))"
+  );
+  assert.equal(
+    translateSqliteSql("SELECT * FROM research_briefs WHERE created_at > datetime('now', '-24 hours')"),
+    "SELECT * FROM research_briefs WHERE created_at > (CURRENT_TIMESTAMP - INTERVAL '24 hours')"
+  );
+});
+
+test('translateSqliteSql converts datetime anchored to a bound timestamp', () => {
+  assert.equal(
+    translateSqliteSql("INSERT INTO checkin_links (created_at, expires_at) VALUES (?, datetime(?,'+7 days'))"),
+    "INSERT INTO checkin_links (created_at, expires_at) VALUES ($1, ($2::timestamp + INTERVAL '7 days'))"
+  );
+});
+
+test('translateSqliteSql converts julianday comparison helpers', () => {
+  assert.equal(
+    translateSqliteSql("SELECT ABS(JULIANDAY(a.administered_at) - JULIANDAY(COALESCE(s.session_date, s.created_at))) <= 3"),
+    "SELECT ABS((EXTRACT(EPOCH FROM a.administered_at::timestamp) / 86400) - (EXTRACT(EPOCH FROM COALESCE(s.session_date, s.created_at)::timestamp) / 86400)) <= 3"
+  );
+});
+
+test('translateSqliteSql converts SQLite empty double-string literal in COALESCE', () => {
+  assert.equal(
+    translateSqliteSql('SELECT lower(coalesce(t.full_name, "")) LIKE ?'),
+    "SELECT lower(COALESCE(t.full_name, '')) LIKE $1"
+  );
+});
+
 test('appendReturningId adds RETURNING id to inserts only once', () => {
   assert.equal(
     appendReturningId('INSERT INTO patients (client_id) VALUES (?)'),
