@@ -17,11 +17,11 @@
  *  - Groups turns by session_token so the full conversation arc is queryable
  */
 
-const { getDb } = require('../db');
+const { getAsyncDb } = require('../db/asyncDb');
 
-function isOptedOut(db, therapistId) {
+async function isOptedOut(db, therapistId) {
   try {
-    const row = db.get(
+    const row = await db.get(
       'SELECT training_data_opt_out FROM therapists WHERE id = ?',
       therapistId
     );
@@ -43,7 +43,7 @@ function isOptedOut(db, therapistId) {
  * @param {string} args.finalText — final assistant text shown to user
  * @param {boolean} args.completed — turn finished successfully
  */
-function logTrajectory({
+async function logTrajectory({
   therapistId,
   sessionToken,
   model = 'unknown',
@@ -56,8 +56,8 @@ function logTrajectory({
 }) {
   try {
     if (!therapistId) return;
-    const db = getDb();
-    if (isOptedOut(db, therapistId)) return;
+    const db = getAsyncDb();
+    if (await isOptedOut(db, therapistId)) return;
 
     const conversation = [];
 
@@ -107,7 +107,7 @@ function logTrajectory({
     const toolCallsCount = (responseContent || []).filter(b => b.type === 'tool_use').length
                          + (toolResults || []).length;
 
-    db.insert(
+    await db.insert(
       `INSERT INTO training_trajectories
          (therapist_id, session_token, model, conversation_json, tool_calls_count, turn_completed)
        VALUES (?, ?, ?, ?, ?, ?)`,
@@ -127,10 +127,10 @@ function logTrajectory({
 /**
  * Rate a trajectory (good/bad feedback from clinician — future UI feature).
  */
-function rateTrajectory(db, { id, therapistId, rating, note }) {
+async function rateTrajectory(db, { id, therapistId, rating, note }) {
   try {
     if (!['good', 'bad'].includes(rating)) return false;
-    db.run(
+    await db.run(
       `UPDATE training_trajectories SET rating = ?, rating_note = ?
          WHERE id = ? AND therapist_id = ?`,
       rating, note || null, id, therapistId

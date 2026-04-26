@@ -1,6 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { requireAdminAuth } = require('../middleware/auth');
 const { sendMail, hasHipaaCoveredProvider } = require('../services/mailer');
 
@@ -116,7 +116,7 @@ function buildReadinessChecks() {
   return checks;
 }
 
-router.get('/readiness', (req, res) => {
+router.get('/readiness', async (req, res) => {
   const checks = buildReadinessChecks();
   const summary = checks.reduce((acc, item) => {
     acc[item.status] = (acc[item.status] || 0) + 1;
@@ -195,7 +195,7 @@ router.post('/backup/run', async (req, res) => {
 
 // Status check — does the operator need to set BACKUP_PASSPHRASE? Where does
 // the email go? Cheap to call so the UI can reflect config state at a glance.
-router.get('/backup/status', (req, res) => {
+router.get('/backup/status', async (req, res) => {
   return res.json({
     enabled: !!process.env.BACKUP_PASSPHRASE,
     backup_to_email: process.env.BACKUP_TO_EMAIL || process.env.ADMIN_EMAIL || 'admin@miwa.care',
@@ -206,7 +206,7 @@ router.get('/backup/status', (req, res) => {
 
 // Direct download of the encrypted backup blob — for an immediate
 // off-platform copy without going through email.
-router.get('/backup/download', (req, res) => {
+router.get('/backup/download', async (req, res) => {
   try {
     const { buildEncryptedDbBackup } = require('../services/backup');
     const backup = buildEncryptedDbBackup();
@@ -261,9 +261,9 @@ router.post('/email-diag', async (req, res) => {
   }
 });
 
-function logEvent(db, { therapistId = null, eventType, status = null, message = null, meta = null }) {
+async function logEvent(db, { therapistId = null, eventType, status = null, message = null, meta = null }) {
   try {
-    db.insert(
+    await db.insert(
       'INSERT INTO event_logs (therapist_id, event_type, status, message, meta_json) VALUES (?, ?, ?, ?, ?)',
       therapistId,
       eventType,
@@ -304,8 +304,8 @@ function summarizeTherapist(row) {
   };
 }
 
-function fetchTherapists(db, whereSql = '', params = []) {
-  const rows = db.all(
+async function fetchTherapists(db, whereSql = '', params = []) {
+  const rows = await db.all(
     `SELECT t.*,
             (SELECT COUNT(*) FROM patients p WHERE p.therapist_id = t.id) AS patient_count,
             (SELECT COUNT(*) FROM sessions s WHERE s.therapist_id = t.id) AS session_count,
@@ -319,10 +319,10 @@ function fetchTherapists(db, whereSql = '', params = []) {
   return rows.map(summarizeTherapist)
 }
 
-router.get('/overview', (req, res) => {
+router.get('/overview', async (req, res) => {
   try {
-    const db = getDb();
-    const totals = db.get(`
+    const db = getAsyncDb();
+    const totals = await db.get(`
       SELECT
         (SELECT COUNT(*) FROM therapists) AS total_therapists,
         (SELECT COUNT(*) FROM therapists WHERE created_at >= datetime('now', '-7 days')) AS new_last_7_days,
@@ -338,8 +338,8 @@ router.get('/overview', (req, res) => {
         (SELECT COALESCE(SUM(workspace_uses), 0) FROM therapists) AS total_workspace_uses
     `);
 
-    const recentAccounts = fetchTherapists(db, 'WHERE 1=1').slice(0, 8);
-    const recentEvents = db.all(
+    const recentAccounts = (await fetchTherapists(db, 'WHERE 1=1')).slice(0, 8);
+    const recentEvents = await db.all(
       `SELECT e.*, t.email, t.full_name
        FROM event_logs e
        LEFT JOIN therapists t ON t.id = e.therapist_id
@@ -351,11 +351,11 @@ router.get('/overview', (req, res) => {
     }));
 
     const funnel = {
-      signed_up: db.get('SELECT COUNT(*) AS n FROM therapists').n,
-      active_last_30d: db.get("SELECT COUNT(*) AS n FROM therapists WHERE last_seen_at >= datetime('now', '-30 days')").n,
-      with_patients: db.get('SELECT COUNT(DISTINCT therapist_id) AS n FROM patients WHERE therapist_id IS NOT NULL').n,
-      with_sessions: db.get('SELECT COUNT(DISTINCT therapist_id) AS n FROM sessions WHERE therapist_id IS NOT NULL').n,
-      with_intake_uploads: db.get("SELECT COUNT(DISTINCT therapist_id) AS n FROM documents WHERE therapist_id IS NOT NULL AND document_kind = 'intake_source'").n,
+      signed_up: (await db.get('SELECT COUNT(*) AS n FROM therapists')).n,
+      active_last_30d: (await db.get("SELECT COUNT(*) AS n FROM therapists WHERE last_seen_at >= datetime('now', '-30 days')")).n,
+      with_patients: (await db.get('SELECT COUNT(DISTINCT therapist_id) AS n FROM patients WHERE therapist_id IS NOT NULL')).n,
+      with_sessions: (await db.get('SELECT COUNT(DISTINCT therapist_id) AS n FROM sessions WHERE therapist_id IS NOT NULL')).n,
+      with_intake_uploads: (await db.get("SELECT COUNT(DISTINCT therapist_id) AS n FROM documents WHERE therapist_id IS NOT NULL AND document_kind = 'intake_source'")).n,
     };
 
     res.json({ totals, funnel, recent_accounts: recentAccounts, recent_events: recentEvents });
@@ -364,9 +364,9 @@ router.get('/overview', (req, res) => {
   }
 });
 
-router.get('/therapists', (req, res) => {
+router.get('/therapists', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { q = '', status = '', subscription = '' } = req.query;
     const filters = [];
     const params = [];
@@ -386,16 +386,16 @@ router.get('/therapists', (req, res) => {
     }
 
     const whereSql = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
-    res.json(fetchTherapists(db, whereSql, params));
+    res.json(await fetchTherapists(db, whereSql, params));
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.patch('/therapists/:id', (req, res) => {
+router.patch('/therapists/:id', async (req, res) => {
   try {
-    const db = getDb();
-    const therapist = db.get('SELECT * FROM therapists WHERE id = ?', req.params.id);
+    const db = getAsyncDb();
+    const therapist = await db.get('SELECT * FROM therapists WHERE id = ?', req.params.id);
     if (!therapist) return res.status(404).json({ error: 'Therapist not found.' });
 
     const {
@@ -406,7 +406,7 @@ router.patch('/therapists/:id', (req, res) => {
       is_admin,
     } = req.body;
 
-    db.run(
+    await db.run(
       `UPDATE therapists
        SET account_status = ?, subscription_status = ?, subscription_tier = ?, trial_limit = ?, is_admin = ?
        WHERE id = ?`,
@@ -417,8 +417,8 @@ router.patch('/therapists/:id', (req, res) => {
       is_admin !== undefined ? (is_admin ? 1 : 0) : (therapist.is_admin || 0),
       req.params.id,
     );
-    persist();
-    logEvent(db, {
+    await persistIfNeeded();
+    await logEvent(db, {
       therapistId: Number(req.params.id),
       eventType: 'admin.account_update',
       status: 'success',
@@ -426,7 +426,7 @@ router.patch('/therapists/:id', (req, res) => {
       meta: { actorId: req.therapist.id, account_status, subscription_status, subscription_tier, trial_limit, is_admin },
     });
 
-    const updated = fetchTherapists(db, 'WHERE t.id = ?', [req.params.id])[0];
+    const updated = (await fetchTherapists(db, 'WHERE t.id = ?', [req.params.id]))[0];
     return res.json(updated);
   } catch (err) {
     return res.status(500).json({ error: 'Internal server error' });
@@ -435,15 +435,15 @@ router.patch('/therapists/:id', (req, res) => {
 
 router.post('/therapists/:id/reset-password', async (req, res) => {
   try {
-    const db = getDb();
-    const therapist = db.get('SELECT * FROM therapists WHERE id = ?', req.params.id);
+    const db = getAsyncDb();
+    const therapist = await db.get('SELECT * FROM therapists WHERE id = ?', req.params.id);
     if (!therapist) return res.status(404).json({ error: 'Therapist not found.' });
 
     const temporaryPassword = `${Math.random().toString(36).slice(-8)}A!9`;
     const passwordHash = await bcrypt.hash(temporaryPassword, 12);
-    db.run('UPDATE therapists SET password_hash = ? WHERE id = ?', passwordHash, req.params.id);
-    persist();
-    logEvent(db, {
+    await db.run('UPDATE therapists SET password_hash = ? WHERE id = ?', passwordHash, req.params.id);
+    await persistIfNeeded();
+    await logEvent(db, {
       therapistId: Number(req.params.id),
       eventType: 'admin.password_reset',
       status: 'success',
@@ -461,10 +461,10 @@ router.post('/therapists/:id/reset-password', async (req, res) => {
   }
 });
 
-router.get('/usage', (req, res) => {
+router.get('/usage', async (req, res) => {
   try {
-    const db = getDb();
-    const summary = db.get(`
+    const db = getAsyncDb();
+    const summary = await db.get(`
       SELECT
         (SELECT COUNT(*) FROM sessions WHERE created_at >= datetime('now', '-7 days')) AS sessions_last_7d,
         (SELECT COUNT(*) FROM sessions WHERE created_at >= datetime('now', '-30 days')) AS sessions_last_30d,
@@ -474,12 +474,12 @@ router.get('/usage', (req, res) => {
         (SELECT COALESCE(SUM(workspace_uses), 0) FROM therapists) AS total_workspace_uses
     `);
 
-    const topUsers = fetchTherapists(db, 'WHERE 1=1').sort((a, b) => (b.workspace_uses || 0) - (a.workspace_uses || 0)).slice(0, 10);
+    const topUsers = (await fetchTherapists(db, 'WHERE 1=1')).sort((a, b) => (b.workspace_uses || 0) - (a.workspace_uses || 0)).slice(0, 10);
     const featureAdoption = {
-      therapists_with_patients: db.get('SELECT COUNT(DISTINCT therapist_id) AS n FROM patients WHERE therapist_id IS NOT NULL').n,
-      therapists_with_sessions: db.get('SELECT COUNT(DISTINCT therapist_id) AS n FROM sessions WHERE therapist_id IS NOT NULL').n,
-      therapists_with_intake_uploads: db.get("SELECT COUNT(DISTINCT therapist_id) AS n FROM documents WHERE therapist_id IS NOT NULL AND document_kind = 'intake_source'").n,
-      therapists_with_record_files: db.get("SELECT COUNT(DISTINCT therapist_id) AS n FROM documents WHERE therapist_id IS NOT NULL AND document_kind = 'record'").n,
+      therapists_with_patients: (await db.get('SELECT COUNT(DISTINCT therapist_id) AS n FROM patients WHERE therapist_id IS NOT NULL')).n,
+      therapists_with_sessions: (await db.get('SELECT COUNT(DISTINCT therapist_id) AS n FROM sessions WHERE therapist_id IS NOT NULL')).n,
+      therapists_with_intake_uploads: (await db.get("SELECT COUNT(DISTINCT therapist_id) AS n FROM documents WHERE therapist_id IS NOT NULL AND document_kind = 'intake_source'")).n,
+      therapists_with_record_files: (await db.get("SELECT COUNT(DISTINCT therapist_id) AS n FROM documents WHERE therapist_id IS NOT NULL AND document_kind = 'record'")).n,
     };
 
     res.json({ summary, top_users: topUsers, feature_adoption: featureAdoption });
@@ -488,10 +488,10 @@ router.get('/usage', (req, res) => {
   }
 });
 
-router.get('/support', (req, res) => {
+router.get('/support', async (req, res) => {
   try {
-    const db = getDb();
-    const notes = db.all(
+    const db = getAsyncDb();
+    const notes = await db.all(
       `SELECT n.*, t.email AS therapist_email, t.full_name AS therapist_name, a.email AS author_email
        FROM admin_notes n
        LEFT JOIN therapists t ON t.id = n.therapist_id
@@ -499,7 +499,7 @@ router.get('/support', (req, res) => {
        ORDER BY n.created_at DESC
        LIMIT 50`
     );
-    const events = db.all(
+    const events = await db.all(
       `SELECT e.*, t.email, t.full_name
        FROM event_logs e
        LEFT JOIN therapists t ON t.id = e.therapist_id
@@ -507,11 +507,11 @@ router.get('/support', (req, res) => {
        LIMIT 50`
     ).map(row => ({ ...row, meta: row.meta_json ? JSON.parse(row.meta_json) : null }));
 
-    const flagged = fetchTherapists(db, 'WHERE t.account_status = ? OR t.subscription_status IN (?, ?)', ['suspended', 'past_due', 'expired']);
+    const flagged = await fetchTherapists(db, 'WHERE t.account_status = ? OR t.subscription_status IN (?, ?)', ['suspended', 'past_due', 'expired']);
 
     let feedback = [];
     try {
-      feedback = db.all(
+      feedback = await db.all(
         `SELECT f.*, t.email AS therapist_email, t.full_name AS therapist_name
          FROM user_feedback f
          LEFT JOIN therapists t ON t.id = f.therapist_id
@@ -532,14 +532,14 @@ router.get('/support', (req, res) => {
 // message + the admin response so they know it was reviewed.
 router.patch('/feedback/:id', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { status, admin_response } = req.body || {};
     const validStatuses = ['new', 'read', 'resolved'];
     const updates = [];
     const params = [];
 
     // Snapshot the row BEFORE update so we can detect a status transition.
-    const before = db.get('SELECT * FROM user_feedback WHERE id = ?', req.params.id);
+    const before = await db.get('SELECT * FROM user_feedback WHERE id = ?', req.params.id);
     if (!before) return res.status(404).json({ error: 'Feedback not found.' });
 
     if (status && validStatuses.includes(status)) {
@@ -556,8 +556,8 @@ router.patch('/feedback/:id', async (req, res) => {
     if (!updates.length) return res.status(400).json({ error: 'Nothing to update.' });
 
     params.push(req.params.id);
-    db.run(`UPDATE user_feedback SET ${updates.join(', ')} WHERE id = ?`, ...params);
-    persist();
+    await db.run(`UPDATE user_feedback SET ${updates.join(', ')} WHERE id = ?`, ...params);
+    await persistIfNeeded();
 
     // Notify the submitter when this PATCH transitions the row to 'resolved'.
     // Two channels — email (durable, works offline) AND in-app via Miwa chat
@@ -575,7 +575,7 @@ router.patch('/feedback/:id', async (req, res) => {
 
       // ── Email delivery ──────────────────────────────────────────────────
       try {
-        const therapist = db.get('SELECT email, first_name, full_name FROM therapists WHERE id = ?', before.therapist_id);
+        const therapist = await db.get('SELECT email, first_name, full_name FROM therapists WHERE id = ?', before.therapist_id);
         if (therapist?.email) {
           const { sendFeedbackResolutionEmail } = require('../services/mailer');
           await sendFeedbackResolutionEmail({
@@ -604,7 +604,7 @@ router.patch('/feedback/:id', async (req, res) => {
           ? `\n\nReply from the team:\n\n${replyText}`
           : `\n\nIt's been reviewed and marked resolved. Thanks for the feedback!`;
         const closer = `\n\nIf you want to follow up, just send another note here.`;
-        db.insert(
+        await db.insert(
           'INSERT INTO chat_messages (therapist_id, role, content, context_type, context_id) VALUES (?, ?, ?, ?, ?)',
           before.therapist_id,
           'assistant',
@@ -612,7 +612,7 @@ router.patch('/feedback/:id', async (req, res) => {
           'feedback_resolved',
           before.id,
         );
-        persist();
+        await persistIfNeeded();
         chatNotified = true;
       } catch (chatErr) {
         console.error('[admin/feedback] in-app notification failed:', chatErr.message);
@@ -625,22 +625,22 @@ router.patch('/feedback/:id', async (req, res) => {
   }
 });
 
-router.post('/therapists/:id/notes', (req, res) => {
+router.post('/therapists/:id/notes', async (req, res) => {
   try {
-    const db = getDb();
-    const therapist = db.get('SELECT * FROM therapists WHERE id = ?', req.params.id);
+    const db = getAsyncDb();
+    const therapist = await db.get('SELECT * FROM therapists WHERE id = ?', req.params.id);
     if (!therapist) return res.status(404).json({ error: 'Therapist not found.' });
     const note = String(req.body?.note || '').trim();
     if (!note) return res.status(400).json({ error: 'Note is required.' });
 
-    db.insert(
+    await db.insert(
       'INSERT INTO admin_notes (therapist_id, author_therapist_id, note) VALUES (?, ?, ?)',
       req.params.id,
       req.therapist.id,
       note,
     );
-    persist();
-    logEvent(db, {
+    await persistIfNeeded();
+    await logEvent(db, {
       therapistId: Number(req.params.id),
       eventType: 'admin.note_added',
       status: 'success',
@@ -653,61 +653,61 @@ router.post('/therapists/:id/notes', (req, res) => {
   }
 });
 
-router.delete('/therapists/:id', (req, res) => {
+router.delete('/therapists/:id', async (req, res) => {
   try {
-    const db = getDb();
-    const therapist = db.get('SELECT * FROM therapists WHERE id = ?', req.params.id);
+    const db = getAsyncDb();
+    const therapist = await db.get('SELECT * FROM therapists WHERE id = ?', req.params.id);
     if (!therapist) return res.status(404).json({ error: 'Therapist not found.' });
 
     const therapistId = Number(req.params.id);
 
     // Full cascade delete — remove ALL associated data
     // Get all patient IDs for this therapist first
-    const patientIds = db.all('SELECT id FROM patients WHERE therapist_id = ?', therapistId).map(p => p.id);
+    const patientIds = await db.all('SELECT id FROM patients WHERE therapist_id = ?', therapistId).map(p => p.id);
 
     // Delete patient-level data for each patient
     for (const pid of patientIds) {
-      db.run('DELETE FROM outcome_supervision_notes WHERE patient_id = ?', pid);
-      db.run('DELETE FROM progress_alerts WHERE patient_id = ?', pid);
-      db.run('DELETE FROM proactive_alerts WHERE patient_id = ?', pid);
-      db.run('DELETE FROM assessments WHERE patient_id = ?', pid);
-      db.run('DELETE FROM assessment_links WHERE patient_id = ?', pid);
-      db.run('DELETE FROM sessions WHERE patient_id = ?', pid);
-      db.run('DELETE FROM documents WHERE patient_id = ?', pid);
-      db.run('DELETE FROM appointments WHERE patient_id = ?', pid);
-      db.run('DELETE FROM checkin_links WHERE patient_id = ?', pid);
-      db.run('DELETE FROM shared_patients WHERE patient_id = ?', pid);
-      db.run('DELETE FROM session_briefs WHERE patient_id = ?', pid);
-      db.run('DELETE FROM outreach_log WHERE patient_id = ?', pid);
-      try { db.run('DELETE FROM treatment_goals WHERE plan_id IN (SELECT id FROM treatment_plans WHERE patient_id = ?)', pid); } catch {}
-      try { db.run('DELETE FROM treatment_plans WHERE patient_id = ?', pid); } catch {}
+      await db.run('DELETE FROM outcome_supervision_notes WHERE patient_id = ?', pid);
+      await db.run('DELETE FROM progress_alerts WHERE patient_id = ?', pid);
+      await db.run('DELETE FROM proactive_alerts WHERE patient_id = ?', pid);
+      await db.run('DELETE FROM assessments WHERE patient_id = ?', pid);
+      await db.run('DELETE FROM assessment_links WHERE patient_id = ?', pid);
+      await db.run('DELETE FROM sessions WHERE patient_id = ?', pid);
+      await db.run('DELETE FROM documents WHERE patient_id = ?', pid);
+      await db.run('DELETE FROM appointments WHERE patient_id = ?', pid);
+      await db.run('DELETE FROM checkin_links WHERE patient_id = ?', pid);
+      await db.run('DELETE FROM shared_patients WHERE patient_id = ?', pid);
+      await db.run('DELETE FROM session_briefs WHERE patient_id = ?', pid);
+      await db.run('DELETE FROM outreach_log WHERE patient_id = ?', pid);
+      try { await db.run('DELETE FROM treatment_goals WHERE plan_id IN (SELECT id FROM treatment_plans WHERE patient_id = ?)', pid); } catch {}
+      try { await db.run('DELETE FROM treatment_plans WHERE patient_id = ?', pid); } catch {}
     }
 
     // Delete therapist-level data
-    db.run('DELETE FROM patients WHERE therapist_id = ?', therapistId);
-    db.run('DELETE FROM chat_messages WHERE therapist_id = ?', therapistId);
-    db.run('DELETE FROM admin_notes WHERE therapist_id = ?', therapistId);
-    db.run('DELETE FROM credential_verifications WHERE therapist_id = ?', therapistId);
-    db.run('DELETE FROM therapist_preferences WHERE therapist_id = ?', therapistId);
-    db.run('DELETE FROM research_briefs WHERE therapist_id = ?', therapistId);
-    db.run('DELETE FROM automation_rules WHERE therapist_id = ?', therapistId);
-    db.run('DELETE FROM scheduled_sends WHERE therapist_id = ?', therapistId);
-    db.run('DELETE FROM agent_actions WHERE therapist_id = ?', therapistId);
-    db.run('DELETE FROM agent_reports WHERE therapist_id = ?', therapistId);
-    try { db.run('DELETE FROM conversation_summaries WHERE therapist_id = ?', therapistId); } catch {}
-    try { db.run('DELETE FROM agent_scheduled_tasks WHERE therapist_id = ?', therapistId); } catch {}
-    try { db.run('DELETE FROM background_tasks WHERE therapist_id = ?', therapistId); } catch {}
-    try { db.run('DELETE FROM delegated_tasks WHERE therapist_id = ?', therapistId); } catch {}
-    try { db.run('DELETE FROM practice_insights WHERE therapist_id = ?', therapistId); } catch {}
-    try { db.run('DELETE FROM outreach_rules WHERE therapist_id = ?', therapistId); } catch {}
-    try { db.run('DELETE FROM event_triggers WHERE therapist_id = ?', therapistId); } catch {}
-    try { db.run('DELETE FROM password_reset_tokens WHERE therapist_id = ?', therapistId); } catch {}
+    await db.run('DELETE FROM patients WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM chat_messages WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM admin_notes WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM credential_verifications WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM therapist_preferences WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM research_briefs WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM automation_rules WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM scheduled_sends WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM agent_actions WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM agent_reports WHERE therapist_id = ?', therapistId);
+    try { await db.run('DELETE FROM conversation_summaries WHERE therapist_id = ?', therapistId); } catch {}
+    try { await db.run('DELETE FROM agent_scheduled_tasks WHERE therapist_id = ?', therapistId); } catch {}
+    try { await db.run('DELETE FROM background_tasks WHERE therapist_id = ?', therapistId); } catch {}
+    try { await db.run('DELETE FROM delegated_tasks WHERE therapist_id = ?', therapistId); } catch {}
+    try { await db.run('DELETE FROM practice_insights WHERE therapist_id = ?', therapistId); } catch {}
+    try { await db.run('DELETE FROM outreach_rules WHERE therapist_id = ?', therapistId); } catch {}
+    try { await db.run('DELETE FROM event_triggers WHERE therapist_id = ?', therapistId); } catch {}
+    try { await db.run('DELETE FROM password_reset_tokens WHERE therapist_id = ?', therapistId); } catch {}
 
     // Finally delete the therapist account
-    db.run('DELETE FROM therapists WHERE id = ?', therapistId);
-    persist();
+    await db.run('DELETE FROM therapists WHERE id = ?', therapistId);
+    await persistIfNeeded();
 
-    logEvent(db, {
+    await logEvent(db, {
       therapistId: null,
       eventType: 'admin.account_deleted',
       status: 'success',
@@ -722,32 +722,32 @@ router.delete('/therapists/:id', (req, res) => {
 });
 
 // POST /api/admin/backfill-names — give real names to clients that only have codes
-router.post('/backfill-names', (req, res) => {
+router.post('/backfill-names', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const FIRST = ['Sarah','Michael','Alex','Jordan','Taylor','Chris','Maria','Marcus','Jessica','David','Emily','James','Olivia','Daniel','Ashley','Ryan','Priya','Sofia','Ethan','Liam'];
     const LAST = ['Martinez','Chen','Thompson','Nguyen','Patel','Williams','Garcia','Johnson','Brown','Davis','Kim','Wilson','Anderson','Thomas','Jackson','Robinson','Lee','Clark','Hall','Ramirez'];
     const pick = arr => arr[Math.floor(Math.random() * arr.length)];
 
-    const patients = db.all("SELECT id, client_id, display_name FROM patients WHERE display_name IS NULL OR display_name = '' OR display_name = client_id");
+    const patients = await db.all("SELECT id, client_id, display_name FROM patients WHERE display_name IS NULL OR display_name = '' OR display_name = client_id");
     let updated = 0;
     for (const p of patients) {
       const name = `${pick(FIRST)} ${pick(LAST)}`;
       const email = `${name.toLowerCase().replace(/\s+/g, '.')}+demo@example.com`;
-      db.run('UPDATE patients SET display_name = ?, email = COALESCE(NULLIF(email, \'\'), ?) WHERE id = ?', name, email, p.id);
+      await db.run('UPDATE patients SET display_name = ?, email = COALESCE(NULLIF(email, \'\'), ?) WHERE id = ?', name, email, p.id);
       updated++;
     }
-    persist();
+    await persistIfNeeded();
     res.json({ ok: true, updated, message: `Gave real names to ${updated} client(s)` });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.get('/billing', (req, res) => {
+router.get('/billing', async (req, res) => {
   try {
-    const db = getDb();
-    const summary = db.get(`
+    const db = getAsyncDb();
+    const summary = await db.get(`
       SELECT
         (SELECT COUNT(*) FROM therapists WHERE subscription_status = 'trial') AS trial_accounts,
         (SELECT COUNT(*) FROM therapists WHERE subscription_status = 'active') AS active_paid_accounts,
@@ -756,7 +756,7 @@ router.get('/billing', (req, res) => {
         (SELECT COUNT(*) FROM therapists WHERE stripe_customer_id IS NOT NULL) AS stripe_connected_accounts
     `);
 
-    const accounts = fetchTherapists(db, 'WHERE 1=1').filter(item =>
+    const accounts = (await fetchTherapists(db, 'WHERE 1=1')).filter(item =>
       item.subscription_status || item.subscription_tier || item.stripe_customer_id
     );
 
@@ -771,11 +771,11 @@ router.get('/billing', (req, res) => {
 });
 
 // GET /api/admin/ai-costs — month-to-date AI spend across the whole platform
-router.get('/ai-costs', (req, res) => {
+router.get('/ai-costs', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
 
-    const totals = db.get(`
+    const totals = await db.get(`
       SELECT COALESCE(SUM(cost_cents), 0)    AS total_cents,
              COALESCE(SUM(input_tokens), 0)  AS input_tokens,
              COALESCE(SUM(output_tokens), 0) AS output_tokens,
@@ -784,7 +784,7 @@ router.get('/ai-costs', (req, res) => {
        WHERE created_at >= date('now', 'start of month')
     `);
 
-    const byProvider = db.all(`
+    const byProvider = await db.all(`
       SELECT provider,
              COALESCE(SUM(cost_cents), 0) AS cost_cents,
              COALESCE(SUM(input_tokens + output_tokens), 0) AS tokens,
@@ -795,7 +795,7 @@ router.get('/ai-costs', (req, res) => {
        ORDER BY cost_cents DESC
     `);
 
-    const byKind = db.all(`
+    const byKind = await db.all(`
       SELECT kind,
              COALESCE(SUM(cost_cents), 0) AS cost_cents,
              COUNT(*)                     AS calls
@@ -806,7 +806,7 @@ router.get('/ai-costs', (req, res) => {
        LIMIT 15
     `);
 
-    const topSpenders = db.all(`
+    const topSpenders = await db.all(`
       SELECT c.therapist_id,
              t.email,
              t.full_name,
@@ -825,7 +825,7 @@ router.get('/ai-costs', (req, res) => {
        LIMIT 25
     `);
 
-    const pausedAccounts = db.all(`
+    const pausedAccounts = await db.all(`
       SELECT id, email, full_name, subscription_tier, subscription_status,
              ai_budget_monthly_cents, ai_budget_paused
         FROM therapists
@@ -845,13 +845,13 @@ router.get('/ai-costs', (req, res) => {
 });
 
 // POST /api/admin/ai-costs/:therapistId/unpause — clear the over-budget flag
-router.post('/ai-costs/:therapistId/unpause', (req, res) => {
+router.post('/ai-costs/:therapistId/unpause', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const tid = parseInt(req.params.therapistId, 10);
     if (!tid) return res.status(400).json({ error: 'Invalid therapist id' });
-    db.run('UPDATE therapists SET ai_budget_paused = 0 WHERE id = ?', tid);
-    persist();
+    await db.run('UPDATE therapists SET ai_budget_paused = 0 WHERE id = ?', tid);
+    await persistIfNeeded();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -861,55 +861,55 @@ router.post('/ai-costs/:therapistId/unpause', (req, res) => {
 // Wipe all PHI-adjacent data for a single therapist while keeping their
 // account row + auth credentials intact. Used by both the per-therapist
 // reset endpoint and the global reset-database flow.
-function wipeTherapistData(db, therapistId) {
-  const patients = db.all('SELECT id FROM patients WHERE therapist_id = ?', therapistId);
+async function wipeTherapistData(db, therapistId) {
+  const patients = await db.all('SELECT id FROM patients WHERE therapist_id = ?', therapistId);
   for (const p of patients) {
-    db.run('DELETE FROM outcome_supervision_notes WHERE patient_id = ?', p.id);
-    db.run('DELETE FROM progress_alerts WHERE patient_id = ?', p.id);
-    db.run('DELETE FROM proactive_alerts WHERE patient_id = ?', p.id);
-    db.run('DELETE FROM assessments WHERE patient_id = ?', p.id);
-    db.run('DELETE FROM assessment_links WHERE patient_id = ?', p.id);
-    db.run('DELETE FROM sessions WHERE patient_id = ?', p.id);
-    db.run('DELETE FROM documents WHERE patient_id = ?', p.id);
-    db.run('DELETE FROM appointments WHERE patient_id = ?', p.id);
-    db.run('DELETE FROM checkin_links WHERE patient_id = ?', p.id);
-    try { db.run('DELETE FROM session_briefs WHERE patient_id = ?', p.id); } catch {}
-    try { db.run('DELETE FROM outreach_log WHERE patient_id = ?', p.id); } catch {}
-    try { db.run('DELETE FROM treatment_goals WHERE plan_id IN (SELECT id FROM treatment_plans WHERE patient_id = ?)', p.id); } catch {}
-    try { db.run('DELETE FROM treatment_plans WHERE patient_id = ?', p.id); } catch {}
+    await db.run('DELETE FROM outcome_supervision_notes WHERE patient_id = ?', p.id);
+    await db.run('DELETE FROM progress_alerts WHERE patient_id = ?', p.id);
+    await db.run('DELETE FROM proactive_alerts WHERE patient_id = ?', p.id);
+    await db.run('DELETE FROM assessments WHERE patient_id = ?', p.id);
+    await db.run('DELETE FROM assessment_links WHERE patient_id = ?', p.id);
+    await db.run('DELETE FROM sessions WHERE patient_id = ?', p.id);
+    await db.run('DELETE FROM documents WHERE patient_id = ?', p.id);
+    await db.run('DELETE FROM appointments WHERE patient_id = ?', p.id);
+    await db.run('DELETE FROM checkin_links WHERE patient_id = ?', p.id);
+    try { await db.run('DELETE FROM session_briefs WHERE patient_id = ?', p.id); } catch {}
+    try { await db.run('DELETE FROM outreach_log WHERE patient_id = ?', p.id); } catch {}
+    try { await db.run('DELETE FROM treatment_goals WHERE plan_id IN (SELECT id FROM treatment_plans WHERE patient_id = ?)', p.id); } catch {}
+    try { await db.run('DELETE FROM treatment_plans WHERE patient_id = ?', p.id); } catch {}
   }
-  db.run('DELETE FROM patients WHERE therapist_id = ?', therapistId);
-  db.run('DELETE FROM chat_messages WHERE therapist_id = ?', therapistId);
-  db.run('DELETE FROM proactive_alerts WHERE therapist_id = ?', therapistId);
-  db.run('DELETE FROM scheduled_sends WHERE therapist_id = ?', therapistId);
-  db.run('DELETE FROM agent_actions WHERE therapist_id = ?', therapistId);
-  try { db.run('DELETE FROM agent_reports WHERE therapist_id = ?', therapistId); } catch {}
-  try { db.run('DELETE FROM conversation_summaries WHERE therapist_id = ?', therapistId); } catch {}
-  try { db.run('DELETE FROM agent_scheduled_tasks WHERE therapist_id = ?', therapistId); } catch {}
-  try { db.run('DELETE FROM background_tasks WHERE therapist_id = ?', therapistId); } catch {}
-  try { db.run('DELETE FROM agent_tasks WHERE therapist_id = ?', therapistId); } catch {}
-  try { db.run('DELETE FROM delegated_tasks WHERE therapist_id = ?', therapistId); } catch {}
-  try { db.run('DELETE FROM practice_insights WHERE therapist_id = ?', therapistId); } catch {}
-  try { db.run('DELETE FROM outreach_rules WHERE therapist_id = ?', therapistId); } catch {}
-  try { db.run('DELETE FROM event_triggers WHERE therapist_id = ?', therapistId); } catch {}
-  try { db.run('DELETE FROM therapist_preferences WHERE therapist_id = ?', therapistId); } catch {}
-  try { db.run('DELETE FROM daily_briefings WHERE therapist_id = ?', therapistId); } catch {}
+  await db.run('DELETE FROM patients WHERE therapist_id = ?', therapistId);
+  await db.run('DELETE FROM chat_messages WHERE therapist_id = ?', therapistId);
+  await db.run('DELETE FROM proactive_alerts WHERE therapist_id = ?', therapistId);
+  await db.run('DELETE FROM scheduled_sends WHERE therapist_id = ?', therapistId);
+  await db.run('DELETE FROM agent_actions WHERE therapist_id = ?', therapistId);
+  try { await db.run('DELETE FROM agent_reports WHERE therapist_id = ?', therapistId); } catch {}
+  try { await db.run('DELETE FROM conversation_summaries WHERE therapist_id = ?', therapistId); } catch {}
+  try { await db.run('DELETE FROM agent_scheduled_tasks WHERE therapist_id = ?', therapistId); } catch {}
+  try { await db.run('DELETE FROM background_tasks WHERE therapist_id = ?', therapistId); } catch {}
+  try { await db.run('DELETE FROM agent_tasks WHERE therapist_id = ?', therapistId); } catch {}
+  try { await db.run('DELETE FROM delegated_tasks WHERE therapist_id = ?', therapistId); } catch {}
+  try { await db.run('DELETE FROM practice_insights WHERE therapist_id = ?', therapistId); } catch {}
+  try { await db.run('DELETE FROM outreach_rules WHERE therapist_id = ?', therapistId); } catch {}
+  try { await db.run('DELETE FROM event_triggers WHERE therapist_id = ?', therapistId); } catch {}
+  try { await db.run('DELETE FROM therapist_preferences WHERE therapist_id = ?', therapistId); } catch {}
+  try { await db.run('DELETE FROM daily_briefings WHERE therapist_id = ?', therapistId); } catch {}
   return patients.length;
 }
 
 // POST /api/admin/therapists/:id/reset-data — wipes a single therapist's
 // patients/sessions/etc. without touching their account row. Use to clean
 // just one clinician's test data when you don't want a full reset.
-router.post('/therapists/:id/reset-data', (req, res) => {
+router.post('/therapists/:id/reset-data', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const tid = parseInt(req.params.id, 10);
     if (!tid) return res.status(400).json({ error: 'Invalid therapist id' });
-    const therapist = db.get('SELECT id, email, full_name FROM therapists WHERE id = ?', tid);
+    const therapist = await db.get('SELECT id, email, full_name FROM therapists WHERE id = ?', tid);
     if (!therapist) return res.status(404).json({ error: 'Therapist not found' });
 
-    const patientCount = wipeTherapistData(db, tid);
-    persist({ allowShrink: true });
+    const patientCount = await wipeTherapistData(db, tid);
+    await persistIfNeeded({ allowShrink: true });
 
     res.json({
       ok: true,
@@ -924,34 +924,34 @@ router.post('/therapists/:id/reset-data', (req, res) => {
 
 // POST /api/admin/reset-database — nuclear cleanup for demo prep
 // Keeps your admin account, wipes everything else
-router.post('/reset-database', (req, res) => {
+router.post('/reset-database', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const adminId = req.therapist.id;
 
     // Delete ALL non-admin therapist accounts and their data
-    const otherTherapists = db.all('SELECT id FROM therapists WHERE id != ?', adminId);
+    const otherTherapists = await db.all('SELECT id FROM therapists WHERE id != ?', adminId);
     for (const t of otherTherapists) {
-      wipeTherapistData(db, t.id);
-      db.run('DELETE FROM therapists WHERE id = ?', t.id);
+      await wipeTherapistData(db, t.id);
+      await db.run('DELETE FROM therapists WHERE id = ?', t.id);
     }
 
     // Wipe YOUR account's test data too (keeps your account row)
-    wipeTherapistData(db, adminId);
+    await wipeTherapistData(db, adminId);
 
     // Reset your Stripe customer ID (fixes test/live mismatch)
-    db.run('UPDATE therapists SET stripe_customer_id = NULL, stripe_subscription_id = NULL, workspace_uses = 0 WHERE id = ?', adminId);
+    await db.run('UPDATE therapists SET stripe_customer_id = NULL, stripe_subscription_id = NULL, workspace_uses = 0 WHERE id = ?', adminId);
 
     // Clean global tables
-    db.run('DELETE FROM mental_health_news');
-    db.run('DELETE FROM research_briefs');
-    db.run('DELETE FROM admin_notes');
-    db.run('DELETE FROM event_logs');
-    try { db.run('DELETE FROM client_portal_tokens'); } catch {}
-    try { db.run('DELETE FROM client_messages'); } catch {}
-    try { db.run('DELETE FROM note_enrichments'); } catch {}
+    await db.run('DELETE FROM mental_health_news');
+    await db.run('DELETE FROM research_briefs');
+    await db.run('DELETE FROM admin_notes');
+    await db.run('DELETE FROM event_logs');
+    try { await db.run('DELETE FROM client_portal_tokens'); } catch {}
+    try { await db.run('DELETE FROM client_messages'); } catch {}
+    try { await db.run('DELETE FROM note_enrichments'); } catch {}
 
-    persist({ allowShrink: true });
+    await persistIfNeeded({ allowShrink: true });
 
     res.json({
       ok: true,
@@ -964,15 +964,15 @@ router.post('/reset-database', (req, res) => {
 });
 
 // POST /api/admin/reset-stripe/:therapistId — clear stale Stripe customer ID
-router.post('/reset-stripe/:therapistId', (req, res) => {
+router.post('/reset-stripe/:therapistId', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const tid = parseInt(req.params.therapistId);
-    db.run(
+    await db.run(
       'UPDATE therapists SET stripe_customer_id = NULL, stripe_subscription_id = NULL WHERE id = ?',
       tid
     );
-    persist();
+    await persistIfNeeded();
     res.json({ ok: true, message: `Cleared Stripe data for therapist ${tid}. Next checkout will create a fresh customer.` });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -983,17 +983,17 @@ router.post('/reset-stripe/:therapistId', (req, res) => {
 // Use this ONCE when migrating from Stripe test mode to live mode.
 // Resets: stripe_customer_id, stripe_subscription_id, and any 'active' subscriptions back to 'trial'
 // (since test-mode subscriptions don't exist in the live account).
-router.post('/reset-stripe-all', (req, res) => {
+router.post('/reset-stripe-all', async (req, res) => {
   try {
-    const db = getDb();
-    const before = db.get(
+    const db = getAsyncDb();
+    const before = await db.get(
       `SELECT
          COUNT(CASE WHEN stripe_customer_id IS NOT NULL THEN 1 END) AS customers,
          COUNT(CASE WHEN subscription_status = 'active' THEN 1 END) AS active_subs
        FROM therapists`
     );
 
-    db.run(
+    await db.run(
       `UPDATE therapists
        SET stripe_customer_id = NULL,
            stripe_subscription_id = NULL,
@@ -1006,9 +1006,9 @@ router.post('/reset-stripe-all', (req, res) => {
              ELSE subscription_tier
            END`
     );
-    persist();
+    await persistIfNeeded();
 
-    logEvent(db, {
+    await logEvent(db, {
       therapistId: req.therapist.id,
       eventType: 'stripe_migration',
       status: 'test_to_live',
@@ -1027,16 +1027,16 @@ router.post('/reset-stripe-all', (req, res) => {
 });
 
 // POST /api/admin/fix-subscription/:therapistId — manually set subscription status
-router.post('/fix-subscription/:therapistId', (req, res) => {
+router.post('/fix-subscription/:therapistId', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const tid = parseInt(req.params.therapistId);
     const { status, tier } = req.body;
-    db.run(
+    await db.run(
       'UPDATE therapists SET subscription_status = ?, subscription_tier = ? WHERE id = ?',
       status || 'active', tier || 'solo', tid
     );
-    persist();
+    await persistIfNeeded();
     res.json({ ok: true, message: `Set subscription to ${status || 'active'} (${tier || 'solo'}) for therapist ${tid}` });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });

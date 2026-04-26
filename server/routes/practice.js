@@ -13,7 +13,7 @@ const router = express.Router();
 const crypto = require('crypto');
 const requireAuth = require('../middleware/auth');
 const { requirePracticeMember, requirePracticeRole } = require('../middleware/practice');
-const { getDb, persist } = require('../db');
+const { getAsyncDb } = require('../db/asyncDb');
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -22,7 +22,7 @@ const { getDb, persist } = require('../db');
  * Lowercases, replaces spaces/underscores with hyphens, strips special chars,
  * and appends a random 4-char suffix if a collision exists.
  */
-function generateSlug(name, db) {
+async function generateSlug(name, db) {
   let base = name
     .toLowerCase()
     .trim()
@@ -34,7 +34,7 @@ function generateSlug(name, db) {
   if (!base) base = 'practice';
 
   let slug = base;
-  const existing = db.get('SELECT id FROM practices WHERE slug = ?', slug);
+  const existing = await db.get('SELECT id FROM practices WHERE slug = ?', slug);
   if (existing) {
     const suffix = crypto.randomBytes(2).toString('hex'); // 4 hex chars
     slug = `${base}-${suffix}`;
@@ -61,9 +61,9 @@ function buildInviteUrl(token) {
  * Create a new group practice. The authenticated user becomes the owner.
  * Body: { name, address?, phone?, email?, npi_number? }
  */
-router.post('/create', requireAuth, (req, res) => {
+router.post('/create', requireAuth, async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const therapistId = req.therapist.id;
     const { name, address, phone, email, npi_number } = req.body;
 
@@ -72,7 +72,7 @@ router.post('/create', requireAuth, (req, res) => {
     }
 
     // Check if the therapist is already in a practice
-    const existingMembership = db.get(
+    const existingMembership = await db.get(
       `SELECT id FROM practice_members
        WHERE therapist_id = ? AND status = 'active'`,
       therapistId
@@ -83,10 +83,10 @@ router.post('/create', requireAuth, (req, res) => {
       });
     }
 
-    const slug = generateSlug(name, db);
+    const slug = await generateSlug(name, db);
 
     // Create the practice
-    const result = db.insert(
+    const result = await db.insert(
       `INSERT INTO practices (name, slug, owner_id, address, phone, email, npi_number)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
       name.trim(),
@@ -101,7 +101,7 @@ router.post('/create', requireAuth, (req, res) => {
     const practiceId = result.lastInsertRowid;
 
     // Create the owner's membership record
-    db.insert(
+    await db.insert(
       `INSERT INTO practice_members (practice_id, therapist_id, role, status, joined_at)
        VALUES (?, ?, 'owner', 'active', CURRENT_TIMESTAMP)`,
       practiceId,
@@ -109,12 +109,12 @@ router.post('/create', requireAuth, (req, res) => {
     );
 
     // Cache the practice association on the therapist row for fast lookups
-    db.run(
+    await db.run(
       'UPDATE therapists SET practice_id = ?, practice_role = ? WHERE id = ?',
       practiceId, 'owner', therapistId
     );
 
-    const practice = db.get('SELECT * FROM practices WHERE id = ?', practiceId);
+    const practice = await db.get('SELECT * FROM practices WHERE id = ?', practiceId);
     res.status(201).json(practice);
   } catch (err) {
     console.error('POST /api/practice/create error:', err.message);
@@ -126,30 +126,30 @@ router.post('/create', requireAuth, (req, res) => {
  * GET /api/practice
  * Get the current user's practice details, member count, and basic stats.
  */
-router.get('/', requireAuth, requirePracticeMember, (req, res) => {
+router.get('/', requireAuth, requirePracticeMember, async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const practice = req.practice;
 
-    const memberCount = db.get(
+    const memberCount = (await db.get(
       `SELECT COUNT(*) as count FROM practice_members
        WHERE practice_id = ? AND status = 'active'`,
       practice.id
-    ).count;
+    )).count;
 
-    const pendingInvites = db.get(
+    const pendingInvites = (await db.get(
       `SELECT COUNT(*) as count FROM practice_members
        WHERE practice_id = ? AND status = 'invited'`,
       practice.id
-    ).count;
+    )).count;
 
     // Total patients across all practice members
-    const totalPatients = db.get(
+    const totalPatients = (await db.get(
       `SELECT COUNT(*) as count FROM patients p
        INNER JOIN practice_members pm ON pm.therapist_id = p.therapist_id
        WHERE pm.practice_id = ? AND pm.status = 'active'`,
       practice.id
-    ).count;
+    )).count;
 
     res.json({
       ...practice,
@@ -173,19 +173,19 @@ router.get('/', requireAuth, requirePracticeMember, (req, res) => {
  * Update practice info. Owner or admin only.
  * Body: { name?, address?, phone?, email?, npi_number?, settings_json? }
  */
-router.put('/', requireAuth, requirePracticeMember, requirePracticeRole('owner', 'admin'), (req, res) => {
+router.put('/', requireAuth, requirePracticeMember, requirePracticeRole('owner', 'admin'), async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const practice = req.practice;
     const { name, address, phone, email, npi_number, settings_json } = req.body;
 
     // If name changed, regenerate slug
     let slug = practice.slug;
     if (name && name.trim() !== practice.name) {
-      slug = generateSlug(name, db);
+      slug = await generateSlug(name, db);
     }
 
-    db.run(
+    await db.run(
       `UPDATE practices SET
          name = ?, slug = ?, address = ?, phone = ?, email = ?,
          npi_number = ?, settings_json = ?
@@ -202,7 +202,7 @@ router.put('/', requireAuth, requirePracticeMember, requirePracticeRole('owner',
       practice.id
     );
 
-    const updated = db.get('SELECT * FROM practices WHERE id = ?', practice.id);
+    const updated = await db.get('SELECT * FROM practices WHERE id = ?', practice.id);
     res.json(updated);
   } catch (err) {
     console.error('PUT /api/practice error:', err.message);
@@ -220,16 +220,16 @@ router.put('/', requireAuth, requirePracticeMember, requirePracticeRole('owner',
  * List all practice members with profile info.
  * Owner/admin see full details. Others see names and roles only.
  */
-router.get('/members', requireAuth, requirePracticeMember, (req, res) => {
+router.get('/members', requireAuth, requirePracticeMember, async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const practiceId = req.practice.id;
     const isPrivileged = ['owner', 'admin'].includes(req.practiceRole);
 
     let members;
     if (isPrivileged) {
       // Full view for owner/admin
-      members = db.all(
+      members = await db.all(
         `SELECT pm.id as member_id, pm.role, pm.status, pm.joined_at, pm.invited_at,
                 t.id as therapist_id, t.first_name, t.last_name, t.full_name, t.email,
                 t.user_role, t.credential_type, t.avatar_url, t.last_seen_at
@@ -243,7 +243,7 @@ router.get('/members', requireAuth, requirePracticeMember, (req, res) => {
       );
     } else {
       // Limited view for clinicians/supervisors
-      members = db.all(
+      members = await db.all(
         `SELECT pm.id as member_id, pm.role, pm.status,
                 t.id as therapist_id, t.first_name, t.last_name, t.full_name, t.avatar_url
          FROM practice_members pm
@@ -268,9 +268,9 @@ router.get('/members', requireAuth, requirePracticeMember, (req, res) => {
  * Invite a clinician to the practice. Owner/admin only.
  * Body: { email, role: 'clinician' | 'supervisor' | 'admin' }
  */
-router.post('/invite', requireAuth, requirePracticeMember, requirePracticeRole('owner', 'admin'), (req, res) => {
+router.post('/invite', requireAuth, requirePracticeMember, requirePracticeRole('owner', 'admin'), async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const practiceId = req.practice.id;
     const { email, role } = req.body;
 
@@ -291,11 +291,11 @@ router.post('/invite', requireAuth, requirePracticeMember, requirePracticeRole('
     }
 
     // Check max clinicians limit
-    const activeCount = db.get(
+    const activeCount = (await db.get(
       `SELECT COUNT(*) as count FROM practice_members
        WHERE practice_id = ? AND status IN ('active', 'invited')`,
       practiceId
-    ).count;
+    )).count;
 
     if (activeCount >= req.practice.max_clinicians) {
       return res.status(409).json({
@@ -304,13 +304,13 @@ router.post('/invite', requireAuth, requirePracticeMember, requirePracticeRole('
     }
 
     // Check if this email is already a member or has a pending invite
-    const existingTherapist = db.get(
+    const existingTherapist = await db.get(
       'SELECT id FROM therapists WHERE LOWER(email) = ?',
       email.trim().toLowerCase()
     );
 
     if (existingTherapist) {
-      const existingMember = db.get(
+      const existingMember = await db.get(
         `SELECT id, status FROM practice_members
          WHERE practice_id = ? AND therapist_id = ?`,
         practiceId, existingTherapist.id
@@ -332,7 +332,7 @@ router.post('/invite', requireAuth, requirePracticeMember, requirePracticeRole('
     // and resolve on join
     const therapistIdForInvite = existingTherapist ? existingTherapist.id : 0;
 
-    db.insert(
+    await db.insert(
       `INSERT INTO practice_members
          (practice_id, therapist_id, role, status, invited_by, invite_token, invited_at)
        VALUES (?, ?, ?, 'invited', ?, ?, CURRENT_TIMESTAMP)`,
@@ -363,9 +363,9 @@ router.post('/invite', requireAuth, requirePracticeMember, requirePracticeRole('
  * Accept a practice invitation. Validates token, activates membership,
  * and links the therapist to the practice.
  */
-router.post('/join/:token', requireAuth, (req, res) => {
+router.post('/join/:token', requireAuth, async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { token } = req.params;
     const therapistId = req.therapist.id;
 
@@ -374,7 +374,7 @@ router.post('/join/:token', requireAuth, (req, res) => {
     }
 
     // Find the invite
-    const invite = db.get(
+    const invite = await db.get(
       `SELECT pm.*, p.name as practice_name
        FROM practice_members pm
        INNER JOIN practices p ON p.id = pm.practice_id
@@ -389,7 +389,7 @@ router.post('/join/:token', requireAuth, (req, res) => {
     }
 
     // Check if therapist is already in another practice
-    const existingMembership = db.get(
+    const existingMembership = await db.get(
       `SELECT id FROM practice_members
        WHERE therapist_id = ? AND status = 'active'`,
       therapistId
@@ -409,7 +409,7 @@ router.post('/join/:token', requireAuth, (req, res) => {
     }
 
     // Activate the membership
-    db.run(
+    await db.run(
       `UPDATE practice_members SET
          therapist_id = ?, status = 'active', invite_token = NULL, joined_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
@@ -417,7 +417,7 @@ router.post('/join/:token', requireAuth, (req, res) => {
     );
 
     // Cache the practice association on the therapist
-    db.run(
+    await db.run(
       'UPDATE therapists SET practice_id = ?, practice_role = ? WHERE id = ?',
       invite.practice_id, invite.role, therapistId
     );
@@ -438,9 +438,9 @@ router.post('/join/:token', requireAuth, (req, res) => {
  * Change a member's role within the practice.
  * Owner can change anyone. Admin can change clinicians/supervisors but not the owner.
  */
-router.put('/members/:memberId/role', requireAuth, requirePracticeMember, requirePracticeRole('owner', 'admin'), (req, res) => {
+router.put('/members/:memberId/role', requireAuth, requirePracticeMember, requirePracticeRole('owner', 'admin'), async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { memberId } = req.params;
     const { role } = req.body;
 
@@ -452,7 +452,7 @@ router.put('/members/:memberId/role', requireAuth, requirePracticeMember, requir
     }
 
     // Fetch the target member
-    const member = db.get(
+    const member = await db.get(
       `SELECT * FROM practice_members WHERE id = ? AND practice_id = ?`,
       memberId, req.practice.id
     );
@@ -476,13 +476,13 @@ router.put('/members/:memberId/role', requireAuth, requirePracticeMember, requir
       return res.status(403).json({ error: 'Only the practice owner can change an admin\'s role.' });
     }
 
-    db.run(
+    await db.run(
       'UPDATE practice_members SET role = ? WHERE id = ?',
       role, memberId
     );
 
     // Update the cached role on the therapist row
-    db.run(
+    await db.run(
       'UPDATE therapists SET practice_role = ? WHERE id = ?',
       role, member.therapist_id
     );
@@ -504,12 +504,12 @@ router.put('/members/:memberId/role', requireAuth, requirePracticeMember, requir
  * just unlinks them. Sets member status to 'removed' and clears the
  * therapist's cached practice_id. Owner/admin only. Cannot remove the owner.
  */
-router.delete('/members/:memberId', requireAuth, requirePracticeMember, requirePracticeRole('owner', 'admin'), (req, res) => {
+router.delete('/members/:memberId', requireAuth, requirePracticeMember, requirePracticeRole('owner', 'admin'), async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { memberId } = req.params;
 
-    const member = db.get(
+    const member = await db.get(
       'SELECT * FROM practice_members WHERE id = ? AND practice_id = ?',
       memberId, req.practice.id
     );
@@ -531,27 +531,27 @@ router.delete('/members/:memberId', requireAuth, requirePracticeMember, requireP
     }
 
     // Mark as removed (soft delete)
-    db.run(
+    await db.run(
       `UPDATE practice_members SET status = 'removed', removed_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       memberId
     );
 
     // Clear the cached practice association on the therapist
-    db.run(
+    await db.run(
       'UPDATE therapists SET practice_id = NULL, practice_role = NULL WHERE id = ?',
       member.therapist_id
     );
 
     // Deactivate any supervision links involving this member
-    db.run(
+    await db.run(
       `UPDATE supervision_links SET status = 'inactive'
        WHERE practice_id = ? AND (supervisor_id = ? OR supervisee_id = ?)`,
       req.practice.id, member.therapist_id, member.therapist_id
     );
 
     // SECURITY: Remove all shared patient access for removed member
-    db.run(
+    await db.run(
       `DELETE FROM shared_patients WHERE shared_with_id = ? AND practice_id = ?`,
       member.therapist_id, req.practice.id
     );
@@ -577,9 +577,9 @@ router.delete('/members/:memberId', requireAuth, requirePracticeMember, requireP
  * Body: { supervisee_id, access_level? }
  * Owner/admin only.
  */
-router.post('/supervision', requireAuth, requirePracticeMember, requirePracticeRole('owner', 'admin'), (req, res) => {
+router.post('/supervision', requireAuth, requirePracticeMember, requirePracticeRole('owner', 'admin'), async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const practiceId = req.practice.id;
     const { supervisor_id, supervisee_id, access_level } = req.body;
 
@@ -596,12 +596,12 @@ router.post('/supervision', requireAuth, requirePracticeMember, requirePracticeR
     }
 
     // Verify both are active members of this practice
-    const supervisorMember = db.get(
+    const supervisorMember = await db.get(
       `SELECT id FROM practice_members
        WHERE practice_id = ? AND therapist_id = ? AND status = 'active'`,
       practiceId, resolvedSupervisorId
     );
-    const superviseeMember = db.get(
+    const superviseeMember = await db.get(
       `SELECT id FROM practice_members
        WHERE practice_id = ? AND therapist_id = ? AND status = 'active'`,
       practiceId, supervisee_id
@@ -615,7 +615,7 @@ router.post('/supervision', requireAuth, requirePracticeMember, requirePracticeR
     }
 
     // Check for existing active link
-    const existing = db.get(
+    const existing = await db.get(
       `SELECT id FROM supervision_links
        WHERE practice_id = ? AND supervisor_id = ? AND supervisee_id = ? AND status = 'active'`,
       practiceId, resolvedSupervisorId, supervisee_id
@@ -624,7 +624,7 @@ router.post('/supervision', requireAuth, requirePracticeMember, requirePracticeR
       return res.status(409).json({ error: 'This supervision link already exists.' });
     }
 
-    const result = db.insert(
+    const result = await db.insert(
       `INSERT INTO supervision_links (practice_id, supervisor_id, supervisee_id, access_level)
        VALUES (?, ?, ?, ?)`,
       practiceId,
@@ -651,15 +651,15 @@ router.post('/supervision', requireAuth, requirePracticeMember, requirePracticeR
  * Owner/admin see all links in the practice.
  * Supervisors see only their own supervisees.
  */
-router.get('/supervision', requireAuth, requirePracticeMember, (req, res) => {
+router.get('/supervision', requireAuth, requirePracticeMember, async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const practiceId = req.practice.id;
     const isPrivileged = ['owner', 'admin'].includes(req.practiceRole);
 
     let links;
     if (isPrivileged) {
-      links = db.all(
+      links = await db.all(
         `SELECT sl.*,
                 sup.first_name as supervisor_first_name, sup.last_name as supervisor_last_name,
                 sub.first_name as supervisee_first_name, sub.last_name as supervisee_last_name
@@ -672,7 +672,7 @@ router.get('/supervision', requireAuth, requirePracticeMember, (req, res) => {
       );
     } else {
       // Supervisors see only their supervisees
-      links = db.all(
+      links = await db.all(
         `SELECT sl.*,
                 sub.first_name as supervisee_first_name, sub.last_name as supervisee_last_name
          FROM supervision_links sl
@@ -694,12 +694,12 @@ router.get('/supervision', requireAuth, requirePracticeMember, (req, res) => {
  * DELETE /api/practice/supervision/:id
  * Remove a supervision link. Owner/admin only.
  */
-router.delete('/supervision/:id', requireAuth, requirePracticeMember, requirePracticeRole('owner', 'admin'), (req, res) => {
+router.delete('/supervision/:id', requireAuth, requirePracticeMember, requirePracticeRole('owner', 'admin'), async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { id } = req.params;
 
-    const link = db.get(
+    const link = await db.get(
       `SELECT * FROM supervision_links WHERE id = ? AND practice_id = ?`,
       id, req.practice.id
     );
@@ -708,7 +708,7 @@ router.delete('/supervision/:id', requireAuth, requirePracticeMember, requirePra
       return res.status(404).json({ error: 'Supervision link not found.' });
     }
 
-    db.run(
+    await db.run(
       `UPDATE supervision_links SET status = 'inactive' WHERE id = ?`,
       id
     );
@@ -731,9 +731,9 @@ router.delete('/supervision/:id', requireAuth, requirePracticeMember, requirePra
  * Body: { patient_id, shared_with_id, access_level: 'read' | 'write' }
  * Only the patient's owning therapist (or owner/admin) can share.
  */
-router.post('/share-patient', requireAuth, requirePracticeMember, (req, res) => {
+router.post('/share-patient', requireAuth, requirePracticeMember, async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const practiceId = req.practice.id;
     const { patient_id, shared_with_id, access_level } = req.body;
 
@@ -747,7 +747,7 @@ router.post('/share-patient', requireAuth, requirePracticeMember, (req, res) => 
     }
 
     // Verify the patient exists and get their owner
-    const patient = db.get('SELECT id, therapist_id FROM patients WHERE id = ?', patient_id);
+    const patient = await db.get('SELECT id, therapist_id FROM patients WHERE id = ?', patient_id);
     if (!patient) {
       return res.status(404).json({ error: 'Patient not found.' });
     }
@@ -762,7 +762,7 @@ router.post('/share-patient', requireAuth, requirePracticeMember, (req, res) => 
     }
 
     // Verify the target is an active member of this practice
-    const targetMember = db.get(
+    const targetMember = await db.get(
       `SELECT id FROM practice_members
        WHERE practice_id = ? AND therapist_id = ? AND status = 'active'`,
       practiceId, shared_with_id
@@ -777,7 +777,7 @@ router.post('/share-patient', requireAuth, requirePracticeMember, (req, res) => 
     }
 
     // Check for existing share
-    const existingShare = db.get(
+    const existingShare = await db.get(
       'SELECT id, shared_by_id FROM shared_patients WHERE patient_id = ? AND shared_with_id = ?',
       patient_id, shared_with_id
     );
@@ -788,14 +788,14 @@ router.post('/share-patient', requireAuth, requirePracticeMember, (req, res) => 
       if (!canUpdate) {
         return res.status(403).json({ error: 'You cannot modify this sharing arrangement.' });
       }
-      db.run(
+      await db.run(
         'UPDATE shared_patients SET access_level = ? WHERE id = ?',
         access_level || 'read', existingShare.id
       );
       return res.json({ message: 'Patient sharing access level updated.', id: existingShare.id });
     }
 
-    const result = db.insert(
+    const result = await db.insert(
       `INSERT INTO shared_patients (practice_id, patient_id, shared_with_id, shared_by_id, access_level)
        VALUES (?, ?, ?, ?, ?)`,
       practiceId,
@@ -821,12 +821,12 @@ router.post('/share-patient', requireAuth, requirePracticeMember, (req, res) => 
  * GET /api/practice/shared-patients
  * List patients shared with the current user.
  */
-router.get('/shared-patients', requireAuth, requirePracticeMember, (req, res) => {
+router.get('/shared-patients', requireAuth, requirePracticeMember, async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const therapistId = req.therapist.id;
 
-    const shared = db.all(
+    const shared = await db.all(
       `SELECT sp.id as share_id, sp.access_level, sp.created_at as shared_at,
               p.id as patient_id, p.client_id, p.display_name, p.presenting_concerns,
               p.diagnoses, p.case_type, p.client_type,
@@ -856,46 +856,46 @@ router.get('/shared-patients', requireAuth, requirePracticeMember, (req, res) =>
  * Aggregate stats for the practice. No PHI -- just counts and utilization.
  * Owner/admin only.
  */
-router.get('/dashboard', requireAuth, requirePracticeMember, requirePracticeRole('owner', 'admin'), (req, res) => {
+router.get('/dashboard', requireAuth, requirePracticeMember, requirePracticeRole('owner', 'admin'), async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const practiceId = req.practice.id;
 
     // Total active members
-    const totalMembers = db.get(
+    const totalMembers = (await db.get(
       `SELECT COUNT(*) as count FROM practice_members
        WHERE practice_id = ? AND status = 'active'`,
       practiceId
-    ).count;
+    )).count;
 
     // Total patients across all members
-    const totalPatients = db.get(
+    const totalPatients = (await db.get(
       `SELECT COUNT(*) as count FROM patients p
        INNER JOIN practice_members pm ON pm.therapist_id = p.therapist_id
        WHERE pm.practice_id = ? AND pm.status = 'active'`,
       practiceId
-    ).count;
+    )).count;
 
     // Total sessions this week (across practice)
-    const sessionsThisWeek = db.get(
+    const sessionsThisWeek = (await db.get(
       `SELECT COUNT(*) as count FROM sessions s
        INNER JOIN practice_members pm ON pm.therapist_id = s.therapist_id
        WHERE pm.practice_id = ? AND pm.status = 'active'
          AND (s.session_date >= date('now', '-7 days') OR s.created_at >= datetime('now', '-7 days'))`,
       practiceId
-    ).count;
+    )).count;
 
     // Total assessments this month
-    const assessmentsThisMonth = db.get(
+    const assessmentsThisMonth = (await db.get(
       `SELECT COUNT(*) as count FROM assessments a
        INNER JOIN practice_members pm ON pm.therapist_id = a.therapist_id
        WHERE pm.practice_id = ? AND pm.status = 'active'
          AND a.created_at >= datetime('now', '-30 days')`,
       practiceId
-    ).count;
+    )).count;
 
     // Per-clinician utilization: session counts (no PHI)
-    const utilization = db.all(
+    const utilization = await db.all(
       `SELECT t.id as therapist_id,
               t.first_name, t.last_name,
               pm.role,
@@ -918,11 +918,11 @@ router.get('/dashboard', requireAuth, requirePracticeMember, requirePracticeRole
     );
 
     // Pending invites count
-    const pendingInvites = db.get(
+    const pendingInvites = (await db.get(
       `SELECT COUNT(*) as count FROM practice_members
        WHERE practice_id = ? AND status = 'invited'`,
       practiceId
-    ).count;
+    )).count;
 
     res.json({
       total_members: totalMembers,
@@ -948,14 +948,14 @@ router.get('/dashboard', requireAuth, requirePracticeMember, requirePracticeRole
  * List practice announcements/messages. All members can read.
  * Returns most recent first, with pinned messages at top.
  */
-router.get('/messages', requireAuth, requirePracticeMember, (req, res) => {
+router.get('/messages', requireAuth, requirePracticeMember, async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const practiceId = req.practice.id;
     const limit = Math.min(parseInt(req.query.limit) || 50, 200);
     const offset = parseInt(req.query.offset) || 0;
 
-    const messages = db.all(
+    const messages = await db.all(
       `SELECT m.*, t.first_name as author_first_name, t.last_name as author_last_name,
               t.avatar_url as author_avatar_url
        FROM practice_messages m
@@ -978,9 +978,9 @@ router.get('/messages', requireAuth, requirePracticeMember, (req, res) => {
  * Create a practice announcement. Owner/admin only.
  * Body: { title, content, message_type?, pinned? }
  */
-router.post('/messages', requireAuth, requirePracticeMember, requirePracticeRole('owner', 'admin'), (req, res) => {
+router.post('/messages', requireAuth, requirePracticeMember, requirePracticeRole('owner', 'admin'), async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const practiceId = req.practice.id;
     const { title, content, message_type, pinned } = req.body;
 
@@ -988,7 +988,7 @@ router.post('/messages', requireAuth, requirePracticeMember, requirePracticeRole
       return res.status(400).json({ error: 'Message content is required.' });
     }
 
-    const result = db.insert(
+    const result = await db.insert(
       `INSERT INTO practice_messages (practice_id, author_id, message_type, title, content, pinned)
        VALUES (?, ?, ?, ?, ?, ?)`,
       practiceId,
@@ -999,7 +999,7 @@ router.post('/messages', requireAuth, requirePracticeMember, requirePracticeRole
       pinned ? 1 : 0
     );
 
-    const message = db.get('SELECT * FROM practice_messages WHERE id = ?', result.lastInsertRowid);
+    const message = await db.get('SELECT * FROM practice_messages WHERE id = ?', result.lastInsertRowid);
     res.status(201).json(message);
   } catch (err) {
     console.error('POST /api/practice/messages error:', err.message);

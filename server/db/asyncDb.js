@@ -33,9 +33,9 @@ function getAsyncDb() {
   return pgAdapter;
 }
 
-async function persistIfNeeded() {
+async function persistIfNeeded(options) {
   if (wantsPostgres()) return;
-  persist();
+  persist(options);
 }
 
 async function closeAsyncDb() {

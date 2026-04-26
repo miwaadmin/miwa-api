@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const { getDb } = require('../db');
+const { getAsyncDb } = require('../db/asyncDb');
 const { getSupervisorSystemPrompt, getAnalysisSystemPrompt, getTreatmentPlanSystemPrompt } = require('../prompts');
 const { normalizeAssistantProfile } = require('../lib/assistant');
 const { scrubText, scrubObject } = require('../lib/scrubber');
@@ -40,9 +40,9 @@ function uploadImportErrorMessage(err) {
 
 // Use the owner's API key from environment — all users share it, covered by subscription
 // Check if this therapist can use the workspace (subscription or trial)
-function checkWorkspaceAccess(therapistId) {
-  const db = getDb();
-  const row = db.get(
+async function checkWorkspaceAccess(therapistId) {
+  const db = getAsyncDb();
+  const row = await db.get(
     'SELECT subscription_status, workspace_uses, trial_limit FROM therapists WHERE id = ?',
     therapistId
   );
@@ -61,14 +61,14 @@ function checkWorkspaceAccess(therapistId) {
   };
 }
 
-function incrementWorkspaceUse(therapistId) {
-  const db = getDb();
-  db.run('UPDATE therapists SET workspace_uses = workspace_uses + 1 WHERE id = ?', therapistId);
+async function incrementWorkspaceUse(therapistId) {
+  const db = getAsyncDb();
+  await db.run('UPDATE therapists SET workspace_uses = workspace_uses + 1 WHERE id = ?', therapistId);
 }
 
-function loadAssistantProfile(therapistId) {
-  const db = getDb();
-  const row = db.get(
+async function loadAssistantProfile(therapistId) {
+  const db = getAsyncDb();
+  const row = await db.get(
     'SELECT assistant_action_mode, assistant_tone, assistant_orientation, assistant_verbosity, assistant_memory, assistant_permissions_json FROM therapists WHERE id = ?',
     therapistId
   );
@@ -333,8 +333,8 @@ router.post('/convert-note', async (req, res) => {
     if (!sessionId || !targetFormat) return res.status(400).json({ error: 'sessionId and targetFormat required' });
     if (!['SOAP', 'BIRP', 'DAP', 'GIRP'].includes(targetFormat)) return res.status(400).json({ error: 'Invalid format. Use SOAP, BIRP, DAP, or GIRP.' });
 
-    const db = getDb();
-    const session = db.get('SELECT * FROM sessions WHERE id = ? AND therapist_id = ?', sessionId, req.therapist.id);
+    const db = getAsyncDb();
+    const session = await db.get('SELECT * FROM sessions WHERE id = ? AND therapist_id = ?', sessionId, req.therapist.id);
     if (!session) return res.status(404).json({ error: 'Session not found' });
 
     // Gather all existing note content
@@ -651,11 +651,11 @@ router.post('/document-to-profile', async (req, res) => {
       return res.status(400).json({ error: 'patientId and documentId are required' });
     }
 
-    const db = getDb();
-    const patient = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', patientId, req.therapist.id);
+    const db = getAsyncDb();
+    const patient = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', patientId, req.therapist.id);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-    const doc = db.get(
+    const doc = await db.get(
       'SELECT original_name, extracted_text, document_kind FROM documents WHERE id = ? AND patient_id = ? AND therapist_id = ?',
       documentId,
       patientId
@@ -701,7 +701,7 @@ ${scrubText(String(doc.extracted_text)).substring(0, 18000)}
     // Scrub any PHI that may have slipped through in the AI response before writing to DB
     const fields = scrubObject(rawFields);
 
-    db.run(
+    await db.run(
       `UPDATE patients SET
          case_type = ?, age_range = ?, referral_source = ?, living_situation = ?,
          presenting_concerns = ?, diagnoses = ?, notes = ?, mental_health_history = ?,
@@ -732,7 +732,7 @@ ${scrubText(String(doc.extracted_text)).substring(0, 18000)}
       req.therapist.id
     );
 
-    const updated = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', patientId, req.therapist.id);
+    const updated = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', patientId, req.therapist.id);
     res.json({ patient: updated });
   } catch (err) {
     sendRouteError(res, err);
@@ -749,8 +749,8 @@ router.post('/analyze-notes', async (req, res) => {
     // Pull uploaded documents for this patient if patientId provided
     let docsBlock = '';
     if (patientId) {
-      const db = getDb();
-      const docs = db.all(
+      const db = getAsyncDb();
+      const docs = await db.all(
         'SELECT original_name, document_label, file_type, extracted_text FROM documents WHERE patient_id = ? AND extracted_text IS NOT NULL ORDER BY created_at DESC LIMIT 3',
         patientId
       );
@@ -842,16 +842,16 @@ router.post('/chat', async (req, res) => {
     const message = scrubText(_rawMsg);
     if (!message) return res.status(400).json({ error: 'Message is required' });
 
-    const db = getDb();
+    const db = getAsyncDb();
     const userRole = req.therapist.user_role || 'licensed';
 
     const tid = req.therapist.id;
-    const therapistRow = db.get('SELECT full_name, first_name, last_name FROM therapists WHERE id = ?', tid);
+    const therapistRow = await db.get('SELECT full_name, first_name, last_name FROM therapists WHERE id = ?', tid);
     // Use first_name so Miwa addresses the therapist by first name only
     const therapistName = therapistRow?.first_name
       || (therapistRow?.full_name ? therapistRow.full_name.split(' ')[0] : null)
       || null;
-    const assistantProfile = loadAssistantProfile(tid);
+    const assistantProfile = await loadAssistantProfile(tid);
     const effectiveResponseStyle = responseStyle || assistantProfile.verbosity;
     const canUseHistory = assistantAllows(assistantProfile, 'history');
     const canUsePatientContext = assistantAllows(assistantProfile, 'patient_context');
@@ -859,7 +859,7 @@ router.post('/chat', async (req, res) => {
     const canUseDocuments = assistantAllows(assistantProfile, 'documents');
 
     // Save user message
-    db.insert(
+    await db.insert(
       'INSERT INTO chat_messages (therapist_id, role, content, context_type, context_id) VALUES (?, ?, ?, ?, ?)',
       tid, 'user', message, contextType || null, contextId || null
     );
@@ -874,7 +874,7 @@ router.post('/chat', async (req, res) => {
     // Load last 20 Consult messages (excludes MiwaChat 'agent' rows so the
     // two surfaces don't cross-contaminate conversational memory).
     const history = canUseHistory
-      ? db.all(
+      ? await db.all(
           `SELECT role, content FROM chat_messages
             WHERE therapist_id = ?
               AND (context_type IS NULL OR context_type != 'agent')
@@ -886,14 +886,14 @@ router.post('/chat', async (req, res) => {
     // Build context block if patient/session context selected and permitted
     let contextBlock = '';
     if (permittedContextType === 'patient' && contextId) {
-      const patient = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', contextId, tid);
+      const patient = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', contextId, tid);
       if (patient) {
-        const sessions = db.all(
+        const sessions = await db.all(
           'SELECT * FROM sessions WHERE patient_id = ? AND therapist_id = ? ORDER BY session_date DESC LIMIT 5',
           contextId, tid
         );
         const docs = canUseDocuments
-          ? db.all(
+          ? await db.all(
               'SELECT id, original_name, document_label, file_type, extracted_text FROM documents WHERE patient_id = ? AND therapist_id = ? AND extracted_text IS NOT NULL ORDER BY created_at DESC LIMIT 5',
               contextId, tid
             )
@@ -911,7 +911,7 @@ router.post('/chat', async (req, res) => {
         contextBlock = `\n\n[CASE CONTEXT - De-identified]\nClient ID: ${patient.client_id}\nAge: ${patient.age || 'N/A'}\nGender: ${patient.gender || 'N/A'}\nPresenting Concerns: ${scrubText(patient.presenting_concerns || 'N/A')}\nCurrent Diagnoses: ${scrubText(patient.diagnoses || 'N/A')}\n\nRecent Sessions (${sessions.length}):\n${sessions.map(s => `- ${s.session_date}: ${scrubText(s.assessment || 'No assessment')}`).join('\n')}${docBlock}`;
       }
     } else if (permittedContextType === 'session' && contextId) {
-      const session = db.get(
+      const session = await db.get(
         `SELECT s.*, p.client_id, p.age, p.gender, p.presenting_concerns, p.diagnoses
          FROM sessions s JOIN patients p ON s.patient_id = p.id
          WHERE s.id = ? AND s.therapist_id = ? AND p.therapist_id = ?`,
@@ -975,7 +975,7 @@ router.post('/chat', async (req, res) => {
     });
 
     // Save assistant response
-    db.insert(
+    await db.insert(
       'INSERT INTO chat_messages (therapist_id, role, content, context_type, context_id) VALUES (?, ?, ?, ?, ?)',
       tid, 'assistant', fullResponse, contextType || null, contextId || null
     );
@@ -1080,7 +1080,7 @@ Requirements:
 router.post('/similar-cases', async (req, res) => {
   try {
     const { keywords, diagnoses, presenting_concerns } = req.body;
-    const db = getDb();
+    const db = getAsyncDb();
 
     const searchTerms = [
       ...(keywords || '').split(/\s+/).filter(k => k.length > 3),
@@ -1095,7 +1095,7 @@ router.post('/similar-cases', async (req, res) => {
     const cases = [];
     for (const term of searchTerms) {
       const q = `%${term}%`;
-      const rows = db.all(
+      const rows = await db.all(
         `SELECT s.id, s.session_date, s.assessment, s.plan, s.icd10_codes,
                 p.client_id, p.age, p.gender, p.presenting_concerns, p.diagnoses
          FROM sessions s JOIN patients p ON s.patient_id = p.id
@@ -1122,7 +1122,7 @@ router.post('/similar-cases', async (req, res) => {
 router.post('/workspace', async (req, res) => {
   try {
     // Check subscription / trial access
-    const access = checkWorkspaceAccess(req.therapist.id);
+    const access = await checkWorkspaceAccess(req.therapist.id);
     if (!access.allowed) {
       return res.status(402).json({
         error: 'subscription_required',
@@ -1343,8 +1343,8 @@ IMPORTANT FORMATTING: Write naturally like a colleague talking. Do NOT use markd
     };
 
     // Track usage for trial/billing
-    incrementWorkspaceUse(req.therapist.id);
-    const updatedAccess = checkWorkspaceAccess(req.therapist.id);
+    await incrementWorkspaceUse(req.therapist.id);
+    const updatedAccess = await checkWorkspaceAccess(req.therapist.id);
 
     res.write(`data: ${JSON.stringify({
       done: true,
@@ -1481,11 +1481,11 @@ ${sessionBlocks || 'No notes yet.'}`;
 //
 // This endpoint must exclude 'agent' rows so the Consult page doesn't bleed
 // MiwaChat history into its transcript.
-router.get('/chat-history', (req, res) => {
+router.get('/chat-history', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const limit = parseInt(req.query.limit) || 50;
-    const messages = db.all(
+    const messages = await db.all(
       `SELECT * FROM chat_messages
         WHERE therapist_id = ?
           AND (context_type IS NULL OR context_type != 'agent')
@@ -1502,10 +1502,10 @@ router.get('/chat-history', (req, res) => {
 // DELETE /api/ai/chat-history — Clears Consult transcript only.
 // Must not touch MiwaChat ('agent') messages — otherwise clearing the Consult
 // page nukes the user's FAB chat history as well.
-router.delete('/chat-history', (req, res) => {
+router.delete('/chat-history', async (req, res) => {
   try {
-    const db = getDb();
-    db.run(
+    const db = getAsyncDb();
+    await db.run(
       `DELETE FROM chat_messages
         WHERE therapist_id = ?
           AND (context_type IS NULL OR context_type != 'agent')`,
@@ -1779,7 +1779,7 @@ router.post('/style/rebuild', async (req, res) => {
  * GET /api/ai/letters/templates
  * List the templates available for generation.
  */
-router.get('/letters/templates', (req, res) => {
+router.get('/letters/templates', async (req, res) => {
   try {
     const { listTemplates } = require('../services/document-generator');
     res.json({ templates: listTemplates() });
@@ -1930,17 +1930,17 @@ router.post('/risk-scan', async (req, res) => {
  * GET /api/ai/treatment-plan/:patientId
  * Get treatment plan and goals for a patient
  */
-router.get('/treatment-plan/:patientId', (req, res) => {
+router.get('/treatment-plan/:patientId', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const patientId = parseInt(req.params.patientId);
-    const plan = db.get(
+    const plan = await db.get(
       "SELECT * FROM treatment_plans WHERE patient_id = ? AND therapist_id = ? AND status = 'active'",
       patientId, req.therapist.id
     );
     if (!plan) return res.json({ plan: null });
 
-    const goals = db.all('SELECT * FROM treatment_goals WHERE plan_id = ? ORDER BY id', plan.id);
+    const goals = await db.all('SELECT * FROM treatment_goals WHERE plan_id = ? ORDER BY id', plan.id);
     res.json({
       plan: {
         ...plan,
@@ -1960,21 +1960,22 @@ router.get('/treatment-plan/:patientId', (req, res) => {
  * GET /api/ai/outreach-rules
  * Get outreach rules for current therapist
  */
-router.get('/outreach-rules', (req, res) => {
+router.get('/outreach-rules', async (req, res) => {
   try {
-    const db = getDb();
-    const rules = db.all('SELECT * FROM outreach_rules WHERE therapist_id = ? ORDER BY created_at', req.therapist.id);
-    const enriched = rules.map(r => {
-      const actions7d = db.get(
+    const db = getAsyncDb();
+    const rules = await db.all('SELECT * FROM outreach_rules WHERE therapist_id = ? ORDER BY created_at', req.therapist.id);
+    const enriched = [];
+    for (const r of rules) {
+      const actions7d = (await db.get(
         "SELECT COUNT(*) as c FROM outreach_log WHERE rule_id = ? AND created_at > datetime('now', '-7 days')",
         r.id
-      )?.c || 0;
-      return {
+      ))?.c || 0;
+      enriched.push({
         ...r,
         config: JSON.parse(r.config_json || '{}'),
         actions_7d: actions7d,
-      };
-    });
+      });
+    }
     res.json(enriched);
   } catch (err) {
     sendRouteError(res, err);
@@ -1985,18 +1986,18 @@ router.get('/outreach-rules', (req, res) => {
  * PUT /api/ai/outreach-rules/:id
  * Toggle or update an outreach rule
  */
-router.put('/outreach-rules/:id', (req, res) => {
+router.put('/outreach-rules/:id', async (req, res) => {
   try {
-    const db = getDb();
-    const rule = db.get('SELECT * FROM outreach_rules WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    const db = getAsyncDb();
+    const rule = await db.get('SELECT * FROM outreach_rules WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
     if (!rule) return res.status(404).json({ error: 'Rule not found' });
 
     const { enabled, config, label } = req.body;
-    if (enabled !== undefined) db.run('UPDATE outreach_rules SET enabled = ? WHERE id = ?', enabled ? 1 : 0, rule.id);
-    if (label) db.run('UPDATE outreach_rules SET label = ? WHERE id = ?', label, rule.id);
+    if (enabled !== undefined) await db.run('UPDATE outreach_rules SET enabled = ? WHERE id = ?', enabled ? 1 : 0, rule.id);
+    if (label) await db.run('UPDATE outreach_rules SET label = ? WHERE id = ?', label, rule.id);
     if (config) {
       const merged = { ...JSON.parse(rule.config_json || '{}'), ...config };
-      db.run('UPDATE outreach_rules SET config_json = ? WHERE id = ?', JSON.stringify(merged), rule.id);
+      await db.run('UPDATE outreach_rules SET config_json = ? WHERE id = ?', JSON.stringify(merged), rule.id);
     }
     res.json({ ok: true });
   } catch (err) {
@@ -2008,11 +2009,11 @@ router.put('/outreach-rules/:id', (req, res) => {
  * GET /api/ai/outreach-log
  * Get recent outreach activity
  */
-router.get('/outreach-log', (req, res) => {
+router.get('/outreach-log', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const limit = parseInt(req.query.limit) || 20;
-    const log = db.all(
+    const log = await db.all(
       `SELECT ol.*, p.display_name as patient_name, p.client_id
        FROM outreach_log ol
        LEFT JOIN patients p ON p.id = ol.patient_id

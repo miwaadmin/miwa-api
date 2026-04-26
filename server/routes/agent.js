@@ -3,7 +3,7 @@ const fs = require('fs');
 const path = require('path');
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
 const multer = require('multer');
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { MODELS, callAI, callAIWithTools } = require('../lib/aiExecutor');
 const {
   transcribeAudioBuffer,
@@ -163,18 +163,18 @@ function inferAppointmentType(patient, overrideType = '') {
   return 'individual session';
 }
 
-function buildPatientContext(db, therapistId, patientId) {
-  const patient = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', patientId, therapistId);
+async function buildPatientContext(db, therapistId, patientId) {
+  const patient = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', patientId, therapistId);
   if (!patient) return null;
 
-  const sessions = db.all(
+  const sessions = await db.all(
     `SELECT id, session_date, note_format, subjective, objective, assessment, plan, icd10_codes, ai_feedback, treatment_plan, created_at
      FROM sessions WHERE patient_id = ? AND therapist_id = ? ORDER BY COALESCE(session_date, created_at) ASC`,
     patientId,
     therapistId,
   );
 
-  const assessments = db.all(
+  const assessments = await db.all(
     `SELECT id, template_type, total_score, severity_level, administered_at, is_improvement, is_deterioration
      FROM assessments WHERE patient_id = ? AND therapist_id = ? ORDER BY administered_at ASC`,
     patientId,
@@ -182,7 +182,7 @@ function buildPatientContext(db, therapistId, patientId) {
   );
 
   // Last appointment gives us inferred defaults for duration + location/modality
-  const lastAppointment = db.get(
+  const lastAppointment = await db.get(
     `SELECT appointment_type, duration_minutes, location FROM appointments
      WHERE patient_id = ? AND therapist_id = ? ORDER BY created_at DESC LIMIT 1`,
     patientId, therapistId
@@ -191,21 +191,21 @@ function buildPatientContext(db, therapistId, patientId) {
   return { patient, sessions, assessments, lastAppointment };
 }
 
-function findPatientByCode(db, therapistId, code) {
+async function findPatientByCode(db, therapistId, code) {
   if (!code) return null;
-  return db.get('SELECT * FROM patients WHERE therapist_id = ? AND client_id = ?', therapistId, code.trim());
+  return await db.get('SELECT * FROM patients WHERE therapist_id = ? AND client_id = ?', therapistId, code.trim());
 }
 
-function findPatientByDisplayName(db, therapistId, name) {
+async function findPatientByDisplayName(db, therapistId, name) {
   if (!name) return null;
   // Exact match first, then case-insensitive
-  const exact = db.get(
+  const exact = await db.get(
     'SELECT * FROM patients WHERE therapist_id = ? AND LOWER(display_name) = LOWER(?)',
     therapistId, name.trim()
   );
   if (exact) return exact;
   // Fuzzy: display_name starts with the given name
-  return db.get(
+  return await db.get(
     "SELECT * FROM patients WHERE therapist_id = ? AND LOWER(display_name) LIKE LOWER(?) || '%'",
     therapistId, name.trim()
   ) || null;
@@ -351,8 +351,8 @@ function buildPatientSummary(context) {
  * Shows all patients with their latest assessment, risk status, and presenting concerns.
  * Includes enough detail to be useful without overwhelming the agent.
  */
-function buildCaseloadSummary(db, therapistId) {
-  const patients = db.all(
+async function buildCaseloadSummary(db, therapistId) {
+  const patients = await db.all(
     `SELECT id, display_name, client_id, presenting_concerns, risk_screening FROM patients
      WHERE therapist_id = ? ORDER BY display_name ASC`,
     therapistId
@@ -362,8 +362,9 @@ function buildCaseloadSummary(db, therapistId) {
     return 'You have no active clients currently.';
   }
 
-  const summaries = patients.map(p => {
-    const latest = db.get(
+  const summaries = [];
+  for (const p of patients) {
+    const latest = await db.get(
       `SELECT template_type, total_score, severity_level FROM assessments
        WHERE patient_id = ? AND therapist_id = ?
        ORDER BY administered_at DESC LIMIT 1`,
@@ -376,10 +377,10 @@ function buildCaseloadSummary(db, therapistId) {
       : 'no assessments';
 
     // Codes only — names are scrubbed from messages before reaching Azure AI and restored after.
-    return `• ${p.client_id} — ${scrubText(p.presenting_concerns || 'intake pending')} — ${assessmentStr}${riskFlag}`;
-  }).join('\n');
+    summaries.push(`• ${p.client_id} — ${scrubText(p.presenting_concerns || 'intake pending')} — ${assessmentStr}${riskFlag}`);
+  }
 
-  return `Your caseload (${patients.length} client${patients.length !== 1 ? 's' : ''}):\n${summaries}`;
+  return `Your caseload (${patients.length} client${patients.length !== 1 ? 's' : ''}):\n${summaries.join('\n')}`;
 }
 
 // ── Therapist Soul Profile ────────────────────────────────────────────────────
@@ -399,13 +400,13 @@ const SOUL_CATEGORIES = {
  * Load all saved preferences for a therapist and format them as a
  * readable soul profile string for the system prompt.
  */
-function loadTherapistSoul(db, therapistId) {
+async function loadTherapistSoul(db, therapistId) {
   try {
     // First check for explicit SOUL.md document (set during onboarding)
-    const therapistRow = db.get('SELECT soul_markdown FROM therapists WHERE id = ?', therapistId);
+    const therapistRow = await db.get('SELECT soul_markdown FROM therapists WHERE id = ?', therapistId);
     const soulMd = therapistRow?.soul_markdown || '';
 
-    const rows = db.all(
+    const rows = await db.all(
       `SELECT category, key, value, source FROM therapist_preferences
        WHERE therapist_id = ? ORDER BY category, last_observed_at DESC`,
       therapistId
@@ -486,24 +487,24 @@ Return { "preferences": [] } if nothing notable is found. Be conservative — on
       if (!SOUL_CATEGORIES[pref.category]) continue;
       try {
         // Upsert: update if exists, insert if not
-        const existing = db.get(
+        const existing = await db.get(
           'SELECT id FROM therapist_preferences WHERE therapist_id = ? AND category = ? AND key = ?',
           therapistId, pref.category, pref.key
         );
         if (existing) {
-          db.run(
+          await db.run(
             `UPDATE therapist_preferences SET value = ?, source = ?, last_observed_at = CURRENT_TIMESTAMP WHERE id = ?`,
             pref.value, pref.source || 'inferred', existing.id
           );
         } else {
-          db.insert(
+          await db.insert(
             `INSERT INTO therapist_preferences (therapist_id, category, key, value, source) VALUES (?, ?, ?, ?, ?)`,
             therapistId, pref.category, pref.key, pref.value, pref.source || 'inferred'
           );
         }
       } catch {}
     }
-    persist();
+    await persistIfNeeded();
   } catch {}
 }
 
@@ -518,7 +519,7 @@ Return { "preferences": [] } if nothing notable is found. Be conservative — on
  */
 async function compressConversationHistory(db, therapistId) {
   // Get all messages
-  const allMessages = db.all(
+  const allMessages = await db.all(
     'SELECT role, content, created_at FROM chat_messages WHERE therapist_id = ? ORDER BY created_at ASC',
     therapistId
   );
@@ -539,7 +540,7 @@ async function compressConversationHistory(db, therapistId) {
   );
 
   // Store summary
-  db.insert(
+  await db.insert(
     'INSERT INTO conversation_summaries (therapist_id, summary, messages_compressed, token_estimate) VALUES (?, ?, ?, ?)',
     therapistId, summaryText, toCompress.length, Math.round(summaryText.length / 4)
   );
@@ -547,7 +548,7 @@ async function compressConversationHistory(db, therapistId) {
   // Delete compressed messages (keep last 10)
   const keepFrom = allMessages[allMessages.length - 10]?.created_at;
   if (keepFrom) {
-    db.run(
+    await db.run(
       'DELETE FROM chat_messages WHERE therapist_id = ? AND created_at < ?',
       therapistId, keepFrom
     );
@@ -570,19 +571,19 @@ async function runBackgroundTask(db, taskId, therapistId, taskType, params) {
 
     switch (taskType) {
       case 'caseload_analysis': {
-        const patients = db.all(
+        const patients = await db.all(
           'SELECT id, client_id, presenting_concerns, diagnoses FROM patients WHERE therapist_id = ?',
           therapistId
         );
-        db.run('UPDATE background_tasks SET progress = 25 WHERE id = ?', taskId);
+        await db.run('UPDATE background_tasks SET progress = 25 WHERE id = ?', taskId);
 
-        const assessments = db.all(
+        const assessments = await db.all(
           `SELECT a.patient_id, a.template_type, a.total_score, a.severity_level, a.administered_at, p.client_id
            FROM assessments a JOIN patients p ON p.id = a.patient_id
            WHERE a.therapist_id = ? ORDER BY a.administered_at DESC LIMIT 200`,
           therapistId
         );
-        db.run('UPDATE background_tasks SET progress = 50 WHERE id = ?', taskId);
+        await db.run('UPDATE background_tasks SET progress = 50 WHERE id = ?', taskId);
 
         const analysis = await callAI(
           MODELS.AZURE_MAIN,
@@ -591,36 +592,36 @@ async function runBackgroundTask(db, taskId, therapistId, taskType, params) {
           2000,
           { therapistId, kind: 'caseload_analysis' }
         );
-        db.run('UPDATE background_tasks SET progress = 90 WHERE id = ?', taskId);
+        await db.run('UPDATE background_tasks SET progress = 90 WHERE id = ?', taskId);
         result = { analysis };
         break;
       }
 
       case 'generate_reports': {
-        db.run('UPDATE background_tasks SET progress = 10 WHERE id = ?', taskId);
-        const patients = db.all(
+        await db.run('UPDATE background_tasks SET progress = 10 WHERE id = ?', taskId);
+        const patients = await db.all(
           'SELECT id, client_id, display_name FROM patients WHERE therapist_id = ?',
           therapistId
         );
-        db.run('UPDATE background_tasks SET progress = 50 WHERE id = ?', taskId);
+        await db.run('UPDATE background_tasks SET progress = 50 WHERE id = ?', taskId);
         result = { message: `Report generation queued for ${patients.length} clients`, client_count: patients.length };
         break;
       }
 
       case 'quarterly_review': {
-        db.run('UPDATE background_tasks SET progress = 20 WHERE id = ?', taskId);
-        const patients = db.all(
+        await db.run('UPDATE background_tasks SET progress = 20 WHERE id = ?', taskId);
+        const patients = await db.all(
           'SELECT id, client_id, presenting_concerns, diagnoses FROM patients WHERE therapist_id = ?',
           therapistId
         );
-        const assessments = db.all(
+        const assessments = await db.all(
           `SELECT a.patient_id, a.template_type, a.total_score, a.severity_level, a.administered_at, p.client_id
            FROM assessments a JOIN patients p ON p.id = a.patient_id
            WHERE a.therapist_id = ? AND a.administered_at >= datetime('now', '-90 days')
            ORDER BY a.administered_at DESC LIMIT 300`,
           therapistId
         );
-        db.run('UPDATE background_tasks SET progress = 50 WHERE id = ?', taskId);
+        await db.run('UPDATE background_tasks SET progress = 50 WHERE id = ?', taskId);
 
         const review = await callAI(
           MODELS.AZURE_MAIN,
@@ -629,13 +630,13 @@ async function runBackgroundTask(db, taskId, therapistId, taskType, params) {
           2500,
           { therapistId, kind: 'quarterly_review' }
         );
-        db.run('UPDATE background_tasks SET progress = 90 WHERE id = ?', taskId);
+        await db.run('UPDATE background_tasks SET progress = 90 WHERE id = ?', taskId);
         result = { review };
         break;
       }
 
       case 'batch_assessments': {
-        db.run('UPDATE background_tasks SET progress = 50 WHERE id = ?', taskId);
+        await db.run('UPDATE background_tasks SET progress = 50 WHERE id = ?', taskId);
         result = { message: 'Batch assessment processing completed' };
         break;
       }
@@ -644,23 +645,23 @@ async function runBackgroundTask(db, taskId, therapistId, taskType, params) {
         result = { message: `Task type ${taskType} executed` };
     }
 
-    db.run(
+    await db.run(
       "UPDATE background_tasks SET status = 'completed', result_json = ?, progress = 100, completed_at = datetime('now') WHERE id = ?",
       JSON.stringify(result), taskId
     );
 
     // Create notification alert
-    db.insert(
+    await db.insert(
       "INSERT INTO proactive_alerts (therapist_id, patient_id, alert_type, severity, title, description) VALUES (?, 0, 'TASK_COMPLETE', 'LOW', ?, ?)",
       therapistId,
       `Task complete: ${taskType}`,
       'Your background task has finished. Ask Miwa to show results.'
     );
 
-    persist();
+    await persistIfNeeded();
   } catch (err) {
-    db.run("UPDATE background_tasks SET status = 'failed', error = ? WHERE id = ?", err.message, taskId);
-    persist();
+    await db.run("UPDATE background_tasks SET status = 'failed', error = ? WHERE id = ?", err.message, taskId);
+    await persistIfNeeded();
     throw err;
   }
 }
@@ -669,8 +670,8 @@ async function runBackgroundTask(db, taskId, therapistId, taskType, params) {
  * Find patients matching batch assessment criteria.
  * Filter: "anxiety_cases", "all", or null defaults to "all"
  */
-function findPatientsForBatchAssessment(db, therapistId, filter = null) {
-  let patients = db.all(
+async function findPatientsForBatchAssessment(db, therapistId, filter = null) {
+  let patients = await db.all(
     'SELECT id, display_name, client_id, diagnoses, presenting_concerns FROM patients WHERE therapist_id = ?',
     therapistId
   );
@@ -704,21 +705,21 @@ function findPatientsForBatchAssessment(db, therapistId, filter = null) {
  * Fetch assessment history for a specific client.
  * Returns latest N assessments with scores, dates, and trends.
  */
-function getClientAssessments(db, therapistId, patientIdOrName, limit = 5) {
+async function getClientAssessments(db, therapistId, patientIdOrName, limit = 5) {
   let patient = null;
 
   // Try to find patient by ID first
   if (typeof patientIdOrName === 'number') {
-    patient = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', patientIdOrName, therapistId);
+    patient = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', patientIdOrName, therapistId);
   } else {
     // Try by display_name or client_id
-    patient = findPatientByDisplayName(db, therapistId, patientIdOrName)
-      || findPatientByCode(db, therapistId, patientIdOrName);
+    patient = await findPatientByDisplayName(db, therapistId, patientIdOrName)
+      || await findPatientByCode(db, therapistId, patientIdOrName);
   }
 
   if (!patient) return null;
 
-  const assessments = db.all(
+  const assessments = await db.all(
     `SELECT id, template_type, total_score, severity_level, administered_at, is_improvement, is_deterioration
      FROM assessments WHERE patient_id = ? AND therapist_id = ?
      ORDER BY administered_at DESC LIMIT ?`,
@@ -743,19 +744,19 @@ function getClientAssessments(db, therapistId, patientIdOrName, limit = 5) {
  * Fetch session history for a specific client.
  * Returns latest N sessions with key notes and themes.
  */
-function getClientSessions(db, therapistId, patientIdOrName, limit = 5) {
+async function getClientSessions(db, therapistId, patientIdOrName, limit = 5) {
   let patient = null;
 
   if (typeof patientIdOrName === 'number') {
-    patient = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', patientIdOrName, therapistId);
+    patient = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', patientIdOrName, therapistId);
   } else {
-    patient = findPatientByDisplayName(db, therapistId, patientIdOrName)
-      || findPatientByCode(db, therapistId, patientIdOrName);
+    patient = await findPatientByDisplayName(db, therapistId, patientIdOrName)
+      || await findPatientByCode(db, therapistId, patientIdOrName);
   }
 
   if (!patient) return null;
 
-  const sessions = db.all(
+  const sessions = await db.all(
     `SELECT id, session_date, note_format, subjective, objective, assessment, plan, created_at
      FROM sessions WHERE patient_id = ? AND therapist_id = ?
      ORDER BY COALESCE(session_date, created_at) DESC LIMIT ?`,
@@ -778,8 +779,8 @@ function getClientSessions(db, therapistId, patientIdOrName, limit = 5) {
 /**
  * Get caseload summary with filtering options.
  */
-function getCaseloadSummaryFiltered(db, therapistId, filter = null) {
-  const patients = db.all(
+async function getCaseloadSummaryFiltered(db, therapistId, filter = null) {
+  const patients = await db.all(
     `SELECT id, display_name, client_id, presenting_concerns, risk_screening FROM patients
      WHERE therapist_id = ? ORDER BY display_name ASC`,
     therapistId
@@ -794,49 +795,58 @@ function getCaseloadSummaryFiltered(db, therapistId, filter = null) {
   if (filter === 'risk_flagged') {
     filtered = patients.filter(p => p.risk_screening && p.risk_screening.toLowerCase().includes('passive'));
   } else if (filter === 'overdue_assessment') {
-    filtered = patients.filter(p => {
-      const latest = db.get(
+    filtered = [];
+    for (const p of patients) {
+      const latest = await db.get(
         'SELECT administered_at FROM assessments WHERE patient_id = ? ORDER BY administered_at DESC LIMIT 1',
         p.id
       );
-      if (!latest) return true; // No assessments = overdue
+      if (!latest) {
+        filtered.push(p);
+        continue;
+      }
       const daysAgo = Math.floor((new Date() - new Date(latest.administered_at)) / (1000 * 60 * 60 * 24));
-      return daysAgo > 30;
-    });
+      if (daysAgo > 30) filtered.push(p);
+    }
   } else if (filter === 'improving') {
-    filtered = patients.filter(p => {
-      const latest = db.get(
+    filtered = [];
+    for (const p of patients) {
+      const latest = await db.get(
         'SELECT is_improvement FROM assessments WHERE patient_id = ? ORDER BY administered_at DESC LIMIT 1',
         p.id
       );
-      return latest?.is_improvement === 1;
-    });
+      if (latest?.is_improvement === 1) filtered.push(p);
+    }
   } else if (filter === 'deteriorating') {
-    filtered = patients.filter(p => {
-      const latest = db.get(
+    filtered = [];
+    for (const p of patients) {
+      const latest = await db.get(
         'SELECT is_deterioration FROM assessments WHERE patient_id = ? ORDER BY administered_at DESC LIMIT 1',
         p.id
       );
-      return latest?.is_deterioration === 1;
+      if (latest?.is_deterioration === 1) filtered.push(p);
+    }
+  }
+
+  const clients = [];
+  for (const p of filtered) {
+    const latest = await db.get(
+      'SELECT template_type, total_score, severity_level FROM assessments WHERE patient_id = ? ORDER BY administered_at DESC LIMIT 1',
+      p.id
+    );
+    const riskFlag = p.risk_screening && p.risk_screening.toLowerCase().includes('passive');
+    clients.push({
+      name: p.display_name || p.client_id,
+      clientId: p.client_id,
+      presenting: (p.presenting_concerns || 'N/A').slice(0, 60),
+      latestAssessment: latest ? `${latest.template_type}: ${latest.total_score} (${latest.severity_level})` : 'none',
+      atRisk: riskFlag,
     });
   }
 
   return {
     count: filtered.length,
-    clients: filtered.map(p => {
-      const latest = db.get(
-        'SELECT template_type, total_score, severity_level FROM assessments WHERE patient_id = ? ORDER BY administered_at DESC LIMIT 1',
-        p.id
-      );
-      const riskFlag = p.risk_screening && p.risk_screening.toLowerCase().includes('passive');
-      return {
-        name: p.display_name || p.client_id,
-        clientId: p.client_id,
-        presenting: (p.presenting_concerns || 'N/A').slice(0, 60),
-        latestAssessment: latest ? `${latest.template_type}: ${latest.total_score} (${latest.severity_level})` : 'none',
-        atRisk: riskFlag,
-      };
-    }),
+    clients,
   };
 }
 
@@ -963,11 +973,11 @@ function formatAppointmentPreview(patient, appointment) {
   return `Schedule ${type} for ${patient.client_id} at ${start} (${duration} min)${location}${notes}`;
 }
 
-function createAppointmentRecord(db, therapistId, patient, payload = {}) {
+async function createAppointmentRecord(db, therapistId, patient, payload = {}) {
   const durationMinutes = Number(payload.durationMinutes || 50);
   const dateFields = buildAppointmentDateFields(payload.scheduledStart || null, durationMinutes, payload.scheduledEnd || null);
   const syncMeta = buildAppointmentSyncMeta(payload.syncToGoogle);
-  const insert = db.insert(
+  const insert = await db.insert(
     `INSERT INTO appointments
       (therapist_id, patient_id, client_code, client_display_name, appointment_type, scheduled_start, scheduled_end, duration_minutes, location, notes, calendar_provider, google_calendar_id, google_event_id, sync_status, sync_error, last_synced_at, status)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -1010,7 +1020,7 @@ async function generateMeetForAppointment(db, appointmentId) {
       throw err;
     }
 
-    const appt = db.get('SELECT * FROM appointments WHERE id = ?', appointmentId);
+    const appt = await db.get('SELECT * FROM appointments WHERE id = ?', appointmentId);
     if (!appt) throw new Error('Appointment not found');
     if (!appt.scheduled_start) throw new Error('Appointment has no scheduled_start');
 
@@ -1031,11 +1041,11 @@ async function generateMeetForAppointment(db, appointmentId) {
 
     const { meetUrl, eventId, spaceName } = await createMeetEvent({ title, startISO, endISO, description });
 
-    db.run(
+    await db.run(
       'UPDATE appointments SET meet_url = ?, meet_event_id = ?, meet_space_name = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
       meetUrl, eventId, spaceName, appointmentId
     );
-    persist();
+    await persistIfNeeded();
     return meetUrl;
   } catch (err) {
     console.error('[google-meet] Failed to provision link:', err.message);
@@ -1061,7 +1071,7 @@ async function maybeSendTelehealthSms(db, therapistId, patient, scheduledStart, 
 
     let videoUrl = meetUrlOverride;
     if (!videoUrl) {
-      const therapist = db.get('SELECT telehealth_url FROM therapists WHERE id = ?', therapistId);
+      const therapist = await db.get('SELECT telehealth_url FROM therapists WHERE id = ?', therapistId);
       videoUrl = therapist?.telehealth_url;
     }
     if (!videoUrl) return;
@@ -1126,12 +1136,12 @@ function buildAppointmentDateFields(scheduledStart, durationMinutes, scheduledEn
   return { durationMinutes: duration, scheduledEnd: endValue };
 }
 
-function getAppointmentById(db, therapistId, appointmentId) {
+async function getAppointmentById(db, therapistId, appointmentId) {
   // Must include p.display_name — the Schedule UI prefers display_name over
   // client_code everywhere. Leaving it out here meant PATCH and DELETE
   // responses silently dropped the name and the UI fell back to the code,
   // which looked like the client got renamed after every edit.
-  return db.get(
+  return await db.get(
     `SELECT a.*, p.client_id, p.display_name
      FROM appointments a
      JOIN patients p ON p.id = a.patient_id
@@ -1141,13 +1151,13 @@ function getAppointmentById(db, therapistId, appointmentId) {
   );
 }
 
-function generateClientId(db, therapistId) {
+async function generateClientId(db, therapistId) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let id, attempts = 0;
   do {
     id = 'C';
     for (let i = 0; i < 6; i++) id += chars[Math.floor(Math.random() * chars.length)];
-    const existing = db.get('SELECT id FROM patients WHERE client_id = ? AND therapist_id = ?', id, therapistId);
+    const existing = await db.get('SELECT id FROM patients WHERE client_id = ? AND therapist_id = ?', id, therapistId);
     if (!existing) break;
     attempts++;
   } while (attempts < 10);
@@ -1470,7 +1480,7 @@ async function createReportPdf({ patient, report, chartData, audience, purpose }
 }
 
 async function createAndStoreReport({ therapistId, patient, report, chartData, audience, purpose }) {
-  const db = getDb();
+  const db = getAsyncDb();
   const pdfBuffer = await createReportPdf({ patient, report, chartData, audience, purpose });
   const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.pdf`;
   const filePath = path.join(REPORTS_DIR, filename);
@@ -1489,7 +1499,7 @@ async function createAndStoreReport({ therapistId, patient, report, chartData, a
     fs.unlinkSync(filePath);
   }
 
-  const insert = db.insert(
+  const insert = await db.insert(
     `INSERT INTO agent_reports (therapist_id, patient_id, title, audience, purpose, report_json, pdf_path)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
     therapistId,
@@ -2001,34 +2011,34 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
   const crypto = require('crypto');
 
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
-  function resolvePatient(rawId) {
+  async function resolvePatient(rawId) {
     const clean = (rawId || '').replace(/[\[\]]/g, '').trim();
     if (!clean) return null;
-    return findPatientByCode(db, therapistId, clean)
-      || findPatientByDisplayName(db, therapistId, clean);
+    return await findPatientByCode(db, therapistId, clean)
+      || await findPatientByDisplayName(db, therapistId, clean);
   }
 
   switch (name) {
     case 'get_client_assessments': {
-      const patient = resolvePatient(args.client_id);
+      const patient = await resolvePatient(args.client_id);
       if (!patient) return { error: 'Client not found' };
-      const data = getClientAssessments(db, therapistId, patient.id, args.limit || 5);
+      const data = await getClientAssessments(db, therapistId, patient.id, args.limit || 5);
       return data || { error: 'No assessment data found' };
     }
 
     case 'get_client_sessions': {
-      const patient = resolvePatient(args.client_id);
+      const patient = await resolvePatient(args.client_id);
       if (!patient) return { error: 'Client not found' };
-      const data = getClientSessions(db, therapistId, patient.id, args.limit || 5);
+      const data = await getClientSessions(db, therapistId, patient.id, args.limit || 5);
       return data || { error: 'No session data found' };
     }
 
     case 'get_caseload_summary': {
-      return getCaseloadSummaryFiltered(db, therapistId, args.filter || null);
+      return await getCaseloadSummaryFiltered(db, therapistId, args.filter || null);
     }
 
     case 'schedule_appointment': {
-      const patient = resolvePatient(args.client_id);
+      const patient = await resolvePatient(args.client_id);
       if (!patient) return { error: 'Client not found' };
 
       const preview = formatAppointmentPreview(patient, {
@@ -2039,7 +2049,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
         notes: args.notes,
       });
 
-      const action = db.insert(
+      const action = await db.insert(
         `INSERT INTO agent_actions (therapist_id, kind, payload_json, status) VALUES (?, ?, ?, ?)`,
         therapistId, 'schedule_appointment',
         JSON.stringify({
@@ -2076,14 +2086,14 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       // Find the appointment by ID or by client + date
       let appt = null;
       if (args.appointment_id) {
-        appt = db.get(
+        appt = await db.get(
           `SELECT a.*, p.client_id, p.display_name FROM appointments a
            JOIN patients p ON p.id = a.patient_id
            WHERE a.id = ? AND a.therapist_id = ? AND a.status != 'cancelled'`,
           args.appointment_id, therapistId
         );
       } else if (args.client_id) {
-        const patient = resolvePatient(args.client_id);
+        const patient = await resolvePatient(args.client_id);
         if (!patient) return { error: 'Client not found' };
         // Find upcoming non-cancelled appointment, optionally filtered by date
         let dateFilter = '';
@@ -2092,7 +2102,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
           dateFilter = ' AND DATE(a.scheduled_start) = DATE(?)';
           params.push(args.scheduled_date);
         }
-        appt = db.get(
+        appt = await db.get(
           `SELECT a.*, p.client_id, p.display_name FROM appointments a
            JOIN patients p ON p.id = a.patient_id
            WHERE a.patient_id = ? AND a.therapist_id = ? AND a.status != 'cancelled'${dateFilter}
@@ -2103,11 +2113,11 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       if (!appt) return { error: 'No matching appointment found. Check the client name and date.' };
 
       // Cancel it (soft delete — same logic as REST endpoint)
-      db.run(
+      await db.run(
         `UPDATE appointments SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
         appt.id
       );
-      persist();
+      await persistIfNeeded();
 
       const name = appt.display_name || appt.client_id;
       const when = appt.scheduled_start
@@ -2131,7 +2141,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     }
 
     case 'send_assessment_sms': {
-      const patient = resolvePatient(args.client_id);
+      const patient = await resolvePatient(args.client_id);
       if (!patient) return { error: 'Client not found' };
 
       const phone = normalisePhone(patient.phone);
@@ -2143,17 +2153,17 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       const token = crypto.randomBytes(24).toString('base64url');
       const sendAt = args.send_at ? new Date(args.send_at).toISOString() : new Date().toISOString();
 
-      db.run(
+      await db.run(
         `INSERT INTO assessment_links (token, patient_id, therapist_id, template_type, expires_at)
          VALUES (?, ?, ?, ?, datetime('now', '+30 days'))`,
         token, patient.id, therapistId, templateKey
       );
-      db.insert(
+      await db.insert(
         `INSERT INTO scheduled_sends (therapist_id, patient_id, assessment_type, token, phone, send_at, custom_message)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         therapistId, patient.id, asmtType, token, phone, sendAt, args.custom_message || null
       );
-      persist();
+      await persistIfNeeded();
 
       const isNow = new Date(sendAt) <= new Date(Date.now() + 60_000);
       return {
@@ -2166,7 +2176,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     }
 
     case 'batch_send_assessments': {
-      const candidates = findPatientsForBatchAssessment(db, therapistId, args.filter || null);
+      const candidates = await findPatientsForBatchAssessment(db, therapistId, args.filter || null);
       const withPhone = candidates.filter(p => p.phone && normalisePhone(p.phone));
 
       if (withPhone.length === 0) return { error: 'No clients with mobile numbers match that filter' };
@@ -2206,7 +2216,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
 
       // Duplicate guard: if a client with this exact name already exists, return the
       // existing record instead of creating a duplicate. Case-insensitive match.
-      const existing = db.get(
+      const existing = await db.get(
         'SELECT id, client_id, display_name FROM patients WHERE therapist_id = ? AND LOWER(display_name) = LOWER(?)',
         therapistId, displayName
       );
@@ -2219,9 +2229,9 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
         };
       }
 
-      const clientId = generateClientId(db, therapistId);
+      const clientId = await generateClientId(db, therapistId);
 
-      db.insert(
+      await db.insert(
         `INSERT INTO patients (
           client_id, display_name, client_type, session_modality, session_duration,
           age, gender, presenting_concerns, phone, therapist_id
@@ -2237,9 +2247,9 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
         args.phone || null,
         therapistId
       );
-      persist();
+      await persistIfNeeded();
 
-      const created = db.get('SELECT * FROM patients WHERE client_id = ? AND therapist_id = ?', clientId, therapistId);
+      const created = await db.get('SELECT * FROM patients WHERE client_id = ? AND therapist_id = ?', clientId, therapistId);
 
       send({
         type: 'client_created',
@@ -2259,10 +2269,10 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     }
 
     case 'generate_report': {
-      const patient = resolvePatient(args.client_id);
+      const patient = await resolvePatient(args.client_id);
       if (!patient) return { error: 'Client not found' };
 
-      const context = buildPatientContext(db, therapistId, patient.id);
+      const context = await buildPatientContext(db, therapistId, patient.id);
       const reportSpec = {
         viewer: args.viewer || 'therapist',
         purpose: args.purpose || 'progress review',
@@ -2318,7 +2328,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     }
 
     case 'get_billing_status': {
-      const row = db.get('SELECT subscription_status, subscription_tier, workspace_uses FROM therapists WHERE id = ?', therapistId);
+      const row = await db.get('SELECT subscription_status, subscription_tier, workspace_uses FROM therapists WHERE id = ?', therapistId);
       if (!row) return { error: 'Therapist not found' };
       const trialLimit = 20;
       const isActive = row.subscription_status === 'active' || row.subscription_status === 'trialing';
@@ -2333,16 +2343,16 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     }
 
     case 'get_outcomes_dashboard': {
-      const totalAssessments = db.get('SELECT COUNT(*) as c FROM assessments WHERE therapist_id = ?', therapistId)?.c || 0;
-      const activeClients = db.get('SELECT COUNT(DISTINCT patient_id) as c FROM assessments WHERE therapist_id = ?', therapistId)?.c || 0;
-      const avgPhq9 = db.get("SELECT AVG(total_score) as avg FROM assessments WHERE therapist_id = ? AND assessment_type = 'PHQ-9'", therapistId)?.avg;
-      const avgGad7 = db.get("SELECT AVG(total_score) as avg FROM assessments WHERE therapist_id = ? AND assessment_type = 'GAD-7'", therapistId)?.avg;
-      const phq9Dist = db.all("SELECT severity_level, COUNT(*) as count FROM assessments WHERE therapist_id = ? AND assessment_type = 'PHQ-9' GROUP BY severity_level", therapistId);
-      const improvements = db.get(`SELECT COUNT(*) as c FROM (
+      const totalAssessments = (await db.get('SELECT COUNT(*) as c FROM assessments WHERE therapist_id = ?', therapistId))?.c || 0;
+      const activeClients = (await db.get('SELECT COUNT(DISTINCT patient_id) as c FROM assessments WHERE therapist_id = ?', therapistId))?.c || 0;
+      const avgPhq9 = (await db.get("SELECT AVG(total_score) as avg FROM assessments WHERE therapist_id = ? AND assessment_type = 'PHQ-9'", therapistId))?.avg;
+      const avgGad7 = (await db.get("SELECT AVG(total_score) as avg FROM assessments WHERE therapist_id = ? AND assessment_type = 'GAD-7'", therapistId))?.avg;
+      const phq9Dist = await db.all("SELECT severity_level, COUNT(*) as count FROM assessments WHERE therapist_id = ? AND assessment_type = 'PHQ-9' GROUP BY severity_level", therapistId);
+      const improvements = (await db.get(`SELECT COUNT(*) as c FROM (
         SELECT patient_id, assessment_type,
           total_score - LAG(total_score) OVER (PARTITION BY patient_id, assessment_type ORDER BY completed_at) as delta
         FROM assessments WHERE therapist_id = ?
-      ) WHERE delta < 0`, therapistId)?.c || 0;
+      ) WHERE delta < 0`, therapistId))?.c || 0;
       return {
         total_assessments: totalAssessments,
         active_clients_assessed: activeClients,
@@ -2356,7 +2366,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     case 'get_schedule': {
       const daysAhead = args.days_ahead || 7;
       const limit = args.limit || 10;
-      const rows = db.all(
+      const rows = await db.all(
         `SELECT a.scheduled_start, a.duration_minutes, a.appointment_type, a.location, a.status, a.notes, p.client_id, p.display_name
          FROM appointments a JOIN patients p ON p.id = a.patient_id
          WHERE a.therapist_id = ? AND a.status != 'cancelled'
@@ -2402,15 +2412,15 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       try {
         const { getBrief, getUpcomingBriefs } = require('../services/brief-generator');
         if (args.client_id) {
-          const patient = resolvePatient(args.client_id);
+          const patient = await resolvePatient(args.client_id);
           if (!patient) return { error: 'Client not found' };
-          const briefs = db.all(
+          const briefs = await db.all(
             `SELECT sb.* FROM session_briefs sb WHERE sb.therapist_id = ? AND sb.patient_id = ? ORDER BY sb.created_at DESC LIMIT 1`,
             therapistId, patient.id
           );
           if (!briefs.length) return { message: `No pre-session brief found for ${patient.client_id}. Briefs are auto-generated 30 minutes before scheduled appointments.` };
           const brief = briefs[0];
-          if (!brief.viewed_at) db.run("UPDATE session_briefs SET viewed_at = datetime('now') WHERE id = ?", brief.id);
+          if (!brief.viewed_at) await db.run("UPDATE session_briefs SET viewed_at = datetime('now') WHERE id = ?", brief.id);
           return { brief: JSON.parse(brief.brief_json), generated_at: brief.created_at };
         }
         const upcoming = await getUpcomingBriefs(therapistId);
@@ -2428,7 +2438,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
         const params = {};
         if (args.client_name) params.client_name = args.client_name;
         if (args.client_id) {
-          const patient = resolvePatient(args.client_id);
+          const patient = await resolvePatient(args.client_id);
           if (patient) params.patient_id = patient.id;
         }
         if (args.case_type) params.case_type = args.case_type;
@@ -2472,11 +2482,11 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
 
     // Pillar 3: Treatment Plan Agent
     case 'create_treatment_plan': {
-      const patient = resolvePatient(args.client_id);
+      const patient = await resolvePatient(args.client_id);
       if (!patient) return { error: 'Client not found' };
 
       // Check if plan already exists
-      const existing = db.get("SELECT id FROM treatment_plans WHERE patient_id = ? AND therapist_id = ? AND status = 'active'", patient.id, therapistId);
+      const existing = await db.get("SELECT id FROM treatment_plans WHERE patient_id = ? AND therapist_id = ? AND status = 'active'", patient.id, therapistId);
       if (existing) return { error: `Client already has an active treatment plan (ID: ${existing.id}). Use get_treatment_plan to view it or update goals individually.` };
 
       let goals = args.goals || [];
@@ -2498,7 +2508,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
         }
       }
 
-      const { lastInsertRowid: planId } = db.insert(
+      const { lastInsertRowid: planId } = await db.insert(
         `INSERT INTO treatment_plans (patient_id, therapist_id, status, summary, last_reviewed_at)
          VALUES (?, ?, 'active', ?, datetime('now'))`,
         patient.id, therapistId, `Treatment plan for ${patient.client_id} — ${goals.length} goals`
@@ -2511,14 +2521,14 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
           const metricMatch = g.target_metric.match(/(PHQ-9|GAD-7|PCL-5)/i);
           if (metricMatch) {
             const templateType = metricMatch[1].toLowerCase().replace('-', '');
-            const latest = db.get(
+            const latest = await db.get(
               'SELECT total_score FROM assessments WHERE patient_id = ? AND template_type = ? ORDER BY administered_at DESC LIMIT 1',
               patient.id, templateType
             );
             if (latest) baseline = latest.total_score;
           }
         }
-        db.run(
+        await db.run(
           `INSERT INTO treatment_goals (plan_id, goal_text, target_metric, baseline_value, current_value, status)
            VALUES (?, ?, ?, ?, ?, 'active')`,
           planId, g.goal_text, g.target_metric || null, baseline, baseline
@@ -2543,13 +2553,13 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     }
 
     case 'get_treatment_plan': {
-      const patient = resolvePatient(args.client_id);
+      const patient = await resolvePatient(args.client_id);
       if (!patient) return { error: 'Client not found' };
 
-      const plan = db.get("SELECT * FROM treatment_plans WHERE patient_id = ? AND therapist_id = ? AND status = 'active'", patient.id, therapistId);
+      const plan = await db.get("SELECT * FROM treatment_plans WHERE patient_id = ? AND therapist_id = ? AND status = 'active'", patient.id, therapistId);
       if (!plan) return { message: `No active treatment plan for ${patient.client_id}. Use create_treatment_plan to create one.` };
 
-      const goals = db.all('SELECT * FROM treatment_goals WHERE plan_id = ? ORDER BY id', plan.id);
+      const goals = await db.all('SELECT * FROM treatment_goals WHERE plan_id = ? ORDER BY id', plan.id);
       return {
         plan_id: plan.id,
         patient: patient.client_id,
@@ -2571,21 +2581,21 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     }
 
     case 'update_treatment_goal': {
-      const goal = db.get('SELECT tg.*, tp.therapist_id FROM treatment_goals tg JOIN treatment_plans tp ON tp.id = tg.plan_id WHERE tg.id = ?', args.goal_id);
+      const goal = await db.get('SELECT tg.*, tp.therapist_id FROM treatment_goals tg JOIN treatment_plans tp ON tp.id = tg.plan_id WHERE tg.id = ?', args.goal_id);
       if (!goal || goal.therapist_id !== therapistId) return { error: 'Goal not found' };
 
       if (args.status) {
-        db.run('UPDATE treatment_goals SET status = ? WHERE id = ?', args.status, args.goal_id);
-        if (args.status === 'met') db.run("UPDATE treatment_goals SET met_at = datetime('now') WHERE id = ?", args.goal_id);
-        if (args.status === 'revised') db.run("UPDATE treatment_goals SET revised_at = datetime('now') WHERE id = ?", args.goal_id);
+        await db.run('UPDATE treatment_goals SET status = ? WHERE id = ?', args.status, args.goal_id);
+        if (args.status === 'met') await db.run("UPDATE treatment_goals SET met_at = datetime('now') WHERE id = ?", args.goal_id);
+        if (args.status === 'revised') await db.run("UPDATE treatment_goals SET revised_at = datetime('now') WHERE id = ?", args.goal_id);
       }
       if (args.current_value !== undefined) {
-        db.run('UPDATE treatment_goals SET current_value = ? WHERE id = ?', args.current_value, args.goal_id);
+        await db.run('UPDATE treatment_goals SET current_value = ? WHERE id = ?', args.current_value, args.goal_id);
       }
       if (args.progress_note) {
         const notes = JSON.parse(goal.progress_notes_json || '[]');
         notes.push({ note: args.progress_note, date: new Date().toISOString().split('T')[0] });
-        db.run('UPDATE treatment_goals SET progress_notes_json = ? WHERE id = ?', JSON.stringify(notes), args.goal_id);
+        await db.run('UPDATE treatment_goals SET progress_notes_json = ? WHERE id = ?', JSON.stringify(notes), args.goal_id);
       }
 
       // Snapshot the plan after the goal change — revision history for HIPAA/liability
@@ -2610,8 +2620,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
         // Gather data based on scope (same data sources, unchanged)
         let contextData = '';
         if (args.scope === 'caseload' || args.scope === 'assessments') {
-          const patients = db.all('SELECT id, client_id, presenting_concerns, diagnoses FROM patients WHERE therapist_id = ?', therapistId);
-          const assessments = db.all(
+          const patients = await db.all('SELECT id, client_id, presenting_concerns, diagnoses FROM patients WHERE therapist_id = ?', therapistId);
+          const assessments = await db.all(
             `SELECT a.patient_id, a.template_type, a.total_score, a.severity_level, a.is_improvement, a.is_deterioration, a.administered_at, p.client_id
              FROM assessments a JOIN patients p ON p.id = a.patient_id
              WHERE a.therapist_id = ? ORDER BY a.administered_at DESC LIMIT 200`,
@@ -2620,7 +2630,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
           contextData = `PATIENTS (${patients.length}):\n${patients.map(p => `- ${p.client_id}: ${p.presenting_concerns || 'no concerns listed'} | Dx: ${p.diagnoses || 'none'}`).join('\n')}\n\nASSESSMENTS (last 200):\n${assessments.map(a => `- ${a.client_id} ${a.template_type}: ${a.total_score} (${a.severity_level}) ${a.is_improvement ? '↑improving' : ''} ${a.is_deterioration ? '↓deteriorating' : ''} [${a.administered_at}]`).join('\n')}`;
         }
         if (args.scope === 'sessions') {
-          const sessions = db.all(
+          const sessions = await db.all(
             `SELECT s.patient_id, s.session_date, s.assessment, s.plan, p.client_id
              FROM sessions s JOIN patients p ON p.id = s.patient_id
              WHERE s.therapist_id = ? AND s.signed_at IS NOT NULL ORDER BY s.session_date DESC LIMIT 100`,
@@ -2629,10 +2639,10 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
           contextData = `RECENT SESSIONS (last 100):\n${sessions.map(s => `- ${s.client_id} [${s.session_date}]: Assessment: ${(s.assessment || '').slice(0, 150)} | Plan: ${(s.plan || '').slice(0, 150)}`).join('\n')}`;
         }
         if (args.scope === 'single_client' && args.client_id) {
-          const patient = resolvePatient(args.client_id);
+          const patient = await resolvePatient(args.client_id);
           if (!patient) return { error: 'Client not found' };
-          const sessions = db.all('SELECT session_date, assessment, plan FROM sessions WHERE patient_id = ? AND therapist_id = ? ORDER BY session_date DESC LIMIT 20', patient.id, therapistId);
-          const assessments = db.all('SELECT template_type, total_score, severity_level, administered_at FROM assessments WHERE patient_id = ? ORDER BY administered_at DESC LIMIT 20', patient.id);
+          const sessions = await db.all('SELECT session_date, assessment, plan FROM sessions WHERE patient_id = ? AND therapist_id = ? ORDER BY session_date DESC LIMIT 20', patient.id, therapistId);
+          const assessments = await db.all('SELECT template_type, total_score, severity_level, administered_at FROM assessments WHERE patient_id = ? ORDER BY administered_at DESC LIMIT 20', patient.id);
           contextData = `CLIENT: ${patient.client_id}\nConcerns: ${patient.presenting_concerns}\nDiagnoses: ${patient.diagnoses}\n\nSESSIONS:\n${sessions.map(s => `[${s.session_date}] ${(s.assessment || '').slice(0, 200)}`).join('\n')}\n\nASSESSMENTS:\n${assessments.map(a => `${a.template_type}: ${a.total_score} (${a.severity_level}) [${a.administered_at}]`).join('\n')}`;
         }
 
@@ -2644,7 +2654,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
         }
 
         // Log the delegated task
-        const { lastInsertRowid: taskId } = db.insert(
+        const { lastInsertRowid: taskId } = await db.insert(
           `INSERT INTO delegated_tasks (therapist_id, goal, scope, status, model_used)
            VALUES (?, ?, ?, 'running', 'haiku+sonnet')`,
           therapistId, args.goal, args.scope
@@ -2660,7 +2670,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
             { therapistId, kind: 'delegate_single' }
           );
 
-          db.run("UPDATE delegated_tasks SET status = 'completed', result_json = ?, tokens_used = ?, completed_at = datetime('now') WHERE id = ?",
+          await db.run("UPDATE delegated_tasks SET status = 'completed', result_json = ?, tokens_used = ?, completed_at = datetime('now') WHERE id = ?",
             JSON.stringify({ summary: result }), Math.round(result.length / 4), taskId
           );
 
@@ -2691,7 +2701,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
 
         const totalTokens = subResults.reduce((sum, r) => sum + (r?.length || 0) / 4, 0) + (synthesis?.length || 0) / 4;
 
-        db.run("UPDATE delegated_tasks SET status = 'completed', result_json = ?, tokens_used = ?, completed_at = datetime('now') WHERE id = ?",
+        await db.run("UPDATE delegated_tasks SET status = 'completed', result_json = ?, tokens_used = ?, completed_at = datetime('now') WHERE id = ?",
           JSON.stringify({ synthesis, subResults: subResults.length }), Math.round(totalTokens), taskId
         );
 
@@ -2707,7 +2717,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       try {
         const { searchInsights, getInsightsSummary } = require('../services/practice-intelligence');
         if (args.insight_type) {
-          const insights = db.all(
+          const insights = await db.all(
             'SELECT * FROM practice_insights WHERE therapist_id = ? AND insight_type = ? AND is_active = 1 ORDER BY confidence_score DESC LIMIT 10',
             therapistId, args.insight_type
           );
@@ -2777,7 +2787,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       }
       // If it's already ISO format, leave as-is
 
-      const { lastInsertRowid: taskId } = db.insert(
+      const { lastInsertRowid: taskId } = await db.insert(
         'INSERT INTO agent_scheduled_tasks (therapist_id, task_type, description, prompt, scheduled_for) VALUES (?, ?, ?, ?, ?)',
         therapistId, args.task_type || 'reminder', args.description,
         args.description, scheduledFor
@@ -2794,7 +2804,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     case 'list_scheduled_tasks': {
       const status = args.status || 'pending';
       const where = status === 'all' ? '' : "AND status = 'pending'";
-      const tasks = db.all(
+      const tasks = await db.all(
         `SELECT id, task_type, description, scheduled_for, status, created_at FROM agent_scheduled_tasks WHERE therapist_id = ? ${where} ORDER BY scheduled_for ASC LIMIT 20`,
         therapistId
       );
@@ -2803,14 +2813,14 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
 
     // Feature 4: Background Tasks with Notifications
     case 'run_background_task': {
-      const { lastInsertRowid: bgTaskId } = db.insert(
+      const { lastInsertRowid: bgTaskId } = await db.insert(
         'INSERT INTO background_tasks (therapist_id, task_type, description) VALUES (?, ?, ?)',
         therapistId, args.task_type, args.description
       );
 
       // Fire and forget — run in background
-      runBackgroundTask(db, bgTaskId, therapistId, args.task_type, args.params || {}).catch(err => {
-        db.run("UPDATE background_tasks SET status = 'failed', error = ? WHERE id = ?", err.message, bgTaskId);
+      runBackgroundTask(db, bgTaskId, therapistId, args.task_type, args.params || {}).catch(async err => {
+        await db.run("UPDATE background_tasks SET status = 'failed', error = ? WHERE id = ?", err.message, bgTaskId);
       });
 
       return {
@@ -2821,22 +2831,23 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     }
 
     case 'check_background_tasks': {
-      const tasks = db.all(
+      const tasks = await db.all(
         "SELECT id, task_type, description, status, progress, created_at, completed_at FROM background_tasks WHERE therapist_id = ? ORDER BY created_at DESC LIMIT 10",
         therapistId
       );
       const running = tasks.filter(t => t.status === 'running').length;
       const completed = tasks.filter(t => t.status === 'completed').length;
       // Include result for recently completed tasks
-      const withResults = tasks.map(t => {
+      const withResults = [];
+      for (const t of tasks) {
         if (t.status === 'completed') {
-          const full = db.get('SELECT result_json FROM background_tasks WHERE id = ?', t.id);
+          const full = await db.get('SELECT result_json FROM background_tasks WHERE id = ?', t.id);
           if (full?.result_json) {
             try { t.result_preview = JSON.parse(full.result_json); } catch {}
           }
         }
-        return t;
-      });
+        withResults.push(t);
+      }
       return { tasks: withResults, running, completed };
     }
 
@@ -2844,7 +2855,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     case 'manage_event_triggers': {
       switch (args.action) {
         case 'list': {
-          const triggers = db.all(
+          const triggers = await db.all(
             'SELECT id, event_type, action_type, config_json, enabled, fire_count, last_fired_at, created_at FROM event_triggers WHERE therapist_id = ? ORDER BY created_at DESC',
             therapistId
           );
@@ -2861,7 +2872,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
             return { error: 'event_type and action_type are required to create a trigger' };
           }
           const configJson = JSON.stringify(args.config || {});
-          const { lastInsertRowid: triggerId } = db.insert(
+          const { lastInsertRowid: triggerId } = await db.insert(
             'INSERT INTO event_triggers (therapist_id, event_type, action_type, config_json) VALUES (?, ?, ?, ?)',
             therapistId, args.event_type, args.action_type, configJson
           );
@@ -2874,13 +2885,13 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
         }
         case 'toggle': {
           if (!args.trigger_id) return { error: 'trigger_id is required' };
-          const trigger = db.get(
+          const trigger = await db.get(
             'SELECT id, enabled FROM event_triggers WHERE id = ? AND therapist_id = ?',
             args.trigger_id, therapistId
           );
           if (!trigger) return { error: 'Trigger not found' };
           const newState = trigger.enabled ? 0 : 1;
-          db.run('UPDATE event_triggers SET enabled = ? WHERE id = ?', newState, trigger.id);
+          await db.run('UPDATE event_triggers SET enabled = ? WHERE id = ?', newState, trigger.id);
           return { trigger_id: trigger.id, enabled: !!newState, message: `Trigger ${newState ? 'enabled' : 'disabled'}` };
         }
         default:
@@ -2889,18 +2900,18 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     }
 
     case 'send_portal_link': {
-      const patient = resolvePatient(args.client_id);
+      const patient = await resolvePatient(args.client_id);
       if (!patient) return { error: 'Client not found' };
 
       const crypto = require('crypto');
       const token = crypto.randomBytes(24).toString('base64url');
 
-      db.insert(
+      await db.insert(
         `INSERT INTO client_portal_tokens (token, patient_id, therapist_id, expires_at)
          VALUES (?, ?, ?, datetime('now', '+30 days'))`,
         token, patient.id, therapistId,
       );
-      persist();
+      await persistIfNeeded();
 
       const baseUrl = process.env.APP_URL || 'https://miwa.care';
       const portalUrl = `${baseUrl}/portal/${token}`;
@@ -2932,11 +2943,11 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       const validCats = ['bug', 'feature', 'general'];
       const cat = validCats.includes(args.category) ? args.category : 'general';
       try {
-        db.insert(
+        await db.insert(
           `INSERT INTO user_feedback (therapist_id, message, category, source) VALUES (?, ?, ?, 'chat')`,
           therapistId, feedbackMsg, cat,
         );
-        persist();
+        await persistIfNeeded();
         return { ok: true, category: cat };
       } catch (err) {
         return { error: `Failed to save feedback: ${err.message}` };
@@ -2949,27 +2960,27 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
 }
 
 // ── POST /api/agent/portal-link — Generate a client portal magic link ────────
-router.post('/portal-link', (req, res) => {
+router.post('/portal-link', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const crypto = require('crypto');
     const { patient_id } = req.body;
 
     if (!patient_id) return res.status(400).json({ error: 'patient_id is required' });
 
-    const patient = db.get(
+    const patient = await db.get(
       'SELECT * FROM patients WHERE id = ? AND therapist_id = ?',
       patient_id, req.therapist.id,
     );
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
     const token = crypto.randomBytes(24).toString('base64url');
-    db.insert(
+    await db.insert(
       `INSERT INTO client_portal_tokens (token, patient_id, therapist_id, expires_at)
        VALUES (?, ?, ?, datetime('now', '+30 days'))`,
       token, patient.id, req.therapist.id,
     );
-    persist();
+    await persistIfNeeded();
 
     const baseUrl = process.env.APP_URL || 'https://miwa.care';
     const portalUrl = `${baseUrl}/portal/${token}`;
@@ -2988,26 +2999,26 @@ router.post('/portal-link', (req, res) => {
 });
 
 // ── POST /api/agent/portal-message — Therapist sends message to client via portal ─
-router.post('/portal-message', (req, res) => {
+router.post('/portal-message', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { patient_id, message } = req.body;
 
     if (!patient_id) return res.status(400).json({ error: 'patient_id is required' });
     if (!message || !message.trim()) return res.status(400).json({ error: 'message is required' });
 
-    const patient = db.get(
+    const patient = await db.get(
       'SELECT * FROM patients WHERE id = ? AND therapist_id = ?',
       patient_id, req.therapist.id,
     );
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-    const result = db.insert(
+    const result = await db.insert(
       `INSERT INTO client_messages (patient_id, therapist_id, sender, message)
        VALUES (?, ?, 'therapist', ?)`,
       patient.id, req.therapist.id, message.trim().slice(0, 2000),
     );
-    persist();
+    await persistIfNeeded();
 
     res.json({ ok: true, message_id: result.lastInsertRowid });
   } catch (err) {
@@ -3015,10 +3026,10 @@ router.post('/portal-message', (req, res) => {
   }
 });
 
-router.get('/appointments', (req, res) => {
+router.get('/appointments', async (req, res) => {
   try {
-    const db = getDb();
-    const rows = db.all(
+    const db = getAsyncDb();
+    const rows = await db.all(
       `SELECT a.*, p.client_id, p.display_name
        FROM appointments a
        LEFT JOIN patients p ON p.id = a.patient_id
@@ -3038,7 +3049,7 @@ router.get('/appointments', (req, res) => {
   }
 });
 
-router.get('/google-calendar/status', (req, res) => {
+router.get('/google-calendar/status', async (req, res) => {
   try {
     const config = getGoogleCalendarSyncConfig();
     res.json({
@@ -3054,10 +3065,10 @@ router.get('/google-calendar/status', (req, res) => {
   }
 });
 
-router.patch('/appointments/:id', (req, res) => {
+router.patch('/appointments/:id', async (req, res) => {
   try {
-    const db = getDb();
-    const existing = getAppointmentById(db, req.therapist.id, req.params.id);
+    const db = getAsyncDb();
+    const existing = await getAppointmentById(db, req.therapist.id, req.params.id);
     if (!existing) return res.status(404).json({ error: 'Appointment not found' });
 
     const {
@@ -3071,7 +3082,7 @@ router.patch('/appointments/:id', (req, res) => {
       sync_to_google,
     } = req.body || {};
 
-    const patient = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', existing.patient_id, req.therapist.id);
+    const patient = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', existing.patient_id, req.therapist.id);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
     const dateFields = buildAppointmentDateFields(
@@ -3083,7 +3094,7 @@ router.patch('/appointments/:id', (req, res) => {
     const nextStatus = status || existing.status || 'scheduled';
     const nextAppointmentType = appointment_type || existing.appointment_type || inferAppointmentType(patient, '');
 
-    db.run(
+    await db.run(
       `UPDATE appointments SET
         appointment_type = ?,
         scheduled_start = ?,
@@ -3117,8 +3128,8 @@ router.patch('/appointments/:id', (req, res) => {
       req.therapist.id,
     );
 
-    const updated = getAppointmentById(db, req.therapist.id, existing.id);
-    persist();
+    const updated = await getAppointmentById(db, req.therapist.id, existing.id);
+    await persistIfNeeded();
     return res.json({ ok: true, appointment: updated });
   } catch (err) {
     sendRouteError(res, err);
@@ -3127,11 +3138,11 @@ router.patch('/appointments/:id', (req, res) => {
 
 router.delete('/appointments/:id', async (req, res) => {
   try {
-    const db = getDb();
-    const existing = getAppointmentById(db, req.therapist.id, req.params.id);
+    const db = getAsyncDb();
+    const existing = await getAppointmentById(db, req.therapist.id, req.params.id);
     if (!existing) return res.status(404).json({ error: 'Appointment not found' });
 
-    db.run(
+    await db.run(
       `UPDATE appointments SET
         status = 'cancelled',
         sync_status = CASE WHEN calendar_provider = 'google' THEN 'cancel_google_sync' ELSE 'cancelled' END,
@@ -3152,8 +3163,8 @@ router.delete('/appointments/:id', async (req, res) => {
       }
     }
 
-    const updated = getAppointmentById(db, req.therapist.id, existing.id);
-    persist();
+    const updated = await getAppointmentById(db, req.therapist.id, existing.id);
+    await persistIfNeeded();
     return res.json({ ok: true, appointment: updated });
   } catch (err) {
     sendRouteError(res, err);
@@ -3162,8 +3173,8 @@ router.delete('/appointments/:id', async (req, res) => {
 
 router.get('/reports/:id/download', async (req, res) => {
   try {
-    const db = getDb();
-    const row = db.get('SELECT * FROM agent_reports WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    const db = getAsyncDb();
+    const row = await db.get('SELECT * FROM agent_reports WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
     if (!row) return res.status(404).json({ error: 'Report not found' });
     if (!row.pdf_path || !(await storedFileExists(row.pdf_path))) {
       return res.status(404).json({ error: 'PDF file is missing' });
@@ -3181,10 +3192,10 @@ router.get('/reports/:id/download', async (req, res) => {
   }
 });
 
-router.get('/reports/:id', (req, res) => {
+router.get('/reports/:id', async (req, res) => {
   try {
-    const db = getDb();
-    const row = db.get('SELECT * FROM agent_reports WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    const db = getAsyncDb();
+    const row = await db.get('SELECT * FROM agent_reports WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
     if (!row) return res.status(404).json({ error: 'Report not found' });
     res.json({
       id: row.id,
@@ -3202,15 +3213,15 @@ router.get('/reports/:id', (req, res) => {
 
 router.post('/confirm', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { actionId, approved } = req.body || {};
     if (!actionId) return res.status(400).json({ error: 'actionId is required' });
-    const row = db.get('SELECT * FROM agent_actions WHERE id = ? AND therapist_id = ?', actionId, req.therapist.id);
+    const row = await db.get('SELECT * FROM agent_actions WHERE id = ? AND therapist_id = ?', actionId, req.therapist.id);
     if (!row) return res.status(404).json({ error: 'Action not found' });
 
     if (!approved) {
-      db.run('UPDATE agent_actions SET status = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?', 'cancelled', actionId);
-      persist();
+      await db.run('UPDATE agent_actions SET status = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?', 'cancelled', actionId);
+      await persistIfNeeded();
       return res.json({ ok: true, cancelled: true });
     }
 
@@ -3219,15 +3230,15 @@ router.post('/confirm', async (req, res) => {
     }
 
     const payload = row.payload_json ? JSON.parse(row.payload_json) : {};
-    const patient = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', payload.patientId, req.therapist.id);
+    const patient = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', payload.patientId, req.therapist.id);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-    const { insert, syncMeta } = createAppointmentRecord(db, req.therapist.id, patient, { ...payload, status: 'scheduled' });
+    const { insert, syncMeta } = await createAppointmentRecord(db, req.therapist.id, patient, { ...payload, status: 'scheduled' });
 
-    db.run('UPDATE agent_actions SET status = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?', 'completed', actionId);
-    persist();
+    await db.run('UPDATE agent_actions SET status = ?, completed_at = CURRENT_TIMESTAMP WHERE id = ?', 'completed', actionId);
+    await persistIfNeeded();
 
-    const appointment = db.get('SELECT a.*, p.client_id, p.display_name FROM appointments a JOIN patients p ON p.id = a.patient_id WHERE a.id = ?', insert.lastInsertRowid);
+    const appointment = await db.get('SELECT a.*, p.client_id, p.display_name FROM appointments a JOIN patients p ON p.id = a.patient_id WHERE a.id = ?', insert.lastInsertRowid);
     maybeSendTelehealthSms(db, req.therapist.id, patient, payload.scheduledStart);
     return res.json({ ok: true, appointment, calendarSync: syncMeta });
   } catch (err) {
@@ -3237,18 +3248,18 @@ router.post('/confirm', async (req, res) => {
 
 router.post('/appointments', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { patientId, clientCode, appointmentType, scheduledStart, scheduledEnd, durationMinutes, location, notes, syncToGoogle, status } = req.body || {};
     const patient = patientId
-      ? db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', patientId, req.therapist.id)
+      ? await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', patientId, req.therapist.id)
       : clientCode
-        ? findPatientByCode(db, req.therapist.id, clientCode)
+        ? await findPatientByCode(db, req.therapist.id, clientCode)
         : null;
 
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
     if (!scheduledStart && !scheduledEnd) return res.status(400).json({ error: 'scheduledStart or scheduledEnd is required' });
 
-    const { insert, syncMeta } = createAppointmentRecord(db, req.therapist.id, patient, {
+    const { insert, syncMeta } = await createAppointmentRecord(db, req.therapist.id, patient, {
       appointmentType,
       scheduledStart,
       scheduledEnd,
@@ -3259,8 +3270,8 @@ router.post('/appointments', async (req, res) => {
       status: status || 'scheduled',
     });
 
-    persist();
-    let appointment = db.get('SELECT a.*, p.client_id, p.display_name FROM appointments a JOIN patients p ON p.id = a.patient_id WHERE a.id = ?', insert.lastInsertRowid);
+    await persistIfNeeded();
+    let appointment = await db.get('SELECT a.*, p.client_id, p.display_name FROM appointments a JOIN patients p ON p.id = a.patient_id WHERE a.id = ?', insert.lastInsertRowid);
 
     // Auto-generate a HIPAA-covered Google Meet link when the client's
     // session modality is telehealth (or hybrid). Therapists can also force
@@ -3274,7 +3285,7 @@ router.post('/appointments', async (req, res) => {
       try {
         meetUrl = await generateMeetForAppointment(db, appointment.id);
         if (meetUrl) {
-          appointment = db.get('SELECT a.*, p.client_id, p.display_name FROM appointments a JOIN patients p ON p.id = a.patient_id WHERE a.id = ?', appointment.id);
+          appointment = await db.get('SELECT a.*, p.client_id, p.display_name FROM appointments a JOIN patients p ON p.id = a.patient_id WHERE a.id = ?', appointment.id);
         }
       } catch (meetErr) {
         console.warn('[agent] Meet auto-gen failed (non-fatal):', meetErr.message);
@@ -3293,9 +3304,9 @@ router.post('/appointments', async (req, res) => {
 // fixing cases where auto-generation failed.
 router.post('/appointments/:id/meet', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const id = Number(req.params.id);
-    const appt = db.get('SELECT * FROM appointments WHERE id = ? AND therapist_id = ?', id, req.therapist.id);
+    const appt = await db.get('SELECT * FROM appointments WHERE id = ? AND therapist_id = ?', id, req.therapist.id);
     if (!appt) return res.status(404).json({ error: 'Appointment not found' });
 
     let meetUrl;
@@ -3320,7 +3331,7 @@ router.post('/appointments/:id/meet', async (req, res) => {
       });
     }
 
-    const updated = db.get('SELECT a.*, p.client_id, p.display_name FROM appointments a JOIN patients p ON p.id = a.patient_id WHERE a.id = ?', id);
+    const updated = await db.get('SELECT a.*, p.client_id, p.display_name FROM appointments a JOIN patients p ON p.id = a.patient_id WHERE a.id = ?', id);
     return res.json({ ok: true, appointment: updated, meetUrl });
   } catch (err) {
     sendRouteError(res, err);
@@ -3329,7 +3340,7 @@ router.post('/appointments/:id/meet', async (req, res) => {
 
 router.post('/batch-assessments-confirm', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const crypto = require('crypto');
     const { selectedPatientIds, assessmentType, spreadOption } = req.body || {};
 
@@ -3349,7 +3360,7 @@ router.post('/batch-assessments-confirm', async (req, res) => {
 
     for (let idx = 0; idx < selectedPatientIds.length; idx++) {
       const patientId = Number(selectedPatientIds[idx]);
-      const patient = db.get(
+      const patient = await db.get(
         'SELECT * FROM patients WHERE id = ? AND therapist_id = ?',
         patientId,
         req.therapist.id
@@ -3364,7 +3375,7 @@ router.post('/batch-assessments-confirm', async (req, res) => {
       const token = crypto.randomBytes(24).toString('base64url');
 
       // Store assessment link
-      db.run(
+      await db.run(
         `INSERT INTO assessment_links (token, patient_id, therapist_id, template_type, expires_at)
          VALUES (?, ?, ?, ?, datetime('now', '+30 days'))`,
         token, patientId, req.therapist.id, templateKey
@@ -3381,7 +3392,7 @@ router.post('/batch-assessments-confirm', async (req, res) => {
       }
 
       // Queue scheduled send
-      db.run(
+      await db.run(
         `INSERT INTO scheduled_sends (therapist_id, patient_id, assessment_type, token, phone, send_at, status)
          VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
         req.therapist.id, patientId, templateKey, token, phone, sendAt
@@ -3395,7 +3406,7 @@ router.post('/batch-assessments-confirm', async (req, res) => {
       });
     }
 
-    persist();
+    await persistIfNeeded();
 
     return res.status(201).json({
       ok: true,
@@ -3411,12 +3422,12 @@ router.post('/batch-assessments-confirm', async (req, res) => {
 
 router.post('/chat', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { message: rawMessage, contextType, contextId } = req.body || {};
     if (!rawMessage) return res.status(400).json({ error: 'Message is required' });
 
     // Build name map — all patients for PHI substitution
-    const allPatients = db.all(
+    const allPatients = await db.all(
       'SELECT id, client_id, display_name, client_type FROM patients WHERE therapist_id = ?',
       req.therapist.id
     );
@@ -3447,7 +3458,7 @@ router.post('/chat', async (req, res) => {
 
     // Patient context for current open record (if any)
     const patientId = contextType === 'patient' && contextId ? Number(contextId) : null;
-    const patientContext = patientId ? buildPatientContext(db, req.therapist.id, patientId) : null;
+    const patientContext = patientId ? await buildPatientContext(db, req.therapist.id, patientId) : null;
     const patientSummary = patientContext ? buildPatientSummary(patientContext) : '';
 
     // Rich markdown dossier — QMD-inspired. When a patient is in focus,
@@ -3456,11 +3467,11 @@ router.post('/chat', async (req, res) => {
     const patientDossier = patientId ? buildPatientDossier(db, req.therapist.id, patientId) : null;
 
     // Build system context
-    const therapistRow = db.get('SELECT full_name, first_name, preferred_timezone FROM therapists WHERE id = ?', req.therapist.id);
+    const therapistRow = await db.get('SELECT full_name, first_name, preferred_timezone FROM therapists WHERE id = ?', req.therapist.id);
     const therapistName = therapistRow?.first_name || therapistRow?.full_name?.split(' ')[0] || null;
     const therapistTz = therapistRow?.preferred_timezone || 'America/Los_Angeles';
-    const caseloadSummary = buildCaseloadSummary(db, req.therapist.id);
-    const soulProfile = loadTherapistSoul(db, req.therapist.id);
+    const caseloadSummary = await buildCaseloadSummary(db, req.therapist.id);
+    const soulProfile = await loadTherapistSoul(db, req.therapist.id);
 
     // Build date context in the CLINICIAN'S timezone — critical for "today at 6pm" to
     // resolve to the right calendar date (server runs in UTC on Railway).
@@ -3471,8 +3482,8 @@ router.post('/chat', async (req, res) => {
     const dateContext = `Today is ${localDate}. Current time: ${localTime} (${therapistTz}). Local ISO: ${localISO}. When the clinician says "today", use the date ${localISO.slice(0, 10)} — never use the UTC date.`;
 
     // Detect new users for onboarding
-    const patientCount = db.get('SELECT COUNT(*) as c FROM patients WHERE therapist_id = ?', req.therapist.id)?.c || 0;
-    const sessionCount = db.get('SELECT COUNT(*) as c FROM sessions WHERE therapist_id = ?', req.therapist.id)?.c || 0;
+    const patientCount = (await db.get('SELECT COUNT(*) as c FROM patients WHERE therapist_id = ?', req.therapist.id))?.c || 0;
+    const sessionCount = (await db.get('SELECT COUNT(*) as c FROM sessions WHERE therapist_id = ?', req.therapist.id))?.c || 0;
     const isNewUser = patientCount === 0 && sessionCount === 0;
 
     const systemPrompt = `You are Miwa, an AI clinical operations agent for a therapy practice platform.
@@ -3569,9 +3580,9 @@ RULES:
 
     // ── Feature 1: Persistent Session Memory with Compression ──────────────
     // Load conversation summary if exists (compressed older context)
-    const conversationSummary = (() => {
+    const conversationSummary = await (async () => {
       try {
-        return db.get(
+        return await db.get(
           'SELECT summary FROM conversation_summaries WHERE therapist_id = ? ORDER BY created_at DESC LIMIT 1',
           req.therapist.id
         );
@@ -3580,20 +3591,20 @@ RULES:
 
     // Load MiwaChat history only (context_type = 'agent') — Consult has its own stream
     const historyLimit = conversationSummary?.summary ? 10 : 14;
-    const history = (() => {
+    const history = await (async () => {
       try {
-        const agentMsgs = db.all(
+        const agentMsgs = (await db.all(
           `SELECT role, content FROM chat_messages WHERE therapist_id = ? AND context_type = 'agent' ORDER BY created_at DESC LIMIT ?`,
           req.therapist.id, historyLimit
-        ).reverse();
+        )).reverse();
         return agentMsgs;
       } catch { return []; }
     })();
 
     // Check if we need to compress (more than 30 total messages without recent compression)
-    const totalMessages = (() => {
+    const totalMessages = await (async () => {
       try {
-        return db.get('SELECT COUNT(*) as c FROM chat_messages WHERE therapist_id = ?', req.therapist.id)?.c || 0;
+        return (await db.get('SELECT COUNT(*) as c FROM chat_messages WHERE therapist_id = ?', req.therapist.id))?.c || 0;
       } catch { return 0; }
     })();
 
@@ -3606,7 +3617,7 @@ RULES:
 
     // Save user message
     try {
-      db.insert(
+      await db.insert(
         `INSERT INTO chat_messages (therapist_id, role, content, context_type, context_id) VALUES (?, 'user', ?, 'agent', ?)`,
         req.therapist.id, message, contextId || null
       );
@@ -3700,11 +3711,11 @@ RULES:
     // Save assistant response
     try {
       if (fullResponse) {
-        db.insert(
+        await db.insert(
           `INSERT INTO chat_messages (therapist_id, role, content, context_type, context_id) VALUES (?, 'assistant', ?, 'agent', ?)`,
           req.therapist.id, fullResponse, contextId || null
         );
-        persist();
+        await persistIfNeeded();
 
         // ── Background: extract therapist preferences from this exchange ────────
         // Non-blocking — runs after response is sent. Failures are silently ignored.
@@ -3803,10 +3814,10 @@ router.post('/tts', async (req, res) => {
 // ── Therapist Preferences (Soul Profile) API ──────────────────────────────────
 
 // GET /api/agent/preferences — return all saved preferences for the logged-in therapist
-router.get('/preferences', (req, res) => {
+router.get('/preferences', async (req, res) => {
   try {
-    const db = getDb();
-    const rows = db.all(
+    const db = getAsyncDb();
+    const rows = await db.all(
       `SELECT id, category, key, value, source, confidence, last_observed_at, created_at
        FROM therapist_preferences WHERE therapist_id = ? ORDER BY category, last_observed_at DESC`,
       req.therapist.id
@@ -3819,9 +3830,9 @@ router.get('/preferences', (req, res) => {
 
 // POST /api/agent/preferences — explicitly set or update a preference
 // Body: { category, key, value }
-router.post('/preferences', (req, res) => {
+router.post('/preferences', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { category, key, value } = req.body || {};
     if (!category || !key || !value) {
       return res.status(400).json({ error: 'category, key, and value are required' });
@@ -3830,22 +3841,22 @@ router.post('/preferences', (req, res) => {
       return res.status(400).json({ error: `category must be one of: ${Object.keys(SOUL_CATEGORIES).join(', ')}` });
     }
 
-    const existing = db.get(
+    const existing = await db.get(
       'SELECT id FROM therapist_preferences WHERE therapist_id = ? AND category = ? AND key = ?',
       req.therapist.id, category, key
     );
     if (existing) {
-      db.run(
+      await db.run(
         `UPDATE therapist_preferences SET value = ?, source = 'explicit', last_observed_at = CURRENT_TIMESTAMP WHERE id = ?`,
         value, existing.id
       );
     } else {
-      db.insert(
+      await db.insert(
         `INSERT INTO therapist_preferences (therapist_id, category, key, value, source) VALUES (?, ?, ?, ?, 'explicit')`,
         req.therapist.id, category, key, value
       );
     }
-    persist();
+    await persistIfNeeded();
     res.json({ ok: true });
   } catch (err) {
     sendRouteError(res, err);
@@ -3853,16 +3864,16 @@ router.post('/preferences', (req, res) => {
 });
 
 // DELETE /api/agent/preferences/:id — remove a specific preference
-router.delete('/preferences/:id', (req, res) => {
+router.delete('/preferences/:id', async (req, res) => {
   try {
-    const db = getDb();
-    const pref = db.get(
+    const db = getAsyncDb();
+    const pref = await db.get(
       'SELECT id FROM therapist_preferences WHERE id = ? AND therapist_id = ?',
       req.params.id, req.therapist.id
     );
     if (!pref) return res.status(404).json({ error: 'Preference not found' });
-    db.run('DELETE FROM therapist_preferences WHERE id = ?', req.params.id);
-    persist();
+    await db.run('DELETE FROM therapist_preferences WHERE id = ?', req.params.id);
+    await persistIfNeeded();
     res.json({ ok: true });
   } catch (err) {
     sendRouteError(res, err);
@@ -3870,10 +3881,10 @@ router.delete('/preferences/:id', (req, res) => {
 });
 
 // ── Attendance tracking ─────────────────────────────────────────────────
-router.post('/appointments/:id/checkin', (req, res) => {
+router.post('/appointments/:id/checkin', async (req, res) => {
   try {
-    const db = getDb();
-    const appt = db.get('SELECT * FROM appointments WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    const db = getAsyncDb();
+    const appt = await db.get('SELECT * FROM appointments WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
     if (!appt) return res.status(404).json({ error: 'Appointment not found' });
 
     const now = new Date();
@@ -3888,7 +3899,7 @@ router.post('/appointments/:id/checkin', (req, res) => {
       if (minutesLate > 10) attendanceStatus = 'late';
     }
 
-    db.run(
+    await db.run(
       `UPDATE appointments SET
         attendance_status = ?, checked_in_at = ?, minutes_late = ?,
         status = 'in_progress', updated_at = CURRENT_TIMESTAMP
@@ -3896,8 +3907,8 @@ router.post('/appointments/:id/checkin', (req, res) => {
       attendanceStatus, now.toISOString(), minutesLate, appt.id
     );
 
-    const patient = db.get('SELECT display_name, client_id FROM patients WHERE id = ?', appt.patient_id);
-    persist();
+    const patient = await db.get('SELECT display_name, client_id FROM patients WHERE id = ?', appt.patient_id);
+    await persistIfNeeded();
 
     // Tier 1 Agentic: emit check-in event
     try {
@@ -3926,20 +3937,20 @@ router.post('/appointments/:id/checkin', (req, res) => {
   }
 });
 
-router.post('/appointments/:id/noshow', (req, res) => {
+router.post('/appointments/:id/noshow', async (req, res) => {
   try {
-    const db = getDb();
-    const appt = db.get('SELECT * FROM appointments WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    const db = getAsyncDb();
+    const appt = await db.get('SELECT * FROM appointments WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
     if (!appt) return res.status(404).json({ error: 'Appointment not found' });
 
-    db.run(
+    await db.run(
       `UPDATE appointments SET
         attendance_status = 'no_show', status = 'no_show',
         attendance_notes = ?, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
       req.body.notes || null, appt.id
     );
-    persist();
+    await persistIfNeeded();
 
     // Tier 1 Agentic: emit no-show event
     try {
@@ -3957,17 +3968,17 @@ router.post('/appointments/:id/noshow', (req, res) => {
   }
 });
 
-router.post('/appointments/:id/complete', (req, res) => {
+router.post('/appointments/:id/complete', async (req, res) => {
   try {
-    const db = getDb();
-    const appt = db.get('SELECT * FROM appointments WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    const db = getAsyncDb();
+    const appt = await db.get('SELECT * FROM appointments WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
     if (!appt) return res.status(404).json({ error: 'Appointment not found' });
 
-    db.run(
+    await db.run(
       `UPDATE appointments SET status = 'completed', updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
       appt.id
     );
-    persist();
+    await persistIfNeeded();
 
     res.json({ ok: true, message: 'Session completed' });
   } catch (err) {
@@ -3976,22 +3987,22 @@ router.post('/appointments/:id/complete', (req, res) => {
 });
 
 // Get attendance stats for a patient
-router.get('/patients/:patientId/attendance', (req, res) => {
+router.get('/patients/:patientId/attendance', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const pid = req.params.patientId;
     const tid = req.therapist.id;
 
     const stats = {
-      total: db.get('SELECT COUNT(*) as c FROM appointments WHERE patient_id = ? AND therapist_id = ? AND status != ?', pid, tid, 'cancelled')?.c || 0,
-      on_time: db.get("SELECT COUNT(*) as c FROM appointments WHERE patient_id = ? AND therapist_id = ? AND attendance_status = 'checked_in'", pid, tid)?.c || 0,
-      late: db.get("SELECT COUNT(*) as c FROM appointments WHERE patient_id = ? AND therapist_id = ? AND attendance_status = 'late'", pid, tid)?.c || 0,
-      no_show: db.get("SELECT COUNT(*) as c FROM appointments WHERE patient_id = ? AND therapist_id = ? AND attendance_status = 'no_show'", pid, tid)?.c || 0,
-      avg_minutes_late: db.get("SELECT AVG(minutes_late) as avg FROM appointments WHERE patient_id = ? AND therapist_id = ? AND minutes_late > 0", pid, tid)?.avg || 0,
+      total: (await db.get('SELECT COUNT(*) as c FROM appointments WHERE patient_id = ? AND therapist_id = ? AND status != ?', pid, tid, 'cancelled'))?.c || 0,
+      on_time: (await db.get("SELECT COUNT(*) as c FROM appointments WHERE patient_id = ? AND therapist_id = ? AND attendance_status = 'checked_in'", pid, tid))?.c || 0,
+      late: (await db.get("SELECT COUNT(*) as c FROM appointments WHERE patient_id = ? AND therapist_id = ? AND attendance_status = 'late'", pid, tid))?.c || 0,
+      no_show: (await db.get("SELECT COUNT(*) as c FROM appointments WHERE patient_id = ? AND therapist_id = ? AND attendance_status = 'no_show'", pid, tid))?.c || 0,
+      avg_minutes_late: (await db.get("SELECT AVG(minutes_late) as avg FROM appointments WHERE patient_id = ? AND therapist_id = ? AND minutes_late > 0", pid, tid))?.avg || 0,
     };
     stats.attendance_rate = stats.total > 0 ? Math.round(((stats.on_time + stats.late) / stats.total) * 100) : 100;
 
-    const recent = db.all(
+    const recent = await db.all(
       `SELECT a.id, a.scheduled_start, a.attendance_status, a.checked_in_at, a.minutes_late, a.status
        FROM appointments a WHERE a.patient_id = ? AND a.therapist_id = ?
        ORDER BY a.scheduled_start DESC LIMIT 10`,
@@ -4009,10 +4020,10 @@ router.get('/patients/:patientId/attendance', (req, res) => {
 // GET /api/agent/treatment-plans/:planId/revisions/:num — get one full snapshot
 const { getRevisions, getRevision } = require('../lib/treatmentPlanRevisions');
 
-router.get('/treatment-plans/:planId/revisions', (req, res) => {
+router.get('/treatment-plans/:planId/revisions', async (req, res) => {
   try {
-    const db = getDb();
-    const plan = db.get(
+    const db = getAsyncDb();
+    const plan = await db.get(
       'SELECT id FROM treatment_plans WHERE id = ? AND therapist_id = ?',
       req.params.planId, req.therapist.id
     );
@@ -4024,10 +4035,10 @@ router.get('/treatment-plans/:planId/revisions', (req, res) => {
   }
 });
 
-router.get('/treatment-plans/:planId/revisions/:num', (req, res) => {
+router.get('/treatment-plans/:planId/revisions/:num', async (req, res) => {
   try {
-    const db = getDb();
-    const plan = db.get(
+    const db = getAsyncDb();
+    const plan = await db.get(
       'SELECT id FROM treatment_plans WHERE id = ? AND therapist_id = ?',
       req.params.planId, req.therapist.id
     );
