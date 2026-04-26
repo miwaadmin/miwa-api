@@ -13,6 +13,7 @@
     "install:all": "npm install && cd client && npm install",
     "postgres:check": "node server/scripts/check-postgres.js",
     "postgres:check:secure": "powershell -NoProfile -ExecutionPolicy Bypass -File server/scripts/postgres-secure.ps1 -Action check",
+    "postgres:cutover:secure": "powershell -NoProfile -ExecutionPolicy Bypass -File server/scripts/postgres-secure.ps1 -Action cutover",
     "postgres:migrate": "node server/scripts/migrate-sqlite-to-postgres.js",
     "postgres:migrate:secure": "powershell -NoProfile -ExecutionPolicy Bypass -File server/scripts/postgres-secure.ps1 -Action migrate",
     "postgres:migrate:secure:wipe": "powershell -NoProfile -ExecutionPolicy Bypass -File server/scripts/postgres-secure.ps1 -Action migrate -WipeTarget",

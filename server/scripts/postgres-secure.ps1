@@ -1,5 +1,5 @@
 param(
-  [ValidateSet("check", "migrate", "verify")]
+  [ValidateSet("check", "migrate", "verify", "cutover")]
   [string]$Action = "check",
   [string]$User = "miwaadmin",
   [string]$HostName = "miwa-postgres-prod.postgres.database.azure.com",
@@ -44,6 +44,18 @@ try {
     } else {
       npm run postgres:migrate
     }
+    exit $LASTEXITCODE
+  }
+
+  if ($Action -eq "cutover") {
+    npm run postgres:check
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    $env:MIGRATION_CONFIRM = "copy-miwa-sqlite-to-postgres"
+    npm run postgres:migrate -- --wipe-target
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+    npm run postgres:verify
     exit $LASTEXITCODE
   }
 } finally {
