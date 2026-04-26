@@ -345,7 +345,7 @@ export default function Security() {
               { icon: '🔐', title: 'Encrypted at rest', desc: 'All clinical data is AES-256 encrypted in the database.' },
               { icon: '🌐', title: 'HTTPS only', desc: 'All traffic between your browser and our servers is TLS-encrypted.' },
               { icon: '🗑️', title: 'You control your data', desc: 'Export or delete your account data at any time from Settings.' },
-              { icon: '📋', title: 'HIPAA-conscious design', desc: 'No ePHI in URLs, logs scrubbed, minimal data retention.' },
+              { icon: '📋', title: 'HIPAA-conscious design', desc: 'No ePHI in URLs, logs scrubbed, clinical retention controls built in.' },
             ].map(item => (
               <div key={item.title} className="rounded-xl p-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
                 <span className="text-2xl mb-3 block">{item.icon}</span>
@@ -364,7 +364,7 @@ export default function Security() {
             <h3 className="text-xl font-bold text-white mb-4">Being honest about what Miwa is and isn't</h3>
             <div className="space-y-4 text-sm text-white/50 leading-relaxed">
               <p>
-                <strong className="text-white/70">Miwa is HIPAA-conscious, not a covered entity.</strong> Miwa is a productivity tool for therapists, not a healthcare provider or business associate in the legal sense. You are responsible for your own HIPAA obligations and should evaluate whether Miwa fits your compliance workflow.
+                <strong className="text-white/70">Miwa is built for HIPAA-covered workflows.</strong> Therapists and practices remain responsible for their own HIPAA obligations as covered entities. Miwa is designed to operate as their business associate when a BAA and covered infrastructure are in place.
               </p>
               <p>
                 <strong className="text-white/70">PHI scrubbing is pattern-based.</strong> Our scrubber catches common identifiers (names, DOBs, phone numbers, addresses) but is not infallible. Unusual name formats or highly specific local identifiers may occasionally slip through. Treat AI outputs as a drafting assistant, not a compliance guarantee.

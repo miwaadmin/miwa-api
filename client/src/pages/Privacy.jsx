@@ -182,8 +182,8 @@ export default function Privacy() {
                 </thead>
                 <tbody className="divide-y divide-zinc-100">
                   <tr>
-                    <td className="px-4 py-3 font-medium">Azure Microsoft Azure</td>
-                    <td className="px-4 py-3 text-zinc-600">AI reasoning, documentation support, and transcription</td>
+                    <td className="px-4 py-3 font-medium">Microsoft Azure</td>
+                    <td className="px-4 py-3 text-zinc-600">Application hosting, Azure PostgreSQL, Azure Blob Storage, and Azure OpenAI</td>
                     <td className="px-4 py-3 text-zinc-600">Yes - under applicable BAA/cloud terms</td>
                   </tr>
                   <tr>
@@ -197,19 +197,9 @@ export default function Privacy() {
                     <td className="px-4 py-3 text-zinc-600">Yes — under BAA</td>
                   </tr>
                   <tr>
-                    <td className="px-4 py-3 font-medium">Microsoft Azure</td>
-                    <td className="px-4 py-3 text-zinc-600">AI service infrastructure</td>
-                    <td className="px-4 py-3 text-zinc-600">Yes - configured for covered cloud services</td>
-                  </tr>
-                  <tr>
                     <td className="px-4 py-3 font-medium">Stripe</td>
                     <td className="px-4 py-3 text-zinc-600">Payment processing</td>
                     <td className="px-4 py-3 text-zinc-600">No — billing only, never PHI</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 font-medium">Hosting provider (HIPAA-eligible)</td>
-                    <td className="px-4 py-3 text-zinc-600">Application servers and encrypted storage</td>
-                    <td className="px-4 py-3 text-zinc-600">Yes — under BAA</td>
                   </tr>
                 </tbody>
               </table>

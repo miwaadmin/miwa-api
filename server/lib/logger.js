@@ -3,7 +3,7 @@
  *
  * Wraps the Node.js console methods so that any string argument is scrubbed
  * through the same PHI scrubber used on AI inputs before it is written to
- * stdout / stderr.  This means Railway logs, exception reports, and any
+ * stdout / stderr.  This means platform logs, exception reports, and any
  * future log-aggregation sidecar will never receive raw clinical text even
  * if a developer accidentally logs req.body or a session note.
  *

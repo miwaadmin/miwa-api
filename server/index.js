@@ -21,7 +21,7 @@ if (!process.env.JWT_SECRET) {
 }
 
 const app = express();
-// Trust Railway/Render/Heroku reverse proxy so rate-limiters can read real client IPs
+// Trust the Azure App Service reverse proxy so rate-limiters can read real client IPs.
 app.set('trust proxy', 1);
 const PORT = process.env.PORT || 3001;
 const CORS_ORIGIN = process.env.CORS_ORIGIN || 'http://localhost:3000';
@@ -250,7 +250,7 @@ app.get('/api/stats', requireAuth, async (req, res) => {
 
     // Date strings for "today" and "Monday of this week" in the therapist's
     // preferred timezone. Avoids the wrong-day-after-5pm-PST bug we'd get
-    // from naively using SQLite's date('now') on a UTC-time Railway box.
+    // from naively using SQLite's date('now') on a UTC-time cloud host.
     const tz = req.therapist?.preferred_timezone || 'America/Los_Angeles';
     const todayStr = new Date().toLocaleDateString('en-CA', { timeZone: tz }); // YYYY-MM-DD
     const [tyy, tmm, tdd] = todayStr.split('-').map(Number);

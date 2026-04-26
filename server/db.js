@@ -20,7 +20,7 @@ async function initDb() {
   // Refuse to silently nuke an existing-but-unreadable DB file. If the file
   // exists with non-trivial content but sql.js can't open it, that's almost
   // certainly a half-written / corrupted persist (e.g. SIGTERM mid-write
-  // during a Railway redeploy). In that case we hard-fail boot rather than
+  // during a forced redeploy). In that case we hard-fail boot rather than
   // letting the empty in-memory DB get persist()-ed back over the bad file
   // and lock in the data loss. The file is then safe to recover or
   // hand-inspect via `_diag/db`.
@@ -1310,7 +1310,7 @@ function runMigrations() {
 //
 // Atomic write: we serialize the in-memory DB, write it to a sibling temp
 // file, fsync it, then rename over the live file. POSIX rename is atomic,
-// so even if the process is SIGTERM'd mid-write (Railway redeploy), the
+// so even if the process is SIGTERM'd mid-write during redeploy, the
 // live file is either the old contents or the new contents — never half
 // of one and half of the other.
 //

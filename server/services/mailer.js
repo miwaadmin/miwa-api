@@ -2,8 +2,8 @@
  * Mailer service — sends transactional emails.
  *
  * Provider selection (checked in order, first one configured wins):
- *   1. Gmail API via HTTPS     (PREFERRED — HIPAA-covered under Google Workspace BAA, works on Railway)
- *   2. Gmail/Workspace SMTP    (HIPAA-covered but blocked by Railway — kept for non-Railway hosts)
+ *   1. Gmail API via HTTPS     (preferred HIPAA-covered path under Google Workspace BAA)
+ *   2. Gmail/Workspace SMTP    (HIPAA-covered fallback where outbound SMTP is allowed)
  *   3. Resend REST API         (legacy fallback — NOT HIPAA-compliant without BAA)
  *   4. Console log             (dev fallback when nothing is configured)
  *
@@ -40,12 +40,12 @@ const APP_BASE_URL = process.env.APP_BASE_URL || 'https://miwa.care';
 
 // Lazily construct a reusable nodemailer transport only when SMTP is configured.
 //
-// NOTE on `family: 4` — Railway's container networking routinely cannot reach
+// NOTE on `family: 4` — some container hosts cannot reliably reach
 // Gmail's IPv6 SMTP servers, returning ENETUNREACH. Node's default is to try
 // IPv6 first via dual-stack, which fails before falling back to IPv4 (or
 // sometimes not falling back at all). Forcing family=4 skips the IPv6 attempt
 // entirely and is the bulletproof fix for the "works locally, fails on
-// Railway" SMTP connectivity issue.
+// cloud SMTP connectivity issue.
 let _smtpTransport = null;
 function getSmtpTransport() {
   if (_smtpTransport) return _smtpTransport;
@@ -55,7 +55,7 @@ function getSmtpTransport() {
     port: SMTP_PORT,
     secure: SMTP_PORT === 465, // true for 465 (SSL), false for 587 (STARTTLS)
     auth: { user: SMTP_USER, pass: SMTP_PASS },
-    // Force IPv4 to avoid Railway ↔ Google IPv6 ENETUNREACH issues.
+    // Force IPv4 to avoid cloud host to Google IPv6 ENETUNREACH issues.
     family: 4,
     // Fail fast if the network path is broken (otherwise Nodemailer hangs
     // for ~60 sec per send attempt, blocking the Node event loop).
@@ -74,11 +74,11 @@ function hasHipaaCoveredProvider() {
   return hasGmailApi || hasSmtp;
 }
 
-// ── Gmail API (HTTPS) — preferred path for Railway hosts ────────────────────
+// Gmail API (HTTPS) - preferred production mail path.
 //
 // Uses a Google Cloud service account with domain-wide delegation to
 // impersonate a Workspace user (admin@miwa.care) and send via the Gmail API
-// over HTTPS port 443. This bypasses the Railway SMTP egress block and is
+// over HTTPS port 443. This avoids SMTP egress blocks and is
 // covered by the Google Workspace BAA we already have on file.
 let _googleJwt = null;
 function getGoogleJwtClient() {
@@ -294,15 +294,15 @@ function resolveName(firstName, fullName) {
 
 /**
  * Send email. Provider resolution:
- *   1. Gmail API via HTTPS  (preferred — HIPAA-covered, Railway-compatible)
- *   2. Gmail/Workspace SMTP (HIPAA-covered, blocked by Railway)
+ *   1. Gmail API via HTTPS  (preferred, HIPAA-covered)
+ *   2. Gmail/Workspace SMTP (HIPAA-covered fallback)
  *   3. Resend REST API      (legacy — NOT HIPAA-compliant without BAA)
  *   4. Console log          (dev)
  */
 async function sendMail({ to, subject, html, text, attachments }) {
   // ─── Path 1: Gmail API (HTTPS) ───────────────────────────────────────────
   // This is the production path. HIPAA-covered via the Google Workspace BAA.
-  // Works through Railway (port 443). Failures throw loudly rather than
+  // Works through HTTPS on port 443. Failures throw loudly rather than
   // falling back to a non-BAA provider.
   if (GOOGLE_SERVICE_ACCOUNT_JSON && GMAIL_IMPERSONATE_USER) {
     try {
@@ -315,8 +315,8 @@ async function sendMail({ to, subject, html, text, attachments }) {
   const smtp = getSmtpTransport();
 
   // ─── Path 2: Gmail/Workspace SMTP ────────────────────────────────────────
-  // HIPAA-covered, but typically blocked by Railway egress. Kept as an
-  // option for non-Railway deployments (VPS, Render with SMTP allowed, etc.).
+  // HIPAA-covered, but often blocked by cloud egress controls. Kept as an
+  // option for deployments where SMTP is explicitly allowed.
   if (smtp) {
     try {
       const info = await smtp.sendMail({

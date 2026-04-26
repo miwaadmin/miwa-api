@@ -120,7 +120,7 @@ export default function MobilePrivacy() {
             Miwa does not sell, rent, or share your clinical data with third parties for marketing purposes.
           </p>
           <p>
-            We share only with service vendors necessary to operate the product: hosting (Railway), AI model hosting (Azure OpenAI), email (Google Workspace under BAA), SMS (Twilio — BAA in progress), payments (Stripe). Each vendor is limited to the specific data they need.
+            We share only with service vendors necessary to operate the product: hosting and database services on Microsoft Azure, AI model hosting through Azure OpenAI, email through Google Workspace under BAA, SMS delivery through your configured messaging provider, and payments through Stripe. Each vendor is limited to the specific data they need.
           </p>
           <p>
             We will disclose information if legally required (subpoena, court order). When legally permitted, we will notify you first.
@@ -129,10 +129,10 @@ export default function MobilePrivacy() {
 
         <Section title="Retention & deletion">
           <p>
-            We retain your data while your account is active. When you delete a patient, session, or document, it is purged from the live database within 24 hours.
+            We retain clinical records while your account is active and according to the therapist's record-retention obligations, typically at least 7 years after the last date of service and longer where law or professional rules require it.
           </p>
           <p>
-            Encrypted nightly backups have a rolling retention; deleted data ages out of backups within 30 days.
+            Deleted non-clinical account data ages out of rolling backups after the backup retention window. Clinical records may remain locked for the applicable retention period before permanent deletion.
           </p>
           <p>
             You can request full account deletion at any time from Settings or by emailing <a href="mailto:admin@miwa.care" className="text-brand-600 underline">admin@miwa.care</a>.

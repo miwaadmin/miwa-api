@@ -10,7 +10,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 const PROTECTIONS = [
-  { icon: '📋', title: 'HIPAA-conscious design', desc: 'No ePHI in URLs, request logs scrubbed, minimal data retention.' },
+  { icon: '📋', title: 'HIPAA-conscious design', desc: 'No ePHI in URLs, request logs scrubbed, clinical retention controls built in.' },
   { icon: '🔒', title: 'Encryption in transit + at rest', desc: 'TLS 1.3 everywhere; sensitive fields encrypted before storage.' },
   { icon: '🔑', title: 'HttpOnly cookie auth', desc: 'Session tokens never exposed to JavaScript — protects against XSS exfiltration.' },
   { icon: '🛡️', title: 'Helmet + CSP + rate limits', desc: 'Hardened HTTP headers, Content-Security-Policy, per-route rate limiting.' },
@@ -89,7 +89,7 @@ export default function MobileSecurity() {
           <div className="rounded-2xl p-4 border border-gray-100 bg-white shadow-sm">
             <p className="text-sm font-bold text-gray-900 mb-1">At the model: contractual no-training</p>
             <p className="text-[13px] text-gray-600 leading-relaxed">
-              Miwa routes AI through its Azure OpenAI business endpoint rather than consumer AI products. BAAs with primary vendors are in progress; others are already in place.
+              Miwa routes PHI-capable AI through its Azure OpenAI deployment rather than consumer AI products. The production AI path is centralized so clinical data does not fan out to unapproved model providers.
             </p>
           </div>
         </div>
@@ -115,10 +115,10 @@ export default function MobileSecurity() {
       <div className="py-2">
         <Section title="Being honest about what Miwa is" defaultOpen>
           <p>
-            <strong>Miwa is HIPAA-conscious, not a covered entity.</strong> Miwa is a productivity tool for therapists, not a healthcare provider or business associate in the legal sense. You are responsible for your own HIPAA obligations and should evaluate whether Miwa fits your compliance workflow.
+            <strong>Miwa is built for HIPAA-covered workflows.</strong> Therapists and practices remain responsible for their own HIPAA obligations as covered entities. Miwa is designed to operate as their business associate when a BAA and covered infrastructure are in place.
           </p>
           <p>
-            That said, Miwa is designed to make HIPAA-compliant use realistic: PHI scrubbing, vendor BAAs, audit logs, encryption, and role-based access are all here so that if your practice needs HIPAA-grade safeguards, the infrastructure supports them.
+            The architecture is designed to make HIPAA-compliant use realistic: PHI scrubbing, vendor BAAs, audit logs, encryption, role-based access, Azure PostgreSQL, and Azure Blob Storage are all part of the protected production path.
           </p>
         </Section>
 
@@ -127,7 +127,7 @@ export default function MobileSecurity() {
             You own your clinical data. You can export any or all of it — patients, sessions, assessments, documents — as JSON at any time from Settings.
           </p>
           <p>
-            Deletion is permanent. When you delete a patient or session, the record is purged from the database and from our nightly encrypted backups on rolling retention.
+            Patient records are retained according to clinical record-retention rules, typically at least 7 years after the last date of service and longer where required. When a record becomes eligible for deletion, Miwa can remove it from active storage and allow it to age out of rolling backups.
           </p>
         </Section>
 

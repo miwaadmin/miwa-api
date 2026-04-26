@@ -3313,7 +3313,7 @@ router.post('/appointments/:id/meet', async (req, res) => {
     try {
       meetUrl = await generateMeetForAppointment(db, id);
     } catch (err) {
-      // Surface the actual underlying error so we don't have to read Railway
+      // Surface the actual underlying error so we don't have to read platform
       // logs to figure out what's wrong. Add a hint when the message smells
       // like a Meet API setup issue so the operator knows what to fix.
       const msg = err.message || 'Unknown error';
@@ -3474,7 +3474,7 @@ router.post('/chat', async (req, res) => {
     const soulProfile = await loadTherapistSoul(db, req.therapist.id);
 
     // Build date context in the CLINICIAN'S timezone — critical for "today at 6pm" to
-    // resolve to the right calendar date (server runs in UTC on Railway).
+    // resolve to the right calendar date (server runs in UTC in production).
     const now = new Date();
     const localDate = now.toLocaleDateString('en-US', { timeZone: therapistTz, weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
     const localTime = now.toLocaleTimeString('en-US', { timeZone: therapistTz, hour: 'numeric', minute: '2-digit', hour12: true });

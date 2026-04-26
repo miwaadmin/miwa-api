@@ -847,7 +847,7 @@ router.post('/reset-password', async (req, res) => {
 //   1. Each endpoint requires the JWT_SECRET in X-Miwa-Diag-Secret.
 //   2. The whole family is gated behind ENABLE_DIAG=true. By default these
 //      return 404 so they don't appear in scans or accidental probes.
-// To use during recovery: set ENABLE_DIAG=true in Railway, save (triggers
+// To use during recovery: set ENABLE_DIAG=true in Azure App Service, save (triggers
 // redeploy), do recovery work, then unset / set to false to hide them again.
 // ─────────────────────────────────────────────────────────────────────────────
 function diagAuthorized(req, res) {

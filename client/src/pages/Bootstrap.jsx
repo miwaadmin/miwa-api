@@ -55,7 +55,7 @@ export default function Bootstrap() {
       if (!res.ok) {
         // 404 = JWT_SECRET wrong (endpoint hidden); show a helpful message
         if (res.status === 404) {
-          throw new Error('JWT_SECRET does not match — copy it exactly from your Railway Variables.')
+          throw new Error('JWT_SECRET does not match - copy it exactly from your Azure App Service environment variables.')
         }
         throw new Error(data.error || 'Account creation failed')
       }
@@ -118,7 +118,7 @@ export default function Bootstrap() {
         <div className="rounded-2xl p-7 bg-white shadow-xl border border-gray-100">
           <div className="rounded-xl px-4 py-3 text-sm bg-amber-50 border border-amber-200 text-amber-900 mb-5 leading-relaxed">
             This page only works if your <code className="font-mono text-xs bg-white px-1 py-0.5 rounded border border-amber-200">JWT_SECRET</code> matches the one set on the server.
-            Copy it exactly from your Railway Variables tab.
+            Copy it exactly from your Azure App Service environment variables.
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -129,7 +129,7 @@ export default function Bootstrap() {
                 required
                 autoFocus
                 className={inputCls}
-                placeholder="Paste from Railway Variables"
+                placeholder="Paste from Azure App Service"
                 value={form.jwt_secret}
                 onChange={e => set('jwt_secret', e.target.value)}
               />

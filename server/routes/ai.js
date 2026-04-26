@@ -292,7 +292,7 @@ router.post('/intake-import', upload.single('file'), async (req, res) => {
 
 // POST /api/ai/audio-import
 router.post('/audio-import', upload.single('file'), async (req, res) => {
-  // Extend timeout for long recordings — Railway default is 300s but we set
+  // Extend timeout for long recordings. Some app hosts default to 300s, but we set
   // it explicitly so a slow Whisper call doesn't silently drop the connection.
   req.socket.setTimeout(0);
   res.setTimeout(0);

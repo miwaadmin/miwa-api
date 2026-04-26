@@ -13,7 +13,7 @@
 The "rewrite the whole file on every persist" model has structural failure
 modes that no amount of defensive coding fully eliminates:
 
-1. **Torn writes during SIGTERM.** Railway redeploys SIGTERM the container.
+1. **Torn writes during SIGTERM.** Cloud redeploys can SIGTERM the container.
    If a `persist()` write is mid-flight, the file ends up partially old,
    partially new. We mitigated this with atomic temp-file + rename in
    `persist()`, but the underlying model is the root cause.
@@ -47,7 +47,7 @@ near-zero changes (the API surface is intentionally similar).
 - `BEGIN/COMMIT` transactions become free and meaningful
 
 **Tradeoffs:**
-- Native compile step on Railway (well-documented, just works)
+- Native compile step on managed app hosts (well-documented, usually straightforward)
 - Backup format stays the same (still a SQLite file), so all our
   encryption/restore tooling carries over unchanged
 

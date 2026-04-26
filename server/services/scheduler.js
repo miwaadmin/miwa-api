@@ -758,7 +758,7 @@ function startAlertsScheduler() {
   // Runs daily at 03:11 UTC (20:11 PT previous day). Reads /data/mftbrain.db,
   // encrypts with AES-256-GCM using BACKUP_PASSPHRASE, emails the blob to
   // admin@miwa.care via Gmail API (Workspace BAA-covered). This is the
-  // primary safety net against Railway volume loss / corruption.
+  // primary safety net against local SQLite volume loss / corruption.
   if (process.env.BACKUP_PASSPHRASE) {
     cron.schedule('11 3 * * *', async () => {
       try {

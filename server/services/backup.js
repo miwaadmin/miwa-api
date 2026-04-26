@@ -2,7 +2,7 @@
  * Encrypted off-site backup of the Miwa SQLite database.
  *
  * What this protects against:
- *   - Railway volume loss / corruption (the failure mode that ate the DB
+ *   - ephemeral volume loss / corruption (the failure mode that can eat the DB
  *     on 2026-04-18: Meet-feature deploy crashed mid-persist, file was left
  *     torn, next boot couldn't read it and silently overwrote with empty)
  *   - Accidental destructive admin actions
