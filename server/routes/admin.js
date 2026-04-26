@@ -24,8 +24,27 @@ function hasEnv(name) {
   return !!String(process.env[name] || '').trim();
 }
 
+function envValue(name) {
+  return String(process.env[name] || '').trim();
+}
+
 function check(id, label, status, detail) {
   return { id, label, status, detail };
+}
+
+function configuredStripePrices() {
+  const required = [
+    'STRIPE_PRICE_TRAINEE',
+    'STRIPE_PRICE_ASSOCIATE',
+    'STRIPE_PRICE_SOLO',
+    'STRIPE_PRICE_GROUP_BASE',
+    'STRIPE_PRICE_GROUP_PER_SEAT',
+  ];
+  const missing = required.filter((name) => {
+    const value = envValue(name);
+    return !value || value.startsWith('price_REPLACE');
+  });
+  return { required, missing };
 }
 
 function buildReadinessChecks() {
@@ -33,6 +52,11 @@ function buildReadinessChecks() {
   const pgSslMode = String(process.env.PGSSLMODE || '').toLowerCase();
   const jwtLength = String(process.env.JWT_SECRET || '').length;
   const appUrl = process.env.APP_URL || process.env.APP_BASE_URL || '';
+  const apiBaseUrl = process.env.API_BASE_URL || process.env.PUBLIC_API_URL || '';
+  const stripeSecret = envValue('STRIPE_SECRET_KEY');
+  const stripeWebhookSecret = envValue('STRIPE_WEBHOOK_SECRET');
+  const stripePrices = configuredStripePrices();
+  const fromEmail = envValue('FROM_EMAIL');
 
   const checks = [
     check(
@@ -96,6 +120,30 @@ function buildReadinessChecks() {
         : 'BACKUP_PASSPHRASE is missing'
     ),
     check(
+      'hipaa_mailer',
+      'HIPAA-covered transactional email',
+      hasHipaaCoveredProvider() ? 'pass' : 'fail',
+      hasHipaaCoveredProvider()
+        ? 'Gmail API or Google Workspace SMTP is configured for transactional email'
+        : 'Configure Gmail API or Google Workspace SMTP before sending PHI-related email'
+    ),
+    check(
+      'legacy_mailer',
+      'Legacy non-BAA email fallback',
+      !hasEnv('RESEND_API_KEY') ? 'pass' : 'warn',
+      !hasEnv('RESEND_API_KEY')
+        ? 'RESEND_API_KEY is not configured'
+        : 'RESEND_API_KEY is configured; verify PHI-related email cannot use non-BAA fallback'
+    ),
+    check(
+      'from_email',
+      'Sender domain',
+      /@miwa\.care/i.test(fromEmail) ? 'pass' : 'warn',
+      fromEmail
+        ? 'FROM_EMAIL is configured'
+        : 'FROM_EMAIL should be set to a miwa.care sender'
+    ),
+    check(
       'app_url',
       'Canonical app URL',
       /^https:\/\/(www\.)?miwa\.care/i.test(appUrl) ? 'pass' : 'warn',
@@ -104,12 +152,44 @@ function buildReadinessChecks() {
         : 'APP_URL or APP_BASE_URL should be set to https://miwa.care'
     ),
     check(
+      'api_url',
+      'Canonical API URL',
+      !apiBaseUrl || /^https:\/\/api\.miwa\.care\/?$/i.test(apiBaseUrl) ? 'pass' : 'warn',
+      apiBaseUrl
+        ? 'API base URL is configured'
+        : 'API base URL is omitted; web app can use same-origin /api'
+    ),
+    check(
       'file_storage',
       'PHI file storage',
       hasEnv('AZURE_STORAGE_CONNECTION_STRING') || hasEnv('AZURE_BLOB_CONNECTION_STRING') ? 'pass' : 'warn',
       hasEnv('AZURE_STORAGE_CONNECTION_STRING') || hasEnv('AZURE_BLOB_CONNECTION_STRING')
         ? 'Document uploads are configured for private Azure Blob Storage'
         : 'Document uploads and generated reports should move to private Azure Blob Storage before real launch'
+    ),
+    check(
+      'stripe_secret',
+      'Stripe secret key',
+      stripeSecret.startsWith('sk_live_') ? 'pass' : (stripeSecret ? 'warn' : 'fail'),
+      stripeSecret.startsWith('sk_live_')
+        ? 'Stripe live secret key is configured'
+        : (stripeSecret ? 'Stripe key is configured but does not look like live mode' : 'STRIPE_SECRET_KEY is missing')
+    ),
+    check(
+      'stripe_webhook',
+      'Stripe webhook signing secret',
+      stripeWebhookSecret.startsWith('whsec_') ? 'pass' : 'fail',
+      stripeWebhookSecret.startsWith('whsec_')
+        ? 'Stripe webhook signing secret is configured'
+        : 'STRIPE_WEBHOOK_SECRET is missing or malformed'
+    ),
+    check(
+      'stripe_prices',
+      'Stripe plan price IDs',
+      stripePrices.missing.length === 0 ? 'pass' : 'fail',
+      stripePrices.missing.length === 0
+        ? 'All Stripe plan price IDs are configured'
+        : `Missing Stripe price env vars: ${stripePrices.missing.join(', ')}`
     ),
   ];
 
