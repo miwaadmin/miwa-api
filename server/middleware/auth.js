@@ -1,7 +1,7 @@
 const path = require('path');
 require('dotenv').config({ path: path.join(__dirname, '..', '.env') });
 const jwt = require('jsonwebtoken');
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error('JWT_SECRET environment variable is not set');
@@ -11,7 +11,7 @@ function isConfiguredAdminEmail(email) {
   return !!adminEmail && !!email && email.toLowerCase() === adminEmail
 }
 
-function requireAuth(req, res, next) {
+async function requireAuth(req, res, next) {
   // Prefer HttpOnly cookie (XSS-safe); fall back to Authorization header for
   // API clients, dev tooling, and any in-flight sessions during migration.
   const cookieToken = req.cookies?.miwa_auth;
@@ -27,8 +27,8 @@ function requireAuth(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    const db = getDb();
-    const row = db.get('SELECT id, email, user_role, is_admin, account_status FROM therapists WHERE id = ?', decoded.sub);
+    const db = getAsyncDb();
+    const row = await db.get('SELECT id, email, user_role, is_admin, account_status FROM therapists WHERE id = ?', decoded.sub);
     if (!row) return res.status(401).json({ error: 'Account not found.' });
     if (row.account_status === 'suspended') {
       return res.status(403).json({ error: 'This account has been suspended. Contact support.' });
@@ -36,8 +36,8 @@ function requireAuth(req, res, next) {
 
     const shouldBeAdmin = !!row.is_admin || isConfiguredAdminEmail(row.email)
     if (shouldBeAdmin && !row.is_admin) {
-      db.run('UPDATE therapists SET is_admin = 1 WHERE id = ?', row.id)
-      persist()
+      await db.run('UPDATE therapists SET is_admin = 1 WHERE id = ?', row.id)
+      await persistIfNeeded()
       row.is_admin = 1
     }
 
@@ -48,8 +48,8 @@ function requireAuth(req, res, next) {
       is_admin: shouldBeAdmin,
       account_status: row.account_status,
     };
-    db.run('UPDATE therapists SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?', decoded.sub);
-    persist();
+    await db.run('UPDATE therapists SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?', decoded.sub);
+    await persistIfNeeded();
 
     next();
   } catch (err) {
@@ -70,7 +70,7 @@ function requireAdmin(req, res, next) {
  * `type: 'admin'`.  This lets the admin portal have its own independent
  * session that is not tied to the clinician cookie.
  */
-function requireAdminAuth(req, res, next) {
+async function requireAdminAuth(req, res, next) {
   const cookieToken = req.cookies?.miwa_admin_auth;
   const headerToken = (() => {
     const h = req.headers.authorization;
@@ -90,8 +90,8 @@ function requireAdminAuth(req, res, next) {
       return res.status(403).json({ error: 'Invalid token type. Please log in via the admin portal.' });
     }
 
-    const db = getDb();
-    const row = db.get('SELECT id, email, user_role, is_admin, account_status FROM therapists WHERE id = ?', decoded.sub);
+    const db = getAsyncDb();
+    const row = await db.get('SELECT id, email, user_role, is_admin, account_status FROM therapists WHERE id = ?', decoded.sub);
     if (!row) return res.status(401).json({ error: 'Account not found.' });
     if (row.account_status === 'suspended') {
       return res.status(403).json({ error: 'This account has been suspended. Contact support.' });
@@ -104,8 +104,8 @@ function requireAdminAuth(req, res, next) {
 
     // Auto-promote if needed
     if (!row.is_admin && shouldBeAdmin) {
-      db.run('UPDATE therapists SET is_admin = 1 WHERE id = ?', row.id);
-      persist();
+      await db.run('UPDATE therapists SET is_admin = 1 WHERE id = ?', row.id);
+      await persistIfNeeded();
       row.is_admin = 1;
     }
 
@@ -116,8 +116,8 @@ function requireAdminAuth(req, res, next) {
       is_admin: true,
       account_status: row.account_status,
     };
-    db.run('UPDATE therapists SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?', decoded.sub);
-    persist();
+    await db.run('UPDATE therapists SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?', decoded.sub);
+    await persistIfNeeded();
 
     next();
   } catch (err) {

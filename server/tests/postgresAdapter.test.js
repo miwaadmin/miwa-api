@@ -22,6 +22,13 @@ test('translateSqliteSql converts sqlite datetime now helper', () => {
   );
 });
 
+test('translateSqliteSql converts sqlite date now helpers used by dashboard queries', () => {
+  assert.equal(
+    translateSqliteSql("SELECT date('now') AS today, date('now', '-7 days') AS week_start WHERE therapist_id = ?"),
+    "SELECT CURRENT_DATE AS today, (CURRENT_DATE - INTERVAL '7 days') AS week_start WHERE therapist_id = $1"
+  );
+});
+
 test('appendReturningId adds RETURNING id to inserts only once', () => {
   assert.equal(
     appendReturningId('INSERT INTO patients (client_id) VALUES (?)'),

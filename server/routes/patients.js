@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { calculateRetention, isRetentionExpired } = require('../lib/retentionPolicy');
 
 // All routes: req.therapist set by requireAuth middleware in index.js
@@ -11,7 +11,7 @@ function normalizeDateOnly(value) {
   return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
 }
 
-function archivePatient(db, patient, { therapyEndedAt, legalHold, legalHoldReason } = {}) {
+async function archivePatient(db, patient, { therapyEndedAt, legalHold, legalHoldReason } = {}) {
   const endedAt = normalizeDateOnly(therapyEndedAt) || patient.therapy_ended_at || new Date().toISOString().slice(0, 10);
   const retention = calculateRetention({
     therapyEndedAt: endedAt,
@@ -21,7 +21,7 @@ function archivePatient(db, patient, { therapyEndedAt, legalHold, legalHoldReaso
   const nextLegalHold = legalHold !== undefined ? (legalHold ? 1 : 0) : (patient.legal_hold ? 1 : 0);
   const nextLegalHoldReason = legalHoldReason !== undefined ? legalHoldReason : patient.legal_hold_reason;
 
-  db.run(
+  await db.run(
     `UPDATE patients
      SET status = 'archived',
          therapy_ended_at = ?,
@@ -42,28 +42,28 @@ function archivePatient(db, patient, { therapyEndedAt, legalHold, legalHoldReaso
   );
 }
 
-function hardDeletePatient(db, patientId) {
-  db.run('DELETE FROM outcome_supervision_notes WHERE patient_id = ?', patientId);
-  db.run('DELETE FROM progress_alerts            WHERE patient_id = ?', patientId);
-  db.run('DELETE FROM proactive_alerts           WHERE patient_id = ?', patientId);
-  db.run('DELETE FROM assessments                WHERE patient_id = ?', patientId);
-  db.run('DELETE FROM assessment_links           WHERE patient_id = ?', patientId);
-  db.run('DELETE FROM sessions                   WHERE patient_id = ?', patientId);
-  db.run('DELETE FROM documents                  WHERE patient_id = ?', patientId);
-  db.run('DELETE FROM appointments               WHERE patient_id = ?', patientId);
-  db.run('DELETE FROM checkin_links              WHERE patient_id = ?', patientId);
-  db.run('DELETE FROM shared_patients            WHERE patient_id = ?', patientId);
-  db.run('DELETE FROM session_briefs             WHERE patient_id = ?', patientId);
-  db.run('DELETE FROM outreach_log               WHERE patient_id = ?', patientId);
-  try { db.run('DELETE FROM note_enrichments WHERE session_id IN (SELECT id FROM sessions WHERE patient_id = ?)', patientId); } catch {}
-  try { db.run('DELETE FROM treatment_goals WHERE plan_id IN (SELECT id FROM treatment_plans WHERE patient_id = ?)', patientId); } catch {}
-  try { db.run('DELETE FROM treatment_plans WHERE patient_id = ?', patientId); } catch {}
-  db.run('DELETE FROM patients                   WHERE id = ?', patientId);
+async function hardDeletePatient(db, patientId) {
+  await db.run('DELETE FROM outcome_supervision_notes WHERE patient_id = ?', patientId);
+  await db.run('DELETE FROM progress_alerts            WHERE patient_id = ?', patientId);
+  await db.run('DELETE FROM proactive_alerts           WHERE patient_id = ?', patientId);
+  await db.run('DELETE FROM assessments                WHERE patient_id = ?', patientId);
+  await db.run('DELETE FROM assessment_links           WHERE patient_id = ?', patientId);
+  await db.run('DELETE FROM sessions                   WHERE patient_id = ?', patientId);
+  await db.run('DELETE FROM documents                  WHERE patient_id = ?', patientId);
+  await db.run('DELETE FROM appointments               WHERE patient_id = ?', patientId);
+  await db.run('DELETE FROM checkin_links              WHERE patient_id = ?', patientId);
+  await db.run('DELETE FROM shared_patients            WHERE patient_id = ?', patientId);
+  await db.run('DELETE FROM session_briefs             WHERE patient_id = ?', patientId);
+  await db.run('DELETE FROM outreach_log               WHERE patient_id = ?', patientId);
+  try { await db.run('DELETE FROM note_enrichments WHERE session_id IN (SELECT id FROM sessions WHERE patient_id = ?)', patientId); } catch {}
+  try { await db.run('DELETE FROM treatment_goals WHERE plan_id IN (SELECT id FROM treatment_plans WHERE patient_id = ?)', patientId); } catch {}
+  try { await db.run('DELETE FROM treatment_plans WHERE patient_id = ?', patientId); } catch {}
+  await db.run('DELETE FROM patients                   WHERE id = ?', patientId);
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const tid = req.therapist.id;
     const { search, include_archived, status } = req.query;
 
@@ -95,7 +95,7 @@ router.get('/', (req, res) => {
     let patients;
     if (search) {
       const q = `%${search}%`;
-      patients = db.all(
+      patients = await db.all(
         `SELECT ${listColumns}, COALESCE(ss.session_count, 0) AS session_count, ss.last_session_date
          FROM patients${sessionStatsJoin}
          WHERE patients.therapist_id = ?${statusClause} AND (client_id LIKE ? OR display_name LIKE ? OR presenting_concerns LIKE ? OR diagnoses LIKE ?)
@@ -103,7 +103,7 @@ router.get('/', (req, res) => {
         ...(status ? [tid, tid, status, q, q, q, q] : [tid, tid, q, q, q, q])
       );
     } else {
-      patients = db.all(
+      patients = await db.all(
         `SELECT ${listColumns}, COALESCE(ss.session_count, 0) AS session_count, ss.last_session_date
          FROM patients${sessionStatsJoin}
          WHERE patients.therapist_id = ?${statusClause}
@@ -117,10 +117,10 @@ router.get('/', (req, res) => {
   }
 });
 
-router.get('/:id', (req, res) => {
+router.get('/:id', async (req, res) => {
   try {
-    const db = getDb();
-    const patient = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    const db = getAsyncDb();
+    const patient = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
     res.json(patient);
   } catch (err) {
@@ -128,9 +128,9 @@ router.get('/:id', (req, res) => {
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const tid = req.therapist.id;
     const {
       client_id, age, gender, case_type, client_type, members, age_range, referral_source, living_situation,
@@ -143,13 +143,13 @@ router.post('/', (req, res) => {
     } = req.body;
     if (!client_id) return res.status(400).json({ error: 'client_id is required' });
 
-    const existing = db.get('SELECT id FROM patients WHERE client_id = ? AND therapist_id = ?', client_id, tid);
+    const existing = await db.get('SELECT id FROM patients WHERE client_id = ? AND therapist_id = ?', client_id, tid);
     if (existing) return res.status(409).json({ error: 'A patient with this Client ID already exists' });
 
     const consent = phone && sms_consent ? 1 : 0;
     const consentAt = consent ? new Date().toISOString() : null;
 
-    const result = db.insert(
+    const result = await db.insert(
       `INSERT INTO patients (
         client_id, age, gender, case_type, client_type, members, age_range, referral_source, living_situation,
         presenting_concerns, diagnoses, notes, client_overview, client_overview_signature,
@@ -192,16 +192,16 @@ router.post('/', (req, res) => {
       session_duration || null,
       tid
     );
-    const patient = db.get('SELECT * FROM patients WHERE id = ?', result.lastInsertRowid);
+    const patient = await db.get('SELECT * FROM patients WHERE id = ?', result.lastInsertRowid);
     res.status(201).json(patient);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const {
       client_id, age, gender, case_type, client_type, members, age_range, referral_source, living_situation,
       presenting_concerns, diagnoses, notes, client_overview, client_overview_signature,
@@ -211,7 +211,7 @@ router.put('/:id', (req, res) => {
       display_name, phone, sms_consent, date_of_birth, legal_hold, legal_hold_reason,
       session_modality, session_duration,
     } = req.body;
-    const existing = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    const existing = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
     if (!existing) return res.status(404).json({ error: 'Patient not found' });
 
     // Resolve consent: explicit body wins; if phone is removed/changed, drop existing consent
@@ -233,7 +233,7 @@ router.put('/:id', (req, res) => {
       }
     }
 
-    db.run(
+    await db.run(
       `UPDATE patients SET
          client_id=?, age=?, gender=?, case_type=?, client_type=?, members=?, age_range=?, referral_source=?, living_situation=?,
          presenting_concerns=?, diagnoses=?, notes=?, client_overview=?, client_overview_signature=?, mental_health_history=?, substance_use=?,
@@ -280,52 +280,52 @@ router.put('/:id', (req, res) => {
       session_duration !== undefined ? session_duration : existing.session_duration,
       req.params.id, req.therapist.id
     );
-    const updated = db.get('SELECT * FROM patients WHERE id = ?', req.params.id);
+    const updated = await db.get('SELECT * FROM patients WHERE id = ?', req.params.id);
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.post('/:id/close', (req, res) => {
+router.post('/:id/close', async (req, res) => {
   try {
-    const db = getDb();
-    const patient = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    const db = getAsyncDb();
+    const patient = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-    archivePatient(db, patient, {
+    await archivePatient(db, patient, {
       therapyEndedAt: req.body?.therapy_ended_at,
       legalHold: req.body?.legal_hold,
       legalHoldReason: req.body?.legal_hold_reason,
     });
-    const updated = db.get('SELECT * FROM patients WHERE id = ?', req.params.id);
+    const updated = await db.get('SELECT * FROM patients WHERE id = ?', req.params.id);
     res.json({ ok: true, patient: updated });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.post('/:id/archive', (req, res) => {
+router.post('/:id/archive', async (req, res) => {
   try {
-    const db = getDb();
-    const patient = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    const db = getAsyncDb();
+    const patient = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-    archivePatient(db, patient, req.body || {});
-    const updated = db.get('SELECT * FROM patients WHERE id = ?', req.params.id);
+    await archivePatient(db, patient, req.body || {});
+    const updated = await db.get('SELECT * FROM patients WHERE id = ?', req.params.id);
     res.json({ ok: true, patient: updated });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.post('/:id/reactivate', (req, res) => {
+router.post('/:id/reactivate', async (req, res) => {
   try {
-    const db = getDb();
-    const patient = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    const db = getAsyncDb();
+    const patient = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-    db.run(
+    await db.run(
       `UPDATE patients
        SET status = 'active',
            archived_at = NULL,
@@ -334,7 +334,7 @@ router.post('/:id/reactivate', (req, res) => {
       req.params.id,
       req.therapist.id
     );
-    const updated = db.get('SELECT * FROM patients WHERE id = ?', req.params.id);
+    const updated = await db.get('SELECT * FROM patients WHERE id = ?', req.params.id);
     res.json({ ok: true, patient: updated });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -345,9 +345,9 @@ router.post('/:id/reactivate', (req, res) => {
  * DELETE /api/patients/batch — Delete multiple patients at once
  * Body: { ids: [1, 2, 3] }
  */
-router.delete('/batch', (req, res) => {
+router.delete('/batch', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { ids } = req.body;
     if (!Array.isArray(ids) || ids.length === 0) {
       return res.status(400).json({ error: 'ids array is required' });
@@ -358,10 +358,10 @@ router.delete('/batch', (req, res) => {
 
     let archived = 0;
     for (const id of ids) {
-      const existing = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', id, req.therapist.id);
+      const existing = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', id, req.therapist.id);
       if (!existing) continue;
 
-      archivePatient(db, existing, req.body || {});
+      await archivePatient(db, existing, req.body || {});
       archived++;
     }
 
@@ -371,10 +371,10 @@ router.delete('/batch', (req, res) => {
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    const db = getDb();
-    const existing = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    const db = getAsyncDb();
+    const existing = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
     if (!existing) return res.status(404).json({ error: 'Patient not found' });
 
     const pid = req.params.id;
@@ -389,12 +389,12 @@ router.delete('/:id', (req, res) => {
         });
       }
 
-      hardDeletePatient(db, pid);
+      await hardDeletePatient(db, pid);
       return res.json({ message: 'Patient and all associated records permanently deleted', deleted: 1 });
     }
 
-    archivePatient(db, existing, req.body || {});
-    const updated = db.get('SELECT * FROM patients WHERE id = ?', pid);
+    await archivePatient(db, existing, req.body || {});
+    const updated = await db.get('SELECT * FROM patients WHERE id = ?', pid);
     res.json({
       message: 'Patient record archived for retention',
       archived: true,
@@ -408,10 +408,10 @@ router.delete('/:id', (req, res) => {
 // Proactive Alerts ────────────────────────────────────────────────────────
 
 // GET /api/patients/alerts — all unread alerts for this therapist
-router.get('/alerts', (req, res) => {
+router.get('/alerts', async (req, res) => {
   try {
-    const db = getDb()
-    const alerts = db.all(
+    const db = getAsyncDb()
+    const alerts = await db.all(
       `SELECT pa.*, p.display_name, p.client_id
        FROM proactive_alerts pa
        LEFT JOIN patients p ON p.id = pa.patient_id
@@ -428,15 +428,15 @@ router.get('/alerts', (req, res) => {
 })
 
 // POST /api/patients/alerts/:id/dismiss — dismiss an alert
-router.post('/alerts/:id/dismiss', (req, res) => {
+router.post('/alerts/:id/dismiss', async (req, res) => {
   try {
-    const db = getDb()
-    db.run(
+    const db = getAsyncDb()
+    await db.run(
       `UPDATE proactive_alerts SET dismissed_at = CURRENT_TIMESTAMP
        WHERE id = ? AND therapist_id = ?`,
       req.params.id, req.therapist.id
     )
-    try { persist() } catch {}
+    try { await persistIfNeeded() } catch {}
     res.json({ ok: true })
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' })
@@ -444,10 +444,10 @@ router.post('/alerts/:id/dismiss', (req, res) => {
 })
 
 // POST /api/patients/alerts/:id/read — mark alert as read
-router.post('/alerts/:id/read', (req, res) => {
+router.post('/alerts/:id/read', async (req, res) => {
   try {
-    const db = getDb()
-    db.run(
+    const db = getAsyncDb()
+    await db.run(
       `UPDATE proactive_alerts SET is_read = 1
        WHERE id = ? AND therapist_id = ?`,
       req.params.id, req.therapist.id
@@ -459,19 +459,19 @@ router.post('/alerts/:id/read', (req, res) => {
 })
 
 // POST /api/patients/alerts/run — manually trigger alert detection (for testing)
-router.post('/alerts/run', (req, res) => {
+router.post('/alerts/run', async (req, res) => {
   try {
-    const db = getDb()
+    const db = getAsyncDb()
     const tid = req.therapist.id
     const { detectAlertsForPatient } = require('../services/scheduler')
 
     // If detectAlertsForPatient isn't exported, do inline detection
-    const patients = db.all('SELECT id, display_name, client_id FROM patients WHERE therapist_id = ?', tid)
+    const patients = await db.all('SELECT id, display_name, client_id FROM patients WHERE therapist_id = ?', tid)
     let alertsCreated = 0
 
     for (const patient of patients) {
       // Check overdue assessments
-      const lastAssessment = db.get(
+      const lastAssessment = await db.get(
         'SELECT administered_at FROM assessments WHERE patient_id = ? ORDER BY administered_at DESC LIMIT 1',
         patient.id
       )
@@ -482,12 +482,12 @@ router.post('/alerts/run', (req, res) => {
 
       if (!lastAssessment || daysOverdue > 7) {
         // Check if alert already exists
-        const existing = db.get(
+        const existing = await db.get(
           "SELECT id FROM proactive_alerts WHERE therapist_id = ? AND patient_id = ? AND alert_type = 'OVERDUE_ASSESSMENT' AND dismissed_at IS NULL AND created_at > datetime('now', '-24 hours')",
           tid, patient.id
         )
         if (!existing) {
-          db.insert(
+          await db.insert(
             "INSERT INTO proactive_alerts (therapist_id, patient_id, alert_type, severity, title, description) VALUES (?, ?, 'OVERDUE_ASSESSMENT', 'MEDIUM', ?, ?)",
             tid, patient.id,
             `${patient.display_name || patient.client_id} needs an assessment`,
@@ -498,7 +498,7 @@ router.post('/alerts/run', (req, res) => {
       }
     }
 
-    persist()
+    await persistIfNeeded()
     res.json({ ok: true, alerts_created: alertsCreated, patients_checked: patients.length })
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' })

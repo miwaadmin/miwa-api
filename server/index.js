@@ -11,6 +11,7 @@ const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const { initDb, getDb } = require('./db');
+const { getAsyncDb } = require('./db/asyncDb');
 const requireAuth = require('./middleware/auth');
 const { phiAuditLog } = require('./middleware/auditLog');
 
@@ -250,9 +251,9 @@ app.post('/api/settings', requireAuth, (req, res) => {
 });
 
 // Stats — scoped to logged-in therapist
-app.get('/api/stats', requireAuth, (req, res) => {
+app.get('/api/stats', requireAuth, async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const tid = req.therapist.id;
 
     // Date strings for "today" and "Monday of this week" in the therapist's
@@ -270,53 +271,53 @@ app.get('/api/stats', requireAuth, (req, res) => {
 
     // Caseload count. (No `status` column on patients today — when we add
     // archive/inactive support later, gate this with `status != 'inactive'`.)
-    const totalPatients = db.get(
+    const totalPatients = (await db.get(
       `SELECT COUNT(*) as count
        FROM patients
        WHERE therapist_id = ?
          AND COALESCE(status, 'active') != 'archived'`,
       tid
-    ).count;
+    )).count;
 
-    const totalSessions = db.get('SELECT COUNT(*) as count FROM sessions WHERE therapist_id = ?', tid).count;
+    const totalSessions = (await db.get('SELECT COUNT(*) as count FROM sessions WHERE therapist_id = ?', tid)).count;
 
     // Calendar-week Mon-Sun count, by when the session actually happened.
     // COALESCE handles older rows that may not have session_date set.
-    const sessionsThisWeek = db.get(
+    const sessionsThisWeek = (await db.get(
       `SELECT COUNT(*) as count FROM sessions
        WHERE therapist_id = ?
          AND COALESCE(session_date, date(created_at)) >= ?`,
       tid, mondayStr
-    ).count;
+    )).count;
 
-    const sessionsThisMonth = db.get(
+    const sessionsThisMonth = (await db.get(
       `SELECT COUNT(*) as count FROM sessions
        WHERE therapist_id = ?
          AND COALESCE(session_date, date(created_at)) >= ?`,
       tid, todayStr.slice(0, 8) + '01'  // first of this month
-    ).count;
+    )).count;
 
     // Appointments scheduled for today in the therapist's TZ. We match by the
     // date portion of scheduled_start (UTC ISO). For most caseloads this is
     // accurate; late-evening appointments near midnight in non-UTC TZs may
     // fall on the wrong calendar day — acceptable for v1.
-    const appointmentsToday = db.get(
+    const appointmentsToday = (await db.get(
       `SELECT COUNT(*) as count FROM appointments
        WHERE therapist_id = ?
          AND status NOT IN ('cancelled', 'no_show', 'completed')
          AND DATE(scheduled_start) = ?`,
       tid, todayStr
-    ).count;
+    )).count;
 
-    const unsignedNotes = db.get(
+    const unsignedNotes = (await db.get(
       'SELECT COUNT(*) as count FROM sessions WHERE therapist_id = ? AND signed_at IS NULL AND (subjective IS NOT NULL OR assessment IS NOT NULL OR plan IS NOT NULL)',
       tid
-    ).count;
+    )).count;
 
     // Recent sessions — only the last 7 days. Past that gets bloated for
     // therapists with multiple clients; the full archive lives on the
     // patient detail page or via the Workspace history view.
-    const recentSessions = db.all(`
+    const recentSessions = await db.all(`
       SELECT s.id, s.patient_id, s.session_date, s.assessment, s.created_at,
              p.client_id, p.display_name, s.note_format, s.signed_at
       FROM sessions s JOIN patients p ON s.patient_id = p.id
@@ -337,11 +338,11 @@ app.get('/api/stats', requireAuth, (req, res) => {
 
 // All unsigned session notes for the current therapist, across every client.
 // Drives the "Unsigned" tile on the dashboard — clicking the tile lands here.
-app.get('/api/sessions/unsigned', requireAuth, (req, res) => {
+app.get('/api/sessions/unsigned', requireAuth, async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const tid = req.therapist.id;
-    const rows = db.all(`
+    const rows = await db.all(`
       SELECT s.id, s.patient_id, s.session_date, s.created_at, s.note_format,
              s.subjective, s.assessment, s.plan,
              p.client_id, p.display_name

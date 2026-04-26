@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router({ mergeParams: true });
-const { getDb } = require('../db');
+const { getAsyncDb } = require('../db/asyncDb');
 const { emit } = require('../services/event-bus');
 
 /**
@@ -8,25 +8,25 @@ const { emit } = require('../services/event-bus');
  * signed session. Research shows 73.5% of patients in standard care drop out
  * before session 4, so reaching it is a meaningful retention signal.
  */
-function checkSession4Milestone(db, therapistId, patientId) {
+async function checkSession4Milestone(db, therapistId, patientId) {
   try {
-    const count = db.get(
+    const count = await db.get(
       'SELECT COUNT(*) as c FROM sessions WHERE patient_id = ? AND therapist_id = ? AND signed_at IS NOT NULL',
       patientId, therapistId
     );
     if (count?.c !== 4) return;
 
     // Don't duplicate
-    const existing = db.get(
+    const existing = await db.get(
       `SELECT id FROM progress_alerts
        WHERE patient_id = ? AND therapist_id = ? AND type = 'RETENTION_MILESTONE'`,
       patientId, therapistId
     );
     if (existing) return;
 
-    const patient = db.get('SELECT client_id, display_name FROM patients WHERE id = ?', patientId);
+    const patient = await db.get('SELECT client_id, display_name FROM patients WHERE id = ?', patientId);
     const name = patient?.display_name || patient?.client_id || 'Client';
-    db.insert(
+    await db.insert(
       `INSERT INTO progress_alerts (patient_id, therapist_id, type, severity, title, description)
        VALUES (?, ?, 'RETENTION_MILESTONE', 'SUCCESS', ?, ?)`,
       patientId, therapistId,
@@ -43,22 +43,22 @@ function checkSession4Milestone(db, therapistId, patientId) {
  * Checks: (1) direct ownership, (2) shared access, (3) supervision link.
  * Returns { access: 'own'|'shared'|'supervised'|null, readOnly: boolean }
  */
-function checkPatientAccess(db, patientId, therapistId) {
+async function checkPatientAccess(db, patientId, therapistId) {
   // 1. Direct ownership
-  const owned = db.get('SELECT id FROM patients WHERE id = ? AND therapist_id = ?', patientId, therapistId);
+  const owned = await db.get('SELECT id FROM patients WHERE id = ? AND therapist_id = ?', patientId, therapistId);
   if (owned) return { access: 'own', readOnly: false };
 
   // 2. Shared access
-  const shared = db.get(
+  const shared = await db.get(
     "SELECT access_level FROM shared_patients WHERE patient_id = ? AND shared_with_id = ?",
     patientId, therapistId
   );
   if (shared) return { access: 'shared', readOnly: shared.access_level === 'read' };
 
   // 3. Supervision link
-  const patient = db.get('SELECT therapist_id FROM patients WHERE id = ?', patientId);
+  const patient = await db.get('SELECT therapist_id FROM patients WHERE id = ?', patientId);
   if (patient) {
-    const supervision = db.get(
+    const supervision = await db.get(
       "SELECT access_level FROM supervision_links WHERE supervisor_id = ? AND supervisee_id = ? AND status = 'active'",
       therapistId, patient.therapist_id
     );
@@ -73,12 +73,12 @@ function ownedPatient(db, patientId, therapistId) {
   return db.get('SELECT id FROM patients WHERE id = ? AND therapist_id = ?', patientId, therapistId);
 }
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const db = getDb();
-    const access = checkPatientAccess(db, req.params.patientId, req.therapist.id);
+    const db = getAsyncDb();
+    const access = await checkPatientAccess(db, req.params.patientId, req.therapist.id);
     if (!access.access) return res.status(404).json({ error: 'Patient not found' });
-    const sessions = db.all(
+    const sessions = await db.all(
       'SELECT * FROM sessions WHERE patient_id = ? ORDER BY session_date DESC, created_at DESC',
       req.params.patientId
     );
@@ -88,12 +88,12 @@ router.get('/', (req, res) => {
   }
 });
 
-router.get('/:sessionId', (req, res) => {
+router.get('/:sessionId', async (req, res) => {
   try {
-    const db = getDb();
-    const access = checkPatientAccess(db, req.params.patientId, req.therapist.id);
+    const db = getAsyncDb();
+    const access = await checkPatientAccess(db, req.params.patientId, req.therapist.id);
     if (!access.access) return res.status(404).json({ error: 'Patient not found' });
-    const session = db.get(
+    const session = await db.get(
       'SELECT * FROM sessions WHERE id = ? AND patient_id = ?',
       req.params.sessionId, req.params.patientId
     );
@@ -104,15 +104,15 @@ router.get('/:sessionId', (req, res) => {
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
-    const db = getDb();
-    const patient = ownedPatient(db, req.params.patientId, req.therapist.id);
+    const db = getAsyncDb();
+    const patient = await ownedPatient(db, req.params.patientId, req.therapist.id);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
     const { session_date, note_format, subjective, objective, assessment, plan, icd10_codes, ai_feedback, notes_json, treatment_plan, duration_minutes, cpt_code, signed_at, full_note } = req.body;
 
-    const result = db.insert(
+    const result = await db.insert(
       `INSERT INTO sessions (patient_id, therapist_id, session_date, note_format, subjective, objective, assessment, plan, icd10_codes, ai_feedback, notes_json, treatment_plan, duration_minutes, cpt_code, signed_at, full_note)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       req.params.patientId, req.therapist.id,
@@ -123,7 +123,7 @@ router.post('/', (req, res) => {
       duration_minutes || null, cpt_code || null, signed_at || null, full_note || null
     );
 
-    const session = db.get('SELECT * FROM sessions WHERE id = ?', result.lastInsertRowid);
+    const session = await db.get('SELECT * FROM sessions WHERE id = ?', result.lastInsertRowid);
 
     // Tier 1 Agentic: emit event if session was signed on creation
     if (signed_at) {
@@ -134,7 +134,7 @@ router.post('/', (req, res) => {
           session_id: result.lastInsertRowid,
         });
       } catch {}
-      checkSession4Milestone(db, req.therapist.id, parseInt(req.params.patientId));
+      await checkSession4Milestone(db, req.therapist.id, parseInt(req.params.patientId));
     }
 
     res.status(201).json(session);
@@ -143,13 +143,13 @@ router.post('/', (req, res) => {
   }
 });
 
-router.put('/:sessionId', (req, res) => {
+router.put('/:sessionId', async (req, res) => {
   try {
-    const db = getDb();
-    const access = checkPatientAccess(db, req.params.patientId, req.therapist.id);
+    const db = getAsyncDb();
+    const access = await checkPatientAccess(db, req.params.patientId, req.therapist.id);
     if (!access.access) return res.status(404).json({ error: 'Patient not found' });
     if (access.readOnly) return res.status(403).json({ error: 'You have read-only access to this patient.' });
-    const existing = db.get(
+    const existing = await db.get(
       'SELECT * FROM sessions WHERE id = ? AND patient_id = ?',
       req.params.sessionId, req.params.patientId
     );
@@ -162,7 +162,7 @@ router.put('/:sessionId', (req, res) => {
       return res.status(423).json({ error: 'This session note has been signed and locked. Unlock it first.' });
     }
 
-    db.run(
+    await db.run(
       `UPDATE sessions SET session_date=?, note_format=?, subjective=?, objective=?, assessment=?, plan=?, icd10_codes=?, ai_feedback=?, notes_json=?, treatment_plan=?, duration_minutes=?, cpt_code=?, signed_at=?, full_note=?
        WHERE id=? AND patient_id=?`,
       session_date    !== undefined ? session_date    : existing.session_date,
@@ -182,7 +182,7 @@ router.put('/:sessionId', (req, res) => {
       req.params.sessionId, req.params.patientId
     );
 
-    const updated = db.get('SELECT * FROM sessions WHERE id = ?', req.params.sessionId);
+    const updated = await db.get('SELECT * FROM sessions WHERE id = ?', req.params.sessionId);
 
     // Tier 1 Agentic: emit event if session was just signed (wasn't signed before, now is)
     if (signed_at && !existing.signed_at) {
@@ -193,7 +193,7 @@ router.put('/:sessionId', (req, res) => {
           session_id: parseInt(req.params.sessionId),
         });
       } catch {}
-      checkSession4Milestone(db, req.therapist.id, parseInt(req.params.patientId));
+      await checkSession4Milestone(db, req.therapist.id, parseInt(req.params.patientId));
     }
 
     res.json(updated);
@@ -202,19 +202,19 @@ router.put('/:sessionId', (req, res) => {
   }
 });
 
-router.delete('/:sessionId', (req, res) => {
+router.delete('/:sessionId', async (req, res) => {
   try {
-    const db = getDb();
-    const access = checkPatientAccess(db, req.params.patientId, req.therapist.id);
+    const db = getAsyncDb();
+    const access = await checkPatientAccess(db, req.params.patientId, req.therapist.id);
     if (!access.access) return res.status(404).json({ error: 'Patient not found' });
     if (access.readOnly) return res.status(403).json({ error: 'You have read-only access to this patient.' });
-    const existing = db.get(
+    const existing = await db.get(
       'SELECT id FROM sessions WHERE id = ? AND patient_id = ?',
       req.params.sessionId, req.params.patientId
     );
     if (!existing) return res.status(404).json({ error: 'Session not found' });
 
-    db.run('DELETE FROM sessions WHERE id = ?', req.params.sessionId);
+    await db.run('DELETE FROM sessions WHERE id = ?', req.params.sessionId);
     res.json({ message: 'Session deleted successfully' });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
