@@ -8,7 +8,7 @@
  * Non-blocking: errors are swallowed so audit logging never breaks user flow.
  */
 
-const { getDb } = require('../db');
+const { getAsyncDb } = require('../db/asyncDb');
 
 // Routes that touch PHI — log these
 const PHI_PATTERNS = [
@@ -51,8 +51,8 @@ function phiAuditLog(req, res, next) {
   // Log after response is sent (so we capture the status code)
   res.on('finish', () => {
     try {
-      const db = getDb();
-      db.run(
+      const db = getAsyncDb();
+      Promise.resolve(db.run(
         `INSERT INTO phi_access_log (therapist_id, action, resource, patient_id, method, status_code, ip, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
         therapistId,
@@ -62,7 +62,7 @@ function phiAuditLog(req, res, next) {
         req.method,
         res.statusCode,
         (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim().slice(0, 45),
-      );
+      )).catch(() => {});
     } catch {
       // Never let audit logging break the app
     }
@@ -74,10 +74,10 @@ function phiAuditLog(req, res, next) {
 /**
  * Manual PHI access log — for background tasks that don't go through Express routes.
  */
-function logPhiAccess({ therapistId, action, resource, patientId = null, detail = null }) {
+async function logPhiAccess({ therapistId, action, resource, patientId = null, detail = null }) {
   try {
-    const db = getDb();
-    db.run(
+    const db = getAsyncDb();
+    await db.run(
       `INSERT INTO phi_access_log (therapist_id, action, resource, patient_id, method, status_code, ip, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
       therapistId, action, String(resource).slice(0, 500), patientId, detail || 'SYSTEM', 200, 'internal'

@@ -45,6 +45,8 @@ function translateSqlitePlaceholders(sql) {
 
 function translateSqliteSql(sql) {
   return translateSqlitePlaceholders(String(sql || ''))
+    .replace(/\s+COLLATE\s+NOCASE/gi, '')
+    .replace(/\bdatetime\s*\(\s*'now'\s*,\s*'-(\d+)\s+days?'\s*\)/gi, "(CURRENT_TIMESTAMP - INTERVAL '$1 days')")
     .replace(/\bdate\s*\(\s*'now'\s*,\s*'-(\d+)\s+days?'\s*\)/gi, "(CURRENT_DATE - INTERVAL '$1 days')")
     .replace(/\bdate\s*\(\s*'now'\s*\)/gi, 'CURRENT_DATE')
     .replace(/\bdatetime\s*\(\s*'now'\s*\)/gi, 'CURRENT_TIMESTAMP')

@@ -12,7 +12,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 
 const VALID_CATEGORIES = new Set([
   'law_enforcement',
@@ -30,18 +30,18 @@ const VALID_CATEGORIES = new Set([
  * Optional ?category=xxx to scope.
  * Returns pinned contacts first, then alphabetical.
  */
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { category } = req.query;
     const rows = category
-      ? db.all(
+      ? await db.all(
           `SELECT * FROM therapist_contacts
            WHERE therapist_id = ? AND category = ?
            ORDER BY pinned DESC, name COLLATE NOCASE ASC`,
           req.therapist.id, category
         )
-      : db.all(
+      : await db.all(
           `SELECT * FROM therapist_contacts
            WHERE therapist_id = ?
            ORDER BY pinned DESC, name COLLATE NOCASE ASC`,
@@ -57,16 +57,16 @@ router.get('/', (req, res) => {
  * POST /api/contacts
  * Body: { name, title?, agency?, specialty?, email?, phone?, category?, notes?, pinned? }
  */
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const b = req.body || {};
     if (!b.name || typeof b.name !== 'string' || !b.name.trim()) {
       return res.status(400).json({ error: 'name is required' });
     }
     const category = VALID_CATEGORIES.has(b.category) ? b.category : 'other';
 
-    const result = db.insert(
+    const result = await db.insert(
       `INSERT INTO therapist_contacts
          (therapist_id, name, title, agency, specialty, email, phone, category, notes, pinned, public)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -82,8 +82,8 @@ router.post('/', (req, res) => {
       b.pinned ? 1 : 0,
       b.public ? 1 : 0
     );
-    try { persist(); } catch {}
-    const row = db.get(`SELECT * FROM therapist_contacts WHERE id = ?`, result.lastInsertRowid);
+    try { await persistIfNeeded(); } catch {}
+    const row = await db.get(`SELECT * FROM therapist_contacts WHERE id = ?`, result.lastInsertRowid);
     res.json(row);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -93,11 +93,11 @@ router.post('/', (req, res) => {
 /**
  * PUT /api/contacts/:id
  */
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const id = parseInt(req.params.id);
-    const existing = db.get(
+    const existing = await db.get(
       `SELECT * FROM therapist_contacts WHERE id = ? AND therapist_id = ?`,
       id, req.therapist.id
     );
@@ -124,13 +124,13 @@ router.put('/:id', (req, res) => {
     set('updated_at', new Date().toISOString());
     args.push(id, req.therapist.id);
 
-    db.run(
+    await db.run(
       `UPDATE therapist_contacts SET ${fields.join(', ')}
        WHERE id = ? AND therapist_id = ?`,
       ...args
     );
-    try { persist(); } catch {}
-    const row = db.get(`SELECT * FROM therapist_contacts WHERE id = ?`, id);
+    try { await persistIfNeeded(); } catch {}
+    const row = await db.get(`SELECT * FROM therapist_contacts WHERE id = ?`, id);
     res.json(row);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -140,17 +140,17 @@ router.put('/:id', (req, res) => {
 /**
  * DELETE /api/contacts/:id
  */
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const id = parseInt(req.params.id);
-    const existing = db.get(
+    const existing = await db.get(
       `SELECT id FROM therapist_contacts WHERE id = ? AND therapist_id = ?`,
       id, req.therapist.id
     );
     if (!existing) return res.status(404).json({ error: 'Contact not found' });
-    db.run(`DELETE FROM therapist_contacts WHERE id = ? AND therapist_id = ?`, id, req.therapist.id);
-    try { persist(); } catch {}
+    await db.run(`DELETE FROM therapist_contacts WHERE id = ? AND therapist_id = ?`, id, req.therapist.id);
+    try { await persistIfNeeded(); } catch {}
     res.json({ deleted: true });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });

@@ -15,26 +15,26 @@
 
 const express = require('express');
 const router = express.Router();
-const { getDb } = require('../db');
+const { getAsyncDb } = require('../db/asyncDb');
 
 /**
  * GET /api/public/network
  * Optional ?category=<id> to filter
  */
-router.get('/network', (req, res) => {
+router.get('/network', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { category } = req.query;
 
     const rows = category
-      ? db.all(
+      ? await db.all(
           `SELECT id, name, title, agency, specialty, email, phone, category
            FROM therapist_contacts
            WHERE public = 1 AND category = ?
            ORDER BY pinned DESC, name COLLATE NOCASE ASC`,
           category
         )
-      : db.all(
+      : await db.all(
           `SELECT id, name, title, agency, specialty, email, phone, category
            FROM therapist_contacts
            WHERE public = 1

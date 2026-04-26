@@ -29,6 +29,13 @@ test('translateSqliteSql converts sqlite date now helpers used by dashboard quer
   );
 });
 
+test('translateSqliteSql converts sqlite collation and datetime range helpers', () => {
+  assert.equal(
+    translateSqliteSql("SELECT * FROM contacts WHERE created_at >= datetime('now', '-30 days') ORDER BY name COLLATE NOCASE ASC"),
+    "SELECT * FROM contacts WHERE created_at >= (CURRENT_TIMESTAMP - INTERVAL '30 days') ORDER BY name ASC"
+  );
+});
+
 test('appendReturningId adds RETURNING id to inserts only once', () => {
   assert.equal(
     appendReturningId('INSERT INTO patients (client_id) VALUES (?)'),

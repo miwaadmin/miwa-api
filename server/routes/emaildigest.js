@@ -1,28 +1,28 @@
 const express = require('express');
 const router = express.Router();
-const { getDb } = require('../db');
+const { getAsyncDb } = require('../db/asyncDb');
 
 // POST /api/digest/preview — returns digest data (JSON, for UI preview)
-router.post('/preview', (req, res) => {
+router.post('/preview', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const tid = req.therapist.id;
 
     // Get practice stats
-    const totalPatients = db.get('SELECT COUNT(*) as count FROM patients WHERE therapist_id = ?', tid).count;
-    const totalSessions7Days = db.get(
+    const totalPatients = (await db.get('SELECT COUNT(*) as count FROM patients WHERE therapist_id = ?', tid)).count;
+    const totalSessions7Days = (await db.get(
       "SELECT COUNT(*) as count FROM sessions WHERE therapist_id = ? AND created_at >= datetime('now', '-7 days')", tid
-    ).count;
-    const totalAssessments = db.get('SELECT COUNT(*) as count FROM assessments WHERE therapist_id = ?', tid).count;
-    const criticalAlerts = db.get(
+    )).count;
+    const totalAssessments = (await db.get('SELECT COUNT(*) as count FROM assessments WHERE therapist_id = ?', tid)).count;
+    const criticalAlerts = (await db.get(
       "SELECT COUNT(*) as count FROM progress_alerts WHERE therapist_id = ? AND severity = 'CRITICAL' AND dismissed_at IS NULL", tid
-    ).count;
-    const improvements = db.get(
+    )).count;
+    const improvements = (await db.get(
       "SELECT COUNT(*) as count FROM assessments WHERE therapist_id = ? AND is_improvement = 1 AND created_at >= datetime('now', '-30 days')", tid
-    ).count;
+    )).count;
 
     // Clients with critical alerts
-    const riskClients = db.all(
+    const riskClients = await db.all(
       `SELECT p.client_id, p.id as patient_id, COUNT(al.id) as alert_count
        FROM progress_alerts al
        JOIN patients p ON al.patient_id = p.id
@@ -31,7 +31,7 @@ router.post('/preview', (req, res) => {
     );
 
     // Overdue assessments (patients not assessed in 30+ days)
-    const allPatients = db.all(
+    const allPatients = await db.all(
       `SELECT p.id, p.client_id, MAX(a.administered_at) as last_assessment
        FROM patients p
        LEFT JOIN assessments a ON a.patient_id = p.id AND a.therapist_id = p.therapist_id
