@@ -79,8 +79,12 @@ counts differ. It does not print row data or secrets.
 ## Runtime Cutover
 
 These scripts prepare Azure PostgreSQL and copy the data. The app still needs
-the runtime database layer switched from the synchronous SQLite wrapper to an
-async PostgreSQL implementation before production can set `DB_PROVIDER=postgres`.
+the runtime database layer switched from the synchronous SQLite wrapper to async
+PostgreSQL usage before production can set `DB_PROVIDER=postgres`. The
+foundation for that adapter lives in `server/db/postgresAdapter.js`, but it is
+not wired into production until route handlers are converted to `await` DB
+calls.
+
 Today, the server intentionally refuses to boot if `DB_PROVIDER=postgres` is
 set before that runtime cutover is complete, so we do not accidentally believe
 PHI is in Postgres while the app is still writing to SQLite.
