@@ -253,10 +253,10 @@ router.delete('/briefs/:id', (req, res) => {
 });
 
 // GET /api/research/news — latest mental health news (last 72 hours)
-router.get('/news', (req, res) => {
+router.get('/news', async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 5, 20);
-    const articles = getLatestNews(limit);
+    const articles = await getLatestNews(limit);
     res.json(articles);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });

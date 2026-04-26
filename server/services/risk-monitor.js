@@ -20,7 +20,7 @@
 
 'use strict';
 
-const { getDb } = require('../db');
+const { getAsyncDb } = require('../db/asyncDb');
 const { classifyIntent } = require('../lib/aiExecutor');
 
 // ── Risk Categories ──────────────────────────────────────────────────────────
@@ -137,7 +137,7 @@ function detectPatterns(text) {
  * Checks both the `assessments` table (scored instruments) and recent session
  * notes (e.g. a clinician who documented a C-SSRS in narrative form).
  */
-function getDocumentedScreeners(db, patientId, therapistId) {
+async function getDocumentedScreeners(db, patientId, therapistId) {
   const covered = new Set();
 
   if (!patientId) return covered;
@@ -149,7 +149,7 @@ function getDocumentedScreeners(db, patientId, therapistId) {
 
   let recentAssessments = [];
   try {
-    recentAssessments = db.all(
+    recentAssessments = await db.all(
       `SELECT template_type, administered_at
        FROM assessments
        WHERE patient_id = ? AND therapist_id = ?
@@ -178,7 +178,7 @@ function getDocumentedScreeners(db, patientId, therapistId) {
   // category as covered even without a formal assessment row.
   let recentNotes = [];
   try {
-    recentNotes = db.all(
+    recentNotes = await db.all(
       `SELECT assessment, plan, session_date
        FROM sessions
        WHERE patient_id = ? AND therapist_id = ?
@@ -309,9 +309,9 @@ async function scanNote({ text, patientId, therapistId, skipLLM }) {
     : await confirmWithLLM(text, rawHits, therapistId);
 
   // Attach `covered` flag based on recent screeners
-  const db = getDb();
+  const db = getAsyncDb();
   const covered = patientId
-    ? getDocumentedScreeners(db, patientId, therapistId)
+    ? await getDocumentedScreeners(db, patientId, therapistId)
     : new Set();
 
   // Only surface categories that are NOT already covered — otherwise we'd

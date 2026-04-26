@@ -7,7 +7,7 @@
  * Only stores articles with real URLs — no hallucinated sources.
  */
 
-const { getDb } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { MODELS, callAI } = require('../lib/aiExecutor');
 
 // Trusted mental health / clinical domains (whitelist)
@@ -81,7 +81,7 @@ Be factual, direct, and clinically relevant. Do not add information not in the s
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 
 async function fetchAndStoreNews() {
-  const db = getDb();
+  const db = getAsyncDb();
 
   const queries = [
     'mental health treatment research 2025',
@@ -117,12 +117,12 @@ async function fetchAndStoreNews() {
   for (const article of ordered) {
     try {
       // Skip if already stored
-      const existing = db.get('SELECT id FROM mental_health_news WHERE url = ?', article.url);
+      const existing = await db.get('SELECT id FROM mental_health_news WHERE url = ?', article.url);
       if (existing) continue;
 
       const summary = await summariseArticle(article.title, article.description);
 
-      db.insert(
+      await db.insert(
         `INSERT INTO mental_health_news (title, url, source, published_at, summary) VALUES (?, ?, ?, ?, ?)`,
         article.title,
         article.url,
@@ -141,8 +141,9 @@ async function fetchAndStoreNews() {
 
   // Prune articles older than 72 hours to keep DB lean
   try {
-    db.run(`DELETE FROM mental_health_news WHERE fetched_at < datetime('now', '-72 hours')`);
+    await db.run(`DELETE FROM mental_health_news WHERE fetched_at < datetime('now', '-72 hours')`);
   } catch {}
+  await persistIfNeeded();
 
   console.log(`[newsService] Fetched ${ordered.length} articles, inserted ${inserted} new`);
   return inserted;
@@ -151,8 +152,8 @@ async function fetchAndStoreNews() {
 /**
  * Returns the latest stored news articles (up to limit).
  */
-function getLatestNews(limit = 5) {
-  const db = getDb();
+async function getLatestNews(limit = 5) {
+  const db = getAsyncDb();
   return db.all(
     `SELECT id, title, url, source, published_at, summary, fetched_at
      FROM mental_health_news

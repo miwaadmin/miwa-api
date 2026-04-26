@@ -22,7 +22,7 @@
 const express = require('express');
 const router = express.Router();
 const requireAuth = require('../middleware/auth');
-const { getDb } = require('../db');
+const { getAsyncDb } = require('../db/asyncDb');
 
 router.use(requireAuth);
 
@@ -35,9 +35,9 @@ router.use(requireAuth);
  *   sources       — comma-separated subset of: logs,actions,outreach,
  *                   workflows,alerts,sends,phi
  */
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const tid = req.therapist.id;
     const patientId = req.query.patient_id ? parseInt(req.query.patient_id, 10) : null;
     const from = req.query.from || "datetime('now', '-30 days')";
@@ -62,7 +62,7 @@ router.get('/', (req, res) => {
       try {
         const whereExtra = patientId ? '' : '';  // event_logs has no patient_id
         if (!patientId) {
-          const evs = db.all(
+          const evs = await db.all(
             `SELECT id, event_type, status, message, meta_json, created_at
                FROM event_logs
               WHERE therapist_id = ? AND created_at ${range.where}
@@ -93,7 +93,7 @@ router.get('/', (req, res) => {
       try {
         const patientFilter = patientId ? `AND json_extract(payload_json, '$.patientId') = ?` : '';
         const args = patientId ? [tid, ...range.args, patientId, limit] : [tid, ...range.args, limit];
-        const actions = db.all(
+        const actions = await db.all(
           `SELECT id, kind, payload_json, status, created_at, completed_at
              FROM agent_actions
             WHERE therapist_id = ? AND created_at ${range.where} ${patientFilter}
@@ -128,7 +128,7 @@ router.get('/', (req, res) => {
         const args = patientId
           ? [tid, ...range.args, patientId, limit]
           : [tid, ...range.args, limit];
-        const outs = db.all(
+        const outs = await db.all(
           `SELECT id, patient_id, rule_id, outreach_type, channel, message_preview, status, created_at
              FROM outreach_log
             WHERE therapist_id = ? AND created_at ${range.where} ${patientFilter}
@@ -161,7 +161,7 @@ router.get('/', (req, res) => {
         const args = patientId
           ? [tid, ...range.args, patientId, limit]
           : [tid, ...range.args, limit];
-        const steps = db.all(
+        const steps = await db.all(
           `SELECT ws.id, ws.workflow_id, ws.step_name, ws.status, ws.completed_at,
                   ws.started_at, w.workflow_type, w.patient_id
              FROM workflow_steps ws
@@ -197,7 +197,7 @@ router.get('/', (req, res) => {
         const args = patientId
           ? [tid, ...range.args, patientId, limit]
           : [tid, ...range.args, limit];
-        const alerts = db.all(
+        const alerts = await db.all(
           `SELECT id, patient_id, type, severity, title, description, created_at
              FROM progress_alerts
             WHERE therapist_id = ? AND created_at ${range.where} ${patientFilter}
@@ -231,7 +231,7 @@ router.get('/', (req, res) => {
         const args = patientId
           ? [tid, ...range.args, patientId, limit]
           : [tid, ...range.args, limit];
-        const sends = db.all(
+        const sends = await db.all(
           `SELECT id, patient_id, assessment_type, status, send_at, sent_at, error, created_at
              FROM scheduled_sends
             WHERE therapist_id = ? AND created_at ${range.where} ${patientFilter}
@@ -264,7 +264,7 @@ router.get('/', (req, res) => {
         const args = patientId
           ? [tid, ...range.args, patientId, limit]
           : [tid, ...range.args, limit];
-        const accesses = db.all(
+        const accesses = await db.all(
           `SELECT id, action, resource, patient_id, method, status_code, created_at
              FROM phi_access_log
             WHERE therapist_id = ? AND created_at ${range.where} ${patientFilter}
