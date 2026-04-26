@@ -630,7 +630,7 @@ router.get('/overdue', (req, res) => {
 
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -679,7 +679,7 @@ router.post('/check-overdue', (req, res) => {
 
     res.json({ ok: true, written });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -704,7 +704,7 @@ router.get('/supervision/:patientId', (req, res) => {
 
     res.json(notes);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -730,7 +730,7 @@ router.post('/supervision', (req, res) => {
 
     res.json({ id: result.lastInsertRowid, ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -747,7 +747,7 @@ router.delete('/supervision/:noteId', (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -776,7 +776,7 @@ router.get('/client/:patientId', (req, res) => {
     }));
     res.json(parsed);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -949,7 +949,7 @@ router.post('/', (req, res) => {
       risk_flags: riskFlagsList,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1109,7 +1109,7 @@ router.get('/progress/:patientId', (req, res) => {
       byMember: memberProgress, // { "Soul-1": { "phq-9": {...}, "ras": {...} } }
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1131,7 +1131,7 @@ router.get('/alerts', (req, res) => {
 
     res.json(alerts);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1145,7 +1145,7 @@ router.patch('/alerts/:id/read', (req, res) => {
     );
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1159,7 +1159,7 @@ router.delete('/alerts/:id', (req, res) => {
     );
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1216,7 +1216,7 @@ router.get('/caseload', (req, res) => {
 
     res.json(result);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1400,7 +1400,7 @@ router.get('/practice', (req, res) => {
       remissionRate,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1447,7 +1447,7 @@ router.post('/links', (req, res) => {
       client_id: patient.client_id,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1468,7 +1468,7 @@ router.get('/links', (req, res) => {
     const links = db.all(sql, ...params);
     res.json(links);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1482,7 +1482,7 @@ router.delete('/links/:token', (req, res) => {
     );
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1565,7 +1565,7 @@ router.post('/checkin', async (req, res) => {
       display_name: patient.display_name,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1585,7 +1585,7 @@ router.get('/checkin', (req, res) => {
 
     res.json(db.all(sql, ...params) || []);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1690,7 +1690,7 @@ router.post('/send', async (req, res) => {
       display_name: patient.display_name,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1765,7 +1765,7 @@ router.post('/send-email', async (req, res) => {
       display_name: patient.display_name,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1805,7 +1805,7 @@ router.get('/mbc-adherence', (req, res) => {
       total_sessions: totalSessions,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

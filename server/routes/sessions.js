@@ -84,7 +84,7 @@ router.get('/', (req, res) => {
     );
     res.json(sessions);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -100,7 +100,7 @@ router.get('/:sessionId', (req, res) => {
     if (!session) return res.status(404).json({ error: 'Session not found' });
     res.json(session);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -139,7 +139,7 @@ router.post('/', (req, res) => {
 
     res.status(201).json(session);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -198,7 +198,7 @@ router.put('/:sessionId', (req, res) => {
 
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -217,7 +217,7 @@ router.delete('/:sessionId', (req, res) => {
     db.run('DELETE FROM sessions WHERE id = ?', req.params.sessionId);
     res.json({ message: 'Session deleted successfully' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

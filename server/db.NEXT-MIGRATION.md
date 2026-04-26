@@ -51,11 +51,12 @@ near-zero changes (the API surface is intentionally similar).
 - Backup format stays the same (still a SQLite file), so all our
   encryption/restore tooling carries over unchanged
 
-### Option B — PostgreSQL (Railway-managed)
+### Option B — PostgreSQL (Azure-managed)
 
-Migrate to Postgres. Real production-grade DB. Railway has it as a managed
-add-on. Backups, point-in-time recovery, replication all become Railway's
-problem instead of ours.
+Migrate to Azure Database for PostgreSQL Flexible Server. Real production-grade
+DB. Backups, point-in-time recovery, replication, and encryption become managed
+Azure infrastructure under the Microsoft BAA instead of app-container file
+management.
 
 **Effort:** ~2-4 days. Schema port, every query reviewed for SQLite-isms
 (`AUTOINCREMENT` → `SERIAL`, `datetime('now')` → `NOW()`, etc.), connection
@@ -63,7 +64,7 @@ pooling, migrations re-tooled.
 
 **Wins:**
 - Stops being a single-node DB; survives container restarts trivially
-- Railway handles PITR + snapshots
+- Azure handles PITR + snapshots
 - Concurrent reads/writes
 - Standard observability tools work
 
@@ -75,10 +76,10 @@ pooling, migrations re-tooled.
 
 ## Recommendation
 
-**Do (A) next.** It's a 1-day fix that closes the root cause of the
-2026-04-18 data loss. Backup, restore, encryption tooling all keep working
-unchanged. Postgres is the right answer eventually, but only when the
-caseload growth or feature set demands it.
+**For a pre-launch HIPAA cutover, do (B) now.** If preserving legacy data were
+the priority, (A) would be the fastest durability upgrade. Since Miwa is still
+pre-launch and the old records are disposable, the cleaner long-term move is
+Azure PostgreSQL before clinicians begin storing real PHI.
 
 ## What's already in place (stop-gap before migration)
 

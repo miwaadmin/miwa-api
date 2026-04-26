@@ -941,7 +941,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
     });
   } catch (err) {
     console.error('[demo] Error generating demo patient:', err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

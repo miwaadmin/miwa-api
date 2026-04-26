@@ -118,7 +118,7 @@ router.post('/create', requireAuth, (req, res) => {
     res.status(201).json(practice);
   } catch (err) {
     console.error('POST /api/practice/create error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -164,7 +164,7 @@ router.get('/', requireAuth, requirePracticeMember, (req, res) => {
     });
   } catch (err) {
     console.error('GET /api/practice error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -206,7 +206,7 @@ router.put('/', requireAuth, requirePracticeMember, requirePracticeRole('owner',
     res.json(updated);
   } catch (err) {
     console.error('PUT /api/practice error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -259,7 +259,7 @@ router.get('/members', requireAuth, requirePracticeMember, (req, res) => {
     res.json(members);
   } catch (err) {
     console.error('GET /api/practice/members error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -354,7 +354,7 @@ router.post('/invite', requireAuth, requirePracticeMember, requirePracticeRole('
     });
   } catch (err) {
     console.error('POST /api/practice/invite error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -429,7 +429,7 @@ router.post('/join/:token', requireAuth, (req, res) => {
     });
   } catch (err) {
     console.error('POST /api/practice/join error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -494,7 +494,7 @@ router.put('/members/:memberId/role', requireAuth, requirePracticeMember, requir
     });
   } catch (err) {
     console.error('PUT /api/practice/members/:memberId/role error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -562,7 +562,7 @@ router.delete('/members/:memberId', requireAuth, requirePracticeMember, requireP
     });
   } catch (err) {
     console.error('DELETE /api/practice/members/:memberId error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -641,7 +641,7 @@ router.post('/supervision', requireAuth, requirePracticeMember, requirePracticeR
     });
   } catch (err) {
     console.error('POST /api/practice/supervision error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -686,7 +686,7 @@ router.get('/supervision', requireAuth, requirePracticeMember, (req, res) => {
     res.json(links);
   } catch (err) {
     console.error('GET /api/practice/supervision error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -716,7 +716,7 @@ router.delete('/supervision/:id', requireAuth, requirePracticeMember, requirePra
     res.json({ message: 'Supervision link removed.', id: parseInt(id) });
   } catch (err) {
     console.error('DELETE /api/practice/supervision/:id error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -813,7 +813,7 @@ router.post('/share-patient', requireAuth, requirePracticeMember, (req, res) => 
     });
   } catch (err) {
     console.error('POST /api/practice/share-patient error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -842,7 +842,7 @@ router.get('/shared-patients', requireAuth, requirePracticeMember, (req, res) =>
     res.json(shared);
   } catch (err) {
     console.error('GET /api/practice/shared-patients error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -934,7 +934,7 @@ router.get('/dashboard', requireAuth, requirePracticeMember, requirePracticeRole
     });
   } catch (err) {
     console.error('GET /api/practice/dashboard error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -969,7 +969,7 @@ router.get('/messages', requireAuth, requirePracticeMember, (req, res) => {
     res.json(messages);
   } catch (err) {
     console.error('GET /api/practice/messages error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1003,7 +1003,7 @@ router.post('/messages', requireAuth, requirePracticeMember, requirePracticeRole
     res.status(201).json(message);
   } catch (err) {
     console.error('POST /api/practice/messages error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

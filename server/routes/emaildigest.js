@@ -59,7 +59,7 @@ router.post('/preview', (req, res) => {
       overdueClients: overdue.slice(0, 10),
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

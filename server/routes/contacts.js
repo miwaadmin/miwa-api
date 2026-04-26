@@ -49,7 +49,7 @@ router.get('/', (req, res) => {
         );
     res.json({ contacts: rows });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -86,7 +86,7 @@ router.post('/', (req, res) => {
     const row = db.get(`SELECT * FROM therapist_contacts WHERE id = ?`, result.lastInsertRowid);
     res.json(row);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -133,7 +133,7 @@ router.put('/:id', (req, res) => {
     const row = db.get(`SELECT * FROM therapist_contacts WHERE id = ?`, id);
     res.json(row);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -153,7 +153,7 @@ router.delete('/:id', (req, res) => {
     try { persist(); } catch {}
     res.json({ deleted: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -304,7 +304,7 @@ router.get('/', (req, res) => {
     });
   } catch (err) {
     console.error('[activity] Error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

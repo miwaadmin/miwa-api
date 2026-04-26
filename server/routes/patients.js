@@ -50,7 +50,7 @@ router.get('/', (req, res) => {
     }
     res.json(patients);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -61,7 +61,7 @@ router.get('/:id', (req, res) => {
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
     res.json(patient);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -131,7 +131,7 @@ router.post('/', (req, res) => {
     const patient = db.get('SELECT * FROM patients WHERE id = ?', result.lastInsertRowid);
     res.status(201).json(patient);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -216,7 +216,7 @@ router.put('/:id', (req, res) => {
     const updated = db.get('SELECT * FROM patients WHERE id = ?', req.params.id);
     res.json(updated);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -257,7 +257,7 @@ router.delete('/batch', (req, res) => {
 
     res.json({ message: `${deleted} patient(s) deleted successfully`, deleted });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -287,7 +287,7 @@ router.delete('/:id', (req, res) => {
     db.run('DELETE FROM patients                   WHERE id = ?',         pid);
     res.json({ message: 'Patient and all associated records deleted successfully' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

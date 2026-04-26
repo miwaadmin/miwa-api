@@ -74,7 +74,7 @@ router.get('/', (req, res) => {
     // Add is_image flag, omit extracted_text from list (can be large)
     res.json(docs.map(d => ({ ...d, is_image: isImage(d.original_name) })));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -127,7 +127,7 @@ router.post('/', upload.single('file'), async (req, res) => {
   } catch (err) {
     // Clean up file on DB error
     if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -152,7 +152,7 @@ router.delete('/:docId', (req, res) => {
     db.run('DELETE FROM documents WHERE id = ?', req.params.docId);
     res.json({ message: 'Document deleted' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -179,7 +179,7 @@ router.get('/:docId/content', (req, res) => {
 
     res.json({ type: 'text', content: doc.extracted_text || '' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

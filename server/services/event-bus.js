@@ -18,7 +18,7 @@ const listeners = {};
  * and executes their configured actions. Also notifies in-memory listeners.
  */
 function emit(eventType, data) {
-  console.log(`[event-bus] ${eventType}:`, JSON.stringify(data).slice(0, 200));
+  console.log(`[event-bus] ${eventType}: therapist_id=${data?.therapist_id || 'n/a'} patient_id=${data?.patient_id || 'n/a'}`);
 
   // Check for matching database triggers
   try {
@@ -99,7 +99,7 @@ function executeTriggerAction(db, trigger, data) {
       break;
 
     case 'log':
-      console.log(`[event-trigger] ${trigger.event_type} -> ${trigger.action_type}:`, data);
+      console.log(`[event-trigger] ${trigger.event_type} -> ${trigger.action_type}`);
       break;
 
     default:

@@ -514,7 +514,7 @@ router.post('/login', async (req, res) => {
     return res.json({ token, therapist: safeProfile(freshRow) });
   } catch (err) {
     console.error('[auth/login]', err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -525,7 +525,7 @@ router.get('/me', requireAuth, (req, res) => {
     if (!row) return res.status(404).json({ error: 'Account not found.' });
     return res.json(safeProfile(row));
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -627,7 +627,7 @@ router.put('/me', requireAuth, async (req, res) => {
     return res.json({ token, therapist: safeProfile(updated) });
   } catch (err) {
     console.error('[auth/put-me]', err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -721,7 +721,7 @@ router.post('/admin-login', async (req, res) => {
     return res.json({ token, therapist: safeProfile(freshRow) });
   } catch (err) {
     console.error('[auth/admin-login]', err);
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -878,7 +878,7 @@ router.get('/_diag/accounts', (req, res) => {
     `);
     return res.json({ count: rows.length, accounts: rows });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -929,7 +929,7 @@ router.get('/_diag/db', (req, res) => {
       table_counts: counts,
     });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -947,7 +947,7 @@ router.get('/_diag/events', (req, res) => {
     `);
     return res.json({ count: rows.length, events: rows });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -962,7 +962,7 @@ router.post('/_diag/backup-now', async (req, res) => {
     if (!result.ok) return res.status(500).json(result);
     return res.json(result);
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -980,7 +980,7 @@ router.get('/_diag/download-backup', (req, res) => {
     res.setHeader('X-Miwa-Plain-Size', String(backup.plainSize));
     return res.send(backup.content);
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1025,7 +1025,7 @@ router.post('/_diag/create-admin', async (req, res) => {
     persist();
     return res.json({ ok: true, id: result.lastInsertRowid, email: normalizedEmail, is_admin: true, email_verified: true });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -1053,7 +1053,7 @@ router.post('/_diag/reset-password', async (req, res) => {
     persist();
     return res.json({ ok: true, id: row.id, email: row.email });
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -41,7 +41,7 @@ router.get('/assess/:token', (req, res) => {
       member_label:  link.member_label || null,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -175,7 +175,7 @@ router.post('/assess/:token', (req, res) => {
     });
   } catch (err) {
     console.error('[public] assessment submit error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -195,7 +195,7 @@ router.get('/checkin/:token', (req, res) => {
       expires_at: link.expires_at,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -236,7 +236,7 @@ router.post('/checkin/:token', (req, res) => {
     persist();
     res.json({ ok: true, mood_score: score });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -353,7 +353,7 @@ router.get('/portal/:token', (req, res) => {
     });
   } catch (err) {
     console.error('[portal] load error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -394,7 +394,7 @@ router.post('/portal/:token/message', (req, res) => {
     res.json({ ok: true, message_id: result.lastInsertRowid });
   } catch (err) {
     console.error('[portal] message error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -424,7 +424,7 @@ router.get('/portal/:token/assessments', (req, res) => {
 
     res.json({ pending, completed });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -454,7 +454,7 @@ router.get('/portal/:token/appointments', (req, res) => {
 
     res.json({ upcoming, past });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -475,7 +475,7 @@ router.get('/portal/:token/messages', (req, res) => {
 
     res.json({ messages });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

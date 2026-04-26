@@ -19,7 +19,7 @@ router.get('/', (req, res) => {
       action_config: JSON.parse(r.action_config || '{}'),
     })));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -45,7 +45,7 @@ router.post('/', (req, res) => {
 
     res.json({ id: result, ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -74,7 +74,7 @@ router.put('/:id', (req, res) => {
     persist();
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -87,7 +87,7 @@ router.delete('/:id', (req, res) => {
     persist();
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -108,7 +108,7 @@ Ready to get started. Try asking me something like *"what's on my schedule today
     });
   } catch (err) {
     console.error('[onboarding] Error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

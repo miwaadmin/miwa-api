@@ -18,7 +18,7 @@ router.post('/backup/run', async (req, res) => {
     if (!result.ok) return res.status(500).json(result);
     return res.json(result);
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -45,7 +45,7 @@ router.get('/backup/download', (req, res) => {
     res.setHeader('X-Miwa-Plain-Size', String(backup.plainSize));
     return res.send(backup.content);
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -189,7 +189,7 @@ router.get('/overview', (req, res) => {
 
     res.json({ totals, funnel, recent_accounts: recentAccounts, recent_events: recentEvents });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -217,7 +217,7 @@ router.get('/therapists', (req, res) => {
     const whereSql = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
     res.json(fetchTherapists(db, whereSql, params));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -258,7 +258,7 @@ router.patch('/therapists/:id', (req, res) => {
     const updated = fetchTherapists(db, 'WHERE t.id = ?', [req.params.id])[0];
     return res.json(updated);
   } catch (err) {
-    return res.status(500).json({ error: err.message });
+    return res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -286,7 +286,7 @@ router.post('/therapists/:id/reset-password', async (req, res) => {
       message: 'Temporary password generated. Share it securely and ask the user to change it immediately.',
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -313,7 +313,7 @@ router.get('/usage', (req, res) => {
 
     res.json({ summary, top_users: topUsers, feature_adoption: featureAdoption });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -351,7 +351,7 @@ router.get('/support', (req, res) => {
 
     res.json({ notes, events, flagged_accounts: flagged, feedback });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -450,7 +450,7 @@ router.patch('/feedback/:id', async (req, res) => {
 
     res.json({ ok: true, emailed_user: emailed, chat_notified: chatNotified });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -478,7 +478,7 @@ router.post('/therapists/:id/notes', (req, res) => {
     });
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -546,7 +546,7 @@ router.delete('/therapists/:id', (req, res) => {
 
     res.json({ ok: true, message: `Account ${therapist.email} deleted successfully.` });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -569,7 +569,7 @@ router.post('/backfill-names', (req, res) => {
     persist();
     res.json({ ok: true, updated, message: `Gave real names to ${updated} client(s)` });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -595,7 +595,7 @@ router.get('/billing', (req, res) => {
 
     res.json({ summary, accounts, trial_ending_soon: trialEndingSoon });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -669,7 +669,7 @@ router.get('/ai-costs', (req, res) => {
       paused_accounts: pausedAccounts,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -683,7 +683,7 @@ router.post('/ai-costs/:therapistId/unpause', (req, res) => {
     persist();
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -747,7 +747,7 @@ router.post('/therapists/:id/reset-data', (req, res) => {
       patients_deleted: patientCount,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -788,7 +788,7 @@ router.post('/reset-database', (req, res) => {
       kept: { admin_email: req.therapist.email, admin_id: adminId },
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -804,7 +804,7 @@ router.post('/reset-stripe/:therapistId', (req, res) => {
     persist();
     res.json({ ok: true, message: `Cleared Stripe data for therapist ${tid}. Next checkout will create a fresh customer.` });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -851,7 +851,7 @@ router.post('/reset-stripe-all', (req, res) => {
       reset_subscriptions: before?.active_subs || 0,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -868,7 +868,7 @@ router.post('/fix-subscription/:therapistId', (req, res) => {
     persist();
     res.json({ ok: true, message: `Set subscription to ${status || 'active'} (${tier || 'solo'}) for therapist ${tid}` });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

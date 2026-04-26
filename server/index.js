@@ -188,7 +188,7 @@ app.get('/api/settings', requireAuth, (req, res) => {
       })(),
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -235,7 +235,7 @@ app.post('/api/settings', requireAuth, (req, res) => {
     }
     res.json({ message: 'Setting saved' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -318,7 +318,7 @@ app.get('/api/stats', requireAuth, (req, res) => {
       appointmentsToday, unsignedNotes, recentSessions,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -351,7 +351,7 @@ app.get('/api/sessions/unsigned', requireAuth, (req, res) => {
     }));
     res.json({ count: items.length, sessions: items });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -82,7 +82,7 @@ router.get('/daily-briefing', async (req, res) => {
     });
   } catch (err) {
     console.error('[daily-briefing] route error:', err.message, err.stack);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -97,7 +97,7 @@ router.post('/daily-briefing/:id/open', (req, res) => {
     );
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -143,7 +143,7 @@ router.get('/briefs', (req, res) => {
       topics: b.topics_json ? JSON.parse(b.topics_json) : [],
     })));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -166,7 +166,7 @@ router.get('/latest', (req, res) => {
       topics: brief.topics_json ? JSON.parse(brief.topics_json) : [],
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -215,7 +215,7 @@ router.post('/briefs/:id/save', (req, res) => {
     try { persist(); } catch {}
     res.json({ ok: true, saved: !!newSaved });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -232,7 +232,7 @@ router.post('/briefs/:id/open', (req, res) => {
     try { persist(); } catch {}
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -248,7 +248,7 @@ router.delete('/briefs/:id', (req, res) => {
     try { persist(); } catch {}
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -259,7 +259,7 @@ router.get('/news', (req, res) => {
     const articles = getLatestNews(limit);
     res.json(articles);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -271,7 +271,7 @@ router.post('/news/refresh', async (req, res) => {
     );
     res.json({ ok: true, message: 'News refresh started. Check back in ~15 seconds.' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -428,7 +428,7 @@ router.get('/overnight-updates', (req, res) => {
     res.json({ updates, count: updates.length });
   } catch (err) {
     console.error('[overnight-updates] error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -503,7 +503,7 @@ router.get('/todays-schedule', (req, res) => {
     res.json({ date: todayLocal, appointments: withBriefs, brief_count });
   } catch (err) {
     console.error('[todays-schedule] error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

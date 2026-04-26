@@ -387,7 +387,6 @@ function parseInsightsResponse(responseText) {
     parsed = JSON.parse(cleaned);
   } catch (err) {
     console.error(LOG_PREFIX, 'Failed to parse insights JSON:', err.message);
-    console.error(LOG_PREFIX, 'Raw response (first 500 chars):', cleaned.slice(0, 500));
     return [];
   }
 

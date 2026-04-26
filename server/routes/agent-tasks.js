@@ -40,7 +40,7 @@ router.post('/', (req, res) => {
     });
     res.status(202).json(task);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -69,7 +69,7 @@ router.get('/', (req, res) => {
     const rows = db.all(sql, ...params);
     res.json({ tasks: rows, limit, offset });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -92,7 +92,7 @@ router.get('/unread-count', (req, res) => {
       active: row?.active || 0,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -112,7 +112,7 @@ router.get('/:id', (req, res) => {
     }
     res.json(row);
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -143,7 +143,7 @@ router.post('/:id/cancel', (req, res) => {
 
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -159,7 +159,7 @@ router.post('/:id/read', (req, res) => {
     try { persist(); } catch {}
     res.json({ ok: true, updated: result?.changes || 0 });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -177,7 +177,7 @@ router.post('/read-all', (req, res) => {
     try { persist(); } catch {}
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -25,7 +25,7 @@ router.post('/', requireAuth, (req, res) => {
 
     res.json({ ok: true, message: 'Feedback received — thank you! The Miwa team will review it.' });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

@@ -71,7 +71,7 @@ router.get('/usage', requireAuth, (req, res) => {
 
     res.json({ ...summary, by_kind: byKind });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -98,7 +98,7 @@ router.get('/status', requireAuth, (req, res) => {
       is_trial:            (row.subscription_status || 'trial') === 'trial',
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -160,7 +160,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
     res.json({ url: session.url });
   } catch (err) {
     console.error('[billing] create-checkout-session error:', err.message);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
@@ -205,7 +205,7 @@ router.post('/portal', requireAuth, async (req, res) => {
       });
     }
 
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

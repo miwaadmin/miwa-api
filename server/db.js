@@ -3,11 +3,16 @@ const fs = require('fs');
 const initSqlJs = require('sql.js');
 
 const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'mftbrain.db');
+const DB_PROVIDER = String(process.env.DB_PROVIDER || 'sqlite').toLowerCase();
 
 let db = null;
 let SqlJs = null;
 
 async function initDb() {
+  if (DB_PROVIDER === 'postgres' || DB_PROVIDER === 'postgresql') {
+    throw new Error('DB_PROVIDER=postgres is configured, but the Miwa runtime is still using the SQLite adapter. Run the PostgreSQL runtime cutover before enabling this setting.');
+  }
+
   if (db) return db;
 
   SqlJs = await initSqlJs();
