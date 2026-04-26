@@ -16,7 +16,7 @@
  * Table: practice_insights (see db.js schema)
  */
 
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { callAI, MODELS } = require('../lib/aiExecutor');
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -75,8 +75,8 @@ const INTERVENTION_KEYWORDS = {
  * Pull all signed sessions for a therapist from the last N days.
  * Returns a compact representation -- full_note is truncated to save tokens.
  */
-function fetchRecentSessions(db, therapistId) {
-  const rows = db.all(
+async function fetchRecentSessions(db, therapistId) {
+  const rows = await db.all(
     `SELECT s.id, s.patient_id, s.session_date, s.note_format,
             s.subjective, s.objective, s.assessment, s.plan,
             s.duration_minutes, s.cpt_code, s.signed_at,
@@ -99,8 +99,8 @@ function fetchRecentSessions(db, therapistId) {
 /**
  * Pull all assessments for a therapist from the last N days.
  */
-function fetchRecentAssessments(db, therapistId) {
-  const rows = db.all(
+async function fetchRecentAssessments(db, therapistId) {
+  const rows = await db.all(
     `SELECT a.id, a.patient_id, a.template_type, a.total_score,
             a.severity_level, a.score_change, a.is_improvement,
             a.is_deterioration, a.clinically_significant,
@@ -125,8 +125,8 @@ function fetchRecentAssessments(db, therapistId) {
  * Pull all active patient profiles for a therapist.
  * Only returns PHI-safe fields (client_id, concerns, diagnoses, case_type).
  */
-function fetchPatientProfiles(db, therapistId) {
-  const rows = db.all(
+async function fetchPatientProfiles(db, therapistId) {
+  const rows = await db.all(
     `SELECT id, client_id, presenting_concerns, diagnoses,
             case_type, client_type, session_modality, session_duration
      FROM patients
@@ -424,12 +424,12 @@ function parseInsightsResponse(responseText) {
  * Resolve client_id codes to patient IDs for storage.
  * Returns an array of numeric patient IDs.
  */
-function resolvePatientIds(db, therapistId, clientCodes) {
+async function resolvePatientIds(db, therapistId, clientCodes) {
   if (!clientCodes.length) return [];
 
   const ids = [];
   for (const code of clientCodes) {
-    const row = db.get(
+    const row = await db.get(
       'SELECT id FROM patients WHERE therapist_id = ? AND client_id = ?',
       therapistId, code
     );
@@ -443,13 +443,13 @@ function resolvePatientIds(db, therapistId, clientCodes) {
  * If a similar active insight of the same type exists (fuzzy match on first
  * 60 chars of text), update it. Otherwise insert a new row.
  */
-function upsertInsight(db, therapistId, insight, patientIds) {
+async function upsertInsight(db, therapistId, insight, patientIds) {
   const evidenceJson = JSON.stringify(insight.evidence);
   const patientIdsJson = JSON.stringify(patientIds);
 
   // Check for an existing similar insight (same type, similar text prefix)
   const textPrefix = insight.text.slice(0, 60);
-  const existing = db.get(
+  const existing = await db.get(
     `SELECT id FROM practice_insights
      WHERE therapist_id = ?
        AND insight_type = ?
@@ -462,7 +462,7 @@ function upsertInsight(db, therapistId, insight, patientIds) {
 
   if (existing) {
     // Update the existing insight with fresh data
-    db.run(
+    await db.run(
       `UPDATE practice_insights
        SET insight_text = ?,
            evidence_json = ?,
@@ -480,7 +480,7 @@ function upsertInsight(db, therapistId, insight, patientIds) {
   }
 
   // Insert new insight
-  const result = db.insert(
+  const result = await db.insert(
     `INSERT INTO practice_insights
        (therapist_id, insight_type, insight_text, evidence_json,
         confidence_score, patient_ids_json, is_active, last_validated_at)
@@ -504,14 +504,14 @@ function upsertInsight(db, therapistId, insight, patientIds) {
  * @returns {Promise<{total: number, byTherapist: Object}>}
  */
 async function generatePracticeInsights(therapistId = null) {
-  const db = getDb();
+  const db = getAsyncDb();
 
   // Determine which therapists to process
   let therapistIds;
   if (therapistId) {
     therapistIds = [therapistId];
   } else {
-    const rows = db.all('SELECT DISTINCT therapist_id FROM patients WHERE therapist_id IS NOT NULL');
+    const rows = await db.all('SELECT DISTINCT therapist_id FROM patients WHERE therapist_id IS NOT NULL');
     therapistIds = rows.map(r => r.therapist_id);
   }
 
@@ -541,9 +541,9 @@ async function generatePracticeInsights(therapistId = null) {
  */
 async function generateInsightsForTherapist(db, therapistId) {
   // ── Step 1: Gather data ────────────────────────────────────────────────────
-  const sessions = fetchRecentSessions(db, therapistId);
-  const assessments = fetchRecentAssessments(db, therapistId);
-  const patients = fetchPatientProfiles(db, therapistId);
+  const sessions = await fetchRecentSessions(db, therapistId);
+  const assessments = await fetchRecentAssessments(db, therapistId);
+  const patients = await fetchPatientProfiles(db, therapistId);
 
   if (!sessions.length && !assessments.length) {
     console.log(LOG_PREFIX, `Therapist ${therapistId}: no signed sessions or assessments in last ${LOOKBACK_DAYS} days, skipping`);
@@ -578,13 +578,13 @@ async function generateInsightsForTherapist(db, therapistId) {
   // ── Step 5: Upsert into database ───────────────────────────────────────────
   let count = 0;
   for (const insight of insights) {
-    const patientIds = resolvePatientIds(db, therapistId, insight.patientCodes);
-    const result = upsertInsight(db, therapistId, insight, patientIds);
+    const patientIds = await resolvePatientIds(db, therapistId, insight.patientCodes);
+    const result = await upsertInsight(db, therapistId, insight, patientIds);
     console.log(LOG_PREFIX, `  ${result.action} [${insight.type}] id=${result.id} confidence=${insight.confidence}`);
     count++;
   }
 
-  persist();
+  await persistIfNeeded();
   return count;
 }
 
@@ -595,8 +595,8 @@ async function generateInsightsForTherapist(db, therapistId) {
  * @param {string} query  Free-text search term or insight type name.
  * @returns {Array} Matching insight rows.
  */
-function searchInsights(therapistId, query) {
-  const db = getDb();
+async function searchInsights(therapistId, query) {
+  const db = getAsyncDb();
 
   if (!query || typeof query !== 'string') {
     return db.all(
@@ -645,8 +645,8 @@ function searchInsights(therapistId, query) {
  * @param {number} therapistId
  * @returns {Array} Up to 5 insight rows, ordered by recency and confidence.
  */
-function getInsightsSummary(therapistId) {
-  const db = getDb();
+async function getInsightsSummary(therapistId) {
+  const db = getAsyncDb();
 
   // Prioritize: high confidence first, then most recently validated
   return db.all(
@@ -665,13 +665,13 @@ function getInsightsSummary(therapistId) {
  * @param {number} patientId
  * @returns {Array} Insight rows where this patient appears in patient_ids_json.
  */
-function getInsightsForPatient(therapistId, patientId) {
-  const db = getDb();
+async function getInsightsForPatient(therapistId, patientId) {
+  const db = getAsyncDb();
 
   // patient_ids_json stores a JSON array like [3, 7, 12].
   // We use a LIKE match on the patient ID to find references.
   // This handles both "[3," and ",3," and ",3]" and "[3]" patterns.
-  const rows = db.all(
+  const rows = await db.all(
     `SELECT * FROM practice_insights
      WHERE therapist_id = ? AND is_active = 1
        AND patient_ids_json LIKE ?

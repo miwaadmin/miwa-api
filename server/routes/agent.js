@@ -2413,9 +2413,9 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
           if (!brief.viewed_at) db.run("UPDATE session_briefs SET viewed_at = datetime('now') WHERE id = ?", brief.id);
           return { brief: JSON.parse(brief.brief_json), generated_at: brief.created_at };
         }
-        const upcoming = getUpcomingBriefs(therapistId);
+        const upcoming = await getUpcomingBriefs(therapistId);
         if (!upcoming.length) return { message: 'No upcoming briefs for today. Briefs are auto-generated 30 minutes before scheduled appointments.' };
-        return { briefs: upcoming.map(b => ({ ...JSON.parse(b.brief_json), generated_at: b.created_at })) };
+        return { briefs: upcoming.map(b => ({ ...b.brief, generated_at: b.created_at })) };
       } catch (err) {
         return { error: `Brief system: ${err.message}` };
       }
@@ -2713,7 +2713,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
           );
           return { insights: insights.map(i => ({ type: i.insight_type, insight: i.insight_text, confidence: i.confidence_score, generated: i.created_at })) };
         }
-        const results = searchInsights(therapistId, args.query);
+        const results = await searchInsights(therapistId, args.query);
         if (!results.length) return { message: 'No practice insights found yet. Insights are generated weekly from your session notes and assessment data. Keep documenting — patterns will emerge!' };
         return { insights: results.map(i => ({ type: i.insight_type, insight: i.insight_text, confidence: i.confidence_score, generated: i.created_at })) };
       } catch (err) {

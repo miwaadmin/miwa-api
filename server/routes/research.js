@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { getDb } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const requireAuth = require('../middleware/auth');
 const { generateBriefForTherapist } = require('../services/researcher');
 const { getLatestNews, fetchAndStoreNews } = require('../services/newsService');
@@ -13,15 +13,15 @@ router.use(requireAuth);
 // Pass ?regenerate=1 to force a rebuild (deletes existing and recomputes).
 router.get('/daily-briefing', async (req, res) => {
   try {
-    const db = getDb();
-    const therapist = db.get('SELECT preferred_timezone FROM therapists WHERE id = ?', req.therapist.id);
+    const db = getAsyncDb();
+    const therapist = await db.get('SELECT preferred_timezone FROM therapists WHERE id = ?', req.therapist.id);
     const tz = therapist?.preferred_timezone || 'America/Los_Angeles';
     const todayLocal = new Date().toLocaleString('sv-SE', { timeZone: tz }).slice(0, 10);
 
     // Force-regenerate if requested
     if (req.query.regenerate === '1') {
       try {
-        db.run(
+        await db.run(
           `DELETE FROM daily_briefings WHERE therapist_id = ? AND local_date = ?`,
           req.therapist.id, todayLocal
         );
@@ -30,7 +30,7 @@ router.get('/daily-briefing', async (req, res) => {
       }
     }
 
-    let briefing = db.get(
+    let briefing = await db.get(
       `SELECT id, local_date, markdown, stats_json, narrative, caseload_json,
               emailed_at, opened_at, created_at
          FROM daily_briefings
@@ -50,7 +50,7 @@ router.get('/daily-briefing', async (req, res) => {
       /\*Generated at\s+\d/i.test(briefing.markdown)
     )) {
       try {
-        db.run('DELETE FROM daily_briefings WHERE id = ?', briefing.id);
+        await db.run('DELETE FROM daily_briefings WHERE id = ?', briefing.id);
       } catch {}
       briefing = null;
     }
@@ -59,7 +59,7 @@ router.get('/daily-briefing', async (req, res) => {
     if (!briefing) {
       const result = await generateDailyBriefing(req.therapist.id);
       if (result && result.id) {
-        briefing = db.get(
+        briefing = await db.get(
           `SELECT id, local_date, markdown, stats_json, narrative, caseload_json,
                   emailed_at, opened_at, created_at
              FROM daily_briefings WHERE id = ?`,
@@ -87,10 +87,10 @@ router.get('/daily-briefing', async (req, res) => {
 });
 
 // POST /api/research/daily-briefing/:id/open — mark as opened
-router.post('/daily-briefing/:id/open', (req, res) => {
+router.post('/daily-briefing/:id/open', async (req, res) => {
   try {
-    const db = getDb();
-    db.run(
+    const db = getAsyncDb();
+    await db.run(
       `UPDATE daily_briefings SET opened_at = COALESCE(opened_at, datetime('now'))
          WHERE id = ? AND therapist_id = ?`,
       req.params.id, req.therapist.id
@@ -104,10 +104,10 @@ router.post('/daily-briefing/:id/open', (req, res) => {
 // GET /api/research/briefs — latest briefs for this therapist
 // Auto-triggers generation on first visit if 0 briefs exist.
 // Excludes expired briefs: unopened >3 days or unsaved >7 days old.
-router.get('/briefs', (req, res) => {
+router.get('/briefs', async (req, res) => {
   try {
-    const db = getDb();
-    const briefs = db.all(
+    const db = getAsyncDb();
+    const briefs = await db.all(
       `SELECT id, brief_type, title, content, articles_json, topics_json, sent_email, saved, opened_at, created_at
        FROM research_briefs
        WHERE therapist_id = ?
@@ -124,8 +124,8 @@ router.get('/briefs', (req, res) => {
     // Auto-trigger first brief if none exist and therapist has patients
     // Guard: skip if one was already kicked off today (prevents double-fire on rapid page loads)
     if (briefs.length === 0) {
-      const hasPatients = db.get('SELECT COUNT(*) as c FROM patients WHERE therapist_id = ?', req.therapist.id);
-      const alreadyToday = db.get(
+      const hasPatients = await db.get('SELECT COUNT(*) as c FROM patients WHERE therapist_id = ?', req.therapist.id);
+      const alreadyToday = await db.get(
         `SELECT id FROM research_briefs WHERE therapist_id = ? AND date(created_at) = date('now')`,
         req.therapist.id
       );
@@ -148,10 +148,10 @@ router.get('/briefs', (req, res) => {
 });
 
 // GET /api/research/latest — just the most recent brief
-router.get('/latest', (req, res) => {
+router.get('/latest', async (req, res) => {
   try {
-    const db = getDb();
-    const brief = db.get(
+    const db = getAsyncDb();
+    const brief = await db.get(
       `SELECT id, brief_type, title, content, articles_json, topics_json, created_at
        FROM research_briefs
        WHERE therapist_id = ?
@@ -174,13 +174,13 @@ router.get('/latest', (req, res) => {
 router.post('/generate', async (req, res) => {
   try {
     const { type = 'daily' } = req.body;
-    const db = getDb();
+    const db = getAsyncDb();
 
     // Block any non-crisis brief within the last 24 hours (type-agnostic so 'weekly' old records also count)
     const briefCheckSql = type === 'crisis'
       ? `SELECT id FROM research_briefs WHERE therapist_id = ? AND brief_type = 'crisis' AND created_at > datetime('now', '-24 hours')`
       : `SELECT id FROM research_briefs WHERE therapist_id = ? AND brief_type != 'crisis' AND created_at > datetime('now', '-24 hours')`;
-    const alreadyToday = db.get(briefCheckSql, req.therapist.id);
+    const alreadyToday = await db.get(briefCheckSql, req.therapist.id);
     if (alreadyToday) {
       return res.status(429).json({
         error: `A ${type === 'crisis' ? 'crisis' : 'daily'} brief was already generated today. Come back tomorrow or delete today's brief first.`,
@@ -201,18 +201,17 @@ router.post('/generate', async (req, res) => {
 });
 
 // POST /api/research/briefs/:id/save — toggle save on a brief (saved briefs never auto-decay)
-router.post('/briefs/:id/save', (req, res) => {
+router.post('/briefs/:id/save', async (req, res) => {
   try {
-    const db = getDb();
-    const brief = db.get(
+    const db = getAsyncDb();
+    const brief = await db.get(
       'SELECT id, saved FROM research_briefs WHERE id = ? AND therapist_id = ?',
       req.params.id, req.therapist.id
     );
     if (!brief) return res.status(404).json({ error: 'Brief not found' });
     const newSaved = brief.saved ? 0 : 1;
-    db.run('UPDATE research_briefs SET saved = ? WHERE id = ?', newSaved, brief.id);
-    const { persist } = require('../db');
-    try { persist(); } catch {}
+    await db.run('UPDATE research_briefs SET saved = ? WHERE id = ?', newSaved, brief.id);
+    await persistIfNeeded();
     res.json({ ok: true, saved: !!newSaved });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -220,16 +219,15 @@ router.post('/briefs/:id/save', (req, res) => {
 });
 
 // POST /api/research/briefs/:id/open — mark a brief as opened (resets the 3-day decay clock)
-router.post('/briefs/:id/open', (req, res) => {
+router.post('/briefs/:id/open', async (req, res) => {
   try {
-    const db = getDb();
-    db.run(
+    const db = getAsyncDb();
+    await db.run(
       `UPDATE research_briefs SET opened_at = COALESCE(opened_at, datetime('now'))
        WHERE id = ? AND therapist_id = ?`,
       req.params.id, req.therapist.id
     );
-    const { persist } = require('../db');
-    try { persist(); } catch {}
+    await persistIfNeeded();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -237,15 +235,14 @@ router.post('/briefs/:id/open', (req, res) => {
 });
 
 // DELETE /api/research/briefs/:id — delete a specific brief
-router.delete('/briefs/:id', (req, res) => {
+router.delete('/briefs/:id', async (req, res) => {
   try {
-    const db = getDb();
-    db.run(
+    const db = getAsyncDb();
+    await db.run(
       'DELETE FROM research_briefs WHERE id = ? AND therapist_id = ?',
       req.params.id, req.therapist.id
     );
-    const { persist } = require('../db');
-    try { persist(); } catch {}
+    await persistIfNeeded();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -308,13 +305,13 @@ router.post('/news/refresh', async (req, res) => {
  *     ]
  *   }
  */
-router.get('/overnight-updates', (req, res) => {
+router.get('/overnight-updates', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const therapistId = req.therapist.id;
 
     // Fetch the assessments submitted in the last 14 hours.
-    const recent = db.all(
+    const recent = await db.all(
       `SELECT a.id AS assessment_id,
               a.patient_id,
               a.template_type,
@@ -349,7 +346,7 @@ router.get('/overnight-updates', (req, res) => {
     for (const row of recent) {
       // Look up the previous score of the SAME template type for this patient
       // (the one immediately before this new submission).
-      const previous = db.get(
+      const previous = await db.get(
         `SELECT total_score, severity_level, administered_at
            FROM assessments
           WHERE patient_id = ? AND template_type = ? AND id != ?
@@ -455,14 +452,14 @@ router.get('/overnight-updates', (req, res) => {
  *     brief_count: N,
  *   }
  */
-router.get('/todays-schedule', (req, res) => {
+router.get('/todays-schedule', async (req, res) => {
   try {
-    const db = getDb();
-    const therapist = db.get('SELECT preferred_timezone FROM therapists WHERE id = ?', req.therapist.id);
+    const db = getAsyncDb();
+    const therapist = await db.get('SELECT preferred_timezone FROM therapists WHERE id = ?', req.therapist.id);
     const tz = therapist?.preferred_timezone || 'America/Los_Angeles';
     const todayLocal = new Date().toLocaleString('sv-SE', { timeZone: tz }).slice(0, 10);
 
-    const appts = db.all(
+    const appts = await db.all(
       `SELECT a.id AS appointment_id,
               a.scheduled_start,
               a.scheduled_end,
@@ -482,10 +479,10 @@ router.get('/todays-schedule', (req, res) => {
     );
 
     // Check which appointments have a ready pre-session brief.
-    const withBriefs = appts.map(a => {
+    const withBriefs = await Promise.all(appts.map(async (a) => {
       let brief = null;
       try {
-        brief = db.get(
+        brief = await db.get(
           'SELECT id FROM session_briefs WHERE appointment_id = ? LIMIT 1',
           a.appointment_id,
         );
@@ -496,7 +493,7 @@ router.get('/todays-schedule', (req, res) => {
         brief_id:  brief?.id || null,
         duration_minutes: a.duration_minutes || 50,
       };
-    });
+    }));
 
     const brief_count = withBriefs.filter(a => a.has_brief).length;
 

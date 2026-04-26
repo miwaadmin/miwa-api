@@ -26,7 +26,7 @@
  *   proactive_alerts — used by stalled_case to surface alerts
  */
 
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Rule Evaluators
@@ -43,14 +43,14 @@ const { getDb, persist } = require('../db');
  *
  * Skips appointments that already have a reminder in outreach_log.
  */
-function evaluateAppointmentReminder(db, rule, config, therapistId) {
+async function evaluateAppointmentReminder(db, rule, config, therapistId) {
   const hoursBefore = config.hours_before || 24;
   const windowMinutes = 30;
   const actions = [];
 
   // Find appointments in the reminder window:
   //   scheduled_start BETWEEN (now + hoursBefore - 30min) AND (now + hoursBefore + 30min)
-  const appointments = db.all(
+  const appointments = await db.all(
     `SELECT a.id, a.patient_id, a.scheduled_start, a.client_code,
             p.display_name, p.phone, p.email, p.preferred_contact_method
      FROM appointments a
@@ -67,7 +67,7 @@ function evaluateAppointmentReminder(db, rule, config, therapistId) {
 
   for (const appt of appointments) {
     // Check if we already sent a reminder for this appointment
-    const alreadySent = db.get(
+    const alreadySent = await db.get(
       `SELECT id FROM outreach_log
        WHERE therapist_id = ? AND patient_id = ? AND rule_id = ?
          AND outreach_type = 'appointment_reminder'
@@ -104,12 +104,12 @@ function evaluateAppointmentReminder(db, rule, config, therapistId) {
  *
  * Supports a custom message template with {name} placeholder.
  */
-function evaluateMissedSessionCheckin(db, rule, config, therapistId) {
+async function evaluateMissedSessionCheckin(db, rule, config, therapistId) {
   const hoursAfter = config.hours_after_noshow || 48;
   const windowMinutes = 60;
   const actions = [];
 
-  const noShows = db.all(
+  const noShows = await db.all(
     `SELECT a.id, a.patient_id, a.scheduled_start, a.client_code,
             p.display_name, p.phone, p.email, p.preferred_contact_method
      FROM appointments a
@@ -126,7 +126,7 @@ function evaluateMissedSessionCheckin(db, rule, config, therapistId) {
 
   for (const appt of noShows) {
     // Don't re-send if already sent for this appointment
-    const alreadySent = db.get(
+    const alreadySent = await db.get(
       `SELECT id FROM outreach_log
        WHERE therapist_id = ? AND patient_id = ? AND rule_id = ?
          AND outreach_type = 'missed_session_checkin'
@@ -164,11 +164,11 @@ function evaluateMissedSessionCheckin(db, rule, config, therapistId) {
  * Debounce: skips patients who received this outreach type within the last
  * 7 days to avoid spamming.
  */
-function evaluateAssessmentOverdue(db, rule, config, therapistId) {
+async function evaluateAssessmentOverdue(db, rule, config, therapistId) {
   const daysThreshold = config.days_threshold || 30;
   const actions = [];
 
-  const overduePatients = db.all(
+  const overduePatients = await db.all(
     `SELECT p.id AS patient_id, p.display_name, p.client_id, p.phone, p.email,
             p.preferred_contact_method,
             MAX(a.administered_at) AS last_assessment_at
@@ -184,7 +184,7 @@ function evaluateAssessmentOverdue(db, rule, config, therapistId) {
 
   for (const patient of overduePatients) {
     // Check if we already sent this outreach type in the last 7 days
-    const recentlySent = db.get(
+    const recentlySent = await db.get(
       `SELECT id FROM outreach_log
        WHERE therapist_id = ? AND patient_id = ? AND rule_id = ?
          AND outreach_type = 'assessment_overdue'
@@ -216,12 +216,12 @@ function evaluateAssessmentOverdue(db, rule, config, therapistId) {
  * Instead of sending outreach directly to the client, this creates a
  * proactive_alert for the therapist to review.
  */
-function evaluateStalledCase(db, rule, config, therapistId) {
+async function evaluateStalledCase(db, rule, config, therapistId) {
   const weeksThreshold = config.weeks_threshold || 3;
   const daysThreshold = weeksThreshold * 7;
   const actions = [];
 
-  const stalledPatients = db.all(
+  const stalledPatients = await db.all(
     `SELECT p.id AS patient_id, p.display_name, p.client_id,
             MAX(s.session_date) AS last_session_date
      FROM patients p
@@ -237,7 +237,7 @@ function evaluateStalledCase(db, rule, config, therapistId) {
 
   for (const patient of stalledPatients) {
     // Check if a stalled_case alert already exists and hasn't been dismissed
-    const existingAlert = db.get(
+    const existingAlert = await db.get(
       `SELECT id FROM proactive_alerts
        WHERE therapist_id = ? AND patient_id = ? AND alert_type = 'STALLED_CASE'
          AND dismissed_at IS NULL
@@ -247,7 +247,7 @@ function evaluateStalledCase(db, rule, config, therapistId) {
     if (existingAlert) continue;
 
     // Check if we already logged this outreach type in the last 7 days
-    const recentlyLogged = db.get(
+    const recentlyLogged = await db.get(
       `SELECT id FROM outreach_log
        WHERE therapist_id = ? AND patient_id = ? AND rule_id = ?
          AND outreach_type = 'stalled_case'
@@ -262,7 +262,7 @@ function evaluateStalledCase(db, rule, config, therapistId) {
     );
 
     // Create a proactive alert instead of sending outreach
-    db.insert(
+    await db.insert(
       `INSERT INTO proactive_alerts
          (therapist_id, patient_id, alert_type, severity, title, description, metric_value)
        VALUES (?, ?, 'STALLED_CASE', 'MEDIUM', ?, ?, ?)`,
@@ -310,10 +310,10 @@ const RULE_EVALUATORS = {
  * @returns {number} Total number of outreach actions taken across all rules.
  */
 async function evaluateOutreachRules() {
-  const db = getDb();
+  const db = getAsyncDb();
   let totalActions = 0;
 
-  const rules = db.all(
+  const rules = await db.all(
     `SELECT * FROM outreach_rules WHERE enabled = 1 ORDER BY therapist_id, rule_type`
   );
 
@@ -333,10 +333,10 @@ async function evaluateOutreachRules() {
     }
 
     try {
-      const actions = evaluator(db, rule, config, rule.therapist_id);
+      const actions = await evaluator(db, rule, config, rule.therapist_id);
 
       for (const action of actions) {
-        db.insert(
+        await db.insert(
           `INSERT INTO outreach_log
              (therapist_id, patient_id, rule_id, outreach_type, channel, message_preview, status)
            VALUES (?, ?, ?, ?, ?, ?, 'logged')`,
@@ -352,7 +352,7 @@ async function evaluateOutreachRules() {
 
       // Update rule execution metadata
       if (actions.length > 0) {
-        db.run(
+        await db.run(
           `UPDATE outreach_rules
               SET last_executed_at = datetime('now'),
                   execute_count = execute_count + ?
@@ -367,7 +367,7 @@ async function evaluateOutreachRules() {
   }
 
   if (totalActions > 0) {
-    try { persist(); } catch {}
+    await persistIfNeeded();
   }
 
   return totalActions;
@@ -386,11 +386,11 @@ async function evaluateOutreachRules() {
  * @param {number} therapistId
  * @returns {{ created: number, rules: string[] }}
  */
-function createDefaultRules(therapistId) {
-  const db = getDb();
+async function createDefaultRules(therapistId) {
+  const db = getAsyncDb();
 
   // Idempotent: don't duplicate if rules already exist
-  const existing = db.get(
+  const existing = await db.get(
     'SELECT COUNT(*) AS count FROM outreach_rules WHERE therapist_id = ?',
     therapistId
   );
@@ -431,7 +431,7 @@ function createDefaultRules(therapistId) {
   const createdLabels = [];
 
   for (const rule of defaults) {
-    db.insert(
+    await db.insert(
       `INSERT INTO outreach_rules
          (therapist_id, rule_type, label, config_json, enabled)
        VALUES (?, ?, ?, ?, ?)`,
@@ -458,8 +458,8 @@ function createDefaultRules(therapistId) {
  * @param {number} [limit=50]
  * @returns {Object[]} Array of outreach log entries with patient info
  */
-function getOutreachLog(therapistId, limit = 50) {
-  const db = getDb();
+async function getOutreachLog(therapistId, limit = 50) {
+  const db = getAsyncDb();
   return db.all(
     `SELECT ol.*,
             p.display_name AS patient_name,
@@ -482,9 +482,9 @@ function getOutreachLog(therapistId, limit = 50) {
  * @param {number} therapistId
  * @returns {Object[]} Array of rule objects with parsed config and recent action count
  */
-function getOutreachRules(therapistId) {
-  const db = getDb();
-  const rules = db.all(
+async function getOutreachRules(therapistId) {
+  const db = getAsyncDb();
+  const rules = await db.all(
     `SELECT r.*,
             (SELECT COUNT(*) FROM outreach_log ol
              WHERE ol.rule_id = r.id
@@ -519,11 +519,11 @@ function getOutreachRules(therapistId) {
  * @param {string}  [updates.label]       - New display label
  * @returns {Object|null} Updated rule or null if not found
  */
-function updateOutreachRule(ruleId, therapistId, updates) {
-  const db = getDb();
+async function updateOutreachRule(ruleId, therapistId, updates) {
+  const db = getAsyncDb();
 
   // Verify ownership
-  const rule = db.get(
+  const rule = await db.get(
     'SELECT * FROM outreach_rules WHERE id = ? AND therapist_id = ?',
     ruleId,
     therapistId
@@ -554,12 +554,14 @@ function updateOutreachRule(ruleId, therapistId, updates) {
   if (setClauses.length === 0) return rule;
 
   params.push(ruleId, therapistId);
-  db.run(
+  await db.run(
     `UPDATE outreach_rules SET ${setClauses.join(', ')} WHERE id = ? AND therapist_id = ?`,
     ...params
   );
 
   // Return the updated rule
+  await persistIfNeeded();
+
   return db.get(
     'SELECT * FROM outreach_rules WHERE id = ? AND therapist_id = ?',
     ruleId,

@@ -18,7 +18,7 @@
 
 'use strict';
 
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { clinicalReasoning } = require('../lib/aiExecutor');
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -114,11 +114,11 @@ function endOfDayISO(date) {
  * @returns {Promise<{ briefId: number, brief: object }>} Stored brief ID + content
  */
 async function generateBrief(therapistId, appointmentId, options = {}) {
-  const db = getDb();
+  const db = getAsyncDb();
 
   // ── 1. Appointment + Patient Profile ────────────────────────────────────────
 
-  const appointment = db.get(
+  const appointment = await db.get(
     `SELECT id, therapist_id, patient_id, client_code, appointment_type,
             scheduled_start, status
      FROM appointments
@@ -130,7 +130,7 @@ async function generateBrief(therapistId, appointmentId, options = {}) {
     throw new Error(`Appointment ${appointmentId} not found for therapist ${therapistId}`);
   }
 
-  const patient = db.get(
+  const patient = await db.get(
     `SELECT id, client_id, display_name, presenting_concerns, diagnoses,
             risk_screening, treatment_goals
      FROM patients
@@ -144,7 +144,7 @@ async function generateBrief(therapistId, appointmentId, options = {}) {
 
   // ── 2. Last 3 Session Notes ─────────────────────────────────────────────────
 
-  const recentSessions = db.all(
+  const recentSessions = await db.all(
     `SELECT id, session_date, note_format, subjective, objective,
             assessment, plan, signed_at
      FROM sessions
@@ -191,7 +191,7 @@ async function generateBrief(therapistId, appointmentId, options = {}) {
   let checkinRows;
   try {
     if (lastSessionIso) {
-      checkinRows = db.all(
+      checkinRows = await db.all(
         `SELECT mood_score, mood_notes, completed_at
          FROM checkin_links
          WHERE patient_id = ? AND therapist_id = ?
@@ -202,7 +202,7 @@ async function generateBrief(therapistId, appointmentId, options = {}) {
         appointment.patient_id, therapistId, lastSessionIso
       );
     } else {
-      checkinRows = db.all(
+      checkinRows = await db.all(
         `SELECT mood_score, mood_notes, completed_at
          FROM checkin_links
          WHERE patient_id = ? AND therapist_id = ?
@@ -233,7 +233,7 @@ async function generateBrief(therapistId, appointmentId, options = {}) {
 
   // ── 3. Latest 3 Assessments + Trajectory ────────────────────────────────────
 
-  const recentAssessments = db.all(
+  const recentAssessments = await db.all(
     `SELECT id, template_type, total_score, severity_level,
             is_improvement, is_deterioration, administered_at
      FROM assessments
@@ -274,7 +274,7 @@ async function generateBrief(therapistId, appointmentId, options = {}) {
   const treatmentGoals = [];
 
   // Find the active treatment plan for this patient
-  const activePlan = db.get(
+  const activePlan = await db.get(
     `SELECT id FROM treatment_plans
      WHERE patient_id = ? AND therapist_id = ? AND status = 'active'
      ORDER BY created_at DESC
@@ -283,7 +283,7 @@ async function generateBrief(therapistId, appointmentId, options = {}) {
   );
 
   if (activePlan) {
-    const goals = db.all(
+    const goals = await db.all(
       `SELECT goal_text, target_metric, baseline_value, current_value, status
        FROM treatment_goals
        WHERE plan_id = ? AND status IN ('active', 'in_progress')
@@ -473,7 +473,7 @@ async function generateBrief(therapistId, appointmentId, options = {}) {
     brief.narrative_status = 'skipped';
   }
 
-  const { lastInsertRowid } = db.insert(
+  const { lastInsertRowid } = await db.insert(
     `INSERT INTO session_briefs (therapist_id, patient_id, appointment_id, brief_json, status)
      VALUES (?, ?, ?, ?, 'generated')`,
     therapistId, appointment.patient_id, appointmentId, JSON.stringify(brief)
@@ -484,6 +484,8 @@ async function generateBrief(therapistId, appointmentId, options = {}) {
     `appointment=${appointmentId} patient=${patient.client_id} ` +
     `narrative=${brief.narrative_status}`
   );
+
+  await persistIfNeeded();
 
   return { briefId: lastInsertRowid, brief };
 }
@@ -617,7 +619,7 @@ Rules:
 async function checkAndGenerateBriefs() {
   let db;
   try {
-    db = getDb();
+    db = getAsyncDb();
   } catch {
     return 0; // DB not initialized yet
   }
@@ -631,7 +633,7 @@ async function checkAndGenerateBriefs() {
   // Find appointments in the window that don't already have a brief
   let upcoming;
   try {
-    upcoming = db.all(
+    upcoming = await db.all(
       `SELECT a.id AS appointment_id, a.therapist_id
        FROM appointments a
        WHERE a.scheduled_start >= ?
@@ -667,7 +669,7 @@ async function checkAndGenerateBriefs() {
 
   if (generated > 0) {
     console.log(`[brief-generator] Generated ${generated} brief(s) this tick`);
-    try { persist(); } catch {}
+    await persistIfNeeded();
   }
 
   return generated;
@@ -682,10 +684,10 @@ async function checkAndGenerateBriefs() {
  * @param {number} therapistId  — ownership check
  * @returns {object|null} The brief record with parsed brief_json, or null
  */
-function getBrief(briefId, therapistId) {
-  const db = getDb();
+async function getBrief(briefId, therapistId) {
+  const db = getAsyncDb();
 
-  const row = db.get(
+  const row = await db.get(
     `SELECT id, therapist_id, patient_id, appointment_id,
             brief_json, status, viewed_at, created_at
      FROM session_briefs
@@ -697,7 +699,7 @@ function getBrief(briefId, therapistId) {
 
   // Mark as viewed on first access
   if (!row.viewed_at) {
-    db.run(
+    await db.run(
       `UPDATE session_briefs
        SET viewed_at = ?, status = 'viewed'
        WHERE id = ?`,
@@ -727,14 +729,14 @@ function getBrief(briefId, therapistId) {
  * @param {number} therapistId
  * @returns {object[]} Array of brief summaries
  */
-function getUpcomingBriefs(therapistId) {
-  const db = getDb();
+async function getUpcomingBriefs(therapistId) {
+  const db = getAsyncDb();
 
   const now = new Date();
   const todayStart = startOfDayISO(now);
   const todayEnd = endOfDayISO(now);
 
-  const rows = db.all(
+  const rows = await db.all(
     `SELECT sb.id, sb.patient_id, sb.appointment_id,
             sb.brief_json, sb.status, sb.viewed_at, sb.created_at,
             a.scheduled_start, a.scheduled_end, a.appointment_type, a.status AS appt_status,
@@ -790,22 +792,22 @@ function getUpcomingBriefs(therapistId) {
  * @returns {Promise<{ briefId: number, brief: object }>}
  */
 async function regenerateBrief(therapistId, appointmentId) {
-  const db = getDb();
+  const db = getAsyncDb();
 
   // Ownership check first — don't delete another therapist's briefs
-  const appt = db.get(
+  const appt = await db.get(
     'SELECT id FROM appointments WHERE id = ? AND therapist_id = ?',
     appointmentId, therapistId
   );
   if (!appt) throw new Error('Appointment not found');
 
-  db.run(
+  await db.run(
     'DELETE FROM session_briefs WHERE appointment_id = ? AND therapist_id = ?',
     appointmentId, therapistId
   );
 
   const result = await generateBrief(therapistId, appointmentId);
-  try { persist(); } catch {}
+  await persistIfNeeded();
   return result;
 }
 

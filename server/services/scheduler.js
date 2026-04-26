@@ -9,7 +9,7 @@
  */
 const crypto = require('crypto')
 const cron = require('node-cron')
-const { getDb, persist } = require('../db')
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb')
 const { sendAssessmentSms, normalisePhone } = require('./twilio')
 const { runDailyBriefs, generateBriefForTherapist, triggerCrisisBrief } = require('./researcher')
 const { runMorningBriefings } = require('./dailyBriefing')
@@ -25,7 +25,7 @@ function startScheduler() {
   cron.schedule('* * * * *', async () => {
     let db
     try {
-      db = getDb()
+      db = getAsyncDb()
     } catch {
       return // DB not ready yet
     }
@@ -34,7 +34,7 @@ function startScheduler() {
 
     let pending
     try {
-      pending = db.all(
+      pending = await db.all(
         `SELECT * FROM scheduled_sends
          WHERE status = 'pending' AND send_at <= ?
          ORDER BY send_at ASC
@@ -51,7 +51,7 @@ function startScheduler() {
       try {
         const result = await sendAssessmentSms(row.phone, row.token, row.assessment_type)
 
-        db.run(
+        await db.run(
           `UPDATE scheduled_sends
            SET status = 'sent', sent_at = CURRENT_TIMESTAMP, error = NULL
            WHERE id = ?`,
@@ -61,7 +61,7 @@ function startScheduler() {
         console.log(`[scheduler] SMS sent — id=${row.id} type=${row.assessment_type} sid=${result.sid}`)
       } catch (err) {
         const errMsg = err.message || String(err)
-        db.run(
+        await db.run(
           `UPDATE scheduled_sends
            SET status = 'failed', error = ?
            WHERE id = ?`,
@@ -72,7 +72,7 @@ function startScheduler() {
       }
     }
 
-    try { persist() } catch {}
+    await persistIfNeeded()
   })
 
   console.log('[scheduler] Started — SMS delivery runs every minute')
@@ -80,11 +80,11 @@ function startScheduler() {
   // ── Feature 2: Agent Scheduled Tasks — check every 5 minutes ──────────
   cron.schedule('*/5 * * * *', async () => {
     let db
-    try { db = getDb() } catch { return }
+    try { db = getAsyncDb() } catch { return }
 
     try {
       const now = new Date().toISOString()
-      const dueTasks = db.all(
+      const dueTasks = await db.all(
         "SELECT * FROM agent_scheduled_tasks WHERE status = 'pending' AND scheduled_for <= ? LIMIT 10",
         now
       )
@@ -92,7 +92,7 @@ function startScheduler() {
       for (const task of dueTasks) {
         try {
           // Create a proactive alert for the therapist
-          db.insert(
+          await db.insert(
             `INSERT INTO proactive_alerts (therapist_id, patient_id, alert_type, severity, title, description)
              VALUES (?, 0, 'SCHEDULED_TASK', 'LOW', ?, ?)`,
             task.therapist_id,
@@ -100,7 +100,7 @@ function startScheduler() {
             `Scheduled task due: ${task.description}`
           )
 
-          db.run(
+          await db.run(
             "UPDATE agent_scheduled_tasks SET status = 'completed', completed_at = datetime('now') WHERE id = ?",
             task.id
           )
@@ -111,7 +111,7 @@ function startScheduler() {
         }
       }
 
-      if (dueTasks.length > 0) persist()
+      if (dueTasks.length > 0) await persistIfNeeded()
     } catch (err) {
       if (!err.message?.includes('no such table')) {
         console.error('[scheduler] Agent tasks error:', err.message)
@@ -132,11 +132,11 @@ function startScheduler() {
  * - OVERDUE_ASSESSMENT: last assessment > 30 days old
  * - RISK_REVIEW_DUE: risk_screening is flagged and safety plan not reviewed in 7 days
  */
-function detectAlertsForPatient(db, therapistId, patientId) {
+async function detectAlertsForPatient(db, therapistId, patientId) {
   const alerts = []
 
   // Get latest 2 assessments
-  const assessments = db.all(
+  const assessments = await db.all(
     `SELECT template_type, total_score, administered_at FROM assessments
      WHERE patient_id = ? AND therapist_id = ?
      ORDER BY administered_at DESC LIMIT 2`,
@@ -154,10 +154,10 @@ function detectAlertsForPatient(db, therapistId, patientId) {
       const direction = isImprovement ? 'improved' : 'increased'
       const severity = isImprovement ? 'LOW' : 'HIGH'
 
-      const patientName = db.get(
+      const patientName = (await db.get(
         'SELECT display_name, client_id FROM patients WHERE id = ?',
         patientId
-      )?.display_name
+      ))?.display_name
 
       alerts.push({
         alert_type: isImprovement ? 'IMPROVEMENT' : 'DETERIORATION',
@@ -176,10 +176,10 @@ function detectAlertsForPatient(db, therapistId, patientId) {
     const daysAgo = Math.floor((now - lastAssessmentDate) / (1000 * 60 * 60 * 24))
 
     if (daysAgo > 30) {
-      const patientName = db.get(
+      const patientName = (await db.get(
         'SELECT display_name, client_id FROM patients WHERE id = ?',
         patientId
-      )?.display_name
+      ))?.display_name
 
       alerts.push({
         alert_type: 'OVERDUE_ASSESSMENT',
@@ -191,7 +191,7 @@ function detectAlertsForPatient(db, therapistId, patientId) {
     }
   } else {
     // No assessments at all
-    const patient = db.get(
+    const patient = await db.get(
       'SELECT display_name, client_id, created_at FROM patients WHERE id = ?',
       patientId
     )
@@ -210,13 +210,13 @@ function detectAlertsForPatient(db, therapistId, patientId) {
   }
 
   // Check risk review (risk flag + no review in 7 days)
-  const patient = db.get(
+  const patient = await db.get(
     'SELECT risk_screening FROM patients WHERE id = ?',
     patientId
   )
   if (patient?.risk_screening && patient.risk_screening.toLowerCase().includes('passive')) {
     // Check if safety plan was reviewed recently
-    const lastSession = db.get(
+    const lastSession = await db.get(
       `SELECT session_date, created_at FROM sessions
        WHERE patient_id = ? AND (plan LIKE '%safety%' OR assessment LIKE '%safety%')
        ORDER BY COALESCE(session_date, created_at) DESC LIMIT 1`,
@@ -224,10 +224,10 @@ function detectAlertsForPatient(db, therapistId, patientId) {
     )
 
     if (!lastSession) {
-      const patientName = db.get(
+      const patientName = (await db.get(
         'SELECT display_name, client_id FROM patients WHERE id = ?',
         patientId
-      )?.display_name
+      ))?.display_name
 
       alerts.push({
         alert_type: 'RISK_REVIEW_DUE',
@@ -247,9 +247,9 @@ function detectAlertsForPatient(db, therapistId, patientId) {
  * Creates an assessment link, schedules immediate SMS send, and logs a proactive_alert
  * so the therapist sees what happened.
  */
-function autoSendOverdueAssessment(db, therapistId, patientId) {
+async function autoSendOverdueAssessment(db, therapistId, patientId) {
   try {
-    const patient = db.get(
+    const patient = await db.get(
       'SELECT id, client_id, display_name, phone FROM patients WHERE id = ? AND therapist_id = ?',
       patientId, therapistId
     )
@@ -259,7 +259,7 @@ function autoSendOverdueAssessment(db, therapistId, patientId) {
     if (!phone) return null
 
     // Check if we already auto-sent in the last 7 days
-    const recentAutoSend = db.get(
+    const recentAutoSend = await db.get(
       `SELECT id FROM scheduled_sends
        WHERE patient_id = ? AND therapist_id = ?
        AND created_at > datetime('now', '-7 days')
@@ -269,7 +269,7 @@ function autoSendOverdueAssessment(db, therapistId, patientId) {
     if (recentAutoSend) return null
 
     // Determine which assessment to send (default PHQ-9, use last type if available)
-    const lastAssessment = db.get(
+    const lastAssessment = await db.get(
       `SELECT template_type FROM assessments WHERE patient_id = ? ORDER BY administered_at DESC LIMIT 1`,
       patientId
     )
@@ -278,14 +278,14 @@ function autoSendOverdueAssessment(db, therapistId, patientId) {
 
     // Create assessment link
     const token = crypto.randomBytes(16).toString('hex')
-    db.run(
+    await db.run(
       `INSERT INTO assessment_links (token, patient_id, therapist_id, template_type, expires_at)
        VALUES (?, ?, ?, ?, datetime('now', '+30 days'))`,
       token, patientId, therapistId, templateKey
     )
 
     // Schedule immediate send
-    db.insert(
+    await db.insert(
       `INSERT INTO scheduled_sends (therapist_id, patient_id, assessment_type, token, phone, send_at, custom_message)
        VALUES (?, ?, ?, ?, ?, datetime('now'), ?)`,
       therapistId, patientId, assessmentType, token, phone,
@@ -305,28 +305,28 @@ function startAlertsScheduler() {
   cron.schedule('0 * * * *', async () => {
     let db
     try {
-      db = getDb()
+      db = getAsyncDb()
     } catch {
       return // DB not ready yet
     }
 
     try {
       // Get all therapists
-      const therapists = db.all('SELECT DISTINCT therapist_id FROM patients')
+      const therapists = await db.all('SELECT DISTINCT therapist_id FROM patients')
 
       for (const { therapist_id } of therapists) {
-        const patients = db.all(
+        const patients = await db.all(
           'SELECT id FROM patients WHERE therapist_id = ?',
           therapist_id
         )
 
         let alertsCreated = 0
         for (const { id: patientId } of patients) {
-          const alerts = detectAlertsForPatient(db, therapist_id, patientId)
+          const alerts = await detectAlertsForPatient(db, therapist_id, patientId)
 
           for (const alert of alerts) {
             // Check if this alert already exists and hasn't been dismissed
-            const existing = db.get(
+            const existing = await db.get(
               `SELECT id FROM proactive_alerts
                WHERE therapist_id = ? AND patient_id = ? AND alert_type = ?
                AND dismissed_at IS NULL
@@ -335,7 +335,7 @@ function startAlertsScheduler() {
             )
 
             if (!existing) {
-              db.insert(
+              await db.insert(
                 `INSERT INTO proactive_alerts (therapist_id, patient_id, alert_type, severity, title, description, metric_value)
                  VALUES (?, ?, ?, ?, ?, ?, ?)`,
                 therapist_id, patientId, alert.alert_type, alert.severity,
@@ -353,7 +353,7 @@ function startAlertsScheduler() {
               // Auto-send assessment if overdue and therapist has opted in
               if (alert.alert_type === 'OVERDUE_ASSESSMENT') {
                 try {
-                  const therapistPerms = db.get(
+                  const therapistPerms = await db.get(
                     'SELECT assistant_permissions_json FROM therapists WHERE id = ?',
                     therapist_id
                   )
@@ -361,10 +361,10 @@ function startAlertsScheduler() {
                     ? JSON.parse(therapistPerms.assistant_permissions_json)
                     : {}
                   if (perms.auto_send_overdue) {
-                    const result = autoSendOverdueAssessment(db, therapist_id, patientId)
+                    const result = await autoSendOverdueAssessment(db, therapist_id, patientId)
                     if (result) {
                       // Update alert description to note auto-send
-                      db.run(
+                      await db.run(
                         `UPDATE proactive_alerts SET description = description || ' — Auto-sent ' || ? WHERE therapist_id = ? AND patient_id = ? AND alert_type = 'OVERDUE_ASSESSMENT' AND dismissed_at IS NULL ORDER BY created_at DESC LIMIT 1`,
                         result.assessmentType, therapist_id, patientId
                       )
@@ -381,7 +381,7 @@ function startAlertsScheduler() {
         }
       }
 
-      try { persist() } catch {}
+      await persistIfNeeded()
     } catch (err) {
       console.error(`[alerts] Error in alerts scheduler: ${err.message}`)
     }
@@ -392,12 +392,12 @@ function startAlertsScheduler() {
   // Evaluate automation rules every hour (at minute 5)
   cron.schedule('5 * * * *', async () => {
     let db
-    try { db = getDb() } catch { return }
+    try { db = getAsyncDb() } catch { return }
 
     try {
       let rules
       try {
-        rules = db.all('SELECT * FROM automation_rules WHERE enabled = 1')
+        rules = await db.all('SELECT * FROM automation_rules WHERE enabled = 1')
       } catch { return } // table may not exist yet
 
       for (const rule of rules) {
@@ -416,7 +416,7 @@ function startAlertsScheduler() {
 
           // Evaluate trigger conditions
           if (rule.trigger_type === 'score_below') {
-            const patients = db.all(
+            const patients = await db.all(
               `SELECT DISTINCT a.patient_id, a.total_score, p.display_name, p.client_id, p.phone
                FROM assessments a
                JOIN patients p ON p.id = a.patient_id
@@ -430,7 +430,7 @@ function startAlertsScheduler() {
           }
 
           if (rule.trigger_type === 'score_above') {
-            const patients = db.all(
+            const patients = await db.all(
               `SELECT DISTINCT a.patient_id, a.total_score, p.display_name, p.client_id, p.phone
                FROM assessments a
                JOIN patients p ON p.id = a.patient_id
@@ -445,7 +445,7 @@ function startAlertsScheduler() {
 
           if (rule.trigger_type === 'assessment_overdue') {
             const days = triggerConfig.days || 30
-            const patients = db.all(
+            const patients = await db.all(
               `SELECT p.id as patient_id, p.display_name, p.client_id, p.phone,
                       MAX(a.administered_at) as last_assessment
                FROM patients p
@@ -466,13 +466,13 @@ function startAlertsScheduler() {
               if (!patient.phone) continue
               const phone = normalisePhone(patient.phone)
               if (!phone) continue
-              autoSendOverdueAssessment(db, rule.therapist_id, patient.patient_id)
+              await autoSendOverdueAssessment(db, rule.therapist_id, patient.patient_id)
             }
           }
 
           if (rule.action_type === 'create_alert') {
             for (const patient of matchedPatients) {
-              db.insert(
+              await db.insert(
                 `INSERT INTO proactive_alerts (therapist_id, patient_id, alert_type, severity, title, description)
                  VALUES (?, ?, 'AUTOMATION', 'LOW', ?, ?)`,
                 rule.therapist_id, patient.patient_id,
@@ -483,7 +483,7 @@ function startAlertsScheduler() {
           }
 
           // Mark rule as fired
-          db.run(
+          await db.run(
             'UPDATE automation_rules SET last_fired_at = CURRENT_TIMESTAMP, fire_count = fire_count + 1 WHERE id = ?',
             rule.id
           )
@@ -494,7 +494,7 @@ function startAlertsScheduler() {
         }
       }
 
-      try { persist() } catch {}
+      await persistIfNeeded()
     } catch (err) {
       console.error('[automations] Scheduler error:', err.message)
     }
@@ -521,7 +521,7 @@ function startAlertsScheduler() {
   // Checks every 5 min for appointments ~24 hours out and queues assessment SMS.
   cron.schedule('*/5 * * * *', async () => {
     let db
-    try { db = getDb() } catch { return }
+    try { db = getAsyncDb() } catch { return }
 
     const now = new Date()
     // Window: 23h50m to 24h10m from now — 20-minute window checked every 5 min
@@ -530,7 +530,7 @@ function startAlertsScheduler() {
 
     let upcoming
     try {
-      upcoming = db.all(
+      upcoming = await db.all(
         `SELECT a.id AS appointment_id, a.therapist_id, a.patient_id
          FROM appointments a
          WHERE a.scheduled_start >= ?
@@ -548,7 +548,7 @@ function startAlertsScheduler() {
     for (const appt of upcoming) {
       try {
         // Check therapist opt-in (default: enabled)
-        const therapist = db.get(
+        const therapist = await db.get(
           'SELECT assistant_permissions_json FROM therapists WHERE id = ?',
           appt.therapist_id
         )
@@ -559,7 +559,7 @@ function startAlertsScheduler() {
         } catch {}
 
         // Check patient has valid phone
-        const patient = db.get(
+        const patient = await db.get(
           'SELECT id, client_id, phone FROM patients WHERE id = ?',
           appt.patient_id
         )
@@ -569,12 +569,12 @@ function startAlertsScheduler() {
 
         // Create PHQ-9 assessment link + scheduled send
         const phqToken = crypto.randomBytes(16).toString('hex')
-        db.run(
+        await db.run(
           `INSERT INTO assessment_links (token, patient_id, therapist_id, template_type, expires_at)
            VALUES (?, ?, ?, 'phq9', datetime('now', '+7 days'))`,
           phqToken, appt.patient_id, appt.therapist_id
         )
-        db.run(
+        await db.run(
           `INSERT INTO scheduled_sends (therapist_id, patient_id, assessment_type, token, phone, send_at)
            VALUES (?, ?, 'PHQ-9', ?, ?, datetime('now'))`,
           appt.therapist_id, appt.patient_id, phqToken, phone
@@ -582,19 +582,19 @@ function startAlertsScheduler() {
 
         // Create GAD-7 assessment link + scheduled send
         const gadToken = crypto.randomBytes(16).toString('hex')
-        db.run(
+        await db.run(
           `INSERT INTO assessment_links (token, patient_id, therapist_id, template_type, expires_at)
            VALUES (?, ?, ?, 'gad7', datetime('now', '+7 days'))`,
           gadToken, appt.patient_id, appt.therapist_id
         )
-        db.run(
+        await db.run(
           `INSERT INTO scheduled_sends (therapist_id, patient_id, assessment_type, token, phone, send_at)
            VALUES (?, ?, 'GAD-7', ?, ?, datetime('now'))`,
           appt.therapist_id, appt.patient_id, gadToken, phone
         )
 
         // Mark appointment so we never double-send
-        db.run('UPDATE appointments SET mbc_auto_sent = 1 WHERE id = ?', appt.appointment_id)
+        await db.run('UPDATE appointments SET mbc_auto_sent = 1 WHERE id = ?', appt.appointment_id)
         queued++
       } catch (err) {
         console.error(`[mbc-auto] Failed for appointment ${appt.appointment_id}:`, err.message)
@@ -602,7 +602,7 @@ function startAlertsScheduler() {
     }
     if (queued > 0) {
       console.log(`[mbc-auto] Queued PHQ-9 + GAD-7 for ${queued} upcoming appointment(s)`)
-      try { persist() } catch {}
+      await persistIfNeeded()
     }
   })
   console.log('[scheduler] Started — MBC auto-send runs every 5 minutes (24h before sessions)')
@@ -624,10 +624,10 @@ function startAlertsScheduler() {
   // Daily research briefs — check every hour, generate for each therapist when it's 6–7am in their timezone
   cron.schedule('0 * * * *', async () => {
     let db
-    try { db = getDb() } catch { return }
+    try { db = getAsyncDb() } catch { return }
 
     try {
-      const therapists = db.all(
+      const therapists = await db.all(
         `SELECT id, preferred_timezone FROM therapists WHERE account_status = 'active'`
       )
 
@@ -642,7 +642,7 @@ function startAlertsScheduler() {
           if (localHour !== 6) continue
 
           // Skip if already generated a non-crisis brief in the last 24 hours
-          const recent = db.get(
+          const recent = await db.get(
             `SELECT id FROM research_briefs
              WHERE therapist_id = ? AND brief_type != 'crisis'
              AND created_at > datetime('now', '-24 hours')`,
@@ -651,7 +651,7 @@ function startAlertsScheduler() {
           if (recent) continue
 
           // Only generate if they have at least one patient
-          const hasPatients = db.get(
+          const hasPatients = await db.get(
             'SELECT COUNT(*) as c FROM patients WHERE therapist_id = ?', t.id
           )
           if (!hasPatients?.c) continue
@@ -717,11 +717,11 @@ function startAlertsScheduler() {
   //   - Unopened after 3 days
   //   - Opened but unsaved after 7 days
   // Saved briefs are kept forever.
-  cron.schedule('23 3 * * *', () => {
+  cron.schedule('23 3 * * *', async () => {
     let db
-    try { db = getDb() } catch { return }
+    try { db = getAsyncDb() } catch { return }
     try {
-      const { changes } = db.run(
+      const { changes } = await db.run(
         `DELETE FROM research_briefs
          WHERE saved = 0
            AND (
@@ -740,11 +740,12 @@ function startAlertsScheduler() {
   // ── AI budget auto-unpause at month rollover ────────────────────────────
   // Runs a few minutes after midnight on the 1st of each month. Clears the
   // ai_budget_paused flag on every therapist so they can use AI again.
-  cron.schedule('7 0 1 * *', () => {
+  cron.schedule('7 0 1 * *', async () => {
     let db
-    try { db = getDb() } catch { return }
+    try { db = getAsyncDb() } catch { return }
     try {
-      db.run('UPDATE therapists SET ai_budget_paused = 0 WHERE ai_budget_paused = 1')
+      await db.run('UPDATE therapists SET ai_budget_paused = 0 WHERE ai_budget_paused = 1')
+      await persistIfNeeded()
       console.log('[scheduler] Monthly AI budget reset — all therapists unpaused')
     } catch (err) {
       console.error('[scheduler] AI budget reset error:', err.message)

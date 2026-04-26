@@ -26,7 +26,7 @@
 'use strict';
 
 const { callAI, MODELS } = require('../lib/aiExecutor');
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 
 // ── Enrichment types stored as separate rows ─────────────────────────────────
 
@@ -44,7 +44,7 @@ const ENRICHMENT_TYPES = [
  * Load the session note being enriched.
  * Returns null if the session does not exist or does not belong to the therapist.
  */
-function loadSession(db, sessionId, therapistId) {
+async function loadSession(db, sessionId, therapistId) {
   return db.get(
     `SELECT s.id, s.patient_id, s.session_date, s.note_format,
             s.subjective, s.objective, s.assessment, s.plan,
@@ -59,7 +59,7 @@ function loadSession(db, sessionId, therapistId) {
  * Load patient demographic and clinical context.
  * Uses client_id for identification — never sends display_name to the model.
  */
-function loadPatientContext(db, patientId) {
+async function loadPatientContext(db, patientId) {
   return db.get(
     `SELECT id, client_id, presenting_concerns, diagnoses, risk_screening,
             case_type, client_type, age_range, gender,
@@ -74,7 +74,7 @@ function loadPatientContext(db, patientId) {
  * Load the last N sessions for this patient (excluding the current one)
  * to enable continuity threading.
  */
-function loadPriorSessions(db, patientId, currentSessionId, limit = 5) {
+async function loadPriorSessions(db, patientId, currentSessionId, limit = 5) {
   return db.all(
     `SELECT id, session_date, subjective, objective, assessment, plan, full_note, icd10_codes
      FROM sessions
@@ -89,7 +89,7 @@ function loadPriorSessions(db, patientId, currentSessionId, limit = 5) {
  * Load active treatment goals for the patient via treatment_plans.
  * Returns goals with their plan context.
  */
-function loadActiveGoals(db, patientId) {
+async function loadActiveGoals(db, patientId) {
   return db.all(
     `SELECT tg.id AS goal_id, tg.goal_text, tg.status, tg.current_value,
             tg.target_metric, tg.baseline_value,
@@ -106,7 +106,7 @@ function loadActiveGoals(db, patientId) {
  * Load the most recent assessment for each template type administered
  * to this patient. Provides severity context for clinical reasoning.
  */
-function loadLatestAssessments(db, patientId) {
+async function loadLatestAssessments(db, patientId) {
   return db.all(
     `SELECT a1.id, a1.template_type, a1.total_score, a1.severity_level,
             a1.administered_at, a1.risk_flags, a1.score_change, a1.is_deterioration
@@ -368,7 +368,7 @@ function parseEnrichmentResponse(raw) {
  * Store each enrichment type as a separate row in note_enrichments.
  * This allows per-type accept/dismiss tracking.
  */
-function storeEnrichments(db, sessionId, therapistId, enrichments) {
+async function storeEnrichments(db, sessionId, therapistId, enrichments) {
   const storedIds = {};
 
   for (const type of ENRICHMENT_TYPES) {
@@ -376,7 +376,7 @@ function storeEnrichments(db, sessionId, therapistId, enrichments) {
     // Only store non-empty enrichments
     if (!Array.isArray(content) || content.length === 0) continue;
 
-    const result = db.insert(
+    const result = await db.insert(
       `INSERT INTO note_enrichments (session_id, therapist_id, enrichment_type, content_json)
        VALUES (?, ?, ?, ?)`,
       sessionId, therapistId, type, JSON.stringify(content)
@@ -402,10 +402,10 @@ function storeEnrichments(db, sessionId, therapistId, enrichments) {
  * @throws if session not found, patient not found, or model call fails
  */
 async function enrichSessionNote(sessionId, therapistId) {
-  const db = getDb();
+  const db = getAsyncDb();
 
   // ── Step A: Load the session note ──────────────────────────────────────────
-  const session = loadSession(db, sessionId, therapistId);
+  const session = await loadSession(db, sessionId, therapistId);
   if (!session) {
     throw new Error(`Session not found or access denied: session_id=${sessionId}`);
   }
@@ -418,19 +418,19 @@ async function enrichSessionNote(sessionId, therapistId) {
   }
 
   // ── Step B: Load patient context ───────────────────────────────────────────
-  const patient = loadPatientContext(db, session.patient_id);
+  const patient = await loadPatientContext(db, session.patient_id);
   if (!patient) {
     throw new Error(`Patient not found for session: patient_id=${session.patient_id}`);
   }
 
   // ── Step C: Load prior sessions for continuity threading ───────────────────
-  const priorSessions = loadPriorSessions(db, session.patient_id, sessionId, 3);
+  const priorSessions = await loadPriorSessions(db, session.patient_id, sessionId, 3);
 
   // ── Step D: Load active treatment goals ────────────────────────────────────
-  const goals = loadActiveGoals(db, session.patient_id);
+  const goals = await loadActiveGoals(db, session.patient_id);
 
   // ── Step E: Load latest assessments ────────────────────────────────────────
-  const assessments = loadLatestAssessments(db, session.patient_id);
+  const assessments = await loadLatestAssessments(db, session.patient_id);
 
   // ── Step F: Build prompts and call Azure OpenAI ──────────────────────────────────
   const systemPrompt = buildSystemPrompt();
@@ -501,7 +501,8 @@ async function enrichSessionNote(sessionId, therapistId) {
   }
 
   // ── Step H: Store each enrichment type in the database ─────────────────────
-  const enrichmentIds = storeEnrichments(db, sessionId, therapistId, enrichments);
+  const enrichmentIds = await storeEnrichments(db, sessionId, therapistId, enrichments);
+  await persistIfNeeded();
 
   console.log(
     `[note-enrichment] Stored enrichments for session_id=${sessionId}: ` +
@@ -529,10 +530,10 @@ async function enrichSessionNote(sessionId, therapistId) {
  * @param {number} therapistId — ID of the therapist (ownership check)
  * @returns {Object} — keyed by enrichment_type
  */
-function getEnrichments(sessionId, therapistId) {
-  const db = getDb();
+async function getEnrichments(sessionId, therapistId) {
+  const db = getAsyncDb();
 
-  const rows = db.all(
+  const rows = await db.all(
     `SELECT id, enrichment_type, content_json, accepted, created_at
      FROM note_enrichments
      WHERE session_id = ? AND therapist_id = ?
@@ -573,10 +574,10 @@ function getEnrichments(sessionId, therapistId) {
  * @param {number} therapistId  — ownership verification
  * @returns {boolean} — true if the update succeeded
  */
-function acceptEnrichment(enrichmentId, therapistId) {
-  const db = getDb();
+async function acceptEnrichment(enrichmentId, therapistId) {
+  const db = getAsyncDb();
 
-  const existing = db.get(
+  const existing = await db.get(
     'SELECT id FROM note_enrichments WHERE id = ? AND therapist_id = ?',
     enrichmentId, therapistId
   );
@@ -584,10 +585,12 @@ function acceptEnrichment(enrichmentId, therapistId) {
     throw new Error(`Enrichment not found or access denied: id=${enrichmentId}`);
   }
 
-  db.run(
+  await db.run(
     'UPDATE note_enrichments SET accepted = 1 WHERE id = ?',
     enrichmentId
   );
+
+  await persistIfNeeded();
 
   return true;
 }
@@ -602,10 +605,10 @@ function acceptEnrichment(enrichmentId, therapistId) {
  * @param {number} therapistId  — ownership verification
  * @returns {boolean} — true if the update succeeded
  */
-function dismissEnrichment(enrichmentId, therapistId) {
-  const db = getDb();
+async function dismissEnrichment(enrichmentId, therapistId) {
+  const db = getAsyncDb();
 
-  const existing = db.get(
+  const existing = await db.get(
     'SELECT id FROM note_enrichments WHERE id = ? AND therapist_id = ?',
     enrichmentId, therapistId
   );
@@ -613,10 +616,12 @@ function dismissEnrichment(enrichmentId, therapistId) {
     throw new Error(`Enrichment not found or access denied: id=${enrichmentId}`);
   }
 
-  db.run(
+  await db.run(
     'UPDATE note_enrichments SET accepted = 0 WHERE id = ?',
     enrichmentId
   );
+
+  await persistIfNeeded();
 
   return true;
 }

@@ -19,7 +19,7 @@
 
 'use strict';
 
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { clinicalReasoning } = require('../lib/aiExecutor');
 
 // ─── Chart Data Helpers ──────────────────────────────────────────────────────
@@ -28,8 +28,8 @@ const { clinicalReasoning } = require('../lib/aiExecutor');
  * Pull the subset of a patient's chart needed for letter generation.
  * Returns a structured packet — templates pick what they need from it.
  */
-function buildChartPacket(db, therapistId, patientId) {
-  const patient = db.get(
+async function buildChartPacket(db, therapistId, patientId) {
+  const patient = await db.get(
     `SELECT id, client_id, display_name, date_of_birth, diagnoses,
             presenting_concerns, risk_screening, treatment_goals,
             created_at
@@ -39,7 +39,7 @@ function buildChartPacket(db, therapistId, patientId) {
   );
   if (!patient) throw new Error('Patient not found');
 
-  const therapist = db.get(
+  const therapist = await db.get(
     `SELECT id, name, credentials, license_number, license_state,
             practice_name, practice_address, practice_phone,
             email, title
@@ -50,7 +50,7 @@ function buildChartPacket(db, therapistId, patientId) {
 
   // Episode start — treat the patient record's created_at as the episode open.
   // Sessions give us total visit count + most recent date.
-  const sessionAgg = db.get(
+  const sessionAgg = await db.get(
     `SELECT COUNT(*) AS total_sessions,
             MAX(session_date) AS last_session_date,
             MIN(session_date) AS first_session_date
@@ -59,7 +59,7 @@ function buildChartPacket(db, therapistId, patientId) {
     patientId, therapistId
   ) || { total_sessions: 0 };
 
-  const recentSessions = db.all(
+  const recentSessions = await db.all(
     `SELECT session_date, subjective, assessment, plan, icd10_codes
      FROM sessions
      WHERE patient_id = ? AND therapist_id = ? AND signed_at IS NOT NULL
@@ -71,7 +71,7 @@ function buildChartPacket(db, therapistId, patientId) {
   // Latest assessment per instrument — we want scores for clinical narrative.
   let latestAssessments = [];
   try {
-    latestAssessments = db.all(
+    latestAssessments = await db.all(
       `SELECT a.template_type, a.total_score, a.severity_level, a.administered_at
        FROM assessments a
        WHERE a.patient_id = ? AND a.therapist_id = ?
@@ -89,14 +89,14 @@ function buildChartPacket(db, therapistId, patientId) {
 
   let activePlan = null;
   try {
-    const plan = db.get(
+    const plan = await db.get(
       `SELECT id, summary FROM treatment_plans
        WHERE patient_id = ? AND therapist_id = ? AND status = 'active'
        ORDER BY created_at DESC LIMIT 1`,
       patientId, therapistId
     );
     if (plan) {
-      const goals = db.all(
+      const goals = await db.all(
         `SELECT goal_text, target_metric, status FROM treatment_goals
          WHERE plan_id = ? AND status IN ('active', 'in_progress', 'met')
          ORDER BY created_at ASC`,
@@ -468,8 +468,8 @@ async function generateDocument({ therapistId, patientId, templateId, options = 
     }
   }
 
-  const db = getDb();
-  const packet = buildChartPacket(db, therapistId, patientId);
+  const db = getAsyncDb();
+  const packet = await buildChartPacket(db, therapistId, patientId);
   const chartText = formatChartPacket(packet);
   const userPrompt = template.buildUserPrompt(packet, options, chartText);
 
@@ -483,7 +483,7 @@ async function generateDocument({ therapistId, patientId, templateId, options = 
 
   const title = `${template.name} — ${packet.patient.display_name || packet.patient.client_id}`;
 
-  const { lastInsertRowid } = db.insert(
+  const { lastInsertRowid } = await db.insert(
     `INSERT INTO generated_documents
       (therapist_id, patient_id, template_id, template_name, title, content, status, metadata_json)
      VALUES (?, ?, ?, ?, ?, ?, 'draft', ?)`,
@@ -491,7 +491,7 @@ async function generateDocument({ therapistId, patientId, templateId, options = 
     JSON.stringify({ options, template_version: 1 })
   );
 
-  try { persist(); } catch {}
+  await persistIfNeeded();
 
   return {
     id: lastInsertRowid,
@@ -506,17 +506,17 @@ async function generateDocument({ therapistId, patientId, templateId, options = 
 
 // ─── CRUD ────────────────────────────────────────────────────────────────────
 
-function listDocumentsForTherapist(therapistId, { patientId, limit = 50 } = {}) {
-  const db = getDb();
+async function listDocumentsForTherapist(therapistId, { patientId, limit = 50 } = {}) {
+  const db = getAsyncDb();
   const rows = patientId
-    ? db.all(
+    ? await db.all(
         `SELECT id, template_id, template_name, title, status, finalized_at, created_at, updated_at
          FROM generated_documents
          WHERE therapist_id = ? AND patient_id = ?
          ORDER BY created_at DESC LIMIT ?`,
         therapistId, patientId, limit
       )
-    : db.all(
+    : await db.all(
         `SELECT id, patient_id, template_id, template_name, title, status, finalized_at, created_at, updated_at
          FROM generated_documents
          WHERE therapist_id = ?
@@ -526,17 +526,17 @@ function listDocumentsForTherapist(therapistId, { patientId, limit = 50 } = {}) 
   return rows;
 }
 
-function getDocument(therapistId, documentId) {
-  const db = getDb();
+async function getDocument(therapistId, documentId) {
+  const db = getAsyncDb();
   return db.get(
     `SELECT * FROM generated_documents WHERE id = ? AND therapist_id = ?`,
     documentId, therapistId
   );
 }
 
-function updateDocument(therapistId, documentId, { content, title, status }) {
-  const db = getDb();
-  const existing = getDocument(therapistId, documentId);
+async function updateDocument(therapistId, documentId, { content, title, status }) {
+  const db = getAsyncDb();
+  const existing = await getDocument(therapistId, documentId);
   if (!existing) throw new Error('Document not found');
 
   const fields = [];
@@ -555,23 +555,23 @@ function updateDocument(therapistId, documentId, { content, title, status }) {
   args.push(new Date().toISOString());
   args.push(documentId, therapistId);
 
-  db.run(
+  await db.run(
     `UPDATE generated_documents SET ${fields.join(', ')} WHERE id = ? AND therapist_id = ?`,
     ...args
   );
-  try { persist(); } catch {}
+  await persistIfNeeded();
   return getDocument(therapistId, documentId);
 }
 
-function deleteDocument(therapistId, documentId) {
-  const db = getDb();
-  const existing = getDocument(therapistId, documentId);
+async function deleteDocument(therapistId, documentId) {
+  const db = getAsyncDb();
+  const existing = await getDocument(therapistId, documentId);
   if (!existing) return false;
-  db.run(
+  await db.run(
     `DELETE FROM generated_documents WHERE id = ? AND therapist_id = ?`,
     documentId, therapistId
   );
-  try { persist(); } catch {}
+  await persistIfNeeded();
   return true;
 }
 

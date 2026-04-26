@@ -13,7 +13,7 @@
  * Runs at 6am local time per therapist (same cron as research briefs).
  */
 
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { clinicalReasoning } = require('../lib/aiExecutor');
 const { sendMail } = require('./mailer');
 
@@ -34,8 +34,8 @@ function getLocalDateString(tz) {
  * Compute briefing data for one therapist.
  * Returns { markdown, stats } or null if nothing worth reporting.
  */
-function computeTodaysBriefing(db, therapistId) {
-  const therapist = db.get(
+async function computeTodaysBriefing(db, therapistId) {
+  const therapist = await db.get(
     'SELECT id, first_name, full_name, preferred_timezone FROM therapists WHERE id = ?',
     therapistId
   );
@@ -46,8 +46,8 @@ function computeTodaysBriefing(db, therapistId) {
 
   // Helper: query that degrades to empty array on any SQL/schema error.
   // Ensures one bad query can't kill the whole briefing.
-  const safeAll = (label, fn) => {
-    try { return fn() || []; }
+  const safeAll = async (label, fn) => {
+    try { return await fn() || []; }
     catch (err) {
       console.error(`[daily-briefing] ${label} query failed:`, err.message);
       return [];
@@ -55,7 +55,7 @@ function computeTodaysBriefing(db, therapistId) {
   };
 
   // Today's scheduled appointments
-  const todayAppts = safeAll('todayAppts', () => db.all(
+  const todayAppts = await safeAll('todayAppts', () => db.all(
     `SELECT a.id, a.scheduled_start, a.scheduled_end, a.appointment_type,
             a.duration_minutes, a.status,
             p.id AS patient_id, p.client_id, p.display_name, p.client_display_name
@@ -69,13 +69,13 @@ function computeTodaysBriefing(db, therapistId) {
   ));
 
   // Active clients
-  const activeClients = safeAll('activeClients', () => db.all(
+  const activeClients = await safeAll('activeClients', () => db.all(
     `SELECT id, client_id, display_name FROM patients WHERE therapist_id = ?`,
     therapistId
   ));
 
   // Open (undismissed) alerts — prioritize CRITICAL/WARNING
-  const openAlerts = safeAll('openAlerts', () => db.all(
+  const openAlerts = await safeAll('openAlerts', () => db.all(
     `SELECT pa.id, pa.type, pa.severity, pa.title, pa.description, pa.patient_id,
             pa.created_at, p.client_id, p.display_name
        FROM progress_alerts pa
@@ -91,7 +91,7 @@ function computeTodaysBriefing(db, therapistId) {
   ));
 
   // Overnight completions: assessments submitted in last 14 hours
-  const overnight = safeAll('overnight', () => db.all(
+  const overnight = await safeAll('overnight', () => db.all(
     `SELECT a.id, a.template_type, a.total_score, a.severity_level,
             a.is_improvement, a.is_deterioration, a.administered_at,
             p.client_id, p.display_name
@@ -105,9 +105,9 @@ function computeTodaysBriefing(db, therapistId) {
   ));
 
   // Unsigned sessions — things that need the therapist's attention
-  const unsignedCount = (() => {
+  const unsignedCount = await (async () => {
     try {
-      const row = db.get(
+      const row = await db.get(
         `SELECT COUNT(*) AS c FROM sessions
           WHERE therapist_id = ? AND signed_at IS NULL
             AND (subjective IS NOT NULL OR assessment IS NOT NULL OR plan IS NOT NULL)`,
@@ -119,9 +119,9 @@ function computeTodaysBriefing(db, therapistId) {
 
   // Pre-session briefs ready for today's appointments
   const briefCount = todayAppts.length > 0
-    ? (() => {
+    ? await (async () => {
         try {
-          const row = db.get(
+          const row = await db.get(
             `SELECT COUNT(*) AS c FROM session_briefs sb
               WHERE sb.appointment_id IN (${todayAppts.map(() => '?').join(',') || 'NULL'})`,
             ...todayAppts.map(a => a.id)
@@ -213,10 +213,10 @@ function computeTodaysBriefing(db, therapistId) {
  *
  * Returns a lean array suitable for both the narrative prompt and the UI.
  */
-function computeCaseloadStatus(db, therapistId) {
-  const patients = (() => {
+async function computeCaseloadStatus(db, therapistId) {
+  const patients = await (async () => {
     try {
-      return db.all(
+      return await db.all(
         `SELECT id, client_id, display_name, created_at, risk_screening
          FROM patients
          WHERE therapist_id = ?
@@ -226,7 +226,7 @@ function computeCaseloadStatus(db, therapistId) {
     } catch {
       // If archived_at column doesn't exist, fall back without that filter.
       try {
-        return db.all(
+        return await db.all(
           `SELECT id, client_id, display_name, created_at, risk_screening
            FROM patients WHERE therapist_id = ?`,
           therapistId
@@ -247,7 +247,7 @@ function computeCaseloadStatus(db, therapistId) {
     // Most recent session
     let lastSession = null;
     try {
-      lastSession = db.get(
+      lastSession = await db.get(
         `SELECT session_date FROM sessions
          WHERE patient_id = ? AND therapist_id = ? AND signed_at IS NOT NULL
          ORDER BY session_date DESC LIMIT 1`,
@@ -258,7 +258,7 @@ function computeCaseloadStatus(db, therapistId) {
     // Session count
     let sessionCount = 0;
     try {
-      const r = db.get(
+      const r = await db.get(
         `SELECT COUNT(*) AS c FROM sessions
          WHERE patient_id = ? AND therapist_id = ?`,
         p.id, therapistId
@@ -269,7 +269,7 @@ function computeCaseloadStatus(db, therapistId) {
     // Last 2 assessments (any type) — look for worsening
     let latestAssessments = [];
     try {
-      latestAssessments = db.all(
+      latestAssessments = await db.all(
         `SELECT template_type, total_score, severity_level,
                 is_improvement, is_deterioration, administered_at
          FROM assessments
@@ -282,7 +282,7 @@ function computeCaseloadStatus(db, therapistId) {
     // Last check-in
     let lastCheckin = null;
     try {
-      lastCheckin = db.get(
+      lastCheckin = await db.get(
         `SELECT mood_score, mood_notes, completed_at FROM checkin_links
          WHERE patient_id = ? AND therapist_id = ? AND completed_at IS NOT NULL
          ORDER BY completed_at DESC LIMIT 1`,
@@ -293,7 +293,7 @@ function computeCaseloadStatus(db, therapistId) {
     // Open critical/warning alerts
     let openAlertCount = 0;
     try {
-      const r = db.get(
+      const r = await db.get(
         `SELECT COUNT(*) AS c FROM progress_alerts
          WHERE patient_id = ? AND therapist_id = ?
            AND dismissed_at IS NULL
@@ -596,9 +596,9 @@ async function sendMorningEmail({ therapist, narrative, stats, caseload, dayStr,
  */
 async function generateDailyBriefing(therapistId, { sendEmail = false, force = false } = {}) {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
 
-    const therapist = db.get(
+    const therapist = await db.get(
       `SELECT id, first_name, full_name, email, preferred_timezone
        FROM therapists WHERE id = ?`,
       therapistId
@@ -609,7 +609,7 @@ async function generateDailyBriefing(therapistId, { sendEmail = false, force = f
 
     // Skip if already generated today (by local date), unless forced
     if (!force) {
-      const existing = db.get(
+      const existing = await db.get(
         `SELECT id FROM daily_briefings
           WHERE therapist_id = ? AND local_date = ?`,
         therapistId, todayLocal
@@ -617,13 +617,13 @@ async function generateDailyBriefing(therapistId, { sendEmail = false, force = f
       if (existing) return { id: existing.id, skipped: true };
     }
 
-    const computed = computeTodaysBriefing(db, therapistId);
+    const computed = await computeTodaysBriefing(db, therapistId);
     if (!computed) return null;
 
     // ── Caseload status synthesis (fast, no AI) ──
     let caseload = [];
     try {
-      caseload = computeCaseloadStatus(db, therapistId);
+      caseload = await computeCaseloadStatus(db, therapistId);
     } catch (err) {
       console.warn('[daily-briefing] caseload status failed:', err.message);
     }
@@ -637,9 +637,9 @@ async function generateDailyBriefing(therapistId, { sendEmail = false, force = f
     // Re-fetch today's appointments + overnight for narrative context.
     // computeTodaysBriefing has already queried these but doesn't return them
     // in structured form. Pull fresh — cheap with indexes.
-    const todayAppts = (() => {
+    const todayAppts = await (async () => {
       try {
-        return db.all(
+        return await db.all(
           `SELECT a.id, a.scheduled_start, a.appointment_type,
                   p.id AS patient_id, p.client_id, p.display_name
            FROM appointments a
@@ -652,9 +652,9 @@ async function generateDailyBriefing(therapistId, { sendEmail = false, force = f
       } catch { return []; }
     })();
 
-    const overnight = (() => {
+    const overnight = await (async () => {
       try {
-        return db.all(
+        return await db.all(
           `SELECT a.template_type, a.total_score, a.severity_level,
                   p.client_id, p.display_name
            FROM assessments a JOIN patients p ON p.id = a.patient_id
@@ -676,12 +676,12 @@ async function generateDailyBriefing(therapistId, { sendEmail = false, force = f
     let briefingId;
     if (force) {
       // Upsert
-      const existing = db.get(
+      const existing = await db.get(
         `SELECT id FROM daily_briefings WHERE therapist_id = ? AND local_date = ?`,
         therapistId, todayLocal
       );
       if (existing) {
-        db.run(
+        await db.run(
           `UPDATE daily_briefings
            SET markdown = ?, stats_json = ?, narrative = ?, caseload_json = ?
            WHERE id = ?`,
@@ -691,7 +691,7 @@ async function generateDailyBriefing(therapistId, { sendEmail = false, force = f
         );
         briefingId = existing.id;
       } else {
-        const insert = db.insert(
+        const insert = await db.insert(
           `INSERT INTO daily_briefings
              (therapist_id, local_date, markdown, stats_json, narrative, caseload_json)
            VALUES (?, ?, ?, ?, ?, ?)`,
@@ -702,7 +702,7 @@ async function generateDailyBriefing(therapistId, { sendEmail = false, force = f
         briefingId = insert.lastInsertRowid;
       }
     } else {
-      const insert = db.insert(
+      const insert = await db.insert(
         `INSERT INTO daily_briefings
            (therapist_id, local_date, markdown, stats_json, narrative, caseload_json)
          VALUES (?, ?, ?, ?, ?, ?)`,
@@ -722,7 +722,7 @@ async function generateDailyBriefing(therapistId, { sendEmail = false, force = f
       });
       if (emailResult?.sent) {
         try {
-          db.run(
+          await db.run(
             `UPDATE daily_briefings SET emailed_at = ? WHERE id = ?`,
             new Date().toISOString(), briefingId
           );
@@ -730,7 +730,7 @@ async function generateDailyBriefing(therapistId, { sendEmail = false, force = f
       }
     }
 
-    try { persist(); } catch {}
+    await persistIfNeeded();
 
     return {
       id: briefingId,
@@ -752,8 +752,8 @@ async function generateDailyBriefing(therapistId, { sendEmail = false, force = f
  */
 async function runMorningBriefings() {
   try {
-    const db = getDb();
-    const therapists = db.all(
+    const db = getAsyncDb();
+    const therapists = await db.all(
       `SELECT id, preferred_timezone FROM therapists
         WHERE account_status = 'active'`
     );

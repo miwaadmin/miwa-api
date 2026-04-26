@@ -15,7 +15,7 @@
  *     recent clinical news, guidelines, and articles not yet in PubMed)
  */
 
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { MODELS, callAI, synthesizeResearch } = require('../lib/aiExecutor');
 
 // ── PubMed helpers ────────────────────────────────────────────────────────────
@@ -191,7 +191,7 @@ async function deepSearchBrave(topic, baseDelay = 0) {
 
 // ── Topic detection from caseload ─────────────────────────────────────────────
 
-function buildCaseloadTopics(db, therapistId) {
+async function buildCaseloadTopics(db, therapistId) {
   const topics = new Set();
 
   // Core weekly topics — always included
@@ -201,14 +201,14 @@ function buildCaseloadTopics(db, therapistId) {
   // Pull patient presenting concerns + client type
   let patients;
   try {
-    patients = db.all(
+    patients = await db.all(
       `SELECT presenting_concerns, client_type FROM patients
        WHERE therapist_id = ? AND (status IS NULL OR status != 'inactive')`,
       therapistId
     );
   } catch {
     // Fallback if status column doesn't exist
-    patients = db.all(
+    patients = await db.all(
       `SELECT presenting_concerns, client_type FROM patients WHERE therapist_id = ?`,
       therapistId
     );
@@ -251,7 +251,7 @@ function buildCaseloadTopics(db, therapistId) {
   // Check recent unread alerts — add crisis-specific topics
   let alerts = [];
   try {
-    alerts = db.all(
+    alerts = await db.all(
       `SELECT alert_type, description FROM proactive_alerts
        WHERE therapist_id = ? AND dismissed_at IS NULL
        AND created_at > datetime('now', '-7 days')`,
@@ -480,9 +480,9 @@ async function sendBriefEmail(therapist, title, content, articles) {
 async function generateBriefForTherapist(therapistId, briefType = 'daily') {
   console.log(`[researcher] === Starting brief generation for therapist_id=${therapistId} type=${briefType} ===`);
 
-  const db = getDb();
+  const db = getAsyncDb();
 
-  const therapist = db.get(
+  const therapist = await db.get(
     'SELECT id, email, full_name, first_name FROM therapists WHERE id = ?',
     therapistId
   );
@@ -495,13 +495,13 @@ async function generateBriefForTherapist(therapistId, briefType = 'daily') {
   console.log(`[researcher] Therapist: ${therapistName} (${therapist.email})`);
 
   // Detect caseload-relevant topics
-  const topics = buildCaseloadTopics(db, therapistId);
+  const topics = await buildCaseloadTopics(db, therapistId);
   console.log(`[researcher] Topics (${topics.length}):`, topics);
 
   // ── Get previously used article URLs/PMIDs to avoid repeats ─────────────
   const previousArticles = new Set();
   try {
-    const recentBriefs = db.all(
+    const recentBriefs = await db.all(
       "SELECT articles_json FROM research_briefs WHERE therapist_id = ? AND created_at > datetime('now', '-14 days')",
       therapistId
     );
@@ -591,7 +591,7 @@ async function generateBriefForTherapist(therapistId, briefType = 'daily') {
     : `Daily Research Brief — ${dateStr}`;
 
   // Store in DB
-  db.insert(
+  await db.insert(
     `INSERT INTO research_briefs (therapist_id, brief_type, title, content, articles_json, topics_json)
      VALUES (?, ?, ?, ?, ?, ?)`,
     therapistId, briefType, title, content,
@@ -601,14 +601,14 @@ async function generateBriefForTherapist(therapistId, briefType = 'daily') {
   // Send email
   const emailed = await sendBriefEmail(therapist, title, content, uniqueArticles);
 
-  db.run(
+  await db.run(
     `UPDATE research_briefs SET sent_email = ? WHERE id = (
        SELECT id FROM research_briefs WHERE therapist_id = ? ORDER BY created_at DESC LIMIT 1
      )`,
     emailed ? 1 : 0, therapistId
   );
 
-  persist();
+  await persistIfNeeded();
 
   console.log(`[researcher] Brief generated for therapist_id=${therapistId} type=${briefType} emailed=${emailed}`);
 }
@@ -618,8 +618,8 @@ async function generateBriefForTherapist(therapistId, briefType = 'daily') {
  * Called by scheduler every day at 6am per therapist timezone.
  */
 async function runDailyBriefs() {
-  const db = getDb();
-  const therapists = db.all('SELECT DISTINCT therapist_id FROM patients');
+  const db = getAsyncDb();
+  const therapists = await db.all('SELECT DISTINCT therapist_id FROM patients');
 
   console.log(`[researcher] Starting weekly briefs for ${therapists.length} therapist(s)`);
 
@@ -639,8 +639,8 @@ async function runDailyBriefs() {
  */
 async function triggerCrisisBrief(therapistId) {
   // Debounce: only generate crisis brief once per 24 hours per therapist
-  const db = getDb();
-  const recent = db.get(
+  const db = getAsyncDb();
+  const recent = await db.get(
     `SELECT id FROM research_briefs
      WHERE therapist_id = ? AND brief_type = 'crisis'
      AND created_at > datetime('now', '-24 hours')`,

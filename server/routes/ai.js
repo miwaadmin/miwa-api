@@ -1548,10 +1548,10 @@ router.post('/enrich-session', async (req, res) => {
  * GET /api/ai/enrichments/:sessionId
  * Fetch all enrichments for a session note
  */
-router.get('/enrichments/:sessionId', (req, res) => {
+router.get('/enrichments/:sessionId', async (req, res) => {
   try {
     const { getEnrichments } = require('../services/note-enrichment');
-    const enrichments = getEnrichments(parseInt(req.params.sessionId), req.therapist.id);
+    const enrichments = await getEnrichments(parseInt(req.params.sessionId), req.therapist.id);
     res.json(enrichments);
   } catch (err) {
     sendRouteError(res, err);
@@ -1562,10 +1562,10 @@ router.get('/enrichments/:sessionId', (req, res) => {
  * POST /api/ai/enrichments/:id/accept
  * Mark an enrichment suggestion as accepted (for preference learning)
  */
-router.post('/enrichments/:id/accept', (req, res) => {
+router.post('/enrichments/:id/accept', async (req, res) => {
   try {
     const { acceptEnrichment } = require('../services/note-enrichment');
-    acceptEnrichment(parseInt(req.params.id), req.therapist.id);
+    await acceptEnrichment(parseInt(req.params.id), req.therapist.id);
     res.json({ ok: true });
   } catch (err) {
     sendRouteError(res, err);
@@ -1576,10 +1576,10 @@ router.post('/enrichments/:id/accept', (req, res) => {
  * POST /api/ai/enrichments/:id/dismiss
  * Mark an enrichment suggestion as dismissed
  */
-router.post('/enrichments/:id/dismiss', (req, res) => {
+router.post('/enrichments/:id/dismiss', async (req, res) => {
   try {
     const { dismissEnrichment } = require('../services/note-enrichment');
-    dismissEnrichment(parseInt(req.params.id), req.therapist.id);
+    await dismissEnrichment(parseInt(req.params.id), req.therapist.id);
     res.json({ ok: true });
   } catch (err) {
     sendRouteError(res, err);
@@ -1594,11 +1594,11 @@ router.post('/enrichments/:id/dismiss', (req, res) => {
  * GET /api/ai/briefs/upcoming
  * Get all pre-session briefs for today's upcoming appointments
  */
-router.get('/briefs/upcoming', (req, res) => {
+router.get('/briefs/upcoming', async (req, res) => {
   try {
     const { getUpcomingBriefs } = require('../services/brief-generator');
     // getUpcomingBriefs already returns parsed summary rows — pass them through.
-    const briefs = getUpcomingBriefs(req.therapist.id);
+    const briefs = await getUpcomingBriefs(req.therapist.id);
     res.json(briefs);
   } catch (err) {
     sendRouteError(res, err);
@@ -1610,10 +1610,10 @@ router.get('/briefs/upcoming', (req, res) => {
  * Get a specific brief and mark as viewed.
  * `getBrief` already parses `brief_json` and returns it under `brief`.
  */
-router.get('/briefs/:id', (req, res) => {
+router.get('/briefs/:id', async (req, res) => {
   try {
     const { getBrief } = require('../services/brief-generator');
-    const row = getBrief(parseInt(req.params.id), req.therapist.id);
+    const row = await getBrief(parseInt(req.params.id), req.therapist.id);
     if (!row) return res.status(404).json({ error: 'Brief not found' });
     res.json({
       id: row.id,
@@ -1633,12 +1633,12 @@ router.get('/briefs/:id', (req, res) => {
  * Fetch the brief for a specific appointment (if any). Used by PatientDetail
  * to surface a brief when an appointment is imminent.
  */
-router.get('/briefs/by-appointment/:appointmentId', (req, res) => {
+router.get('/briefs/by-appointment/:appointmentId', async (req, res) => {
   try {
-    const { getDb } = require('../db');
-    const db = getDb();
+    const { getAsyncDb } = require('../db/asyncDb');
+    const db = getAsyncDb();
     const appointmentId = parseInt(req.params.appointmentId);
-    const row = db.get(
+    const row = await db.get(
       `SELECT id FROM session_briefs
        WHERE appointment_id = ? AND therapist_id = ?
        ORDER BY created_at DESC LIMIT 1`,
@@ -1647,7 +1647,7 @@ router.get('/briefs/by-appointment/:appointmentId', (req, res) => {
     if (!row) return res.json({ brief: null });
 
     const { getBrief } = require('../services/brief-generator');
-    const full = getBrief(row.id, req.therapist.id);
+    const full = await getBrief(row.id, req.therapist.id);
     res.json({
       id: full.id,
       appointment_id: full.appointment_id,
@@ -1688,9 +1688,9 @@ router.post('/briefs/regenerate/:appointmentId', async (req, res) => {
 router.post('/briefs/generate/:appointmentId', async (req, res) => {
   try {
     const appointmentId = parseInt(req.params.appointmentId);
-    const { getDb } = require('../db');
-    const db = getDb();
-    const existing = db.get(
+    const { getAsyncDb } = require('../db/asyncDb');
+    const db = getAsyncDb();
+    const existing = await db.get(
       `SELECT id FROM session_briefs
        WHERE appointment_id = ? AND therapist_id = ?
        ORDER BY created_at DESC LIMIT 1`,
@@ -1698,7 +1698,7 @@ router.post('/briefs/generate/:appointmentId', async (req, res) => {
     );
     if (existing) {
       const { getBrief } = require('../services/brief-generator');
-      const full = getBrief(existing.id, req.therapist.id);
+      const full = await getBrief(existing.id, req.therapist.id);
       return res.json({ id: full.id, brief: full.brief, generated: false });
     }
     const { generateBrief } = require('../services/brief-generator');
@@ -1818,10 +1818,10 @@ router.post('/letters/generate', async (req, res) => {
  * List generated documents for this therapist.
  * Optional ?patient_id=N to scope to a patient.
  */
-router.get('/letters', (req, res) => {
+router.get('/letters', async (req, res) => {
   try {
     const { listDocumentsForTherapist } = require('../services/document-generator');
-    const docs = listDocumentsForTherapist(req.therapist.id, {
+    const docs = await listDocumentsForTherapist(req.therapist.id, {
       patientId: req.query.patient_id ? parseInt(req.query.patient_id) : undefined,
     });
     res.json({ documents: docs });
@@ -1834,10 +1834,10 @@ router.get('/letters', (req, res) => {
  * GET /api/ai/letters/:id
  * Fetch one generated document (owner-only).
  */
-router.get('/letters/:id', (req, res) => {
+router.get('/letters/:id', async (req, res) => {
   try {
     const { getDocument } = require('../services/document-generator');
-    const doc = getDocument(req.therapist.id, parseInt(req.params.id));
+    const doc = await getDocument(req.therapist.id, parseInt(req.params.id));
     if (!doc) return res.status(404).json({ error: 'Document not found' });
     res.json(doc);
   } catch (err) {
@@ -1849,10 +1849,10 @@ router.get('/letters/:id', (req, res) => {
  * PUT /api/ai/letters/:id
  * Body: { content?, title?, status? }  — edit the draft, or finalize it.
  */
-router.put('/letters/:id', (req, res) => {
+router.put('/letters/:id', async (req, res) => {
   try {
     const { updateDocument } = require('../services/document-generator');
-    const doc = updateDocument(req.therapist.id, parseInt(req.params.id), req.body || {});
+    const doc = await updateDocument(req.therapist.id, parseInt(req.params.id), req.body || {});
     res.json(doc);
   } catch (err) {
     sendRouteError(res, err);
@@ -1862,10 +1862,10 @@ router.put('/letters/:id', (req, res) => {
 /**
  * DELETE /api/ai/letters/:id
  */
-router.delete('/letters/:id', (req, res) => {
+router.delete('/letters/:id', async (req, res) => {
   try {
     const { deleteDocument } = require('../services/document-generator');
-    const ok = deleteDocument(req.therapist.id, parseInt(req.params.id));
+    const ok = await deleteDocument(req.therapist.id, parseInt(req.params.id));
     if (!ok) return res.status(404).json({ error: 'Document not found' });
     res.json({ deleted: true });
   } catch (err) {
