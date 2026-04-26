@@ -1,5 +1,5 @@
 const { Pool } = require('pg');
-const { getDb, persist } = require('../db');
+const { getDb, initDb, persist } = require('../db');
 const { createPostgresAdapter } = require('./postgresAdapter');
 
 let pgPool;
@@ -33,6 +33,14 @@ function getAsyncDb() {
   return pgAdapter;
 }
 
+async function initAsyncDb() {
+  if (!wantsPostgres()) return initDb();
+
+  const db = getAsyncDb();
+  await db.get('SELECT 1 AS ok');
+  return db;
+}
+
 async function persistIfNeeded(options) {
   if (wantsPostgres()) return;
   persist(options);
@@ -49,6 +57,7 @@ async function closeAsyncDb() {
 module.exports = {
   closeAsyncDb,
   getAsyncDb,
+  initAsyncDb,
   persistIfNeeded,
   wantsPostgres,
 };

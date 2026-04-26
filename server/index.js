@@ -10,8 +10,7 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { initDb } = require('./db');
-const { getAsyncDb, persistIfNeeded } = require('./db/asyncDb');
+const { getAsyncDb, initAsyncDb, persistIfNeeded } = require('./db/asyncDb');
 const requireAuth = require('./middleware/auth');
 const { phiAuditLog } = require('./middleware/auditLog');
 
@@ -378,7 +377,7 @@ if (fs.existsSync(CLIENT_DIST)) {
 // isolated DB path. The schedulers + task worker also stay off in tests
 // so cron jobs don't interfere with assertions.
 if (require.main === module) {
-  initDb().then(() => {
+  initAsyncDb().then(() => {
     try {
       const { startScheduler } = require('./services/scheduler');
       startScheduler();
@@ -398,4 +397,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, initDb };
+module.exports = { app, initDb: initAsyncDb };
