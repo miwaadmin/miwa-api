@@ -35,6 +35,15 @@ const CAPACITOR_ORIGINS = ['capacitor://localhost', 'ionic://localhost', 'http:/
 const allowedOrigins = [...new Set([CORS_ORIGIN, APP_BASE_URL, ...EXTRA_CORS_ORIGINS, ...CAPACITOR_ORIGINS].filter(Boolean))];
 const CLIENT_DIST = path.join(__dirname, 'client', 'dist');
 
+function healthPayload() {
+  return {
+    status: 'ok',
+    service: 'miwa-api',
+    environment: process.env.NODE_ENV || 'unknown',
+    time: new Date().toISOString(),
+  };
+}
+
 // ── Security headers ─────────────────────────────────────────────────────────
 app.use(helmet({
   // Allow inline scripts/styles needed by Vite-built React app.
@@ -122,7 +131,9 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/public', publicLimiter, require('./routes/public')); // client-facing assessment links
 app.use('/api/public', require('./routes/public-lethality')); // anonymous LAP-MD submit (has its own rate limiter)
 app.use('/api/public', publicLimiter, require('./routes/public-network')); // public professional directory
-app.get('/api/health', (req, res) => res.json({ status: 'ok', timestamp: new Date().toISOString() }));
+app.get('/', (req, res) => res.json({ service: 'miwa-api', status: 'running' }));
+app.get('/health', (req, res) => res.json(healthPayload()));
+app.get('/api/health', (req, res) => res.json(healthPayload()));
 
 // ── Billing routes (JSON-parsed; requireAuth is applied inside the router) ───
 app.use('/api/billing', require('./routes/billing'));

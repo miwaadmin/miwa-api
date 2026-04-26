@@ -8,8 +8,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js",
-    "test": "node --test tests/scrubber.test.js tests/assistant.test.js tests/aiClient.test.js tests/smoke/auth.test.js tests/smoke/patients.test.js tests/smoke/stats.test.js tests/smoke/backup.test.js tests/smoke/db-safety.test.js tests/smoke/feedback.test.js tests/smoke/demo.test.js",
-    "test:smoke": "node --test tests/smoke/auth.test.js tests/smoke/patients.test.js tests/smoke/stats.test.js tests/smoke/backup.test.js tests/smoke/db-safety.test.js tests/smoke/feedback.test.js tests/smoke/demo.test.js"
+    "test": "node --test tests/scrubber.test.js tests/assistant.test.js tests/aiClient.test.js tests/smoke/health.test.js tests/smoke/auth.test.js tests/smoke/patients.test.js tests/smoke/stats.test.js tests/smoke/backup.test.js tests/smoke/db-safety.test.js tests/smoke/feedback.test.js tests/smoke/demo.test.js",
+    "test:smoke": "node --test tests/smoke/health.test.js tests/smoke/auth.test.js tests/smoke/patients.test.js tests/smoke/stats.test.js tests/smoke/backup.test.js tests/smoke/db-safety.test.js tests/smoke/feedback.test.js tests/smoke/demo.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
