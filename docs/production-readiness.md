@@ -33,6 +33,10 @@ This is the near-term bar before inviting real clinicians to store PHI in Miwa.
 
 ## Launch Gate
 
+Admins can call `/api/admin/readiness` for a non-secret launch checklist. The
+endpoint intentionally reports only pass/warn/fail metadata and never returns
+connection strings, API keys, or secret values.
+
 Miwa is good enough for a small private beta when:
 
 - Login, registration, password reset, and email verification work on Azure.

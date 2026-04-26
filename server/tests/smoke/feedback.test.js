@@ -93,6 +93,25 @@ test('feedback flow', async (t) => {
     assert.equal(JSON.stringify(r.body).includes('postgres://'), false);
   });
 
+  await t.test('GET /api/admin/readiness reports launch blockers without secrets', async () => {
+    const r = await api('GET', '/api/admin/readiness', null, adminCookie);
+    assert.equal(r.status, 200);
+    assert.equal(r.body.service, 'miwa-api');
+    assert.equal(r.body.ok, false);
+    assert.ok(Array.isArray(r.body.checks));
+    assert.ok(r.body.summary.fail >= 1);
+
+    const runtime = r.body.checks.find(c => c.id === 'database_runtime');
+    assert.ok(runtime);
+    assert.equal(runtime.status, 'fail');
+    assert.match(runtime.detail, /SQLite-style storage/);
+
+    const body = JSON.stringify(r.body);
+    assert.equal(body.includes(process.env.JWT_SECRET), false);
+    assert.equal(body.includes(process.env.BACKUP_PASSPHRASE), false);
+    assert.equal(body.includes('postgres://'), false);
+  });
+
   await t.test('PATCH /api/admin/feedback/:id resolves + emails + drops in-app chat message', async () => {
     const r = await api('PATCH', `/api/admin/feedback/${createdId}`, {
       status: 'resolved',

@@ -20,6 +20,116 @@ function sanitizePostgresError(err) {
   };
 }
 
+function hasEnv(name) {
+  return !!String(process.env[name] || '').trim();
+}
+
+function check(id, label, status, detail) {
+  return { id, label, status, detail };
+}
+
+function buildReadinessChecks() {
+  const dbProvider = String(process.env.DB_PROVIDER || 'sqlite').toLowerCase();
+  const pgSslMode = String(process.env.PGSSLMODE || '').toLowerCase();
+  const jwtLength = String(process.env.JWT_SECRET || '').length;
+  const appUrl = process.env.APP_URL || process.env.APP_BASE_URL || '';
+
+  const checks = [
+    check(
+      'node_env',
+      'Node environment',
+      process.env.NODE_ENV === 'production' ? 'pass' : 'warn',
+      process.env.NODE_ENV === 'production'
+        ? 'Running in production mode'
+        : 'NODE_ENV is not production'
+    ),
+    check(
+      'jwt_secret',
+      'JWT signing secret',
+      jwtLength >= 32 ? 'pass' : 'fail',
+      jwtLength >= 32
+        ? 'JWT_SECRET is configured with sufficient length'
+        : 'JWT_SECRET must be configured and at least 32 characters'
+    ),
+    check(
+      'azure_openai',
+      'Azure OpenAI configuration',
+      hasEnv('AZURE_OPENAI_ENDPOINT') && hasEnv('AZURE_OPENAI_KEY') && hasEnv('AZURE_OPENAI_DEPLOYMENT') ? 'pass' : 'fail',
+      'Requires AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY, and AZURE_OPENAI_DEPLOYMENT'
+    ),
+    check(
+      'legacy_model_keys',
+      'Legacy non-BAA model keys',
+      !hasEnv('OPENAI_API_KEY') && !hasEnv('ANTHROPIC_API_KEY') ? 'pass' : 'warn',
+      !hasEnv('OPENAI_API_KEY') && !hasEnv('ANTHROPIC_API_KEY')
+        ? 'OPENAI_API_KEY and ANTHROPIC_API_KEY are not configured'
+        : 'OPENAI_API_KEY or ANTHROPIC_API_KEY is configured; verify no PHI routes can use it'
+    ),
+    check(
+      'database_url',
+      'Azure PostgreSQL connection string',
+      hasEnv('DATABASE_URL') ? 'pass' : 'fail',
+      hasEnv('DATABASE_URL')
+        ? 'DATABASE_URL is configured'
+        : 'DATABASE_URL is missing'
+    ),
+    check(
+      'postgres_ssl',
+      'PostgreSQL SSL mode',
+      pgSslMode === 'require' || String(process.env.DATABASE_URL || '').includes('sslmode=require') ? 'pass' : 'warn',
+      'Use PGSSLMODE=require or sslmode=require for Azure PostgreSQL'
+    ),
+    check(
+      'database_runtime',
+      'Runtime database provider',
+      dbProvider === 'postgres' || dbProvider === 'postgresql' ? 'pass' : 'fail',
+      dbProvider === 'postgres' || dbProvider === 'postgresql'
+        ? 'Runtime is configured for PostgreSQL'
+        : 'Runtime is still using SQLite-style storage; do not launch real PHI yet'
+    ),
+    check(
+      'backup_passphrase',
+      'Encrypted backup passphrase',
+      hasEnv('BACKUP_PASSPHRASE') ? 'pass' : 'fail',
+      hasEnv('BACKUP_PASSPHRASE')
+        ? 'BACKUP_PASSPHRASE is configured'
+        : 'BACKUP_PASSPHRASE is missing'
+    ),
+    check(
+      'app_url',
+      'Canonical app URL',
+      /^https:\/\/(www\.)?miwa\.care/i.test(appUrl) ? 'pass' : 'warn',
+      appUrl
+        ? 'APP_URL/APP_BASE_URL is configured'
+        : 'APP_URL or APP_BASE_URL should be set to https://miwa.care'
+    ),
+    check(
+      'file_storage',
+      'PHI file storage',
+      hasEnv('AZURE_STORAGE_CONNECTION_STRING') || hasEnv('AZURE_BLOB_CONNECTION_STRING') ? 'pass' : 'warn',
+      'Uploads and generated reports should move to private Azure Blob Storage before real launch'
+    ),
+  ];
+
+  return checks;
+}
+
+router.get('/readiness', (req, res) => {
+  const checks = buildReadinessChecks();
+  const summary = checks.reduce((acc, item) => {
+    acc[item.status] = (acc[item.status] || 0) + 1;
+    return acc;
+  }, { pass: 0, warn: 0, fail: 0 });
+
+  return res.json({
+    ok: summary.fail === 0,
+    service: 'miwa-api',
+    time: new Date().toISOString(),
+    summary,
+    checks,
+  });
+});
+
 router.get('/postgres/status', async (req, res) => {
   if (!process.env.DATABASE_URL) {
     return res.status(503).json({
