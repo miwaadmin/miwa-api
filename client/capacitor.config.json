@@ -1,0 +1,24 @@
+{
+  "appId": "app.miwacare",
+  "appName": "Miwa Care",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https",
+    "allowNavigation": ["miwa.care", "www.miwa.care", "api.miwa.care"]
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchShowDuration": 2500,
+      "launchFadeOutDuration": 500,
+      "backgroundColor": "#0d1117",
+      "androidSplashResourceName": "splash",
+      "showSpinner": false,
+      "splashImmersive": true,
+      "splashFullScreen": true
+    },
+    "StatusBar": {
+      "style": "Dark",
+      "backgroundColor": "#0d1117"
+    }
+  }
+}

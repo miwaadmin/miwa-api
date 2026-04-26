@@ -1,0 +1,27 @@
+{
+  "name": "Miwa Care",
+  "short_name": "Miwa",
+  "description": "AI-powered therapist copilot — schedule, assess, and support your caseload.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#0d1117",
+  "theme_color": "#6047EE",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ],
+  "screenshots": [],
+  "categories": ["medical", "productivity", "health"],
+  "lang": "en-US"
+}

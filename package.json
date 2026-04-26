@@ -1,15 +1,19 @@
 {
-  "name": "miwa-api",
+  "name": "mftbrain",
   "version": "1.0.0",
-  "private": true,
   "engines": {
     "node": "22.x"
   },
   "scripts": {
-    "start": "node server.js",
-    "dev": "node server.js",
-    "test": "node --test tests/scrubber.test.js tests/assistant.test.js tests/aiClient.test.js tests/smoke/health.test.js tests/smoke/auth.test.js tests/smoke/patients.test.js tests/smoke/stats.test.js tests/smoke/backup.test.js tests/smoke/db-safety.test.js tests/smoke/feedback.test.js tests/smoke/demo.test.js",
-    "test:smoke": "node --test tests/smoke/health.test.js tests/smoke/auth.test.js tests/smoke/patients.test.js tests/smoke/stats.test.js tests/smoke/backup.test.js tests/smoke/db-safety.test.js tests/smoke/feedback.test.js tests/smoke/demo.test.js"
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
+    "server": "node server/index.js",
+    "client": "cd client && npm run dev",
+    "build": "npm install --prefix client && npm run build --prefix client",
+    "start": "node server/index.js",
+    "install:all": "npm install && cd client && npm install",
+    "test": "node --test server/tests/scrubber.test.js server/tests/assistant.test.js server/tests/aiClient.test.js server/tests/smoke/auth.test.js server/tests/smoke/patients.test.js server/tests/smoke/stats.test.js server/tests/smoke/backup.test.js server/tests/smoke/db-safety.test.js server/tests/smoke/feedback.test.js server/tests/smoke/demo.test.js",
+    "test:smoke": "node --test server/tests/smoke/auth.test.js server/tests/smoke/patients.test.js server/tests/smoke/stats.test.js server/tests/smoke/backup.test.js server/tests/smoke/db-safety.test.js server/tests/smoke/feedback.test.js server/tests/smoke/demo.test.js",
+    "test:watch": "node --test --watch server/tests/scrubber.test.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",
@@ -31,5 +35,8 @@
     "sql.js": "^1.12.0",
     "stripe": "^21.0.1",
     "twilio": "^5.13.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
   }
 }

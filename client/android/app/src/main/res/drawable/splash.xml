@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Dark background matching Miwa brand -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#0d1117"
+                android:endColor="#1a1456"
+                android:angle="135"
+                android:type="linear" />
+        </shape>
+    </item>
+    <!-- Centered Miwa logo circle -->
+    <item
+        android:gravity="center"
+        android:width="120dp"
+        android:height="120dp">
+        <shape android:shape="oval">
+            <gradient
+                android:startColor="#6047EE"
+                android:endColor="#0ac5a2"
+                android:angle="135"
+                android:type="linear" />
+        </shape>
+    </item>
+    <!-- Inner white "M" circle -->
+    <item
+        android:gravity="center"
+        android:width="80dp"
+        android:height="80dp">
+        <shape android:shape="oval">
+            <solid android:color="#FFFFFF" />
+        </shape>
+    </item>
+    <!-- Gradient inner accent -->
+    <item
+        android:gravity="center"
+        android:width="60dp"
+        android:height="60dp">
+        <shape android:shape="oval">
+            <gradient
+                android:startColor="#6047EE"
+                android:endColor="#0ac5a2"
+                android:angle="135"
+                android:type="linear" />
+        </shape>
+    </item>
+</layer-list>

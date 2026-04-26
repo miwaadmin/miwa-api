@@ -1,17 +1,37 @@
+# Dependencies
 node_modules/
-.env
+client/node_modules/
 
+# Environment secrets
+.env
+server/.env
+client/.env
+client/android/keystore.properties
+client/android/*.keystore
+*.keystore
+
+# Database & uploads
 mftbrain.db
 mftbrain.db-shm
 mftbrain.db-wal
+server/mftbrain.db
+server/mftbrain.db-shm
+server/mftbrain.db-wal
+server/uploads/
+server/generated_reports/
+uploads/
+generated_reports/
 
-uploads/*
-!uploads/.gitkeep
-generated_reports/*
-!generated_reports/.gitkeep
+# Build output
+client/dist/
 
-npm-debug.log*
+# Logs and local-only deployment files
 logs/
 *.log
+railway.json
+.claude/
+Client-*.pdf
+
+# OS
 .DS_Store
 Thumbs.db

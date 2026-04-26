@@ -1,0 +1,199 @@
+/**
+ * Bootstrap — one-shot admin account creation when the database has no
+ * therapist rows (post-data-loss recovery, or fresh-environment setup).
+ *
+ * Hits the JWT_SECRET-gated /api/auth/_diag/create-admin endpoint so a
+ * locked-out operator can re-create their account without touching a
+ * terminal. The page is public but every submission requires the
+ * JWT_SECRET — non-operators can't do anything useful with it.
+ */
+import { useState } from 'react'
+import { useNavigate, Link } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { MiwaLogo } from '../components/Sidebar'
+
+const API = import.meta.env.VITE_API_URL ?? '/api'
+
+export default function Bootstrap() {
+  const navigate = useNavigate()
+  const { login } = useAuth()
+  const [form, setForm] = useState({
+    jwt_secret: '',
+    email: '',
+    password: '',
+    first_name: '',
+    last_name: '',
+  })
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const [created, setCreated] = useState(null)
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    setError('')
+    if (!form.jwt_secret) { setError('JWT_SECRET is required'); return }
+    if (!form.email || !form.password) { setError('Email and password are required'); return }
+    if (form.password.length < 8) { setError('Password must be at least 8 characters'); return }
+    setBusy(true)
+    try {
+      const res = await fetch(`${API}/auth/_diag/create-admin`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Miwa-Diag-Secret': form.jwt_secret,
+        },
+        body: JSON.stringify({
+          email: form.email.trim(),
+          password: form.password,
+          first_name: form.first_name.trim() || null,
+          last_name: form.last_name.trim() || null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        // 404 = JWT_SECRET wrong (endpoint hidden); show a helpful message
+        if (res.status === 404) {
+          throw new Error('JWT_SECRET does not match — copy it exactly from your Railway Variables.')
+        }
+        throw new Error(data.error || 'Account creation failed')
+      }
+      setCreated(data)
+
+      // Auto-log in by hitting /login with the same creds
+      const loginRes = await fetch(`${API}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: form.email.trim(), password: form.password }),
+      })
+      const loginData = await loginRes.json()
+      if (loginRes.ok) {
+        login(loginData.token, loginData.therapist)
+        setTimeout(() => navigate('/dashboard', { replace: true }), 800)
+      }
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (created) {
+    return (
+      <div className="public-page min-h-screen flex items-center justify-center p-4" style={{ background: '#f4f2ff' }}>
+        <div className="w-full max-w-md text-center">
+          <div className="flex justify-center mb-6"><Link to="/"><MiwaLogo size={56} /></Link></div>
+          <div className="rounded-2xl p-8 bg-white shadow-xl border border-gray-100">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-emerald-50 border-2 border-emerald-200">
+              <svg className="w-8 h-8 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Admin account created</h2>
+            <p className="text-gray-600 text-base mb-1">
+              <span className="font-medium text-indigo-600">{created.email}</span> &middot; admin &middot; verified
+            </p>
+            <p className="text-gray-500 text-sm mt-4">Signing you in&hellip;</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const inputCls = "w-full rounded-xl px-4 py-3 text-base bg-white border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 transition-colors"
+  const labelCls = "block text-sm font-semibold text-gray-700 mb-1.5"
+
+  return (
+    <div className="public-page min-h-screen flex items-center justify-center p-4 py-10" style={{ background: '#f4f2ff' }}>
+      <div className="relative w-full max-w-lg">
+        <div className="flex flex-col items-center mb-8">
+          <Link to="/"><MiwaLogo size={56} /></Link>
+          <h1 className="text-3xl font-extrabold text-gray-900 mt-4 tracking-tight">Bootstrap admin</h1>
+          <p className="text-gray-500 text-base mt-2 text-center">
+            One-shot recovery: create the first admin account when the database has no users.
+          </p>
+        </div>
+
+        <div className="rounded-2xl p-7 bg-white shadow-xl border border-gray-100">
+          <div className="rounded-xl px-4 py-3 text-sm bg-amber-50 border border-amber-200 text-amber-900 mb-5 leading-relaxed">
+            This page only works if your <code className="font-mono text-xs bg-white px-1 py-0.5 rounded border border-amber-200">JWT_SECRET</code> matches the one set on the server.
+            Copy it exactly from your Railway Variables tab.
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className={labelCls}>JWT_SECRET</label>
+              <input
+                type="password"
+                required
+                autoFocus
+                className={inputCls}
+                placeholder="Paste from Railway Variables"
+                value={form.jwt_secret}
+                onChange={e => set('jwt_secret', e.target.value)}
+              />
+            </div>
+
+            <hr className="border-gray-100 my-2" />
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className={labelCls}>First name</label>
+                <input className={inputCls} value={form.first_name} onChange={e => set('first_name', e.target.value)} />
+              </div>
+              <div>
+                <label className={labelCls}>Last name</label>
+                <input className={inputCls} value={form.last_name} onChange={e => set('last_name', e.target.value)} />
+              </div>
+            </div>
+
+            <div>
+              <label className={labelCls}>Email</label>
+              <input
+                type="email"
+                required
+                className={inputCls}
+                placeholder="you@example.com"
+                value={form.email}
+                onChange={e => set('email', e.target.value)}
+              />
+            </div>
+
+            <div>
+              <label className={labelCls}>Password</label>
+              <input
+                type="password"
+                required
+                minLength={8}
+                className={inputCls}
+                placeholder="At least 8 characters"
+                value={form.password}
+                onChange={e => set('password', e.target.value)}
+              />
+            </div>
+
+            {error && (
+              <div className="rounded-xl px-4 py-3 text-base text-red-700 bg-red-50 border border-red-200 font-medium">
+                {error}
+              </div>
+            )}
+
+            <button
+              type="submit"
+              disabled={busy}
+              className="w-full py-3.5 rounded-xl text-base font-bold text-white transition-all hover:opacity-90 disabled:opacity-50 mt-2"
+              style={{ background: 'linear-gradient(135deg, #5746ed, #0ac5a2)' }}
+            >
+              {busy ? 'Creating&hellip;' : 'Create admin account'}
+            </button>
+          </form>
+        </div>
+
+        <p className="text-center text-base text-gray-500 mt-6">
+          <Link to="/login" className="text-indigo-600 font-semibold hover:text-indigo-700">Back to sign in</Link>
+        </p>
+      </div>
+    </div>
+  )
+}

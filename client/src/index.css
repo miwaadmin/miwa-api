@@ -1,0 +1,664 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-family: 'Inter var', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    font-size: 15px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    letter-spacing: -0.01em;
+  }
+
+  body {
+    @apply bg-gray-50 text-gray-900;
+    line-height: 1.6;
+  }
+
+  h1 { font-size: 1.5rem; font-weight: 700; letter-spacing: -0.02em; }
+  h2 { font-size: 1.25rem; font-weight: 700; letter-spacing: -0.015em; }
+  h3 { font-size: 1.1rem; font-weight: 600; }
+  h4 { font-size: 1rem; font-weight: 600; }
+}
+
+@layer components {
+  /* Buttons */
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 text-white font-semibold rounded-xl hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed;
+    font-size: 0.9rem;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 bg-white text-gray-700 font-medium rounded-xl border border-gray-200 hover:bg-gray-50 hover:border-gray-300 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed;
+    font-size: 0.9rem;
+  }
+
+  .btn-danger {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white font-semibold rounded-xl hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all shadow-sm disabled:opacity-50 disabled:cursor-not-allowed;
+    font-size: 0.9rem;
+  }
+
+  /* Form controls */
+  .input {
+    @apply block w-full rounded-xl border border-gray-200 px-4 py-3 text-gray-900 placeholder-gray-400 bg-white focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-opacity-20 transition-colors shadow-sm;
+    font-size: 0.93rem;
+  }
+
+  .textarea {
+    @apply block w-full rounded-xl border border-gray-200 px-4 py-3 text-gray-900 placeholder-gray-400 bg-white focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-opacity-20 transition-colors resize-y shadow-sm;
+    font-size: 0.93rem;
+    line-height: 1.7;
+  }
+
+  .label {
+    @apply block font-semibold text-gray-700 mb-1.5;
+    font-size: 0.9rem;
+  }
+
+  /* Cards */
+  .card {
+    @apply bg-white rounded-2xl border border-gray-100/80 shadow-card;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(99,78,240,0.04);
+  }
+  .card:hover {
+    box-shadow: 0 4px 14px rgba(99,78,240,0.08), 0 1px 3px rgba(0,0,0,0.05);
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full font-semibold;
+    font-size: 0.75rem;
+  }
+
+  /* ── Clinical prose — shared across AI Analysis, Treatment Plan, Briefs,
+     Consult, Miwa chat, etc. Styled for scanability + clinical gravitas ── */
+  .prose-clinical {
+    @apply text-gray-700;
+    font-size: 0.93rem;
+    line-height: 1.7;
+  }
+
+  /* Headers with colored left accents so sections pop visually */
+  .prose-clinical .clinical-h1 {
+    @apply text-lg font-bold text-gray-900 mt-6 mb-3 pl-3 uppercase tracking-wide;
+    border-left: 4px solid #6047ee;
+    font-size: 0.95rem;
+    letter-spacing: 0.05em;
+  }
+  .prose-clinical .clinical-h2 {
+    @apply text-sm font-bold text-gray-900 mt-5 mb-2.5 pl-3 uppercase tracking-wide;
+    border-left: 3px solid #0ac5a2;
+    letter-spacing: 0.04em;
+  }
+  .prose-clinical .clinical-h3 {
+    @apply text-sm font-bold text-gray-900 mt-4 mb-2 pl-3;
+    border-left: 3px solid #8b5cf6;
+  }
+  .prose-clinical .clinical-h3 .clinical-h3-num {
+    @apply text-brand-500 font-bold mr-1;
+  }
+  .prose-clinical .clinical-h4 {
+    @apply text-xs font-bold text-gray-700 uppercase tracking-wider mt-3 mb-1.5;
+    letter-spacing: 0.06em;
+  }
+
+  /* Paragraphs */
+  .prose-clinical .clinical-p { @apply mb-3; }
+
+  /* Lists with accent bullets */
+  .prose-clinical .clinical-list {
+    @apply mb-3 space-y-1.5 ml-2;
+    list-style: none;
+    padding-left: 0;
+  }
+  .prose-clinical .clinical-list--bullet li {
+    @apply relative pl-5;
+    font-size: 0.93rem;
+  }
+  .prose-clinical .clinical-list--bullet li::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 0.68em;
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: #6047ee;
+  }
+  .prose-clinical .clinical-list--numbered li {
+    @apply pl-1;
+    font-size: 0.93rem;
+  }
+  .prose-clinical .clinical-num {
+    @apply font-semibold text-brand-500 mr-1;
+  }
+
+  /* Inline emphasis */
+  .prose-clinical .clinical-strong { @apply font-semibold text-gray-900; }
+  .prose-clinical .clinical-em { @apply italic text-gray-700; }
+
+  /* ICD-10 code pill */
+  .prose-clinical .clinical-icd {
+    @apply inline-block font-mono text-xs px-1.5 py-0.5 rounded;
+    background: linear-gradient(135deg, #eef2ff, #e0e7ff);
+    color: #4338ca;
+    border: 1px solid #c7d2fe;
+    font-weight: 600;
+  }
+
+  /* Assessment score pill */
+  .prose-clinical .clinical-score {
+    @apply inline-block text-xs px-2 py-0.5 rounded;
+    background: #ecfdf5;
+    color: #047857;
+    border: 1px solid #a7f3d0;
+    font-weight: 500;
+  }
+  .prose-clinical .clinical-score strong { @apply font-bold text-emerald-700; }
+  .prose-clinical .clinical-score-name {
+    @apply inline-block font-mono text-xs px-1.5 py-0.5 rounded;
+    background: #f0f9ff;
+    color: #0369a1;
+    border: 1px solid #bae6fd;
+    font-weight: 500;
+  }
+
+  /* Legacy fallback — bare markdown tags that may slip through */
+  .prose-clinical h1 { @apply text-lg font-bold text-gray-900 mt-5 mb-2; }
+  .prose-clinical h2 { @apply text-base font-semibold text-gray-900 mt-4 mb-2; }
+  .prose-clinical h3 { @apply text-sm font-semibold text-gray-800 mt-3 mb-1.5; }
+  .prose-clinical h4 { @apply font-semibold text-gray-700 mt-2 mb-1; font-size: 0.88rem; }
+  .prose-clinical p  { @apply mb-3; }
+  .prose-clinical ul { @apply list-disc list-inside mb-3 space-y-1.5; }
+  .prose-clinical ol { @apply list-decimal list-inside mb-3 space-y-1.5; }
+  .prose-clinical li { @apply text-gray-700; font-size: 0.93rem; }
+  .prose-clinical strong { @apply font-semibold text-gray-900; }
+  .prose-clinical code { @apply bg-gray-100 px-1.5 py-0.5 rounded font-mono; font-size: 0.8rem; }
+
+  /* ── prose-clinical-hero: variant for dark/purple hero backgrounds ── */
+  /* Used when the daily briefing is rendered inside the purple gradient
+     hero card on the Dashboard. Inherits structure from prose-clinical
+     but overrides every color so content is readable on dark purple.  */
+  .prose-clinical-hero {
+    color: rgba(255, 255, 255, 0.80);
+    font-size: 0.93rem;
+    line-height: 1.65;
+  }
+  .prose-clinical-hero .clinical-h1,
+  .prose-clinical-hero .clinical-h2,
+  .prose-clinical-hero .clinical-h3,
+  .prose-clinical-hero .clinical-h4 {
+    color: #ffffff;
+    border-left-color: #2dd4bf;
+  }
+  .prose-clinical-hero .clinical-h1 {
+    @apply text-sm font-bold mt-5 mb-2.5 pl-3 uppercase tracking-wide;
+    border-left: 3px solid #2dd4bf;
+    letter-spacing: 0.05em;
+  }
+  .prose-clinical-hero .clinical-h2 {
+    @apply text-xs font-bold mt-4 mb-2 pl-3 uppercase tracking-wide;
+    border-left: 3px solid #2dd4bf;
+    letter-spacing: 0.08em;
+    color: #5eead4;
+  }
+  .prose-clinical-hero .clinical-h3 {
+    @apply text-sm font-bold mt-3 mb-1.5 pl-3;
+    border-left: 2px solid rgba(255,255,255,0.4);
+  }
+  .prose-clinical-hero .clinical-h4 {
+    @apply text-xs font-bold uppercase tracking-wider mt-2 mb-1;
+    color: rgba(255,255,255,0.75);
+  }
+  .prose-clinical-hero .clinical-p { @apply mb-2.5; }
+  .prose-clinical-hero .clinical-list { @apply mb-3 space-y-1 ml-2; list-style: none; padding-left: 0; }
+  .prose-clinical-hero .clinical-list--bullet li { @apply relative pl-5; font-size: 0.9rem; color: rgba(255,255,255,0.85); }
+  .prose-clinical-hero .clinical-list--bullet li::before {
+    content: '';
+    position: absolute;
+    left: 4px;
+    top: 0.7em;
+    width: 5px;
+    height: 5px;
+    border-radius: 999px;
+    background: #2dd4bf;
+  }
+  .prose-clinical-hero .clinical-list--numbered li { color: rgba(255,255,255,0.85); font-size: 0.9rem; }
+  .prose-clinical-hero .clinical-num { color: #5eead4; font-weight: 600; }
+  .prose-clinical-hero .clinical-strong { color: #ffffff; font-weight: 700; }
+  .prose-clinical-hero .clinical-em { color: rgba(255,255,255,0.7); font-style: italic; }
+
+  /* ICD and score pills need more contrast on dark background */
+  .prose-clinical-hero .clinical-icd {
+    background: rgba(45,212,191,0.15);
+    color: #5eead4;
+    border: 1px solid rgba(45,212,191,0.35);
+  }
+  .prose-clinical-hero .clinical-score {
+    background: rgba(45,212,191,0.12);
+    color: #5eead4;
+    border: 1px solid rgba(45,212,191,0.3);
+  }
+  .prose-clinical-hero .clinical-score strong { color: #a7f3d0; }
+  .prose-clinical-hero .clinical-score-name {
+    background: rgba(147,197,253,0.12);
+    color: #bfdbfe;
+    border: 1px solid rgba(147,197,253,0.3);
+  }
+
+  /* Legacy fallback for raw markdown tags */
+  .prose-clinical-hero h1,
+  .prose-clinical-hero h2,
+  .prose-clinical-hero h3,
+  .prose-clinical-hero h4,
+  .prose-clinical-hero strong { color: #ffffff; }
+  .prose-clinical-hero li { color: rgba(255,255,255,0.85); }
+  .prose-clinical-hero code { background: rgba(255,255,255,0.1); color: #c7d2fe; }
+  .prose-clinical-hero hr { border-color: rgba(255,255,255,0.15); }
+}
+
+/* ── Layout shell classes (overridable by dark mode) ─────────────── */
+.app-shell {
+  background: #f4f3ff;
+}
+.app-main {
+  background: linear-gradient(160deg, #f5f3ff 0%, #eff6ff 40%, #f0fdf9 100%);
+}
+.app-header {
+  height: 60px;
+  background: rgba(255,255,255,0.88);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(99,78,240,0.1);
+  box-shadow: 0 1px 12px rgba(96,71,238,0.06);
+  flex-shrink: 0;
+  position: relative;
+  z-index: 40;
+  overflow: visible;
+}
+
+/* ── Dark mode overrides ─────────────────────────────────────────── */
+html.dark body {
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+
+/* Layout shell in dark */
+html.dark .app-shell {
+  background: #0f172a;
+}
+html.dark .app-main {
+  background: linear-gradient(160deg, #0f172a 0%, #111827 60%, #0d1b14 100%);
+}
+html.dark .app-header {
+  background: rgba(15,23,42,0.95);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  box-shadow: 0 1px 12px rgba(0,0,0,0.4);
+}
+
+html.dark .card {
+  background-color: #1e293b;
+  border-color: rgba(255,255,255,0.07);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+}
+html.dark .card:hover {
+  box-shadow: 0 4px 14px rgba(0,0,0,0.3);
+}
+
+html.dark .btn-primary {
+  /* keeps brand colors — intentionally unchanged */
+}
+
+html.dark .btn-secondary {
+  background-color: #334155;
+  color: #cbd5e1;
+  border-color: rgba(255,255,255,0.1);
+}
+html.dark .btn-secondary:hover {
+  background-color: #3e4f66;
+  border-color: rgba(255,255,255,0.15);
+}
+
+html.dark .input,
+html.dark .textarea {
+  background-color: #1e293b;
+  border-color: rgba(255,255,255,0.1);
+  color: #e2e8f0;
+}
+html.dark .input::placeholder,
+html.dark .textarea::placeholder {
+  color: #64748b;
+}
+html.dark .input:focus,
+html.dark .textarea:focus {
+  border-color: #5746ed;
+  background-color: #243044;
+}
+
+html.dark .label {
+  color: #94a3b8;
+}
+
+/* Text color overrides */
+html.dark .text-gray-900 { color: #f1f5f9; }
+html.dark .text-gray-800 { color: #e2e8f0; }
+html.dark .text-gray-700 { color: #cbd5e1; }
+html.dark .text-gray-600 { color: #94a3b8; }
+html.dark .text-gray-500 { color: #94a3b8; }
+html.dark .text-gray-400 { color: #64748b; }
+
+/* Background overrides */
+html.dark .bg-white       { background-color: #1e293b; }
+html.dark .bg-gray-50     { background-color: #0f172a; }
+html.dark .bg-gray-100    { background-color: #1e293b; }
+html.dark .bg-brand-50    { background-color: rgba(87,70,237,0.12); }
+html.dark .bg-teal-50     { background-color: rgba(10,197,162,0.12); }
+html.dark .bg-amber-50    { background-color: rgba(245,158,11,0.10); }
+html.dark .bg-red-50      { background-color: rgba(239,68,68,0.10); }
+html.dark .bg-green-50    { background-color: rgba(34,197,94,0.10); }
+html.dark .bg-blue-50     { background-color: rgba(59,130,246,0.10); }
+html.dark .bg-purple-50   { background-color: rgba(168,85,247,0.10); }
+
+/* Border overrides */
+html.dark .border-gray-100 { border-color: rgba(255,255,255,0.06); }
+html.dark .border-gray-200 { border-color: rgba(255,255,255,0.09); }
+html.dark .border-gray-300 { border-color: rgba(255,255,255,0.12); }
+
+/* Native form controls in dark */
+html.dark select,
+html.dark textarea,
+html.dark input {
+  color-scheme: dark;
+}
+html.dark select {
+  background-color: #0f172a;
+  color: #e2e8f0;
+  border-color: rgba(255,255,255,0.12);
+}
+html.dark select option {
+  background-color: #0f172a;
+  color: #e2e8f0;
+}
+html.dark textarea {
+  background-color: #0f172a;
+  color: #e2e8f0;
+  border-color: rgba(255,255,255,0.12);
+}
+html.dark textarea::placeholder {
+  color: #64748b;
+}
+html.dark .shadow-sm {
+  box-shadow: 0 1px 2px rgba(0,0,0,0.35);
+}
+
+/* Prose clinical in dark */
+html.dark .prose-clinical { color: #cbd5e1; }
+html.dark .prose-clinical h1,
+html.dark .prose-clinical h2,
+html.dark .prose-clinical h3,
+html.dark .prose-clinical h4 { color: #f1f5f9; }
+html.dark .prose-clinical .clinical-h1,
+html.dark .prose-clinical .clinical-h2,
+html.dark .prose-clinical .clinical-h3,
+html.dark .prose-clinical .clinical-h4 { color: #f1f5f9; }
+html.dark .prose-clinical strong,
+html.dark .prose-clinical .clinical-strong { color: #e2e8f0; }
+html.dark .prose-clinical li { color: #cbd5e1; }
+html.dark .prose-clinical code { background-color: #334155; color: #a5b4fc; }
+html.dark .prose-clinical .clinical-icd {
+  background: linear-gradient(135deg, #312e81, #3730a3);
+  color: #c7d2fe;
+  border-color: #4338ca;
+}
+html.dark .prose-clinical .clinical-score {
+  background: #064e3b; color: #a7f3d0; border-color: #065f46;
+}
+html.dark .prose-clinical .clinical-score-name {
+  background: #0c4a6e; color: #bae6fd; border-color: #0369a1;
+}
+
+/* Pink theme */
+html.pink body {
+  background-color: #fdf7fa;
+  color: #5f4d56;
+}
+html.pink .app-shell {
+  background: #f8f8f8;
+}
+html.pink .app-main {
+  background: linear-gradient(160deg, #fdf7fa 0%, #fab4dd 42%, #f4f4f4 100%);
+}
+html.pink .app-header {
+  background: rgba(255, 251, 253, 0.94);
+  border-bottom: 1px solid rgba(227, 227, 227, 0.92);
+  box-shadow: 0 1px 16px rgba(250, 180, 221, 0.16);
+}
+html.pink .card {
+  background-color: #ffffff;
+  border-color: rgba(210, 195, 205, 0.7);
+  box-shadow: 0 4px 20px rgba(180, 100, 150, 0.10), 0 1px 4px rgba(95, 77, 86, 0.07);
+}
+html.pink .card:hover {
+  box-shadow: 0 14px 36px rgba(250, 180, 221, 0.22), 0 1px 4px rgba(95, 77, 86, 0.06);
+}
+html.pink .btn-primary {
+  background: linear-gradient(135deg, #fab4dd, #f49acc);
+  color: #5f4d56;
+}
+html.pink .btn-primary:hover {
+  background: linear-gradient(135deg, #f7a9d7, #ef93c7);
+}
+html.pink .btn-secondary {
+  background-color: #f8f8f8;
+  color: #6c5a63;
+  border-color: #e3e3e3;
+}
+html.pink .btn-secondary:hover {
+  background-color: #f1f1f1;
+  border-color: #d8d8d8;
+}
+html.pink .input,
+html.pink .textarea,
+html.pink select {
+  background-color: #fffdfd;
+  border-color: #e3e3e3;
+  color: #5f4d56;
+}
+html.pink .input::placeholder,
+html.pink .textarea::placeholder {
+  color: #b39aa8;
+}
+html.pink .input:focus,
+html.pink .textarea:focus,
+html.pink select:focus {
+  border-color: #fab4dd;
+  box-shadow: 0 0 0 3px rgba(250, 180, 221, 0.24);
+}
+html.pink .label { color: #8d7480; }
+html.pink .text-gray-900 { color: #5f4d56; }
+html.pink .text-gray-800 { color: #6c5a63; }
+html.pink .text-gray-700 { color: #7b6871; }
+html.pink .text-gray-600 { color: #917f88; }
+html.pink .text-gray-500 { color: #a8969e; }
+html.pink .text-gray-400 { color: #bdb1b7; }
+html.pink .bg-white { background-color: #fffafb; }
+html.pink .bg-gray-50 { background-color: #f8f8f8; }
+html.pink .bg-gray-100 { background-color: #efefef; }
+html.pink .bg-brand-50 { background-color: rgba(250, 180, 221, 0.18); }
+html.pink .bg-teal-50  { background-color: #e6faf8; }
+html.pink .bg-green-50 { background-color: #ecfdf5; }
+html.pink .bg-blue-50  { background-color: #eff6ff; }
+html.pink .bg-purple-50 { background-color: #faf5ff; }
+html.pink .bg-amber-50 { background-color: #fffbeb; }
+html.pink .bg-red-50   { background-color: #fff1f2; }
+html.pink .bg-rose-50  { background-color: #fff1f2; }
+html.pink .bg-indigo-50 { background-color: #eef2ff; }
+html.pink .bg-violet-50 { background-color: #f5f3ff; }
+html.pink .bg-emerald-50 { background-color: #ecfdf5; }
+html.pink .bg-sky-50   { background-color: #f0f9ff; }
+html.pink .border-gray-100 { border-color: rgba(227, 227, 227, 0.75); }
+html.pink .border-gray-200 { border-color: rgba(227, 227, 227, 0.96); }
+html.pink .border-gray-300 { border-color: rgba(210, 210, 210, 0.9); }
+html.pink .prose-clinical { color: #77656d; }
+html.pink .prose-clinical h1,
+html.pink .prose-clinical h2,
+html.pink .prose-clinical h3,
+html.pink .prose-clinical h4,
+html.pink .prose-clinical strong { color: #5f4d56; }
+html.pink .prose-clinical li { color: #7b6871; }
+html.pink .prose-clinical code { background-color: #f4f4f4; color: #9d5c7f; }
+html.pink .hover\:bg-gray-50:hover { background-color: #f4f4f4 !important; }
+html.pink .hover\:bg-gray-100:hover { background-color: #ebebeb !important; }
+html.pink ::-webkit-scrollbar-thumb { background: #fab4dd; }
+html.pink ::-webkit-scrollbar-thumb:hover { background: #f29fce; }
+
+/* Hover states */
+html.dark .hover\:bg-gray-50:hover  { background-color: #273447 !important; }
+html.dark .hover\:bg-gray-100:hover { background-color: #2d3f55 !important; }
+
+/* Scrollbar in dark */
+html.dark ::-webkit-scrollbar-thumb { background: #334155; }
+html.dark ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #c7d2fe;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #a5b4fc;
+}
+
+/* Chat message animation */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.message-enter {
+  animation: fadeInUp 0.22s ease-out;
+}
+
+/* Typing indicator dots */
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30%           { transform: translateY(-5px); }
+}
+
+.typing-dot {
+  animation: bounce 1.2s infinite;
+  background-color: #a5b4fc;
+}
+.typing-dot:nth-child(2) { animation-delay: 0.2s; }
+.typing-dot:nth-child(3) { animation-delay: 0.4s; }
+
+/* Sidebar opacity utilities */
+.bg-white\/4  { background-color: rgba(255,255,255,0.04); }
+.bg-white\/6  { background-color: rgba(255,255,255,0.06); }
+.bg-white\/7  { background-color: rgba(255,255,255,0.07); }
+.bg-white\/8  { background-color: rgba(255,255,255,0.08); }
+.bg-white\/14 { background-color: rgba(255,255,255,0.14); }
+.bg-white\/15 { background-color: rgba(255,255,255,0.15); }
+.bg-white\/25 { background-color: rgba(255,255,255,0.25); }
+.hover\:bg-white\/7:hover  { background-color: rgba(255,255,255,0.07); }
+.hover\:bg-white\/8:hover  { background-color: rgba(255,255,255,0.08); }
+.hover\:bg-white\/20:hover { background-color: rgba(255,255,255,0.20); }
+
+/* Border opacity utilities */
+.border-white\/8  { border-color: rgba(255,255,255,0.08); }
+.border-white\/12 { border-color: rgba(255,255,255,0.12); }
+
+/* Gradient glow animation for hero elements */
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% 50%; }
+  50%       { background-position: 100% 50%; }
+}
+
+/* Smooth page transitions */
+main > * {
+  animation: fadeInUp 0.18s ease-out;
+}
+
+/* Public marketing pages — always light, never affected by dark/pink theme.
+   These pages sit inside PublicPageShell which applies the .public-page class.
+   Every Tailwind color class that dark/pink mode would invert must be pinned
+   here to its light-mode value so the marketing site always looks right. */
+.public-page,
+html.dark .public-page,
+html.pink .public-page {
+  background: #f4f2ff !important;
+  color: #09090B !important;
+}
+
+/* Text colors — pinned to light-mode values */
+html.dark .public-page .text-gray-900,
+html.pink .public-page .text-gray-900 { color: #111827 !important; }
+html.dark .public-page .text-gray-800,
+html.pink .public-page .text-gray-800 { color: #1f2937 !important; }
+html.dark .public-page .text-gray-700,
+html.pink .public-page .text-gray-700 { color: #374151 !important; }
+html.dark .public-page .text-gray-600,
+html.pink .public-page .text-gray-600 { color: #4b5563 !important; }
+html.dark .public-page .text-gray-500,
+html.pink .public-page .text-gray-500 { color: #6b7280 !important; }
+html.dark .public-page .text-gray-400,
+html.pink .public-page .text-gray-400 { color: #9ca3af !important; }
+
+/* Background colors — pinned to light-mode values */
+html.dark .public-page .bg-white,
+html.pink .public-page .bg-white { background-color: #ffffff !important; }
+html.dark .public-page .bg-gray-50,
+html.pink .public-page .bg-gray-50 { background-color: #f9fafb !important; }
+html.dark .public-page .bg-gray-100,
+html.pink .public-page .bg-gray-100 { background-color: #f3f4f6 !important; }
+
+/* Border colors */
+html.dark .public-page .border-gray-100,
+html.pink .public-page .border-gray-100 { border-color: #f3f4f6 !important; }
+html.dark .public-page .border-gray-200,
+html.pink .public-page .border-gray-200 { border-color: #e5e7eb !important; }
+html.dark .public-page .border-gray-300,
+html.pink .public-page .border-gray-300 { border-color: #d1d5db !important; }
+
+/* Hover states */
+html.dark .public-page .hover\:bg-gray-50:hover,
+html.pink .public-page .hover\:bg-gray-50:hover { background-color: #f9fafb !important; }
+html.dark .public-page .hover\:text-gray-900:hover,
+html.pink .public-page .hover\:text-gray-900:hover { color: #111827 !important; }
+
+/* Shadows */
+html.dark .public-page .shadow-sm,
+html.pink .public-page .shadow-sm { box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important; }
+
+/* Accent backgrounds that dark/pink mode tints */
+html.dark .public-page .bg-brand-50,
+html.pink .public-page .bg-brand-50 { background-color: rgba(87,70,237,0.06) !important; }
+html.dark .public-page .bg-violet-50,
+html.pink .public-page .bg-violet-50 { background-color: #f5f3ff !important; }
+html.dark .public-page .bg-amber-50,
+html.pink .public-page .bg-amber-50 { background-color: #fffbeb !important; }
+html.dark .public-page .bg-teal-50,
+html.pink .public-page .bg-teal-50 { background-color: #f0fdfa !important; }
+html.dark .public-page .bg-emerald-50,
+html.pink .public-page .bg-emerald-50 { background-color: #ecfdf5 !important; }
+html.dark .public-page .bg-rose-50,
+html.pink .public-page .bg-rose-50 { background-color: #fff1f2 !important; }
+html.dark .public-page .bg-sky-50,
+html.pink .public-page .bg-sky-50 { background-color: #f0f9ff !important; }
+html.dark .public-page .bg-indigo-50,
+html.pink .public-page .bg-indigo-50 { background-color: #eef2ff !important; }
+html.dark .public-page .bg-red-50,
+html.pink .public-page .bg-red-50 { background-color: #fef2f2 !important; }
+html.dark .public-page .bg-green-50,
+html.pink .public-page .bg-green-50 { background-color: #f0fdf4 !important; }
+html.dark .public-page .bg-blue-50,
+html.pink .public-page .bg-blue-50 { background-color: #eff6ff !important; }
+html.dark .public-page .bg-purple-50,
+html.pink .public-page .bg-purple-50 { background-color: #faf5ff !important; }

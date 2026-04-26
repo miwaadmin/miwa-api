@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Miwa Care</title>
+
+    <!-- PWA manifest -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- Theme color (browser chrome + Android status bar) -->
+    <meta name="theme-color" content="#6047EE" />
+
+    <!-- Standard favicon -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- iOS PWA meta tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Miwa Care" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="/icons/apple-touch-icon-ipad.png" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+    <!-- Prevent Google Translate from breaking layout -->
+    <meta name="google" content="notranslate" />
+
+    <!--
+      Umami analytics (privacy-first, no cookies, no personal data).
+      data-auto-track="false" disables automatic pageview tracking —
+      we call umami.track() manually from AnalyticsTracker.jsx only on
+      public marketing routes. Authenticated / patient-facing / mobile
+      routes that could contain PHI-adjacent identifiers in the URL
+      (patient IDs, session tokens) are never tracked.
+    -->
+    <script defer src="https://cloud.umami.is/script.js"
+      data-website-id="6e5b3706-09de-4a74-8b7b-827411909032"
+      data-auto-track="false"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker.register('/sw.js').catch(() => {});
+        });
+      }
+    </script>
+  </body>
+</html>

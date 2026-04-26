@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Miwa Care</string>
+    <string name="title_activity_main">Miwa Care</string>
+    <string name="package_name">app.miwacare</string>
+    <string name="custom_url_scheme">app.miwacare</string>
+</resources>
