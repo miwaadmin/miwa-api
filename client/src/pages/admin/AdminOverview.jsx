@@ -3,11 +3,93 @@ import { useNavigate } from 'react-router-dom'
 import { adminApiFetch } from '../../lib/api'
 import { formatDate, AdminBanners } from './adminUtils'
 
+const READINESS_STYLES = {
+  pass: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  warn: 'border-amber-200 bg-amber-50 text-amber-700',
+  fail: 'border-red-200 bg-red-50 text-red-700',
+}
+
+function ReadinessBadge({ status }) {
+  const label = status === 'pass' ? 'Pass' : status === 'warn' ? 'Warn' : 'Fail'
+  return (
+    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded-full border ${READINESS_STYLES[status] || READINESS_STYLES.warn}`}>
+      {label}
+    </span>
+  )
+}
+
+function LaunchReadinessCard({ readiness, loading, error, onRefresh }) {
+  const checks = readiness?.checks || []
+  const blockers = checks.filter(c => c.status === 'fail')
+  const warnings = checks.filter(c => c.status === 'warn')
+  const visibleChecks = [...blockers, ...warnings, ...checks.filter(c => c.status === 'pass')]
+
+  return (
+    <div className={`card p-5 border ${readiness?.ok ? 'border-emerald-200 bg-emerald-50/30' : 'border-amber-200 bg-amber-50/30'}`}>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <div className="flex items-center gap-2">
+            <h2 className="text-sm font-semibold text-gray-900">Launch readiness</h2>
+            {readiness && <ReadinessBadge status={readiness.ok ? 'pass' : blockers.length ? 'fail' : 'warn'} />}
+          </div>
+          <p className="text-xs text-gray-600 mt-1">
+            Production configuration checks for HIPAA-sensitive launch, billing, storage, AI, and email.
+          </p>
+          {readiness?.time && <p className="text-[11px] text-gray-400 mt-1">Last checked {formatDate(readiness.time)}</p>}
+        </div>
+        <button onClick={onRefresh} disabled={loading} className="btn-secondary text-sm">
+          {loading ? 'Checking...' : 'Refresh'}
+        </button>
+      </div>
+
+      {error && (
+        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700">
+          {error}
+        </div>
+      )}
+
+      {readiness && (
+        <>
+          <div className="grid grid-cols-3 gap-3 mt-4">
+            <div className="rounded-xl border border-emerald-100 bg-white/70 p-3">
+              <p className="text-[10px] uppercase tracking-wide text-gray-400">Pass</p>
+              <p className="text-xl font-bold text-emerald-700">{readiness.summary?.pass || 0}</p>
+            </div>
+            <div className="rounded-xl border border-amber-100 bg-white/70 p-3">
+              <p className="text-[10px] uppercase tracking-wide text-gray-400">Warn</p>
+              <p className="text-xl font-bold text-amber-700">{readiness.summary?.warn || 0}</p>
+            </div>
+            <div className="rounded-xl border border-red-100 bg-white/70 p-3">
+              <p className="text-[10px] uppercase tracking-wide text-gray-400">Fail</p>
+              <p className="text-xl font-bold text-red-700">{readiness.summary?.fail || 0}</p>
+            </div>
+          </div>
+
+          <div className="mt-4 space-y-2">
+            {visibleChecks.map(check => (
+              <div key={check.id} className="rounded-xl border border-gray-100 bg-white px-3 py-2 flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold text-gray-900">{check.label}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{check.detail}</p>
+                </div>
+                <ReadinessBadge status={check.status} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function AdminOverview() {
   const navigate = useNavigate()
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [overview, setOverview] = useState(null)
+  const [readiness, setReadiness] = useState(null)
+  const [readinessLoading, setReadinessLoading] = useState(false)
+  const [readinessError, setReadinessError] = useState('')
   const [backupStatus, setBackupStatus] = useState(null)
   const [backupBusy, setBackupBusy] = useState(false)
   const [backupResult, setBackupResult] = useState(null)
@@ -25,6 +107,21 @@ export default function AdminOverview() {
       setError(err.message)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadReadiness = async () => {
+    setReadinessLoading(true)
+    setReadinessError('')
+    try {
+      const r = await adminApiFetch('/admin/readiness')
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error || 'Failed to load readiness checks')
+      setReadiness(d)
+    } catch (err) {
+      setReadinessError(err.message)
+    } finally {
+      setReadinessLoading(false)
     }
   }
 
@@ -52,7 +149,7 @@ export default function AdminOverview() {
     }
   }
 
-  useEffect(() => { load(); loadBackupStatus() }, [])
+  useEffect(() => { load(); loadReadiness(); loadBackupStatus() }, [])
 
   const topCards = useMemo(() => ([
     ['Accounts created', overview?.totals?.total_therapists || 0, '/admin/accounts'],
@@ -93,6 +190,13 @@ export default function AdminOverview() {
       </div>
 
       <AdminBanners error={error} />
+
+      <LaunchReadinessCard
+        readiness={readiness}
+        loading={readinessLoading}
+        error={readinessError}
+        onRefresh={loadReadiness}
+      />
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {topCards.map(([label, value, link]) => (
