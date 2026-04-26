@@ -364,9 +364,21 @@ app.get('/api/sessions/unsigned', requireAuth, async (req, res) => {
 // ── Serve built React frontend in production ─────────────────────────────────
 const fs = require('fs');
 if (fs.existsSync(CLIENT_DIST)) {
-  app.use(express.static(CLIENT_DIST));
+  app.use(express.static(CLIENT_DIST, {
+    setHeaders(res, filePath) {
+      const normalizedPath = filePath.replace(/\\/g, '/');
+      if (normalizedPath.endsWith('/index.html') || normalizedPath.endsWith('/sw.js') || normalizedPath.endsWith('/manifest.json')) {
+        res.setHeader('Cache-Control', 'no-store, max-age=0');
+        return;
+      }
+      if (normalizedPath.includes('/assets/')) {
+        res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      }
+    },
+  }));
   // SPA catch-all — must come after all API routes
   app.get('*', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store, max-age=0');
     res.sendFile(path.join(CLIENT_DIST, 'index.html'));
   });
 }

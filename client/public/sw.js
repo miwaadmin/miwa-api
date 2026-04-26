@@ -1,4 +1,4 @@
-const CACHE = 'miwa-v1';
+const CACHE = 'miwa-v2';
 
 // App shell files to cache immediately on install
 const PRECACHE = [
@@ -28,12 +28,17 @@ self.addEventListener('fetch', e => {
   const url = new URL(request.url);
 
   // Never intercept API calls — always go to network
-  if (url.pathname.startsWith('/api')) return;
+  if (url.pathname.startsWith('/api') || url.pathname === '/sw.js') return;
 
   // For navigation requests (HTML pages) — network first, fall back to cached index.html
   if (request.mode === 'navigate') {
     e.respondWith(
-      fetch(request)
+      fetch(request, { cache: 'no-store' })
+        .then(res => {
+          const clone = res.clone();
+          caches.open(CACHE).then(c => c.put('/index.html', clone));
+          return res;
+        })
         .catch(() => caches.match('/index.html'))
     );
     return;

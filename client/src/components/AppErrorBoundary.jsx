@@ -1,9 +1,45 @@
 import { Component } from 'react'
 
+const AUTO_RELOAD_KEY = 'miwa:last-render-error-reload-at'
+const AUTO_RELOAD_WINDOW_MS = 60 * 1000
+
+function errorText(error) {
+  return String(error?.stack || error?.message || error || '')
+}
+
+function recentlyAutoReloaded() {
+  try {
+    const lastReloadAt = Number(window.sessionStorage.getItem(AUTO_RELOAD_KEY) || 0)
+    return lastReloadAt && Date.now() - lastReloadAt < AUTO_RELOAD_WINDOW_MS
+  } catch {
+    return false
+  }
+}
+
+function markAutoReload() {
+  try {
+    window.sessionStorage.setItem(AUTO_RELOAD_KEY, String(Date.now()))
+  } catch {
+    // Some locked-down browsers block sessionStorage.
+  }
+}
+
+function shouldAutoRecover(error) {
+  const text = errorText(error)
+  return [
+    'Minified React error #300',
+    'ChunkLoadError',
+    'Loading chunk',
+    'Loading CSS chunk',
+    'Failed to fetch dynamically imported module',
+    'Importing a module script failed',
+  ].some(fragment => text.includes(fragment))
+}
+
 export default class AppErrorBoundary extends Component {
   constructor(props) {
     super(props)
-    this.state = { hasError: false, error: null }
+    this.state = { hasError: false, error: null, autoRecovering: false }
   }
 
   static getDerivedStateFromError(error) {
@@ -13,10 +49,30 @@ export default class AppErrorBoundary extends Component {
   componentDidCatch(error, info) {
     // Keep this lightweight; the UI should still render a recovery state.
     console.error('Miwa UI crashed:', error, info)
+
+    if (shouldAutoRecover(error) && !recentlyAutoReloaded()) {
+      markAutoReload()
+      this.setState({ autoRecovering: true })
+      window.setTimeout(() => window.location.reload(), 150)
+    }
   }
 
   render() {
     if (this.state.hasError) {
+      if (this.state.autoRecovering) {
+        return (
+          <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-slate-950 via-indigo-950 to-emerald-950">
+            <div className="w-full max-w-md rounded-3xl border border-white/10 bg-white/95 p-6 text-center shadow-2xl">
+              <div className="text-xs font-semibold uppercase tracking-[0.3em] text-brand-600">Miwa</div>
+              <h1 className="mt-2 text-2xl font-bold text-gray-900">Refreshing Miwa</h1>
+              <p className="mt-3 text-sm text-gray-600">
+                One moment while the latest app version loads.
+              </p>
+            </div>
+          </div>
+        )
+      }
+
       return (
         <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-slate-950 via-indigo-950 to-emerald-950">
           <div className="w-full max-w-lg rounded-3xl border border-white/10 bg-white/95 p-6 shadow-2xl">
