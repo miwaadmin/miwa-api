@@ -107,7 +107,9 @@ function buildReadinessChecks() {
       'file_storage',
       'PHI file storage',
       hasEnv('AZURE_STORAGE_CONNECTION_STRING') || hasEnv('AZURE_BLOB_CONNECTION_STRING') ? 'pass' : 'warn',
-      'Uploads and generated reports should move to private Azure Blob Storage before real launch'
+      hasEnv('AZURE_STORAGE_CONNECTION_STRING') || hasEnv('AZURE_BLOB_CONNECTION_STRING')
+        ? 'Document uploads are configured for private Azure Blob Storage'
+        : 'Document uploads and generated reports should move to private Azure Blob Storage before real launch'
     ),
   ];
 

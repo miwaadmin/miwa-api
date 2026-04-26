@@ -17,8 +17,10 @@ This is the near-term bar before inviting real clinicians to store PHI in Miwa.
 
 - Do not commit `.env`, database files, uploads, generated reports, logs, or
   backup files.
-- Treat uploaded documents and generated PDFs as PHI. Move them to Azure Blob
-  Storage with private containers before real launch.
+- Treat uploaded documents and generated PDFs as PHI. Document uploads now use
+  Azure Blob Storage when `AZURE_STORAGE_CONNECTION_STRING` or
+  `AZURE_BLOB_CONNECTION_STRING` is configured; otherwise they fall back to
+  local disk for development. Generated reports still need the same migration.
 - Turn on PostgreSQL automatic backups and point-in-time restore.
 - Keep diagnostic endpoints disabled in production unless actively recovering.
 

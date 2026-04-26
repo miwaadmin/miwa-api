@@ -4,6 +4,13 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { getDb } = require('../db');
+const {
+  deleteStoredFile,
+  makeStorageKey,
+  readStoredFile,
+  storedFileExists,
+  uploadLocalFile,
+} = require('../services/fileStorage');
 
 const UPLOADS_DIR = process.env.UPLOADS_DIR || path.join(__dirname, '..', 'uploads');
 if (!fs.existsSync(UPLOADS_DIR)) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
@@ -81,6 +88,7 @@ router.get('/', (req, res) => {
 // POST /api/patients/:patientId/documents
 router.post('/', upload.single('file'), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  let storedPath = null;
 
   try {
     const db = getDb();
@@ -101,6 +109,19 @@ router.post('/', upload.single('file'), async (req, res) => {
     }
 
     const normalizedKind = document_kind === 'intake_source' ? 'intake_source' : 'record';
+    storedPath = await uploadLocalFile({
+      localPath: req.file.path,
+      key: makeStorageKey({
+        therapistId: req.therapist.id,
+        patientId: req.params.patientId,
+        originalName: req.file.originalname,
+      }),
+      contentType: req.file.mimetype,
+    });
+
+    if (storedPath !== req.file.path && req.file?.path && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
 
     const result = db.insert(
       `INSERT INTO documents (patient_id, therapist_id, original_name, file_type, document_label, document_kind, extracted_text, file_path)
@@ -112,7 +133,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       document_label || null,
       normalizedKind,
       extractedText,
-      req.file.path
+      storedPath
     );
 
     res.json({
@@ -126,13 +147,18 @@ router.post('/', upload.single('file'), async (req, res) => {
     });
   } catch (err) {
     // Clean up file on DB error
-    if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    try {
+      if (storedPath) await deleteStoredFile(storedPath);
+      else if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+    } catch (cleanupErr) {
+      console.warn('[documents] upload cleanup failed:', cleanupErr.message);
+    }
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
 // DELETE /api/patients/:patientId/documents/:docId
-router.delete('/:docId', (req, res) => {
+router.delete('/:docId', async (req, res) => {
   try {
     const db = getDb();
     if (!ownedPatient(db, req.params.patientId, req.therapist.id)) {
@@ -145,9 +171,7 @@ router.delete('/:docId', (req, res) => {
     if (!doc) return res.status(404).json({ error: 'Document not found' });
 
     // Remove physical file
-    if (doc.file_path && fs.existsSync(doc.file_path)) {
-      fs.unlinkSync(doc.file_path);
-    }
+    await deleteStoredFile(doc.file_path);
 
     db.run('DELETE FROM documents WHERE id = ?', req.params.docId);
     res.json({ message: 'Document deleted' });
@@ -158,7 +182,7 @@ router.delete('/:docId', (req, res) => {
 
 // GET /api/patients/:patientId/documents/:docId/content
 // Returns extracted text (or base64 for images) for AI consumption
-router.get('/:docId/content', (req, res) => {
+router.get('/:docId/content', async (req, res) => {
   try {
     const db = getDb();
     if (!ownedPatient(db, req.params.patientId, req.therapist.id)) {
@@ -170,10 +194,10 @@ router.get('/:docId/content', (req, res) => {
     );
     if (!doc) return res.status(404).json({ error: 'Document not found' });
 
-    if (isImage(doc.original_name) && doc.file_path && fs.existsSync(doc.file_path)) {
+    if (isImage(doc.original_name) && doc.file_path && await storedFileExists(doc.file_path)) {
       const ext = path.extname(doc.original_name).toLowerCase().replace('.', '');
       const mimeMap = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' };
-      const base64 = fs.readFileSync(doc.file_path).toString('base64');
+      const base64 = (await readStoredFile(doc.file_path)).toString('base64');
       return res.json({ type: 'image', media_type: mimeMap[ext] || 'image/jpeg', data: base64 });
     }
 
