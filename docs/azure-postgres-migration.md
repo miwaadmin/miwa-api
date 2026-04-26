@@ -61,6 +61,21 @@ npm run postgres:migrate -- --wipe-target
 `--wipe-target` drops the target tables first. Use it only for the initial
 fresh Postgres load.
 
+## Verify Copy Integrity
+
+After the one-time copy, compare table existence, column presence, and row
+counts without printing PHI:
+
+```bash
+set SQLITE_DB_PATH=C:\path\to\mftbrain.db
+set DATABASE_URL=postgres://USER:PASSWORD@HOST.postgres.database.azure.com:5432/miwa?sslmode=require
+set PGSSLMODE=require
+npm run postgres:verify
+```
+
+The verifier exits non-zero if tables are missing, columns are missing, or row
+counts differ. It does not print row data or secrets.
+
 ## Runtime Cutover
 
 These scripts prepare Azure PostgreSQL and copy the data. The app still needs
