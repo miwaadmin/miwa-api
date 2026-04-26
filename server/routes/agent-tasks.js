@@ -19,7 +19,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { enqueueTask, cancelRunning } = require('../services/task-runner');
 
 // ── POST / — create a new background task ───────────────────────────────────
@@ -45,9 +45,9 @@ router.post('/', (req, res) => {
 });
 
 // ── GET / — list my tasks ───────────────────────────────────────────────────
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const limit = Math.min(parseInt(req.query.limit, 10) || 25, 100);
     const offset = parseInt(req.query.offset, 10) || 0;
     const status = req.query.status; // optional filter
@@ -66,7 +66,7 @@ router.get('/', (req, res) => {
     sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
-    const rows = db.all(sql, ...params);
+    const rows = await db.all(sql, ...params);
     res.json({ tasks: rows, limit, offset });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -74,13 +74,13 @@ router.get('/', (req, res) => {
 });
 
 // ── GET /unread-count — badge number ────────────────────────────────────────
-router.get('/unread-count', (req, res) => {
+router.get('/unread-count', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     // "unread" = terminal state (done / failed / needs_input) AND read_at IS NULL.
     // We also count running/queued tasks so the badge can show both: "2 done,
     // 1 running."
-    const row = db.get(
+    const row = await db.get(
       `SELECT
          SUM(CASE WHEN status IN ('done','failed','needs_input') AND read_at IS NULL THEN 1 ELSE 0 END) AS unread,
          SUM(CASE WHEN status IN ('queued','running') THEN 1 ELSE 0 END) AS active
@@ -97,10 +97,10 @@ router.get('/unread-count', (req, res) => {
 });
 
 // ── GET /:id — fetch single task ────────────────────────────────────────────
-router.get('/:id', (req, res) => {
+router.get('/:id(\\d+)', async (req, res) => {
   try {
-    const db = getDb();
-    const row = db.get(
+    const db = getAsyncDb();
+    const row = await db.get(
       'SELECT * FROM agent_tasks WHERE id = ? AND therapist_id = ?',
       req.params.id, req.therapist.id,
     );
@@ -117,10 +117,10 @@ router.get('/:id', (req, res) => {
 });
 
 // ── POST /:id/cancel — cancel a queued/running task ────────────────────────
-router.post('/:id/cancel', (req, res) => {
+router.post('/:id(\\d+)/cancel', async (req, res) => {
   try {
-    const db = getDb();
-    const row = db.get(
+    const db = getAsyncDb();
+    const row = await db.get(
       'SELECT id, status FROM agent_tasks WHERE id = ? AND therapist_id = ?',
       req.params.id, req.therapist.id,
     );
@@ -132,11 +132,11 @@ router.post('/:id/cancel', (req, res) => {
 
     // Mark cancelled in DB first — the running loop polls this between
     // iterations and will exit cleanly.
-    db.run(
+    await db.run(
       `UPDATE agent_tasks SET status = 'cancelled', completed_at = CURRENT_TIMESTAMP WHERE id = ?`,
       row.id,
     );
-    try { persist(); } catch {}
+    await persistIfNeeded();
 
     // Also signal the AbortController if the task is actively running.
     cancelRunning(row.id);
@@ -148,15 +148,15 @@ router.post('/:id/cancel', (req, res) => {
 });
 
 // ── POST /:id/read — mark as read (clears badge) ───────────────────────────
-router.post('/:id/read', (req, res) => {
+router.post('/:id(\\d+)/read', async (req, res) => {
   try {
-    const db = getDb();
-    const result = db.run(
+    const db = getAsyncDb();
+    const result = await db.run(
       `UPDATE agent_tasks SET read_at = CURRENT_TIMESTAMP
         WHERE id = ? AND therapist_id = ? AND read_at IS NULL`,
       req.params.id, req.therapist.id,
     );
-    try { persist(); } catch {}
+    await persistIfNeeded();
     res.json({ ok: true, updated: result?.changes || 0 });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -164,17 +164,17 @@ router.post('/:id/read', (req, res) => {
 });
 
 // ── POST /read-all — mark all terminal tasks as read ───────────────────────
-router.post('/read-all', (req, res) => {
+router.post('/read-all', async (req, res) => {
   try {
-    const db = getDb();
-    db.run(
+    const db = getAsyncDb();
+    await db.run(
       `UPDATE agent_tasks SET read_at = CURRENT_TIMESTAMP
         WHERE therapist_id = ?
           AND read_at IS NULL
           AND status IN ('done', 'failed', 'needs_input')`,
       req.therapist.id,
     );
-    try { persist(); } catch {}
+    await persistIfNeeded();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -200,24 +200,26 @@ router.get('/stream', (req, res) => {
   };
 
   // Send initial connection confirmation + current unread/active counts.
-  try {
-    const db = getDb();
-    const counts = db.get(
-      `SELECT
-         SUM(CASE WHEN status IN ('done','failed','needs_input') AND read_at IS NULL THEN 1 ELSE 0 END) AS unread,
-         SUM(CASE WHEN status IN ('queued','running') THEN 1 ELSE 0 END) AS active
-       FROM agent_tasks WHERE therapist_id = ?`,
-      therapistId,
-    );
-    sendEvent({ type: 'connected', unread: counts?.unread || 0, active: counts?.active || 0 });
-  } catch {}
+  (async () => {
+    try {
+      const db = getAsyncDb();
+      const counts = await db.get(
+        `SELECT
+           SUM(CASE WHEN status IN ('done','failed','needs_input') AND read_at IS NULL THEN 1 ELSE 0 END) AS unread,
+           SUM(CASE WHEN status IN ('queued','running') THEN 1 ELSE 0 END) AS active
+         FROM agent_tasks WHERE therapist_id = ?`,
+        therapistId,
+      );
+      sendEvent({ type: 'connected', unread: counts?.unread || 0, active: counts?.active || 0 });
+    } catch {}
+  })();
 
   // Track last-seen ids+statuses so we only emit deltas.
   let lastSnapshot = new Map();
-  const snapshot = () => {
+  const snapshot = async () => {
     try {
-      const db = getDb();
-      const rows = db.all(
+      const db = getAsyncDb();
+      const rows = await db.all(
         `SELECT id, status, title, completed_at, iterations
          FROM agent_tasks
          WHERE therapist_id = ?
@@ -240,7 +242,9 @@ router.get('/stream', (req, res) => {
     } catch { /* ignore transient errors */ }
   };
 
-  const interval = setInterval(snapshot, 3000);
+  const interval = setInterval(() => {
+    snapshot().catch(() => {});
+  }, 3000);
   const heartbeat = setInterval(() => {
     try { res.write(': heartbeat\n\n'); } catch {}
   }, 25_000);

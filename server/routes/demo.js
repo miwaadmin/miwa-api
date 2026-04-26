@@ -14,7 +14,7 @@
 const express = require('express');
 const router = express.Router();
 const requireAuth = require('../middleware/auth');
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 
 // ── Utilities ────────────────────────────────────────────────────────────────
 
@@ -357,9 +357,9 @@ const SESSION_THEMES = [
 
 // ── Main route ────────────────────────────────────────────────────────────────
 
-router.post('/demo-patient', requireAuth, (req, res) => {
+router.post('/demo-patient', requireAuth, async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const therapistId = req.therapist.id;
 
     // Pick random configuration unless a specific demo archetype is requested
@@ -454,7 +454,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
       individual: `${gender}, age ${age}. Presenting with ${archetype.presenting_concerns.split('.')[0].toLowerCase()}.`,
     };
 
-    const patientResult = db.insert(
+    const patientResult = await db.insert(
       `INSERT INTO patients (
         client_id, display_name, phone, email, preferred_contact_method,
         age, gender, age_range, referral_source, living_situation,
@@ -533,7 +533,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
         notesJson = JSON.stringify({ BIRP: { subjective: theme.subjective, objective: theme.objective, assessment: theme.assessment, plan: theme.plan } });
       }
 
-      const sResult = db.insert(
+      const sResult = await db.insert(
         `INSERT INTO sessions (patient_id, therapist_id, session_date, note_format, subjective, objective, assessment, plan, notes_json, created_at)
          VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))`,
         patientId, therapistId, sessDate, noteFormat,
@@ -560,7 +560,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
       const isDet    = prevPhq9 !== null && score > prevPhq9 ? 1 : 0;
       const clinSig  = Math.abs(change) >= 5 ? 1 : 0;
 
-      db.insert(
+      await db.insert(
         `INSERT INTO assessments (patient_id, therapist_id, template_type, session_id,
           administered_at, responses, total_score, severity_level, severity_color,
           baseline_score, previous_score, score_change, is_improvement, is_deterioration,
@@ -592,7 +592,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
       const isDet    = prevGad7 !== null && score > prevGad7 ? 1 : 0;
       const clinSig  = Math.abs(change) >= 4 ? 1 : 0;
 
-      db.insert(
+      await db.insert(
         `INSERT INTO assessments (patient_id, therapist_id, template_type, session_id,
           administered_at, responses, total_score, severity_level, severity_color,
           baseline_score, previous_score, score_change, is_improvement, is_deterioration,
@@ -643,7 +643,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
     }
 
     for (const al of alerts) {
-      db.insert(
+      await db.insert(
         `INSERT INTO progress_alerts (patient_id, therapist_id, type, severity, title, description, is_read, created_at)
          VALUES (?,?,?,?,?,?,0,datetime('now'))`,
         patientId, therapistId, al.type, al.severity, al.title, al.description,
@@ -657,7 +657,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
     const tomorrowEnd = new Date(tomorrow);
     tomorrowEnd.setMinutes(50);
 
-    db.insert(
+    await db.insert(
       `INSERT INTO appointments (therapist_id, patient_id, client_code, appointment_type, scheduled_start, scheduled_end, duration_minutes, status)
        VALUES (?,?,?,?,?,?,?,?)`,
       therapistId, patientId, clientId,
@@ -667,7 +667,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
 
     // ── Insert treatment plan with goals (tests Treatment Plan Agent) ──────
     try {
-      const { lastInsertRowid: planId } = db.insert(
+      const { lastInsertRowid: planId } = await db.insert(
         "INSERT INTO treatment_plans (patient_id, therapist_id, status, summary, last_reviewed_at) VALUES (?,?,'active',?,datetime('now'))",
         patientId, therapistId, `Treatment plan for ${displayName} — ${archetype.label}`
       );
@@ -684,7 +684,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
           (isPhq && current < 10) || (isGad && current < 8)
         );
 
-        db.insert(
+        await db.insert(
           "INSERT INTO treatment_goals (plan_id, goal_text, target_metric, baseline_value, current_value, status) VALUES (?,?,?,?,?,?)",
           planId, goalText.trim(), targetMetric, baseline, current,
           met ? 'met' : (trajectory === 'slow_responder' ? 'active' : 'active')
@@ -695,7 +695,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
     }
 
     // ── Insert proactive alerts (tests Dashboard alerts + bell notification) ──
-    db.insert(
+    await db.insert(
       "INSERT INTO proactive_alerts (therapist_id, patient_id, alert_type, severity, title, description) VALUES (?,?,?,?,?,?)",
       therapistId, patientId, 'OVERDUE_ASSESSMENT', 'MEDIUM',
       `${displayName} is due for a follow-up assessment`,
@@ -703,7 +703,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
     );
 
     if (trajectory === 'slow_responder') {
-      db.insert(
+      await db.insert(
         "INSERT INTO proactive_alerts (therapist_id, patient_id, alert_type, severity, title, description) VALUES (?,?,?,?,?,?)",
         therapistId, patientId, 'DETERIORATION', 'HIGH',
         `${displayName} showing limited treatment response`,
@@ -714,7 +714,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
     // ── Insert checkin link (tests Check-in system) ──────────────────────────
     const crypto = require('crypto');
     const checkinToken = crypto.randomBytes(16).toString('hex');
-    db.insert(
+    await db.insert(
       "INSERT INTO checkin_links (token, patient_id, therapist_id, message, expires_at) VALUES (?,?,?,?,datetime('now','+7 days'))",
       checkinToken, patientId, therapistId, 'How have you been feeling since our last session?'
     );
@@ -742,7 +742,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
         const isImp   = prev !== null && current < prev ? 1 : 0;
         const isDet   = prev !== null && current > prev ? 1 : 0;
         const clinSig = Math.abs(change) >= 10 ? 1 : 0;
-        db.insert(
+        await db.insert(
           `INSERT INTO assessments (patient_id, therapist_id, template_type, session_id,
             administered_at, responses, total_score, severity_level, severity_color,
             baseline_score, previous_score, score_change, is_improvement, is_deterioration,
@@ -771,7 +771,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
         // Score 0-5: 0 wish to die, 1 SI, 2 SI w/ method, 3 SI w/ intent, 4 SI w/ plan
         // Demos document low-level (passive) SI: score 1.
         const score = 1;
-        db.insert(
+        await db.insert(
           `INSERT INTO assessments (patient_id, therapist_id, template_type, session_id,
             administered_at, responses, total_score, severity_level, severity_color,
             baseline_score, previous_score, score_change, is_improvement, is_deterioration,
@@ -810,7 +810,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
         'Argument at home set me back. Recovered faster than usual.',
       ]);
       const tok = crypto.randomBytes(16).toString('hex');
-      db.insert(
+      await db.insert(
         `INSERT INTO checkin_links (token, patient_id, therapist_id, message,
            sent_at, completed_at, expires_at, mood_score, mood_notes)
          VALUES (?,?,?,?,?,?,datetime(?,'+7 days'),?,?)`,
@@ -824,7 +824,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
     // ── Treatment plan + goals derived from archetype ───────────────────────
     // Parses the numbered list in archetype.treatment_goals into 3 goal rows.
     try {
-      const planResult = db.insert(
+      const planResult = await db.insert(
         `INSERT INTO treatment_plans (patient_id, therapist_id, summary, last_reviewed_at)
          VALUES (?,?,?,datetime('now','-7 days'))`,
         patientId, therapistId,
@@ -837,17 +837,17 @@ router.post('/demo-patient', requireAuth, (req, res) => {
         .map(s => s.trim())
         .filter(Boolean)
         .slice(0, 4);
-      goalLines.forEach((goalText, idx) => {
+      for (const [idx, goalText] of goalLines.entries()) {
         const target = idx === 0 ? 'PHQ-9 < 10' : idx === 1 ? 'GAD-7 < 8' : 'Symptom self-report';
         const baselineVal = idx === 0 ? archetype.phq9_baseline : idx === 1 ? archetype.gad7_baseline : null;
         const currentVal  = idx === 0 ? phq9Arc[phq9Arc.length - 1] : idx === 1 ? gad7Arc[gad7Arc.length - 1] : null;
-        db.insert(
+        await db.insert(
           `INSERT INTO treatment_goals (plan_id, goal_text, target_metric, baseline_value, current_value, status)
            VALUES (?,?,?,?,?,?)`,
           planId, goalText, target, baselineVal, currentVal,
           trajectory === 'strong_responder' && idx === 0 ? 'met' : 'active',
         );
-      });
+      }
     } catch (err) {
       console.warn('[demo] treatment plan insert skipped:', err.message);
     }
@@ -875,7 +875,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
         const hour    = pick(CLINICAL_HOURS);
         const startISO = localTimeToUtcIso(dateStr, hour, 0, tz);
         const endISO   = localTimeToUtcIso(dateStr, hour, 50, tz);
-        db.insert(
+        await db.insert(
           `INSERT INTO appointments (therapist_id, patient_id, client_code, client_display_name,
              appointment_type, scheduled_start, scheduled_end, duration_minutes, status,
              attendance_status, checked_in_at)
@@ -893,7 +893,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
         const hour     = pick(CLINICAL_HOURS);
         const startISO = localTimeToUtcIso(dateStr, hour, 0, tz);
         const endISO   = localTimeToUtcIso(dateStr, hour, 50, tz);
-        db.insert(
+        await db.insert(
           `INSERT INTO appointments (therapist_id, patient_id, client_code, client_display_name,
              appointment_type, scheduled_start, scheduled_end, duration_minutes, status,
              attendance_status)
@@ -906,7 +906,7 @@ router.post('/demo-patient', requireAuth, (req, res) => {
       console.warn('[demo] appointment insert skipped:', err.message);
     }
 
-    persist();
+    await persistIfNeeded();
 
     res.json({
       success: true,

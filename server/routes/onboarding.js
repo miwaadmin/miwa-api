@@ -8,7 +8,7 @@
 const express = require('express');
 const router = express.Router();
 const requireAuth = require('../middleware/auth');
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { MODELS, callAI } = require('../lib/aiExecutor');
 
 router.use(requireAuth);
@@ -17,13 +17,13 @@ router.use(requireAuth);
 // Body: { response: "the therapist's free-form answer to the intro questions" }
 router.post('/soul', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { response } = req.body || {};
     if (!response || typeof response !== 'string' || response.trim().length < 5) {
       return res.status(400).json({ error: 'response is required' });
     }
 
-    const therapist = db.get(
+    const therapist = await db.get(
       'SELECT id, first_name, full_name, user_role FROM therapists WHERE id = ?',
       req.therapist.id
     );
@@ -88,11 +88,11 @@ Write their SOUL.md profile now.`;
     );
 
     // Save the profile + mark onboarding complete
-    db.run(
+    await db.run(
       'UPDATE therapists SET soul_markdown = ?, onboarding_completed = 1 WHERE id = ?',
       soulMd, req.therapist.id
     );
-    persist();
+    await persistIfNeeded();
 
     // Generate a warm confirmation message
     const confirmation = `Got it, ${firstName} — I've saved your profile. 🌿
