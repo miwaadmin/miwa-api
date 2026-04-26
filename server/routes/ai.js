@@ -25,6 +25,19 @@ function sendRouteError(res, err) {
   return res.status(isAIServiceError(err) ? 502 : 500).json(safeAIErrorResponse(err));
 }
 
+function uploadImportErrorMessage(err) {
+  const message = String(err?.message || '');
+  const allowedMessages = [
+    'No file uploaded',
+    'Unsupported file type. Please upload PDF, DOCX, or TXT intake forms.',
+    'Unable to extract text or filled form values from this PDF. Try exporting/printing the filled form to a new PDF and upload that version.',
+  ];
+
+  return allowedMessages.includes(message)
+    ? message
+    : 'The uploaded file could not be processed. Please try a different file.';
+}
+
 // Use the owner's API key from environment — all users share it, covered by subscription
 // Check if this therapist can use the workspace (subscription or trial)
 function checkWorkspaceAccess(therapistId) {
@@ -273,7 +286,7 @@ router.post('/intake-import', upload.single('file'), async (req, res) => {
       ...draft,
     });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ error: uploadImportErrorMessage(err) });
   }
 });
 
@@ -309,7 +322,7 @@ router.post('/audio-import', upload.single('file'), async (req, res) => {
       transcript,
     });
   } catch (err) {
-    res.status(400).json({ error: err.message });
+    res.status(400).json({ error: 'The audio file could not be processed. Please try again.' });
   }
 });
 

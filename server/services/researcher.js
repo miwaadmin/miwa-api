@@ -314,7 +314,7 @@ async function synthesizeBrief(articles, topics, briefType, therapistName, thera
     `Write the ${isDaily ? 'daily research brief' : 'crisis-relevant research note'} now. ` +
     `Keep it under 600 words. Use markdown headers. Synthesize the best findings across all sources.`;
 
-  // Routes to gpt-5.5 (fast, cheap summarization) with Azure OpenAI Sonnet 4.7 fallback.
+  // Routes research synthesis through the centralized Azure OpenAI path.
   // Cost is logged against therapistId when provided.
   return synthesizeResearch(systemPrompt, userPrompt, 1400, { therapistId });
 }

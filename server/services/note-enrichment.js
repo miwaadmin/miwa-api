@@ -2,7 +2,7 @@
  * Agentic Documentation Pipeline — Note Enrichment Service
  *
  * After a session note is dictated or created, this service enriches it with
- * AI-powered clinical suggestions. It runs a single Azure OpenAI Sonnet call with
+ * AI-powered clinical suggestions. It runs a single Azure OpenAI call with
  * full patient context and returns structured enrichment data that the
  * therapist can accept, dismiss, or ignore.
  *
@@ -392,7 +392,7 @@ function storeEnrichments(db, sessionId, therapistId, enrichments) {
 /**
  * Main enrichment pipeline.
  *
- * Loads all relevant context, sends a single Azure OpenAI Sonnet call, parses the
+ * Loads all relevant context, sends a single Azure OpenAI call, parses the
  * structured response, stores each enrichment type, and returns the full
  * enrichment object.
  *
@@ -432,13 +432,13 @@ async function enrichSessionNote(sessionId, therapistId) {
   // ── Step E: Load latest assessments ────────────────────────────────────────
   const assessments = loadLatestAssessments(db, session.patient_id);
 
-  // ── Step F: Build prompts and call Azure OpenAI Sonnet ───────────────────────────
+  // ── Step F: Build prompts and call Azure OpenAI ──────────────────────────────────
   const systemPrompt = buildSystemPrompt();
   const userPrompt = buildUserPrompt(session, patient, priorSessions, goals, assessments);
 
   console.log(
     `[note-enrichment] Enriching session_id=${sessionId} for therapist_id=${therapistId} ` +
-    `(patient=${patient.client_id}, priorSessions=${priorSessions.length}, ` +
+    `(patient_id=${session.patient_id}, priorSessions=${priorSessions.length}, ` +
     `goals=${goals.length}, assessments=${assessments.length})`
   );
 
@@ -452,7 +452,7 @@ async function enrichSessionNote(sessionId, therapistId) {
     );
   } catch (err) {
     console.error(`[note-enrichment] Azure OpenAI call failed for session_id=${sessionId}:`, err.message);
-    throw new Error(`Enrichment model call failed: ${err.message}`);
+    throw new Error('Enrichment model call failed');
   }
 
   // ── Step G: Parse the structured JSON response ─────────────────────────────
@@ -464,7 +464,7 @@ async function enrichSessionNote(sessionId, therapistId) {
       `[note-enrichment] Failed to parse enrichment JSON for session_id=${sessionId}:`,
       err.message
     );
-    throw new Error(`Enrichment response parsing failed: ${err.message}`);
+    throw new Error('Enrichment response parsing failed');
   }
 
   // ── Step G.5: Post-processing validation ───────────────────────────────────

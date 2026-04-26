@@ -2650,11 +2650,11 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
               `ANALYSIS GOAL: ${args.goal}\n\nDATA CHUNK ${i + 1}/${Math.min(chunks.length, 5)}:\n${chunk}`,
               800,
               { therapistId, kind: 'delegate_chunk' }
-            ).catch(err => `[Chunk ${i + 1} failed: ${err.message}]`)
+            ).catch(() => `[Chunk ${i + 1} failed]`)
           )
         );
 
-        // Synthesize with Sonnet for coherent final output
+        // Synthesize with Azure OpenAI for coherent final output
         const synthesis = await callAI(
           MODELS.AZURE_MAIN,
           'You are synthesizing findings from multiple parallel analyses for a therapist. Combine the findings into a single coherent summary. Remove duplicates. Rank by clinical urgency. Be concise and actionable. CRITICAL: use client codes, cite specific scores and dates.',
@@ -2671,7 +2671,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
 
         return { analysis: synthesis, task_id: taskId, scope: args.scope, parallel_chunks: subResults.length };
       } catch (err) {
-        return { error: `Delegation failed: ${err.message}` };
+        console.error('[agent/delegate] failed:', err.message);
+        return { error: 'Delegation failed.' };
       }
     }
 
@@ -3600,7 +3601,7 @@ RULES:
     let firstResponseContent = null;
     const trajToolResults = [];
 
-    // ── Agent Loop (Azure OpenAI Sonnet — think → tool call → observe → repeat) ────
+    // ── Agent Loop (Azure OpenAI — think → tool call → observe → repeat) ───────────
     // Each iteration gets logged as a separate cost event, so a chatty loop
     // is visible in usage reporting.
     for (let i = 0; i < MAX_ITERATIONS && !stopped; i++) {

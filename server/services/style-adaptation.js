@@ -10,7 +10,7 @@
  *      Store each changed-enough pair as a row in `style_samples`.
  *   2. `maybeRebuildProfile()` — after every N new samples, re-distill the
  *      therapist's style into a compact profile stored in
- *      `therapist_style_profile`. LLM-powered (Sonnet).
+ *      `therapist_style_profile`. LLM-powered through Azure OpenAI.
  *   3. `getStyleHintsForPrompt()` — cheap getter that returns the profile's
  *      injected-prompt block for drafting endpoints.
  *
