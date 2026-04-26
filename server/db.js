@@ -1364,7 +1364,8 @@ function persist(opts = {}) {
       }
     }
 
-    const tmpPath = `${DB_PATH}.tmp-${process.pid}`;
+    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+    const tmpPath = `${DB_PATH}.tmp-${process.pid}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
     const fd = fs.openSync(tmpPath, 'w');
     try {
       fs.writeSync(fd, buffer, 0, buffer.length);
@@ -1374,6 +1375,9 @@ function persist(opts = {}) {
     }
     fs.renameSync(tmpPath, DB_PATH);
   } catch (err) {
+    if (err?.code === 'ENOENT' && process.env.NODE_ENV === 'test') {
+      return;
+    }
     console.error('DB persist error:', err.message);
   }
 }

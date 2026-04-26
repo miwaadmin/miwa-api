@@ -94,3 +94,23 @@ test('ALLOW_DB_SHRINK=true overrides the shrink guard', async () => {
   // Cleanup the override so it doesn't leak into other tests
   process.env.ALLOW_DB_SHRINK = '';
 });
+
+test('persist() recreates missing DB parent directory', async () => {
+  const dir = freshDir();
+  const nested = path.join(dir, 'missing-parent');
+  const dbPath = path.join(nested, 'mftbrain.db');
+
+  delete require.cache[require.resolve('../../db')];
+  process.env.DB_PATH = dbPath;
+  process.env.ALLOW_DB_SHRINK = '';
+  const db = require('../../db');
+  await db.initDb();
+
+  fs.rmSync(nested, { recursive: true, force: true });
+  assert.equal(fs.existsSync(nested), false);
+
+  db.persist();
+
+  assert.equal(fs.existsSync(dbPath), true);
+  assert.ok(fs.statSync(dbPath).size > 0);
+});
