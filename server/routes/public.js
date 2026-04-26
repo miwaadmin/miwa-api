@@ -10,14 +10,14 @@
 
 const express = require('express');
 const router  = express.Router();
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { TEMPLATES, scoreAssessment, generateAlerts } = require('./assessments');
 
 // ── GET /api/public/assess/:token ─────────────────────────────────────────────
-router.get('/assess/:token', (req, res) => {
+router.get('/assess/:token', async (req, res) => {
   try {
-    const db   = getDb();
-    const link = db.get(
+    const db   = getAsyncDb();
+    const link = await db.get(
       'SELECT * FROM assessment_links WHERE token = ?',
       req.params.token,
     );
@@ -46,10 +46,10 @@ router.get('/assess/:token', (req, res) => {
 });
 
 // ── POST /api/public/assess/:token ────────────────────────────────────────────
-router.post('/assess/:token', (req, res) => {
+router.post('/assess/:token', async (req, res) => {
   try {
-    const db   = getDb();
-    const link = db.get(
+    const db   = getAsyncDb();
+    const link = await db.get(
       'SELECT * FROM assessment_links WHERE token = ?',
       req.params.token,
     );
@@ -73,7 +73,7 @@ router.post('/assess/:token', (req, res) => {
     // Score it using the same engine as therapist-administered assessments
     const { total, severityLevel, severityColor } = scoreAssessment(link.template_type, responses);
 
-    const patient = db.get('SELECT id, client_id FROM patients WHERE id = ?', link.patient_id);
+    const patient = await db.get('SELECT id, client_id FROM patients WHERE id = ?', link.patient_id);
     if (!patient) return res.status(404).json({ error: 'Patient record not found.' });
 
     // Baseline comparison
@@ -84,11 +84,11 @@ router.post('/assess/:token', (req, res) => {
       ? [link.patient_id, link.template_type, link.therapist_id, link.member_label]
       : [link.patient_id, link.template_type, link.therapist_id];
 
-    const previous = db.get(
+    const previous = await db.get(
       `SELECT * FROM assessments WHERE patient_id = ? AND template_type = ? AND therapist_id = ?${memberFilter} ORDER BY administered_at DESC LIMIT 1`,
       ...memberParams,
     );
-    const baseline = db.get(
+    const baseline = await db.get(
       `SELECT total_score FROM assessments WHERE patient_id = ? AND template_type = ? AND therapist_id = ?${memberFilter} ORDER BY administered_at ASC LIMIT 1`,
       ...memberParams,
     );
@@ -119,7 +119,7 @@ router.post('/assess/:token', (req, res) => {
       : null;
 
     // Insert assessment
-    const result = db.insert(
+    const result = await db.insert(
       `INSERT INTO assessments
         (patient_id, therapist_id, template_type, responses, total_score, severity_level, severity_color,
          baseline_score, previous_score, score_change, is_improvement, is_deterioration, clinically_significant,
@@ -143,7 +143,7 @@ router.post('/assess/:token', (req, res) => {
 
     // Tag client-submitted alerts so therapist knows the source
     for (const alert of alerts) {
-      db.insert(
+      await db.insert(
         `INSERT INTO progress_alerts (patient_id, therapist_id, type, severity, title, description, assessment_id)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
         link.patient_id, link.therapist_id,
@@ -156,12 +156,12 @@ router.post('/assess/:token', (req, res) => {
     }
 
     // Mark link as completed
-    db.run(
+    await db.run(
       'UPDATE assessment_links SET completed_at = CURRENT_TIMESTAMP, assessment_id = ? WHERE token = ?',
       assessmentId, link.token,
     );
 
-    persist();
+    await persistIfNeeded();
 
     // Determine if crisis resources should be shown
     const showCrisisResources =
@@ -182,10 +182,10 @@ router.post('/assess/:token', (req, res) => {
 // ── Between-Session Check-in (public, no auth) ────────────────────────────────
 
 // GET /api/public/checkin/:token — return check-in form data
-router.get('/checkin/:token', (req, res) => {
+router.get('/checkin/:token', async (req, res) => {
   try {
-    const db = getDb();
-    const link = db.get('SELECT * FROM checkin_links WHERE token = ?', req.params.token);
+    const db = getAsyncDb();
+    const link = await db.get('SELECT * FROM checkin_links WHERE token = ?', req.params.token);
     if (!link) return res.status(404).json({ error: 'Check-in link not found or expired.' });
     if (link.completed_at) return res.json({ already_completed: true });
     if (new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'This check-in link has expired.' });
@@ -200,10 +200,10 @@ router.get('/checkin/:token', (req, res) => {
 });
 
 // POST /api/public/checkin/:token — client submits mood rating + optional note
-router.post('/checkin/:token', (req, res) => {
+router.post('/checkin/:token', async (req, res) => {
   try {
-    const db = getDb();
-    const link = db.get('SELECT * FROM checkin_links WHERE token = ?', req.params.token);
+    const db = getAsyncDb();
+    const link = await db.get('SELECT * FROM checkin_links WHERE token = ?', req.params.token);
     if (!link) return res.status(404).json({ error: 'Check-in link not found.' });
     if (link.completed_at) return res.status(409).json({ error: 'Already submitted.' });
     if (new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'This link has expired.' });
@@ -212,7 +212,7 @@ router.post('/checkin/:token', (req, res) => {
     const score = parseInt(mood_score);
     if (!score || score < 1 || score > 10) return res.status(400).json({ error: 'mood_score must be 1–10.' });
 
-    db.run(
+    await db.run(
       `UPDATE checkin_links SET completed_at = CURRENT_TIMESTAMP, mood_score = ?, mood_notes = ? WHERE token = ?`,
       score, (mood_notes || '').trim() || null, req.params.token
     );
@@ -221,7 +221,7 @@ router.post('/checkin/:token', (req, res) => {
     if (score <= 4) {
       try {
         const severity = score <= 2 ? 'HIGH' : 'MEDIUM';
-        db.insert(
+        await db.insert(
           `INSERT INTO proactive_alerts (therapist_id, patient_id, alert_type, severity, title, description)
            VALUES (?, ?, 'LOW_MOOD_CHECKIN', ?, ?, ?)`,
           link.therapist_id,
@@ -233,7 +233,7 @@ router.post('/checkin/:token', (req, res) => {
       } catch {}
     }
 
-    persist();
+    await persistIfNeeded();
     res.json({ ok: true, mood_score: score });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -248,35 +248,35 @@ router.post('/checkin/:token', (req, res) => {
  * Validate a portal token and return the linked patient + therapist.
  * Returns { portalToken, patient, therapist } or null.
  */
-function resolvePortalToken(db, token) {
-  const row = db.get(
+async function resolvePortalToken(db, token) {
+  const row = await db.get(
     'SELECT * FROM client_portal_tokens WHERE token = ?',
     token,
   );
   if (!row) return null;
   if (new Date(row.expires_at) < new Date()) return null;
 
-  const patient = db.get('SELECT * FROM patients WHERE id = ?', row.patient_id);
-  const therapist = db.get('SELECT id, first_name, last_name, full_name, telehealth_url FROM therapists WHERE id = ?', row.therapist_id);
+  const patient = await db.get('SELECT * FROM patients WHERE id = ?', row.patient_id);
+  const therapist = await db.get('SELECT id, first_name, last_name, full_name, telehealth_url FROM therapists WHERE id = ?', row.therapist_id);
   if (!patient || !therapist) return null;
 
   // Update last_accessed_at
-  db.run('UPDATE client_portal_tokens SET last_accessed_at = CURRENT_TIMESTAMP WHERE id = ?', row.id);
+  await db.run('UPDATE client_portal_tokens SET last_accessed_at = CURRENT_TIMESTAMP WHERE id = ?', row.id);
 
   return { portalToken: row, patient, therapist };
 }
 
 // ── GET /api/public/portal/:token — Validate token + return portal data ──────
-router.get('/portal/:token', (req, res) => {
+router.get('/portal/:token', async (req, res) => {
   try {
-    const db = getDb();
-    const ctx = resolvePortalToken(db, req.params.token);
+    const db = getAsyncDb();
+    const ctx = await resolvePortalToken(db, req.params.token);
     if (!ctx) return res.status(404).json({ error: 'Portal link not found or has expired. Please contact your therapist for a new link.' });
 
     const { patient, therapist, portalToken } = ctx;
 
     // Upcoming appointments
-    const appointments = db.all(
+    const appointments = await db.all(
       `SELECT id, appointment_type, scheduled_start, scheduled_end, duration_minutes, location, status
        FROM appointments
        WHERE patient_id = ? AND therapist_id = ? AND status = 'scheduled'
@@ -286,7 +286,7 @@ router.get('/portal/:token', (req, res) => {
     );
 
     // Past appointments (last 5)
-    const pastAppointments = db.all(
+    const pastAppointments = await db.all(
       `SELECT id, appointment_type, scheduled_start, scheduled_end, duration_minutes, location, status
        FROM appointments
        WHERE patient_id = ? AND therapist_id = ? AND scheduled_start < datetime('now')
@@ -295,7 +295,7 @@ router.get('/portal/:token', (req, res) => {
     );
 
     // Pending assessments
-    const pendingAssessments = db.all(
+    const pendingAssessments = await db.all(
       `SELECT id, token, template_type, expires_at, created_at
        FROM assessment_links
        WHERE patient_id = ? AND therapist_id = ? AND completed_at IS NULL AND expires_at > datetime('now')
@@ -304,7 +304,7 @@ router.get('/portal/:token', (req, res) => {
     );
 
     // Completed assessments (last 10)
-    const completedAssessments = db.all(
+    const completedAssessments = await db.all(
       `SELECT al.id, al.template_type, al.completed_at, a.total_score, a.severity_level
        FROM assessment_links al
        LEFT JOIN assessments a ON a.id = al.assessment_id
@@ -314,7 +314,7 @@ router.get('/portal/:token', (req, res) => {
     );
 
     // Recent check-ins
-    const recentCheckins = db.all(
+    const recentCheckins = await db.all(
       `SELECT id, mood_score, mood_notes, completed_at, created_at
        FROM checkin_links
        WHERE patient_id = ? AND therapist_id = ?
@@ -323,7 +323,7 @@ router.get('/portal/:token', (req, res) => {
     );
 
     // Messages
-    const messages = db.all(
+    const messages = await db.all(
       `SELECT id, sender, message, read_at, created_at
        FROM client_messages
        WHERE patient_id = ? AND therapist_id = ?
@@ -358,10 +358,10 @@ router.get('/portal/:token', (req, res) => {
 });
 
 // ── POST /api/public/portal/:token/message — Client sends a message ─────────
-router.post('/portal/:token/message', (req, res) => {
+router.post('/portal/:token/message', async (req, res) => {
   try {
-    const db = getDb();
-    const ctx = resolvePortalToken(db, req.params.token);
+    const db = getAsyncDb();
+    const ctx = await resolvePortalToken(db, req.params.token);
     if (!ctx) return res.status(404).json({ error: 'Portal link not found or has expired.' });
 
     const { message } = req.body;
@@ -371,7 +371,7 @@ router.post('/portal/:token/message', (req, res) => {
 
     const trimmed = message.trim().slice(0, 2000); // Cap at 2000 chars
 
-    const result = db.insert(
+    const result = await db.insert(
       `INSERT INTO client_messages (patient_id, therapist_id, sender, message)
        VALUES (?, ?, 'client', ?)`,
       ctx.patient.id, ctx.therapist.id, trimmed,
@@ -380,7 +380,7 @@ router.post('/portal/:token/message', (req, res) => {
     // Create proactive alert for the therapist
     const clientName = ctx.patient.display_name || ctx.patient.client_id;
     try {
-      db.insert(
+      await db.insert(
         `INSERT INTO proactive_alerts (therapist_id, patient_id, alert_type, severity, title, description)
          VALUES (?, ?, 'CLIENT_MESSAGE', 'LOW', ?, ?)`,
         ctx.therapist.id,
@@ -390,7 +390,7 @@ router.post('/portal/:token/message', (req, res) => {
       );
     } catch {}
 
-    persist();
+    await persistIfNeeded();
     res.json({ ok: true, message_id: result.lastInsertRowid });
   } catch (err) {
     console.error('[portal] message error:', err.message);
@@ -399,13 +399,13 @@ router.post('/portal/:token/message', (req, res) => {
 });
 
 // ── GET /api/public/portal/:token/assessments — Pending assessments ─────────
-router.get('/portal/:token/assessments', (req, res) => {
+router.get('/portal/:token/assessments', async (req, res) => {
   try {
-    const db = getDb();
-    const ctx = resolvePortalToken(db, req.params.token);
+    const db = getAsyncDb();
+    const ctx = await resolvePortalToken(db, req.params.token);
     if (!ctx) return res.status(404).json({ error: 'Portal link not found or has expired.' });
 
-    const pending = db.all(
+    const pending = await db.all(
       `SELECT id, token, template_type, expires_at, created_at
        FROM assessment_links
        WHERE patient_id = ? AND therapist_id = ? AND completed_at IS NULL AND expires_at > datetime('now')
@@ -413,7 +413,7 @@ router.get('/portal/:token/assessments', (req, res) => {
       ctx.patient.id, ctx.therapist.id,
     );
 
-    const completed = db.all(
+    const completed = await db.all(
       `SELECT al.id, al.template_type, al.completed_at, a.total_score, a.severity_level
        FROM assessment_links al
        LEFT JOIN assessments a ON a.id = al.assessment_id
@@ -429,13 +429,13 @@ router.get('/portal/:token/assessments', (req, res) => {
 });
 
 // ── GET /api/public/portal/:token/appointments — Appointments ───────────────
-router.get('/portal/:token/appointments', (req, res) => {
+router.get('/portal/:token/appointments', async (req, res) => {
   try {
-    const db = getDb();
-    const ctx = resolvePortalToken(db, req.params.token);
+    const db = getAsyncDb();
+    const ctx = await resolvePortalToken(db, req.params.token);
     if (!ctx) return res.status(404).json({ error: 'Portal link not found or has expired.' });
 
-    const upcoming = db.all(
+    const upcoming = await db.all(
       `SELECT id, appointment_type, scheduled_start, scheduled_end, duration_minutes, location, status
        FROM appointments
        WHERE patient_id = ? AND therapist_id = ? AND status = 'scheduled'
@@ -444,7 +444,7 @@ router.get('/portal/:token/appointments', (req, res) => {
       ctx.patient.id, ctx.therapist.id,
     );
 
-    const past = db.all(
+    const past = await db.all(
       `SELECT id, appointment_type, scheduled_start, scheduled_end, duration_minutes, location, status
        FROM appointments
        WHERE patient_id = ? AND therapist_id = ? AND scheduled_start < datetime('now')
@@ -459,13 +459,13 @@ router.get('/portal/:token/appointments', (req, res) => {
 });
 
 // ── GET /api/public/portal/:token/messages — Message history ────────────────
-router.get('/portal/:token/messages', (req, res) => {
+router.get('/portal/:token/messages', async (req, res) => {
   try {
-    const db = getDb();
-    const ctx = resolvePortalToken(db, req.params.token);
+    const db = getAsyncDb();
+    const ctx = await resolvePortalToken(db, req.params.token);
     if (!ctx) return res.status(404).json({ error: 'Portal link not found or has expired.' });
 
-    const messages = db.all(
+    const messages = await db.all(
       `SELECT id, sender, message, read_at, created_at
        FROM client_messages
        WHERE patient_id = ? AND therapist_id = ?
