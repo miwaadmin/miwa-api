@@ -83,6 +83,16 @@ test('feedback flow', async (t) => {
     createdId = bug.id;
   });
 
+  await t.test('GET /api/admin/postgres/status is sanitized when DATABASE_URL is absent', async () => {
+    const r = await api('GET', '/api/admin/postgres/status', null, adminCookie);
+    assert.equal(r.status, 503);
+    assert.equal(r.body.ok, false);
+    assert.equal(r.body.provider, 'azure-postgresql');
+    assert.equal(r.body.configured, false);
+    assert.match(r.body.message, /DATABASE_URL/);
+    assert.equal(JSON.stringify(r.body).includes('postgres://'), false);
+  });
+
   await t.test('PATCH /api/admin/feedback/:id resolves + emails + drops in-app chat message', async () => {
     const r = await api('PATCH', `/api/admin/feedback/${createdId}`, {
       status: 'resolved',

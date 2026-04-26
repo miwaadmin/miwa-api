@@ -7,6 +7,65 @@ const { sendMail, hasHipaaCoveredProvider } = require('../services/mailer');
 const router = express.Router();
 router.use(requireAdminAuth);
 
+function postgresSslConfig() {
+  if (String(process.env.PGSSLMODE || '').toLowerCase() === 'disable') return false;
+  return { rejectUnauthorized: false };
+}
+
+function sanitizePostgresError(err) {
+  return {
+    message: 'PostgreSQL connectivity check failed',
+    code: err?.code || null,
+    name: err?.name || null,
+  };
+}
+
+router.get('/postgres/status', async (req, res) => {
+  if (!process.env.DATABASE_URL) {
+    return res.status(503).json({
+      ok: false,
+      provider: 'azure-postgresql',
+      configured: false,
+      message: 'DATABASE_URL is not configured',
+      time: new Date().toISOString(),
+    });
+  }
+
+  const { Pool } = require('pg');
+  const pool = new Pool({
+    connectionString: process.env.DATABASE_URL,
+    ssl: postgresSslConfig(),
+    max: 1,
+    connectionTimeoutMillis: 5000,
+    idleTimeoutMillis: 5000,
+  });
+
+  try {
+    const result = await pool.query(
+      'SELECT current_database() AS database, current_user AS "user", NOW() AS time'
+    );
+    const row = result.rows[0] || {};
+    return res.json({
+      ok: true,
+      provider: 'azure-postgresql',
+      configured: true,
+      database: row.database || null,
+      user: row.user || null,
+      time: row.time || new Date().toISOString(),
+    });
+  } catch (err) {
+    return res.status(503).json({
+      ok: false,
+      provider: 'azure-postgresql',
+      configured: true,
+      error: sanitizePostgresError(err),
+      time: new Date().toISOString(),
+    });
+  } finally {
+    await pool.end().catch(() => {});
+  }
+});
+
 // ── Backup ─────────────────────────────────────────────────────────────────
 // Trigger an on-demand encrypted DB backup. Same code path the nightly
 // scheduler uses, so a successful manual run is a positive signal that the
