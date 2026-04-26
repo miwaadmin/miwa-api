@@ -1,5 +1,5 @@
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+require('./lib/loadEnv').loadEnv();
 
 // ── PHI-safe logging — must be first so all subsequent console calls are scrubbed
 const { patchGlobalConsole } = require('./lib/logger');
