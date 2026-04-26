@@ -8,12 +8,12 @@ test('demo patient generator creates a comprehensive caseload entry', async (t) 
 
   const { cookie } = await bootstrapAdminAndLogin();
 
-  // Generate enough demos to cover most archetypes (10 archetypes; 15 attempts
-  // gives a high chance of hitting a trauma + an SI-flagged one for the
-  // PCL-5 / C-SSRS assertions below).
+  // Generate a deterministic baseline set, including one trauma/SI archetype
+  // so the assessment assertions below never depend on random chance.
   const created = [];
   for (let i = 0; i < 15; i++) {
-    const r = await api('POST', '/api/seed/demo-patient', {}, cookie);
+    const body = i === 0 ? { archetype: 'trauma_ptsd' } : {};
+    const r = await api('POST', '/api/seed/demo-patient', body, cookie);
     assert.equal(r.status, 200, `demo create ${i} failed: ${JSON.stringify(r.body)}`);
     assert.equal(r.body.success, true);
     created.push(r.body);

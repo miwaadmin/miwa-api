@@ -81,4 +81,35 @@ test('patients + sessions CRUD', async (t) => {
     // Bug we shipped + reverted today: this endpoint must include display_name
     assert.equal(r.body.sessions[0].display_name, 'Test Client (renamed)');
   });
+
+  await t.test('closing a patient archives the record with a 7-year retention date', async () => {
+    const close = await api('POST', `/api/patients/${patientId}/close`, {
+      therapy_ended_at: '2026-04-26',
+    }, cookie);
+    assert.equal(close.status, 200);
+    assert.equal(close.body.patient.status, 'archived');
+    assert.equal(close.body.patient.therapy_ended_at, '2026-04-26');
+    assert.equal(close.body.patient.retention_until, '2033-04-26');
+    assert.equal(close.body.patient.retention_basis, 'adult_7_years_after_termination');
+
+    const activeList = await api('GET', '/api/patients', null, cookie);
+    assert.equal(activeList.status, 200);
+    assert.equal(activeList.body.length, 0);
+
+    const archivedList = await api('GET', '/api/patients?include_archived=true', null, cookie);
+    assert.equal(archivedList.status, 200);
+    assert.equal(archivedList.body.length, 1);
+    assert.equal(archivedList.body[0].id, patientId);
+  });
+
+  await t.test('permanent patient deletion is blocked while retention is active', async () => {
+    const blocked = await api('DELETE', `/api/patients/${patientId}?permanent=true`, null, cookie);
+    assert.equal(blocked.status, 423);
+    assert.equal(blocked.body.error, 'Record is still under retention and cannot be permanently deleted');
+    assert.equal(blocked.body.retention_until, '2033-04-26');
+
+    const reactivate = await api('POST', `/api/patients/${patientId}/reactivate`, {}, cookie);
+    assert.equal(reactivate.status, 200);
+    assert.equal(reactivate.body.patient.status, 'active');
+  });
 });

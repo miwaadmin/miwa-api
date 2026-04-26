@@ -1,14 +1,71 @@
 const express = require('express');
 const router = express.Router();
 const { getDb, persist } = require('../db');
+const { calculateRetention, isRetentionExpired } = require('../lib/retentionPolicy');
 
 // All routes: req.therapist set by requireAuth middleware in index.js
+
+function normalizeDateOnly(value) {
+  if (!value) return null;
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+}
+
+function archivePatient(db, patient, { therapyEndedAt, legalHold, legalHoldReason } = {}) {
+  const endedAt = normalizeDateOnly(therapyEndedAt) || patient.therapy_ended_at || new Date().toISOString().slice(0, 10);
+  const retention = calculateRetention({
+    therapyEndedAt: endedAt,
+    dateOfBirth: patient.date_of_birth,
+    age: patient.age,
+  });
+  const nextLegalHold = legalHold !== undefined ? (legalHold ? 1 : 0) : (patient.legal_hold ? 1 : 0);
+  const nextLegalHoldReason = legalHoldReason !== undefined ? legalHoldReason : patient.legal_hold_reason;
+
+  db.run(
+    `UPDATE patients
+     SET status = 'archived',
+         therapy_ended_at = ?,
+         retention_until = ?,
+         retention_basis = ?,
+         archived_at = CURRENT_TIMESTAMP,
+         legal_hold = ?,
+         legal_hold_reason = ?,
+         updated_at = CURRENT_TIMESTAMP
+     WHERE id = ? AND therapist_id = ?`,
+    endedAt,
+    retention.retentionUntil,
+    retention.retentionBasis,
+    nextLegalHold,
+    nextLegalHoldReason || null,
+    patient.id,
+    patient.therapist_id
+  );
+}
+
+function hardDeletePatient(db, patientId) {
+  db.run('DELETE FROM outcome_supervision_notes WHERE patient_id = ?', patientId);
+  db.run('DELETE FROM progress_alerts            WHERE patient_id = ?', patientId);
+  db.run('DELETE FROM proactive_alerts           WHERE patient_id = ?', patientId);
+  db.run('DELETE FROM assessments                WHERE patient_id = ?', patientId);
+  db.run('DELETE FROM assessment_links           WHERE patient_id = ?', patientId);
+  db.run('DELETE FROM sessions                   WHERE patient_id = ?', patientId);
+  db.run('DELETE FROM documents                  WHERE patient_id = ?', patientId);
+  db.run('DELETE FROM appointments               WHERE patient_id = ?', patientId);
+  db.run('DELETE FROM checkin_links              WHERE patient_id = ?', patientId);
+  db.run('DELETE FROM shared_patients            WHERE patient_id = ?', patientId);
+  db.run('DELETE FROM session_briefs             WHERE patient_id = ?', patientId);
+  db.run('DELETE FROM outreach_log               WHERE patient_id = ?', patientId);
+  try { db.run('DELETE FROM note_enrichments WHERE session_id IN (SELECT id FROM sessions WHERE patient_id = ?)', patientId); } catch {}
+  try { db.run('DELETE FROM treatment_goals WHERE plan_id IN (SELECT id FROM treatment_plans WHERE patient_id = ?)', patientId); } catch {}
+  try { db.run('DELETE FROM treatment_plans WHERE patient_id = ?', patientId); } catch {}
+  db.run('DELETE FROM patients                   WHERE id = ?', patientId);
+}
 
 router.get('/', (req, res) => {
   try {
     const db = getDb();
     const tid = req.therapist.id;
-    const { search } = req.query;
+    const { search, include_archived, status } = req.query;
 
     // Lightweight columns only for list view — skip heavy text fields (client_overview, mental_health_history, etc.)
     const listColumns = `patients.id, patients.client_id, patients.display_name, patients.age, patients.gender,
@@ -16,7 +73,13 @@ router.get('/', (req, res) => {
       patients.risk_screening, patients.phone, patients.email, patients.preferred_contact_method,
       patients.sms_consent, patients.sms_consent_at,
       patients.session_modality, patients.session_duration, patients.therapist_id,
+      patients.status, patients.therapy_ended_at, patients.retention_until, patients.retention_basis,
+      patients.archived_at, patients.legal_hold,
       patients.created_at, patients.updated_at`;
+
+    const statusClause = status
+      ? ' AND patients.status = ?'
+      : (include_archived === 'true' ? '' : " AND COALESCE(patients.status, 'active') != 'archived'");
 
     // SECURITY: parameterized query — therapist_id in subquery uses ? bind param,
     // not string interpolation, to prevent SQL injection.
@@ -35,17 +98,17 @@ router.get('/', (req, res) => {
       patients = db.all(
         `SELECT ${listColumns}, COALESCE(ss.session_count, 0) AS session_count, ss.last_session_date
          FROM patients${sessionStatsJoin}
-         WHERE patients.therapist_id = ? AND (client_id LIKE ? OR display_name LIKE ? OR presenting_concerns LIKE ? OR diagnoses LIKE ?)
+         WHERE patients.therapist_id = ?${statusClause} AND (client_id LIKE ? OR display_name LIKE ? OR presenting_concerns LIKE ? OR diagnoses LIKE ?)
          ORDER BY patients.updated_at DESC`,
-        tid, tid, q, q, q, q
+        ...(status ? [tid, tid, status, q, q, q, q] : [tid, tid, q, q, q, q])
       );
     } else {
       patients = db.all(
         `SELECT ${listColumns}, COALESCE(ss.session_count, 0) AS session_count, ss.last_session_date
          FROM patients${sessionStatsJoin}
-         WHERE patients.therapist_id = ?
+         WHERE patients.therapist_id = ?${statusClause}
          ORDER BY patients.updated_at DESC`,
-        tid, tid
+        ...(status ? [tid, tid, status] : [tid, tid])
       );
     }
     res.json(patients);
@@ -75,7 +138,7 @@ router.post('/', (req, res) => {
       mental_health_history, substance_use, risk_screening, family_social_history,
       mental_status_observations, treatment_goals, medical_history, medications,
       trauma_history, strengths_protective_factors, functional_impairments,
-      display_name, phone, sms_consent,
+      display_name, phone, sms_consent, date_of_birth,
       session_modality, session_duration,
     } = req.body;
     if (!client_id) return res.status(400).json({ error: 'client_id is required' });
@@ -93,8 +156,8 @@ router.post('/', (req, res) => {
         mental_health_history, substance_use, risk_screening, family_social_history,
         mental_status_observations, treatment_goals, medical_history, medications,
         trauma_history, strengths_protective_factors, functional_impairments,
-        display_name, phone, sms_consent, sms_consent_at, session_modality, session_duration, therapist_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        display_name, phone, sms_consent, sms_consent_at, date_of_birth, session_modality, session_duration, therapist_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       client_id,
       age || null,
       gender || null,
@@ -124,6 +187,7 @@ router.post('/', (req, res) => {
       phone || null,
       consent,
       consentAt,
+      normalizeDateOnly(date_of_birth),
       session_modality || null,
       session_duration || null,
       tid
@@ -144,7 +208,7 @@ router.put('/:id', (req, res) => {
       mental_health_history, substance_use, risk_screening, family_social_history,
       mental_status_observations, treatment_goals, medical_history, medications,
       trauma_history, strengths_protective_factors, functional_impairments,
-      display_name, phone, sms_consent,
+      display_name, phone, sms_consent, date_of_birth, legal_hold, legal_hold_reason,
       session_modality, session_duration,
     } = req.body;
     const existing = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
@@ -175,7 +239,7 @@ router.put('/:id', (req, res) => {
          presenting_concerns=?, diagnoses=?, notes=?, client_overview=?, client_overview_signature=?, mental_health_history=?, substance_use=?,
          risk_screening=?, family_social_history=?, mental_status_observations=?, treatment_goals=?,
          medical_history=?, medications=?, trauma_history=?, strengths_protective_factors=?, functional_impairments=?,
-         display_name=?, phone=?, sms_consent=?, sms_consent_at=?,
+         display_name=?, phone=?, sms_consent=?, sms_consent_at=?, date_of_birth=?, legal_hold=?, legal_hold_reason=?,
          session_modality=?,
          session_duration=?,
          updated_at=CURRENT_TIMESTAMP
@@ -209,12 +273,69 @@ router.put('/:id', (req, res) => {
       newPhone,
       nextConsent,
       nextConsentAt,
+      date_of_birth !== undefined ? normalizeDateOnly(date_of_birth) : existing.date_of_birth,
+      legal_hold !== undefined ? (legal_hold ? 1 : 0) : (existing.legal_hold ? 1 : 0),
+      legal_hold_reason !== undefined ? legal_hold_reason : existing.legal_hold_reason,
       session_modality !== undefined ? session_modality : existing.session_modality,
       session_duration !== undefined ? session_duration : existing.session_duration,
       req.params.id, req.therapist.id
     );
     const updated = db.get('SELECT * FROM patients WHERE id = ?', req.params.id);
     res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/:id/close', (req, res) => {
+  try {
+    const db = getDb();
+    const patient = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+    archivePatient(db, patient, {
+      therapyEndedAt: req.body?.therapy_ended_at,
+      legalHold: req.body?.legal_hold,
+      legalHoldReason: req.body?.legal_hold_reason,
+    });
+    const updated = db.get('SELECT * FROM patients WHERE id = ?', req.params.id);
+    res.json({ ok: true, patient: updated });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/:id/archive', (req, res) => {
+  try {
+    const db = getDb();
+    const patient = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+    archivePatient(db, patient, req.body || {});
+    const updated = db.get('SELECT * FROM patients WHERE id = ?', req.params.id);
+    res.json({ ok: true, patient: updated });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/:id/reactivate', (req, res) => {
+  try {
+    const db = getDb();
+    const patient = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    if (!patient) return res.status(404).json({ error: 'Patient not found' });
+
+    db.run(
+      `UPDATE patients
+       SET status = 'active',
+           archived_at = NULL,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND therapist_id = ?`,
+      req.params.id,
+      req.therapist.id
+    );
+    const updated = db.get('SELECT * FROM patients WHERE id = ?', req.params.id);
+    res.json({ ok: true, patient: updated });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -235,27 +356,16 @@ router.delete('/batch', (req, res) => {
       return res.status(400).json({ error: 'Maximum 50 patients per batch delete' });
     }
 
-    let deleted = 0;
+    let archived = 0;
     for (const id of ids) {
-      const existing = db.get('SELECT id FROM patients WHERE id = ? AND therapist_id = ?', id, req.therapist.id);
+      const existing = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', id, req.therapist.id);
       if (!existing) continue;
 
-      db.run('DELETE FROM outcome_supervision_notes WHERE patient_id = ?', id);
-      db.run('DELETE FROM progress_alerts            WHERE patient_id = ?', id);
-      db.run('DELETE FROM proactive_alerts           WHERE patient_id = ?', id);
-      db.run('DELETE FROM assessments                WHERE patient_id = ?', id);
-      db.run('DELETE FROM assessment_links           WHERE patient_id = ?', id);
-      db.run('DELETE FROM sessions                   WHERE patient_id = ?', id);
-      db.run('DELETE FROM documents                  WHERE patient_id = ?', id);
-      db.run('DELETE FROM appointments               WHERE patient_id = ?', id);
-      db.run('DELETE FROM checkin_links              WHERE patient_id = ?', id);
-      db.run('DELETE FROM shared_patients            WHERE patient_id = ?', id);
-      db.run('DELETE FROM note_enrichments           WHERE session_id IN (SELECT id FROM sessions WHERE patient_id = ?)', id);
-      db.run('DELETE FROM patients                   WHERE id = ?', id);
-      deleted++;
+      archivePatient(db, existing, req.body || {});
+      archived++;
     }
 
-    res.json({ message: `${deleted} patient(s) deleted successfully`, deleted });
+    res.json({ message: `${archived} patient record(s) archived for retention`, archived, deleted: 0 });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -264,34 +374,38 @@ router.delete('/batch', (req, res) => {
 router.delete('/:id', (req, res) => {
   try {
     const db = getDb();
-    const existing = db.get('SELECT id FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    const existing = db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
     if (!existing) return res.status(404).json({ error: 'Patient not found' });
 
     const pid = req.params.id;
-    // Full cascade — every table that references patient_id
-    db.run('DELETE FROM outcome_supervision_notes WHERE patient_id = ?', pid);
-    db.run('DELETE FROM progress_alerts            WHERE patient_id = ?', pid);
-    db.run('DELETE FROM proactive_alerts           WHERE patient_id = ?', pid);
-    db.run('DELETE FROM assessments                WHERE patient_id = ?', pid);
-    db.run('DELETE FROM assessment_links           WHERE patient_id = ?', pid);
-    db.run('DELETE FROM sessions                   WHERE patient_id = ?', pid);
-    db.run('DELETE FROM documents                  WHERE patient_id = ?', pid);
-    db.run('DELETE FROM appointments               WHERE patient_id = ?', pid);
-    db.run('DELETE FROM checkin_links              WHERE patient_id = ?', pid);
-    db.run('DELETE FROM shared_patients            WHERE patient_id = ?', pid);
-    db.run('DELETE FROM session_briefs             WHERE patient_id = ?', pid);
-    db.run('DELETE FROM outreach_log               WHERE patient_id = ?', pid);
-    try { db.run('DELETE FROM note_enrichments WHERE session_id IN (SELECT id FROM sessions WHERE patient_id = ?)', pid); } catch {}
-    try { db.run('DELETE FROM treatment_goals WHERE plan_id IN (SELECT id FROM treatment_plans WHERE patient_id = ?)', pid); } catch {}
-    try { db.run('DELETE FROM treatment_plans WHERE patient_id = ?', pid); } catch {}
-    db.run('DELETE FROM patients                   WHERE id = ?',         pid);
-    res.json({ message: 'Patient and all associated records deleted successfully' });
+    const permanent = req.query.permanent === 'true';
+
+    if (permanent) {
+      if (!isRetentionExpired(existing)) {
+        return res.status(423).json({
+          error: 'Record is still under retention and cannot be permanently deleted',
+          retention_until: existing.retention_until || null,
+          legal_hold: Boolean(existing.legal_hold),
+        });
+      }
+
+      hardDeletePatient(db, pid);
+      return res.json({ message: 'Patient and all associated records permanently deleted', deleted: 1 });
+    }
+
+    archivePatient(db, existing, req.body || {});
+    const updated = db.get('SELECT * FROM patients WHERE id = ?', pid);
+    res.json({
+      message: 'Patient record archived for retention',
+      archived: true,
+      patient: updated,
+    });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ── Proactive Alerts ────────────────────────────────────────────────────────
+// Proactive Alerts ────────────────────────────────────────────────────────
 
 // GET /api/patients/alerts — all unread alerts for this therapist
 router.get('/alerts', (req, res) => {

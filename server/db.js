@@ -1112,6 +1112,14 @@ function runMigrations() {
     // SMS consent (Twilio toll-free verification requirement — block sends until therapist confirms)
     ['sms_consent', 'INTEGER DEFAULT 0'],   // 1 once therapist attests they obtained client SMS consent
     ['sms_consent_at', 'DATETIME'],          // timestamp of that attestation
+    ['date_of_birth', 'TEXT'],
+    ['status', "TEXT NOT NULL DEFAULT 'active'"],
+    ['therapy_ended_at', 'TEXT'],
+    ['retention_until', 'TEXT'],
+    ['retention_basis', 'TEXT'],
+    ['archived_at', 'DATETIME'],
+    ['legal_hold', 'INTEGER DEFAULT 0'],
+    ['legal_hold_reason', 'TEXT'],
   ];
   for (const [col, def] of patientAdditions) {
     if (!patientCols.includes(col)) {
@@ -1120,6 +1128,7 @@ function runMigrations() {
   }
   // Backfill existing rows — SQLite ALTER TABLE ADD COLUMN does NOT apply DEFAULT to existing rows
   try { db.run("UPDATE patients SET client_type = 'individual' WHERE client_type IS NULL OR client_type = ''"); } catch {}
+  try { db.run("UPDATE patients SET status = 'active' WHERE status IS NULL OR status = ''"); } catch {}
 
   // ── scheduled_sends — queued SMS assessment deliveries ────────────────────
   db.run(`CREATE TABLE IF NOT EXISTS scheduled_sends (

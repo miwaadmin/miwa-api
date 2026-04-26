@@ -362,9 +362,12 @@ router.post('/demo-patient', requireAuth, (req, res) => {
     const db = getDb();
     const therapistId = req.therapist.id;
 
-    // Pick random configuration. Client type comes from the archetype itself
-    // (defaults to 'individual' for the original archetypes that don't set one).
-    const archetypeKey  = pick(Object.keys(ARCHETYPES));
+    // Pick random configuration unless a specific demo archetype is requested
+    // for deterministic test/dev seeding.
+    const requestedArchetype = req.body?.archetype || req.query?.archetype;
+    const archetypeKey  = requestedArchetype && ARCHETYPES[requestedArchetype]
+      ? requestedArchetype
+      : pick(Object.keys(ARCHETYPES));
     const archetype     = ARCHETYPES[archetypeKey];
     const clientType    = archetype.client_type || 'individual';
     const trajectory    = pick(['strong_responder', 'moderate_responder', 'slow_responder']);
