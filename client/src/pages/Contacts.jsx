@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react'
-import Layout from '../components/Layout'
 import { apiFetch } from '../lib/api'
 
 /**
@@ -310,7 +309,7 @@ export default function Contacts() {
   })
 
   return (
-    <Layout>
+    <>
       <div className="max-w-[1200px] mx-auto px-4 py-6">
         {/* Header */}
         <div className="flex items-start justify-between mb-6 flex-wrap gap-3">
@@ -398,6 +397,6 @@ export default function Contacts() {
       {editing && (
         <EditModal contact={editing} onSave={handleSave} onClose={() => setEditing(null)} />
       )}
-    </Layout>
+    </>
   )
 }
