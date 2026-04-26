@@ -36,6 +36,13 @@ test('translateSqliteSql converts sqlite collation and datetime range helpers', 
   );
 });
 
+test('translateSqliteSql converts sqlite start-of-month helper', () => {
+  assert.equal(
+    translateSqliteSql("SELECT * FROM cost_events WHERE created_at >= date('now', 'start of month') AND therapist_id = ?"),
+    "SELECT * FROM cost_events WHERE created_at >= date_trunc('month', CURRENT_DATE) AND therapist_id = $1"
+  );
+});
+
 test('appendReturningId adds RETURNING id to inserts only once', () => {
   assert.equal(
     appendReturningId('INSERT INTO patients (client_id) VALUES (?)'),

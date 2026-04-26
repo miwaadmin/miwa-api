@@ -3,7 +3,7 @@ const router = express.Router({ mergeParams: true });
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-const { getDb } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const {
   deleteStoredFile,
   makeStorageKey,
@@ -68,13 +68,13 @@ function ownedPatient(db, patientId, therapistId) {
 }
 
 // GET /api/patients/:patientId/documents
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
-    const db = getDb();
-    if (!ownedPatient(db, req.params.patientId, req.therapist.id)) {
+    const db = getAsyncDb();
+    if (!await ownedPatient(db, req.params.patientId, req.therapist.id)) {
       return res.status(404).json({ error: 'Patient not found' });
     }
-    const docs = db.all(
+    const docs = await db.all(
       'SELECT id, original_name, file_type, document_label, document_kind, created_at, file_path FROM documents WHERE patient_id = ? ORDER BY created_at DESC',
       req.params.patientId
     );
@@ -91,8 +91,8 @@ router.post('/', upload.single('file'), async (req, res) => {
   let storedPath = null;
 
   try {
-    const db = getDb();
-    if (!ownedPatient(db, req.params.patientId, req.therapist.id)) {
+    const db = getAsyncDb();
+    if (!await ownedPatient(db, req.params.patientId, req.therapist.id)) {
       if (req.file?.path && fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
       return res.status(404).json({ error: 'Patient not found' });
     }
@@ -123,7 +123,7 @@ router.post('/', upload.single('file'), async (req, res) => {
       fs.unlinkSync(req.file.path);
     }
 
-    const result = db.insert(
+    const result = await db.insert(
       `INSERT INTO documents (patient_id, therapist_id, original_name, file_type, document_label, document_kind, extracted_text, file_path)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       req.params.patientId,
@@ -135,6 +135,8 @@ router.post('/', upload.single('file'), async (req, res) => {
       extractedText,
       storedPath
     );
+
+    await persistIfNeeded();
 
     res.json({
       id: result.lastInsertRowid,
@@ -160,11 +162,11 @@ router.post('/', upload.single('file'), async (req, res) => {
 // DELETE /api/patients/:patientId/documents/:docId
 router.delete('/:docId', async (req, res) => {
   try {
-    const db = getDb();
-    if (!ownedPatient(db, req.params.patientId, req.therapist.id)) {
+    const db = getAsyncDb();
+    if (!await ownedPatient(db, req.params.patientId, req.therapist.id)) {
       return res.status(404).json({ error: 'Patient not found' });
     }
-    const doc = db.get(
+    const doc = await db.get(
       'SELECT file_path FROM documents WHERE id = ? AND patient_id = ?',
       req.params.docId, req.params.patientId
     );
@@ -173,7 +175,8 @@ router.delete('/:docId', async (req, res) => {
     // Remove physical file
     await deleteStoredFile(doc.file_path);
 
-    db.run('DELETE FROM documents WHERE id = ?', req.params.docId);
+    await db.run('DELETE FROM documents WHERE id = ?', req.params.docId);
+    await persistIfNeeded();
     res.json({ message: 'Document deleted' });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -184,11 +187,11 @@ router.delete('/:docId', async (req, res) => {
 // Returns extracted text (or base64 for images) for AI consumption
 router.get('/:docId/content', async (req, res) => {
   try {
-    const db = getDb();
-    if (!ownedPatient(db, req.params.patientId, req.therapist.id)) {
+    const db = getAsyncDb();
+    if (!await ownedPatient(db, req.params.patientId, req.therapist.id)) {
       return res.status(404).json({ error: 'Patient not found' });
     }
-    const doc = db.get(
+    const doc = await db.get(
       'SELECT * FROM documents WHERE id = ? AND patient_id = ?',
       req.params.docId, req.params.patientId
     );

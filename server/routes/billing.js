@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const requireAuth = require('../middleware/auth');
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { getUsageSummary } = require('../services/costTracker');
 
 function getStripe() {
@@ -49,13 +49,13 @@ async function resolvePriceId(stripe, plan) {
 
 // ── GET /api/billing/usage ──────────────────────────────────────────────────
 // Returns this therapist's AI token usage + budget + top-spending tasks this month.
-router.get('/usage', requireAuth, (req, res) => {
+router.get('/usage', requireAuth, async (req, res) => {
   try {
-    const db = getDb();
-    const summary = getUsageSummary(req.therapist.id);
+    const db = getAsyncDb();
+    const summary = await getUsageSummary(req.therapist.id);
 
     // Breakdown by task kind for the current month
-    const byKind = db.all(
+    const byKind = await db.all(
       `SELECT kind,
               COUNT(*) AS call_count,
               COALESCE(SUM(input_tokens),  0) AS input_tokens,
@@ -77,10 +77,10 @@ router.get('/usage', requireAuth, (req, res) => {
 
 // ── GET /api/billing/status ─────────────────────────────────────────────────
 // Returns current subscription info for the logged-in therapist
-router.get('/status', requireAuth, (req, res) => {
+router.get('/status', requireAuth, async (req, res) => {
   try {
-    const db = getDb();
-    const row = db.get(
+    const db = getAsyncDb();
+    const row = await db.get(
       'SELECT subscription_status, subscription_tier, workspace_uses, trial_limit FROM therapists WHERE id = ?',
       req.therapist.id,
     );
@@ -108,7 +108,7 @@ router.get('/status', requireAuth, (req, res) => {
 router.post('/create-checkout-session', requireAuth, async (req, res) => {
   try {
     const stripe = getStripe();
-    const db = getDb();
+    const db = getAsyncDb();
     const { plan, additionalSeats = 0 } = req.body;
 
     if (!VALID_PLANS.includes(plan)) {
@@ -119,7 +119,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
     const priceVal = await resolvePriceId(stripe, plan);
 
     // Get or create Stripe customer
-    let row = db.get('SELECT stripe_customer_id, email, full_name FROM therapists WHERE id = ?', req.therapist.id);
+    let row = await db.get('SELECT stripe_customer_id, email, full_name FROM therapists WHERE id = ?', req.therapist.id);
     let customerId = row?.stripe_customer_id;
 
     if (!customerId) {
@@ -129,7 +129,8 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
         metadata: { therapist_id: String(req.therapist.id) },
       });
       customerId = customer.id;
-      db.run('UPDATE therapists SET stripe_customer_id = ? WHERE id = ?', customerId, req.therapist.id);
+      await db.run('UPDATE therapists SET stripe_customer_id = ? WHERE id = ?', customerId, req.therapist.id);
+      await persistIfNeeded();
     }
 
     // Build line items — group uses base flat price + optional per-seat add-on
@@ -168,8 +169,8 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
 // Creates a Stripe Customer Portal session so users can manage / cancel
 router.post('/portal', requireAuth, async (req, res) => {
   try {
-    const db = getDb();
-    const row = db.get('SELECT stripe_customer_id FROM therapists WHERE id = ?', req.therapist.id);
+    const db = getAsyncDb();
+    const row = await db.get('SELECT stripe_customer_id FROM therapists WHERE id = ?', req.therapist.id);
     const appUrl = process.env.APP_URL || 'http://localhost:3000';
     const stripe = getStripe();
     if (!row?.stripe_customer_id) {
@@ -194,10 +195,9 @@ router.post('/portal', requireAuth, async (req, res) => {
 
     if (isStaleCustomer) {
       try {
-        const db2 = getDb();
-        db2.run('UPDATE therapists SET stripe_customer_id = NULL WHERE id = ?', req.therapist.id);
-        const { persist } = require('../db');
-        persist();
+        const db2 = getAsyncDb();
+        await db2.run('UPDATE therapists SET stripe_customer_id = NULL WHERE id = ?', req.therapist.id);
+        await persistIfNeeded();
         console.warn('[billing] Cleared stale stripe_customer_id for therapist', req.therapist.id);
       } catch {}
       return res.status(400).json({
@@ -229,7 +229,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     return res.status(400).send('Webhook signature verification failed');
   }
 
-  const db = getDb();
+  const db = getAsyncDb();
 
   // Helper: find therapist by Stripe customer ID
   const byCustomer = (customerId) =>
@@ -247,23 +247,23 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       case 'customer.subscription.created':
       case 'customer.subscription.updated': {
         const sub = event.data.object;
-        const therapist = byCustomer(sub.customer) || bySubMeta(sub);
+        const therapist = (await byCustomer(sub.customer)) || (await bySubMeta(sub));
         if (!therapist) { console.warn('[billing] No therapist found for customer', sub.customer); break; }
 
         const status = sub.status; // 'active', 'trialing', 'past_due', 'canceled', etc.
         const plan   = sub.metadata?.plan || null;
 
         if (status === 'active' || status === 'trialing') {
-          db.run(
+          await db.run(
             'UPDATE therapists SET subscription_status = ?, subscription_tier = ?, stripe_subscription_id = ? WHERE id = ?',
             'active', plan, sub.id, therapist.id,
           );
           console.log(`[billing] Therapist ${therapist.id} subscription active (${plan})`);
         } else if (status === 'past_due') {
-          db.run('UPDATE therapists SET subscription_status = ? WHERE id = ?', 'past_due', therapist.id);
+          await db.run('UPDATE therapists SET subscription_status = ? WHERE id = ?', 'past_due', therapist.id);
           console.log(`[billing] Therapist ${therapist.id} subscription past_due`);
         } else if (status === 'canceled' || status === 'unpaid') {
-          db.run(
+          await db.run(
             'UPDATE therapists SET subscription_status = ?, subscription_tier = NULL WHERE id = ?',
             'trial', therapist.id,
           );
@@ -275,9 +275,9 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       // ── Subscription deleted (canceled at end of period) ─────────────────
       case 'customer.subscription.deleted': {
         const sub = event.data.object;
-        const therapist = byCustomer(sub.customer) || bySubMeta(sub);
+        const therapist = (await byCustomer(sub.customer)) || (await bySubMeta(sub));
         if (!therapist) break;
-        db.run(
+        await db.run(
           'UPDATE therapists SET subscription_status = ?, subscription_tier = NULL, stripe_subscription_id = NULL WHERE id = ?',
           'expired', therapist.id,
         );
@@ -288,9 +288,9 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       // ── Payment failed ────────────────────────────────────────────────────
       case 'invoice.payment_failed': {
         const invoice = event.data.object;
-        const therapist = byCustomer(invoice.customer);
+        const therapist = await byCustomer(invoice.customer);
         if (!therapist) break;
-        db.run('UPDATE therapists SET subscription_status = ? WHERE id = ?', 'past_due', therapist.id);
+        await db.run('UPDATE therapists SET subscription_status = ? WHERE id = ?', 'past_due', therapist.id);
         console.log(`[billing] Therapist ${therapist.id} payment failed`);
         break;
       }
@@ -298,10 +298,10 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
       // ── Payment succeeded ─────────────────────────────────────────────────
       case 'invoice.payment_succeeded': {
         const invoice = event.data.object;
-        const therapist = byCustomer(invoice.customer);
+        const therapist = await byCustomer(invoice.customer);
         if (!therapist) break;
         // Restore to active if they had failed before
-        db.run(
+        await db.run(
           `UPDATE therapists SET subscription_status = 'active' WHERE id = ? AND subscription_status = 'past_due'`,
           therapist.id,
         );
@@ -316,6 +316,7 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     console.error('[billing] Webhook handler error:', handlerErr.message);
   }
 
+  try { await persistIfNeeded(); } catch {}
   res.json({ received: true });
 });
 

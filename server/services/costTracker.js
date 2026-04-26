@@ -9,7 +9,7 @@
  * We round up to whole cents so we never under-bill.
  */
 
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 
 // ── Pricing table (cents per million tokens) ─────────────────────────────────
 // input, output
@@ -58,7 +58,7 @@ function budgetForTherapist(row) {
  * Log a cost event. Swallows errors — cost logging must never break the user flow.
  * Returns the cost in cents (for callers that want to short-circuit future work).
  */
-function logCostEvent({
+async function logCostEvent({
   therapistId,
   kind,
   provider,
@@ -68,9 +68,9 @@ function logCostEvent({
   status = 'ok',
 }) {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const costCents = computeCostCents(model, inputTokens, outputTokens);
-    db.insert(
+    await db.insert(
       `INSERT INTO cost_events
        (therapist_id, kind, provider, model, input_tokens, output_tokens, cost_cents, status)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -84,7 +84,7 @@ function logCostEvent({
       status,
     );
     // Fire-and-forget persistence to avoid blocking the request
-    try { persist(); } catch {}
+    try { await persistIfNeeded(); } catch {}
 
     // Cost tracking is observe-only — no therapist should ever be limited.
     // Auto-pause is disabled. Uncomment the line below if you ever want
@@ -99,10 +99,10 @@ function logCostEvent({
 
 // ── Spend queries ────────────────────────────────────────────────────────────
 
-function getMonthlySpendCents(therapistId) {
+async function getMonthlySpendCents(therapistId) {
   try {
-    const db = getDb();
-    const row = db.get(
+    const db = getAsyncDb();
+    const row = await db.get(
       `SELECT COALESCE(SUM(cost_cents), 0) AS total
          FROM cost_events
         WHERE therapist_id = ?
@@ -115,16 +115,16 @@ function getMonthlySpendCents(therapistId) {
   }
 }
 
-function getUsageSummary(therapistId) {
+async function getUsageSummary(therapistId) {
   try {
-    const db = getDb();
-    const therapist = db.get(
+    const db = getAsyncDb();
+    const therapist = await db.get(
       `SELECT subscription_tier, subscription_status,
               ai_budget_monthly_cents, ai_budget_paused
          FROM therapists WHERE id = ?`,
       therapistId,
     );
-    const spent = getMonthlySpendCents(therapistId);
+    const spent = await getMonthlySpendCents(therapistId);
     const budget = budgetForTherapist(therapist);
     return {
       spent_cents: spent,
@@ -144,14 +144,14 @@ function getUsageSummary(therapistId) {
 
 // ── Auto-pause enforcement ───────────────────────────────────────────────────
 
-function maybeAutoPause(therapistId) {
+async function maybeAutoPause(therapistId) {
   try {
-    const { spent_cents, budget_cents, paused } = getUsageSummary(therapistId);
+    const { spent_cents, budget_cents, paused } = await getUsageSummary(therapistId);
     if (paused) return;
     if (budget_cents > 0 && spent_cents >= budget_cents) {
-      const db = getDb();
-      db.run('UPDATE therapists SET ai_budget_paused = 1 WHERE id = ?', therapistId);
-      try { persist(); } catch {}
+      const db = getAsyncDb();
+      await db.run('UPDATE therapists SET ai_budget_paused = 1 WHERE id = ?', therapistId);
+      try { await persistIfNeeded(); } catch {}
       console.warn(
         `[costTracker] Therapist ${therapistId} auto-paused — spend ${spent_cents}¢ >= budget ${budget_cents}¢`,
       );
@@ -175,11 +175,11 @@ function assertBudgetOk(/* therapistId */) {
 /**
  * Admin override — clear the pause flag (e.g., after a conversation with the user).
  */
-function clearPause(therapistId) {
+async function clearPause(therapistId) {
   try {
-    const db = getDb();
-    db.run('UPDATE therapists SET ai_budget_paused = 0 WHERE id = ?', therapistId);
-    try { persist(); } catch {}
+    const db = getAsyncDb();
+    await db.run('UPDATE therapists SET ai_budget_paused = 0 WHERE id = ?', therapistId);
+    try { await persistIfNeeded(); } catch {}
     return true;
   } catch {
     return false;
