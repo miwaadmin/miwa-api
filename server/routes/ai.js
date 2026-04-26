@@ -1727,7 +1727,7 @@ router.post('/style/capture', (req, res) => {
   } catch (err) {
     // Non-blocking — capture should never fail a save
     console.warn('[style/capture] error:', err.message);
-    res.json({ captured: 0, error: err.message });
+    res.json({ captured: 0, error: 'Style capture failed' });
   }
 });
 

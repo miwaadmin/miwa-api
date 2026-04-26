@@ -423,7 +423,7 @@ router.get('/alerts', (req, res) => {
     )
     res.json(alerts)
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -439,7 +439,7 @@ router.post('/alerts/:id/dismiss', (req, res) => {
     try { persist() } catch {}
     res.json({ ok: true })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -454,7 +454,7 @@ router.post('/alerts/:id/read', (req, res) => {
     )
     res.json({ ok: true })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 
@@ -501,7 +501,7 @@ router.post('/alerts/run', (req, res) => {
     persist()
     res.json({ ok: true, alerts_created: alertsCreated, patients_checked: patients.length })
   } catch (err) {
-    res.status(500).json({ error: err.message })
+    res.status(500).json({ error: 'Internal server error' })
   }
 })
 

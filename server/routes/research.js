@@ -195,8 +195,8 @@ router.post('/generate', async (req, res) => {
     console.log(`[research] Manual generate completed for therapist_id=${req.therapist.id}`);
     res.json({ ok: true, message: 'Research brief generated successfully.' });
   } catch (err) {
-    console.error('[research] Manual generate FAILED:', err.message, err.stack);
-    res.status(500).json({ error: `Brief generation failed: ${err.message}` });
+    console.error('[research] Manual generate FAILED:', err.message);
+    res.status(500).json({ error: 'Brief generation failed. Please try again later.' });
   }
 });
 
