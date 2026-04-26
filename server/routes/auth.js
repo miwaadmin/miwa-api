@@ -5,7 +5,7 @@ const express = require('express');
 const router = express.Router();
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { generate: generateCode } = require('../lib/referralCode');
 const { applyAssistantPayloadUpdates, normalizeAssistantProfile } = require('../lib/assistant');
 const requireAuth = require('../middleware/auth');
@@ -55,9 +55,9 @@ function signToken(therapist) {
   );
 }
 
-function logEvent(db, { therapistId = null, eventType, status = null, message = null, meta = null }) {
+async function logEvent(db, { therapistId = null, eventType, status = null, message = null, meta = null }) {
   try {
-    db.insert(
+    await db.insert(
       'INSERT INTO event_logs (therapist_id, event_type, status, message, meta_json) VALUES (?, ?, ?, ?, ?)',
       therapistId,
       eventType,
@@ -118,7 +118,7 @@ function safeProfile(row) {
 
 router.post('/register', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const {
       email, password, full_name, first_name, last_name, user_role,
       referral_code: referrerCode,
@@ -157,7 +157,7 @@ router.post('/register', async (req, res) => {
       message: `If this email is eligible for a Miwa account, we just sent a verification link to ${normalizedEmail}. Please check your inbox (and spam folder) to continue.`,
     };
 
-    const existing = db.get('SELECT id, email, first_name, full_name FROM therapists WHERE email = ?', normalizedEmail);
+    const existing = await db.get('SELECT id, email, first_name, full_name FROM therapists WHERE email = ?', normalizedEmail);
     if (existing) {
       // Email is already registered — silently send a "you already have an
       // account" notice and return the same generic response we'd send for a
@@ -171,7 +171,7 @@ router.post('/register', async (req, res) => {
       } catch (mailErr) {
         console.error('[auth/register] duplicate-registration email error:', mailErr.message);
       }
-      logEvent(db, {
+      await logEvent(db, {
         therapistId: existing.id,
         eventType: 'auth.register',
         status: 'duplicate',
@@ -185,7 +185,7 @@ router.post('/register', async (req, res) => {
     // generic — referral lookups can otherwise leak which codes are valid.)
     let referredById = null;
     if (referrerCode) {
-      const referrer = db.get('SELECT id FROM therapists WHERE referral_code = ?', referrerCode.trim().toUpperCase());
+      const referrer = await db.get('SELECT id FROM therapists WHERE referral_code = ?', referrerCode.trim().toUpperCase());
       if (referrer) referredById = referrer.id;
     }
 
@@ -193,7 +193,7 @@ router.post('/register', async (req, res) => {
     let myCode = null;
     for (let attempt = 0; attempt < 10; attempt++) {
       const candidate = generateCode();
-      const taken = db.get('SELECT id FROM therapists WHERE referral_code = ?', candidate);
+      const taken = await db.get('SELECT id FROM therapists WHERE referral_code = ?', candidate);
       if (!taken) { myCode = candidate; break; }
     }
     if (!myCode) myCode = `${generateCode()}${Date.now().toString().slice(-2)}`;
@@ -205,7 +205,7 @@ router.post('/register', async (req, res) => {
       || [first_name?.trim(), last_name?.trim()].filter(Boolean).join(' ')
       || null;
 
-    const result = db.insert(
+    const result = await db.insert(
       `INSERT INTO therapists
          (email, password_hash, full_name, first_name, last_name, user_role, referral_code, referred_by,
           credential_type, credential_number, school_email, credential_verified, preferred_timezone)
@@ -226,22 +226,22 @@ router.post('/register', async (req, res) => {
     );
 
     const therapistId = result.lastInsertRowid;
-    const unclaimed = db.get('SELECT COUNT(*) as n FROM patients WHERE therapist_id IS NULL');
+    const unclaimed = await db.get('SELECT COUNT(*) as n FROM patients WHERE therapist_id IS NULL');
     if (unclaimed && unclaimed.n > 0) {
-      db.run('UPDATE patients SET therapist_id = ? WHERE therapist_id IS NULL', therapistId);
-      db.run('UPDATE sessions SET therapist_id = ? WHERE therapist_id IS NULL', therapistId);
-      db.run('UPDATE chat_messages SET therapist_id = ? WHERE therapist_id IS NULL', therapistId);
-      db.run('UPDATE documents SET therapist_id = ? WHERE therapist_id IS NULL', therapistId);
+      await db.run('UPDATE patients SET therapist_id = ? WHERE therapist_id IS NULL', therapistId);
+      await db.run('UPDATE sessions SET therapist_id = ? WHERE therapist_id IS NULL', therapistId);
+      await db.run('UPDATE chat_messages SET therapist_id = ? WHERE therapist_id IS NULL', therapistId);
+      await db.run('UPDATE documents SET therapist_id = ? WHERE therapist_id IS NULL', therapistId);
     }
 
-    const rowBeforeAdmin = db.get('SELECT * FROM therapists WHERE id = ?', therapistId);
+    const rowBeforeAdmin = await db.get('SELECT * FROM therapists WHERE id = ?', therapistId);
     const shouldBeAdmin = !!rowBeforeAdmin.is_admin || isConfiguredAdminEmail(rowBeforeAdmin.email);
     if (shouldBeAdmin && !rowBeforeAdmin.is_admin) {
-      db.run('UPDATE therapists SET is_admin = 1 WHERE id = ?', therapistId);
+      await db.run('UPDATE therapists SET is_admin = 1 WHERE id = ?', therapistId);
     }
-    const row = db.get('SELECT * FROM therapists WHERE id = ?', therapistId);
-    logEvent(db, { therapistId, eventType: 'auth.register', status: 'success', message: `New ${credType} account created (pending email verification)` });
-    persist();
+    const row = await db.get('SELECT * FROM therapists WHERE id = ?', therapistId);
+    await logEvent(db, { therapistId, eventType: 'auth.register', status: 'success', message: `New ${credType} account created (pending email verification)` });
+    await persistIfNeeded();
 
     // ── Send account email verification link ─────────────────────────────────
     // The therapist must click this link before they can sign in. Token is
@@ -249,11 +249,11 @@ router.post('/register', async (req, res) => {
     try {
       const verifyToken = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      db.insert(
+      await db.insert(
         `INSERT INTO email_verification_tokens (therapist_id, token, expires_at) VALUES (?, ?, ?)`,
         therapistId, verifyToken, expiresAt
       );
-      persist();
+      await persistIfNeeded();
       await sendAccountVerificationEmail({
         toEmail: normalizedEmail,
         firstName: first_name?.trim(),
@@ -272,7 +272,7 @@ router.post('/register', async (req, res) => {
       const verifyToken = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
       try {
-        db.insert(
+        await db.insert(
           `INSERT INTO credential_verifications (therapist_id, token, verify_email, expires_at)
            VALUES (?, ?, ?, ?)`,
           therapistId,
@@ -280,7 +280,7 @@ router.post('/register', async (req, res) => {
           school_email.trim().toLowerCase(),
           expiresAt
         );
-        persist();
+        await persistIfNeeded();
         await sendSchoolEmailVerification({
           schoolEmail: school_email.trim(),
           firstName: first_name?.trim(),
@@ -308,11 +308,11 @@ router.post('/register', async (req, res) => {
 // and returns the therapist profile so the frontend can land them on /dashboard.
 router.post('/verify-email', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { token } = req.body || {};
     if (!token) return res.status(400).json({ error: 'Verification token is required.' });
 
-    const record = db.get(
+    const record = await db.get(
       `SELECT * FROM email_verification_tokens WHERE token = ?`,
       token
     );
@@ -326,17 +326,17 @@ router.post('/verify-email', async (req, res) => {
       return res.status(410).json({ error: 'This verification link has expired. Request a new one from the sign-in page.' });
     }
 
-    const therapist = db.get('SELECT * FROM therapists WHERE id = ?', record.therapist_id);
+    const therapist = await db.get('SELECT * FROM therapists WHERE id = ?', record.therapist_id);
     if (!therapist) return res.status(404).json({ error: 'Account not found.' });
 
-    db.run(
+    await db.run(
       `UPDATE therapists SET email_verified = 1, email_verified_at = CURRENT_TIMESTAMP,
                               last_login_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP
                           WHERE id = ?`,
       therapist.id
     );
-    db.run(`UPDATE email_verification_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?`, record.id);
-    persist();
+    await db.run(`UPDATE email_verification_tokens SET used_at = CURRENT_TIMESTAMP WHERE id = ?`, record.id);
+    await persistIfNeeded();
 
     // Welcome email is deferred until verification so the user doesn't get
     // a "welcome" mail for an account they never confirmed owning.
@@ -350,12 +350,12 @@ router.post('/verify-email', async (req, res) => {
       });
     } catch {}
 
-    const fresh = db.get('SELECT * FROM therapists WHERE id = ?', therapist.id);
+    const fresh = await db.get('SELECT * FROM therapists WHERE id = ?', therapist.id);
     const shouldBeAdmin = !!fresh.is_admin || isConfiguredAdminEmail(fresh.email);
     const sessionToken = signToken({ ...fresh, is_admin: shouldBeAdmin });
     setAuthCookie(res, sessionToken);
 
-    logEvent(db, { therapistId: therapist.id, eventType: 'auth.email_verified', status: 'success', message: 'Email address verified' });
+    await logEvent(db, { therapistId: therapist.id, eventType: 'auth.email_verified', status: 'success', message: 'Email address verified' });
     return res.json({ token: sessionToken, therapist: safeProfile(fresh) });
   } catch (err) {
     console.error('[auth/verify-email]', err);
@@ -377,16 +377,16 @@ router.post('/resend-verification', async (req, res) => {
   };
 
   try {
-    const db = getDb();
-    const therapist = db.get('SELECT * FROM therapists WHERE email = ?', normalizedEmail);
+    const db = getAsyncDb();
+    const therapist = await db.get('SELECT * FROM therapists WHERE email = ?', normalizedEmail);
     if (therapist && !therapist.email_verified) {
       const verifyToken = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-      db.insert(
+      await db.insert(
         `INSERT INTO email_verification_tokens (therapist_id, token, expires_at) VALUES (?, ?, ?)`,
         therapist.id, verifyToken, expiresAt
       );
-      persist();
+      await persistIfNeeded();
       await sendAccountVerificationEmail({
         toEmail: therapist.email,
         firstName: therapist.first_name,
@@ -402,11 +402,11 @@ router.post('/resend-verification', async (req, res) => {
 });
 
 // GET /api/auth/verify-credential/:token — trainee clicks link sent to their school email
-router.get('/verify-credential/:token', (req, res) => {
+router.get('/verify-credential/:token', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { token } = req.params;
-    const record = db.get(
+    const record = await db.get(
       `SELECT cv.*, t.full_name as trainee_name
        FROM credential_verifications cv
        JOIN therapists t ON t.id = cv.therapist_id
@@ -424,10 +424,10 @@ router.get('/verify-credential/:token', (req, res) => {
       return res.status(410).send(verifyPage('This verification link has expired. Sign in and request a new one from your account settings.', false));
     }
 
-    db.run(`UPDATE credential_verifications SET verified_at = CURRENT_TIMESTAMP WHERE id = ?`, record.id);
-    db.run(`UPDATE therapists SET credential_verified = 1, credential_verified_at = CURRENT_TIMESTAMP WHERE id = ?`, record.therapist_id);
-    persist();
-    logEvent(db, {
+    await db.run(`UPDATE credential_verifications SET verified_at = CURRENT_TIMESTAMP WHERE id = ?`, record.id);
+    await db.run(`UPDATE therapists SET credential_verified = 1, credential_verified_at = CURRENT_TIMESTAMP WHERE id = ?`, record.therapist_id);
+    await persistIfNeeded();
+    await logEvent(db, {
       therapistId: record.therapist_id,
       eventType: 'credential.school_email_verified',
       status: 'success',
@@ -466,7 +466,7 @@ function verifyPage(message, success) {
 
 router.post('/login', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -474,29 +474,29 @@ router.post('/login', async (req, res) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const row = db.get('SELECT * FROM therapists WHERE email = ?', normalizedEmail);
+    const row = await db.get('SELECT * FROM therapists WHERE email = ?', normalizedEmail);
     const INVALID_MSG = 'Invalid email or password.';
 
     if (!row) {
-      logEvent(db, { eventType: 'auth.login', status: 'failed', message: 'Login failed for unknown email', meta: { email: normalizedEmail } });
+      await logEvent(db, { eventType: 'auth.login', status: 'failed', message: 'Login failed for unknown email', meta: { email: normalizedEmail } });
       return res.status(401).json({ error: INVALID_MSG });
     }
 
     if (row.account_status === 'suspended') {
-      logEvent(db, { therapistId: row.id, eventType: 'auth.login', status: 'blocked', message: 'Suspended account attempted login' });
+      await logEvent(db, { therapistId: row.id, eventType: 'auth.login', status: 'blocked', message: 'Suspended account attempted login' });
       return res.status(403).json({ error: 'This account has been suspended. Contact support.' });
     }
 
     const match = await bcrypt.compare(password, row.password_hash);
     if (!match) {
-      logEvent(db, { therapistId: row.id, eventType: 'auth.login', status: 'failed', message: 'Invalid password' });
+      await logEvent(db, { therapistId: row.id, eventType: 'auth.login', status: 'failed', message: 'Invalid password' });
       return res.status(401).json({ error: INVALID_MSG });
     }
 
     // Email verification required for accounts created after the verification
     // flow shipped. Existing accounts were grandfathered in the migration.
     if (!row.email_verified) {
-      logEvent(db, { therapistId: row.id, eventType: 'auth.login', status: 'unverified', message: 'Login blocked — email not verified' });
+      await logEvent(db, { therapistId: row.id, eventType: 'auth.login', status: 'unverified', message: 'Login blocked — email not verified' });
       return res.status(403).json({
         error: 'Please verify your email address before signing in. Check your inbox for the verification link, or request a new one.',
         code: 'EMAIL_UNVERIFIED',
@@ -504,10 +504,10 @@ router.post('/login', async (req, res) => {
     }
 
     const shouldBeAdmin = !!row.is_admin || isConfiguredAdminEmail(row.email)
-    db.run('UPDATE therapists SET last_login_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP, is_admin = ? WHERE id = ?', shouldBeAdmin ? 1 : row.is_admin, row.id);
-    const freshRow = db.get('SELECT * FROM therapists WHERE id = ?', row.id);
-    logEvent(db, { therapistId: row.id, eventType: 'auth.login', status: 'success', message: 'Successful login' });
-    persist();
+    await db.run('UPDATE therapists SET last_login_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP, is_admin = ? WHERE id = ?', shouldBeAdmin ? 1 : row.is_admin, row.id);
+    const freshRow = await db.get('SELECT * FROM therapists WHERE id = ?', row.id);
+    await logEvent(db, { therapistId: row.id, eventType: 'auth.login', status: 'success', message: 'Successful login' });
+    await persistIfNeeded();
 
     const token = signToken({ ...freshRow, is_admin: shouldBeAdmin });
     setAuthCookie(res, token);
@@ -518,10 +518,10 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.get('/me', requireAuth, (req, res) => {
+router.get('/me', requireAuth, async (req, res) => {
   try {
-    const db = getDb();
-    const row = db.get('SELECT * FROM therapists WHERE id = ?', req.therapist.id);
+    const db = getAsyncDb();
+    const row = await db.get('SELECT * FROM therapists WHERE id = ?', req.therapist.id);
     if (!row) return res.status(404).json({ error: 'Account not found.' });
     return res.json(safeProfile(row));
   } catch (err) {
@@ -531,7 +531,7 @@ router.get('/me', requireAuth, (req, res) => {
 
 router.put('/me', requireAuth, async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const {
       full_name,
       first_name,
@@ -552,7 +552,7 @@ router.put('/me', requireAuth, async (req, res) => {
       auto_send_overdue,
       auto_mbc_enabled,
     } = req.body;
-    const row = db.get('SELECT * FROM therapists WHERE id = ?', req.therapist.id);
+    const row = await db.get('SELECT * FROM therapists WHERE id = ?', req.therapist.id);
     if (!row) return res.status(404).json({ error: 'Account not found.' });
 
     // Merge auto_send_overdue + auto_mbc_enabled into assistant_permissions_json
@@ -560,7 +560,7 @@ router.put('/me', requireAuth, async (req, res) => {
       const existingPerms = (() => { try { return row.assistant_permissions_json ? JSON.parse(row.assistant_permissions_json) : {} } catch { return {} } })();
       if (auto_send_overdue !== undefined) existingPerms.auto_send_overdue = !!auto_send_overdue;
       if (auto_mbc_enabled !== undefined) existingPerms.auto_mbc_enabled = !!auto_mbc_enabled;
-      db.run('UPDATE therapists SET assistant_permissions_json = ? WHERE id = ?',
+      await db.run('UPDATE therapists SET assistant_permissions_json = ? WHERE id = ?',
         JSON.stringify(existingPerms), req.therapist.id);
     }
 
@@ -594,7 +594,7 @@ router.put('/me', requireAuth, async (req, res) => {
         ? [newFirstName, newLastName].filter(Boolean).join(' ')
         : row.full_name;
 
-    db.run(
+    await db.run(
       `UPDATE therapists
        SET full_name = ?, first_name = ?, last_name = ?, user_role = ?, api_key = ?, avatar_url = ?, password_hash = ?,
            assistant_action_mode = ?, assistant_tone = ?, assistant_orientation = ?,
@@ -619,9 +619,9 @@ router.put('/me', requireAuth, async (req, res) => {
       req.therapist.id
     );
 
-    const updated = db.get('SELECT * FROM therapists WHERE id = ?', req.therapist.id);
-    logEvent(db, { therapistId: req.therapist.id, eventType: 'account.profile_update', status: 'success', message: 'Profile updated' });
-    persist();
+    const updated = await db.get('SELECT * FROM therapists WHERE id = ?', req.therapist.id);
+    await logEvent(db, { therapistId: req.therapist.id, eventType: 'account.profile_update', status: 'success', message: 'Profile updated' });
+    await persistIfNeeded();
     const token = signToken(updated);
     setAuthCookie(res, token);
     return res.json({ token, therapist: safeProfile(updated) });
@@ -677,7 +677,7 @@ function signAdminToken(therapist) {
 
 router.post('/admin-login', async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { email, password } = req.body;
 
     if (!email || !password) {
@@ -685,36 +685,36 @@ router.post('/admin-login', async (req, res) => {
     }
 
     const normalizedEmail = email.toLowerCase().trim();
-    const row = db.get('SELECT * FROM therapists WHERE email = ?', normalizedEmail);
+    const row = await db.get('SELECT * FROM therapists WHERE email = ?', normalizedEmail);
     const INVALID_MSG = 'Invalid email or password.';
 
     if (!row) {
-      logEvent(db, { eventType: 'auth.admin_login', status: 'failed', message: 'Admin login failed for unknown email', meta: { email: normalizedEmail } });
+      await logEvent(db, { eventType: 'auth.admin_login', status: 'failed', message: 'Admin login failed for unknown email', meta: { email: normalizedEmail } });
       return res.status(401).json({ error: INVALID_MSG });
     }
 
     if (row.account_status === 'suspended') {
-      logEvent(db, { therapistId: row.id, eventType: 'auth.admin_login', status: 'blocked', message: 'Suspended account attempted admin login' });
+      await logEvent(db, { therapistId: row.id, eventType: 'auth.admin_login', status: 'blocked', message: 'Suspended account attempted admin login' });
       return res.status(403).json({ error: 'This account has been suspended. Contact support.' });
     }
 
     const match = await bcrypt.compare(password, row.password_hash);
     if (!match) {
-      logEvent(db, { therapistId: row.id, eventType: 'auth.admin_login', status: 'failed', message: 'Invalid password for admin login' });
+      await logEvent(db, { therapistId: row.id, eventType: 'auth.admin_login', status: 'failed', message: 'Invalid password for admin login' });
       return res.status(401).json({ error: INVALID_MSG });
     }
 
     // Must be an admin
     const shouldBeAdmin = !!row.is_admin || isConfiguredAdminEmail(row.email);
     if (!shouldBeAdmin) {
-      logEvent(db, { therapistId: row.id, eventType: 'auth.admin_login', status: 'denied', message: 'Non-admin attempted admin login' });
+      await logEvent(db, { therapistId: row.id, eventType: 'auth.admin_login', status: 'denied', message: 'Non-admin attempted admin login' });
       return res.status(403).json({ error: 'Admin access required. This account does not have admin privileges.' });
     }
 
-    db.run('UPDATE therapists SET last_login_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP, is_admin = 1 WHERE id = ?', row.id);
-    const freshRow = db.get('SELECT * FROM therapists WHERE id = ?', row.id);
-    logEvent(db, { therapistId: row.id, eventType: 'auth.admin_login', status: 'success', message: 'Successful admin login' });
-    persist();
+    await db.run('UPDATE therapists SET last_login_at = CURRENT_TIMESTAMP, last_seen_at = CURRENT_TIMESTAMP, is_admin = 1 WHERE id = ?', row.id);
+    const freshRow = await db.get('SELECT * FROM therapists WHERE id = ?', row.id);
+    await logEvent(db, { therapistId: row.id, eventType: 'auth.admin_login', status: 'success', message: 'Successful admin login' });
+    await persistIfNeeded();
 
     const token = signAdminToken(freshRow);
     setAdminAuthCookie(res, token);
@@ -725,7 +725,7 @@ router.post('/admin-login', async (req, res) => {
   }
 });
 
-router.get('/admin-me', (req, res) => {
+router.get('/admin-me', async (req, res) => {
   try {
     const cookieToken = req.cookies?.miwa_admin_auth;
     const headerToken = (() => {
@@ -739,8 +739,8 @@ router.get('/admin-me', (req, res) => {
     const decoded = jwt.verify(token, JWT_SECRET);
     if (decoded.type !== 'admin') return res.status(403).json({ error: 'Invalid token type.' });
 
-    const db = getDb();
-    const row = db.get('SELECT * FROM therapists WHERE id = ?', decoded.sub);
+    const db = getAsyncDb();
+    const row = await db.get('SELECT * FROM therapists WHERE id = ?', decoded.sub);
     if (!row) return res.status(404).json({ error: 'Account not found.' });
 
     const shouldBeAdmin = !!row.is_admin || isConfiguredAdminEmail(row.email);
@@ -766,8 +766,8 @@ router.post('/forgot-password', async (req, res) => {
   if (!email) return res.json({ ok: true });
 
   try {
-    const db = getDb();
-    const row = db.get('SELECT id, first_name, email FROM therapists WHERE lower(email) = lower(?)', email.trim());
+    const db = getAsyncDb();
+    const row = await db.get('SELECT id, first_name, email FROM therapists WHERE lower(email) = lower(?)', email.trim());
 
     if (row) {
       // Generate a secure reset token
@@ -775,15 +775,15 @@ router.post('/forgot-password', async (req, res) => {
       const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
 
       // Invalidate any existing tokens for this user
-      db.run('DELETE FROM password_reset_tokens WHERE therapist_id = ?', row.id);
+      await db.run('DELETE FROM password_reset_tokens WHERE therapist_id = ?', row.id);
 
       // Insert new token
-      db.run(
+      await db.run(
         'INSERT INTO password_reset_tokens (token, therapist_id, expires_at) VALUES (?, ?, ?)',
         token, row.id, expiresAt
       );
 
-      persist();
+      await persistIfNeeded();
 
       // Send email (non-blocking — don't fail if email fails)
       sendPasswordResetEmail({
@@ -811,8 +811,8 @@ router.post('/reset-password', async (req, res) => {
   }
 
   try {
-    const db = getDb();
-    const row = db.get(
+    const db = getAsyncDb();
+    const row = await db.get(
       `SELECT prt.*, t.email, t.first_name
        FROM password_reset_tokens prt
        JOIN therapists t ON prt.therapist_id = t.id
@@ -828,12 +828,12 @@ router.post('/reset-password', async (req, res) => {
 
     // Hash new password and update
     const passwordHash = await bcrypt.hash(password, 12);
-    db.run('UPDATE therapists SET password_hash = ? WHERE id = ?', passwordHash, row.therapist_id);
+    await db.run('UPDATE therapists SET password_hash = ? WHERE id = ?', passwordHash, row.therapist_id);
 
     // Mark token as used
-    db.run('UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE token = ?', token);
+    await db.run('UPDATE password_reset_tokens SET used_at = CURRENT_TIMESTAMP WHERE token = ?', token);
 
-    persist();
+    await persistIfNeeded();
 
     return res.json({ ok: true, message: 'Password updated successfully.' });
   } catch (err) {
@@ -865,11 +865,11 @@ function diagAuthorized(req, res) {
   }
   return true;
 }
-router.get('/_diag/accounts', (req, res) => {
+router.get('/_diag/accounts', async (req, res) => {
   if (!diagAuthorized(req, res)) return;
   try {
-    const db = getDb();
-    const rows = db.all(`
+    const db = getAsyncDb();
+    const rows = await db.all(`
       SELECT id, email, first_name, last_name, full_name,
              credential_type, account_status, is_admin,
              email_verified, last_login_at, created_at
@@ -885,7 +885,7 @@ router.get('/_diag/accounts', (req, res) => {
 // Returns info about which DB file the running process is actually reading,
 // plus row counts for every table. This disambiguates "DB was wiped" from
 // "app is pointing at the wrong file".
-router.get('/_diag/db', (req, res) => {
+router.get('/_diag/db', async (req, res) => {
   if (!diagAuthorized(req, res)) return;
   try {
     const fs = require('fs');
@@ -903,11 +903,11 @@ router.get('/_diag/db', (req, res) => {
       };
     } catch {}
 
-    const db = getDb();
-    const tables = db.all(`SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`);
+    const db = getAsyncDb();
+    const tables = await db.all(`SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`);
     const counts = {};
     for (const t of tables) {
-      try { counts[t.name] = db.get(`SELECT COUNT(*) AS n FROM ${t.name}`).n; }
+      try { counts[t.name] = (await db.get(`SELECT COUNT(*) AS n FROM ${t.name}`)).n; }
       catch (e) { counts[t.name] = `err: ${e.message}`; }
     }
 
@@ -935,11 +935,11 @@ router.get('/_diag/db', (req, res) => {
 
 // Dump recent event_logs rows — the audit trail is the fastest way to see
 // what actions were taken against the DB and when.
-router.get('/_diag/events', (req, res) => {
+router.get('/_diag/events', async (req, res) => {
   if (!diagAuthorized(req, res)) return;
   try {
-    const db = getDb();
-    const rows = db.all(`
+    const db = getAsyncDb();
+    const rows = await db.all(`
       SELECT id, therapist_id, event_type, status, message, meta_json, created_at
       FROM event_logs
       ORDER BY id DESC
@@ -969,7 +969,7 @@ router.post('/_diag/backup-now', async (req, res) => {
 // Download the encrypted DB blob directly (no email). Same format as the
 // email attachment. Use this if email delivery is broken or you want an
 // immediate off-platform copy before an intentional migration.
-router.get('/_diag/download-backup', (req, res) => {
+router.get('/_diag/download-backup', async (req, res) => {
   if (!diagAuthorized(req, res)) return;
   try {
     const { buildEncryptedDbBackup } = require('../services/backup');
@@ -995,9 +995,9 @@ router.post('/_diag/create-admin', async (req, res) => {
     if (!email || !password || String(password).length < 8) {
       return res.status(400).json({ error: 'email and password (>=8 chars) required' });
     }
-    const db = getDb();
+    const db = getAsyncDb();
     const normalizedEmail = String(email).toLowerCase().trim();
-    const existing = db.get('SELECT id FROM therapists WHERE email = ?', normalizedEmail);
+    const existing = await db.get('SELECT id FROM therapists WHERE email = ?', normalizedEmail);
     if (existing) return res.status(409).json({ error: 'Account with that email already exists', id: existing.id });
 
     const passwordHash = await bcrypt.hash(String(password), 12);
@@ -1007,11 +1007,11 @@ router.post('/_diag/create-admin', async (req, res) => {
     let myCode = null;
     for (let i = 0; i < 10; i++) {
       const candidate = generateCode();
-      if (!db.get('SELECT id FROM therapists WHERE referral_code = ?', candidate)) { myCode = candidate; break; }
+      if (!(await db.get('SELECT id FROM therapists WHERE referral_code = ?', candidate))) { myCode = candidate; break; }
     }
     if (!myCode) myCode = `${generateCode()}${Date.now().toString().slice(-2)}`;
 
-    const result = db.insert(
+    const result = await db.insert(
       `INSERT INTO therapists
          (email, password_hash, full_name, first_name, last_name, user_role,
           referral_code, credential_type, credential_verified,
@@ -1022,7 +1022,7 @@ router.post('/_diag/create-admin', async (req, res) => {
       first_name?.trim() || null, last_name?.trim() || null,
       myCode
     );
-    persist();
+    await persistIfNeeded();
     return res.json({ ok: true, id: result.lastInsertRowid, email: normalizedEmail, is_admin: true, email_verified: true });
   } catch (err) {
     return res.status(500).json({ error: 'Internal server error' });
@@ -1039,18 +1039,18 @@ router.post('/_diag/reset-password', async (req, res) => {
     if (!id || !new_password || String(new_password).length < 8) {
       return res.status(400).json({ error: 'id and new_password (>=8 chars) required' });
     }
-    const db = getDb();
-    const row = db.get('SELECT id, email FROM therapists WHERE id = ?', Number(id));
+    const db = getAsyncDb();
+    const row = await db.get('SELECT id, email FROM therapists WHERE id = ?', Number(id));
     if (!row) return res.status(404).json({ error: 'Therapist not found' });
 
     const hash = await bcrypt.hash(String(new_password), 12);
-    db.run(
+    await db.run(
       `UPDATE therapists SET password_hash = ?, email_verified = 1,
                               email_verified_at = COALESCE(email_verified_at, CURRENT_TIMESTAMP)
                           WHERE id = ?`,
       hash, row.id
     );
-    persist();
+    await persistIfNeeded();
     return res.json({ ok: true, id: row.id, email: row.email });
   } catch (err) {
     return res.status(500).json({ error: 'Internal server error' });
