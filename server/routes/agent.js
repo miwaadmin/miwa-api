@@ -2434,7 +2434,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
         if (args.case_type) params.case_type = args.case_type;
         if (args.concerns) params.concerns = args.concerns;
 
-        const result = createWorkflow(therapistId, args.workflow_type, params);
+        const result = await createWorkflow(therapistId, args.workflow_type, params);
         return {
           message: `Workflow "${result.label}" started with ${result.steps} steps.`,
           workflow_id: result.workflowId,
@@ -2451,7 +2451,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       try {
         const { getWorkflowStatus, listWorkflows } = require('../services/workflow-engine');
         if (args.workflow_id) {
-          const status = getWorkflowStatus(args.workflow_id, therapistId);
+          const status = await getWorkflowStatus(args.workflow_id, therapistId);
           if (!status) return { error: 'Workflow not found' };
           return {
             id: status.id,
@@ -2463,7 +2463,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
             steps: status.steps.map(s => ({ step: s.step_number, tool: s.tool_name, description: s.description, status: s.status })),
           };
         }
-        const workflows = listWorkflows(therapistId);
+        const workflows = await listWorkflows(therapistId);
         return { workflows: workflows.map(w => ({ id: w.id, type: w.workflow_type, label: w.label, status: w.status, created_at: w.created_at })) };
       } catch (err) {
         return { error: `Workflow status: ${err.message}` };

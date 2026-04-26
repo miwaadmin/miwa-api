@@ -378,7 +378,7 @@ ${targetFormat === 'SOAP' ? '{"subjective": "...", "objective": "...", "assessme
   '{"goals": "...", "intervention": "...", "response": "...", "plan": "..."}'}`;
 
     const { getStyleHintsForPrompt } = require('../services/style-adaptation');
-    const convertStyleHints = getStyleHintsForPrompt(req.therapist.id);
+    const convertStyleHints = await getStyleHintsForPrompt(req.therapist.id);
     const raw = await callAI(
       MODELS.AZURE_MAIN,
       'You are a clinical documentation assistant. Convert notes between formats accurately. Do not invent clinical facts.' + convertStyleHints,
@@ -504,7 +504,7 @@ Rules:
     // Inject per-therapist style hints (learned from their edits) into the
     // system prompt. Returns empty string until they have enough samples.
     const { getStyleHintsForPrompt } = require('../services/style-adaptation');
-    const styleHints = getStyleHintsForPrompt(req.therapist.id);
+    const styleHints = await getStyleHintsForPrompt(req.therapist.id);
 
     const rawDictate = await callAI(
       MODELS.AZURE_MAIN,
@@ -1721,14 +1721,14 @@ router.post('/briefs/generate/:appointmentId', async (req, res) => {
  * Captures an AI-draft → therapist-saved pair. One row per changed field.
  * Fires a background profile rebuild when enough new samples exist.
  */
-router.post('/style/capture', (req, res) => {
+router.post('/style/capture', async (req, res) => {
   try {
     const { session_id, source, ai_draft, final_text } = req.body || {};
     if (!ai_draft || !final_text) {
       return res.status(400).json({ error: 'ai_draft and final_text are required' });
     }
     const { captureSample, maybeRebuildProfile } = require('../services/style-adaptation');
-    const captured = captureSample({
+    const captured = await captureSample({
       therapistId: req.therapist.id,
       sessionId: session_id || null,
       source: source || 'manual',
@@ -1748,10 +1748,10 @@ router.post('/style/capture', (req, res) => {
  * GET /api/ai/style/profile
  * Return the therapist's current distilled style profile (or null).
  */
-router.get('/style/profile', (req, res) => {
+router.get('/style/profile', async (req, res) => {
   try {
     const { getProfile } = require('../services/style-adaptation');
-    res.json({ profile: getProfile(req.therapist.id) });
+    res.json({ profile: await getProfile(req.therapist.id) });
   } catch (err) {
     sendRouteError(res, err);
   }

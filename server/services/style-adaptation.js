@@ -20,7 +20,7 @@
 
 'use strict';
 
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { callAI, MODELS } = require('../lib/aiExecutor');
 
 // ── Tuning ───────────────────────────────────────────────────────────────────
@@ -70,10 +70,10 @@ function safeJsonParse(s, fallback = null) {
  *   finalText   — same shape
  * @returns {number} count of samples captured
  */
-function captureSample({ therapistId, sessionId, source, aiDraft, finalText }) {
+async function captureSample({ therapistId, sessionId, source, aiDraft, finalText }) {
   if (!therapistId || !aiDraft || !finalText) return 0;
 
-  const db = getDb();
+  const db = getAsyncDb();
   const fields = Object.keys(aiDraft);
   let captured = 0;
 
@@ -89,7 +89,7 @@ function captureSample({ therapistId, sessionId, source, aiDraft, finalText }) {
     // if the therapist has <5 samples overall (so first-profile has data).
     if (ratio < MIN_EDIT_RATIO) {
       try {
-        const countRow = db.get(
+        const countRow = await db.get(
           `SELECT COUNT(*) AS c FROM style_samples WHERE therapist_id = ?`,
           therapistId
         );
@@ -98,7 +98,7 @@ function captureSample({ therapistId, sessionId, source, aiDraft, finalText }) {
     }
 
     try {
-      db.run(
+      await db.run(
         `INSERT INTO style_samples
           (therapist_id, session_id, source, field, ai_draft, final_text, edit_distance)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -112,7 +112,7 @@ function captureSample({ therapistId, sessionId, source, aiDraft, finalText }) {
 
   if (captured > 0) {
     try {
-      db.run(
+      await db.run(
         `INSERT INTO therapist_style_profile (therapist_id, sample_count, updated_at)
          VALUES (?, ?, ?)
          ON CONFLICT(therapist_id) DO UPDATE SET
@@ -121,7 +121,7 @@ function captureSample({ therapistId, sessionId, source, aiDraft, finalText }) {
         therapistId, captured, new Date().toISOString()
       );
     } catch {}
-    try { persist(); } catch {}
+    await persistIfNeeded();
   }
 
   return captured;
@@ -134,9 +134,9 @@ function captureSample({ therapistId, sessionId, source, aiDraft, finalText }) {
  * Runs in background after capture — the caller doesn't await.
  */
 async function rebuildProfile(therapistId) {
-  const db = getDb();
+  const db = getAsyncDb();
 
-  const samples = db.all(
+  const samples = await db.all(
     `SELECT field, ai_draft, final_text
      FROM style_samples
      WHERE therapist_id = ?
@@ -213,13 +213,13 @@ Rules:
 
   // Persist
   const now = new Date().toISOString();
-  const countRow = db.get(
+  const countRow = await db.get(
     `SELECT sample_count FROM therapist_style_profile WHERE therapist_id = ?`,
     therapistId
   );
 
   try {
-    db.run(
+    await db.run(
       `INSERT INTO therapist_style_profile
         (therapist_id, sample_count, hints_text, prefer_phrases_json, avoid_phrases_json,
          avg_length_ratio, formality, last_rebuild_at, last_rebuild_count, updated_at)
@@ -244,7 +244,7 @@ Rules:
       countRow?.sample_count || samples.length,
       now
     );
-    try { persist(); } catch {}
+    await persistIfNeeded();
   } catch (err) {
     console.warn('[style] profile persist failed:', err.message);
     return null;
@@ -261,10 +261,10 @@ Rules:
  * Decide whether to rebuild after a capture. Fires fire-and-forget so the
  * caller doesn't block. Rebuilds at 3 samples, then every REBUILD_EVERY after.
  */
-function maybeRebuildProfile(therapistId) {
+async function maybeRebuildProfile(therapistId) {
   try {
-    const db = getDb();
-    const profile = db.get(
+    const db = getAsyncDb();
+    const profile = await db.get(
       `SELECT sample_count, last_rebuild_count FROM therapist_style_profile WHERE therapist_id = ?`,
       therapistId
     );
@@ -287,10 +287,10 @@ function maybeRebuildProfile(therapistId) {
  * Return a compact style-hint block to append to drafting system prompts.
  * Empty string if no profile yet — caller concatenates unconditionally.
  */
-function getStyleHintsForPrompt(therapistId) {
+async function getStyleHintsForPrompt(therapistId) {
   try {
-    const db = getDb();
-    const profile = db.get(
+    const db = getAsyncDb();
+    const profile = await db.get(
       `SELECT hints_text, prefer_phrases_json, avoid_phrases_json,
               avg_length_ratio, formality, sample_count
        FROM therapist_style_profile WHERE therapist_id = ?`,
@@ -322,9 +322,9 @@ function getStyleHintsForPrompt(therapistId) {
 /**
  * Retrieve the current profile for display (e.g. therapist settings page).
  */
-function getProfile(therapistId) {
-  const db = getDb();
-  const row = db.get(
+async function getProfile(therapistId) {
+  const db = getAsyncDb();
+  const row = await db.get(
     `SELECT * FROM therapist_style_profile WHERE therapist_id = ?`,
     therapistId
   );

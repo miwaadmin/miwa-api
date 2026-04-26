@@ -35,7 +35,7 @@
 
 'use strict';
 
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { MODELS, callAIWithTools } = require('../lib/aiExecutor');
 const { AGENT_TOOLS, AI_AGENT_TOOLS, executeAgentTool } = require('../routes/agent');
 const { scrubText } = require('../lib/scrubber');
@@ -107,8 +107,8 @@ function buildSystemPrompt({ therapist, caseloadSummary, dateContext }) {
 /**
  * Build a brief caseload summary for context injection (mirrors agent.js).
  */
-function buildCaseloadSummary(db, therapistId) {
-  const patients = db.all(
+async function buildCaseloadSummary(db, therapistId) {
+  const patients = await db.all(
     'SELECT client_id, display_name, presenting_concerns, diagnoses FROM patients WHERE therapist_id = ? ORDER BY id DESC LIMIT 50',
     therapistId,
   );
@@ -119,7 +119,7 @@ function buildCaseloadSummary(db, therapistId) {
 }
 
 /** Update task row with partial progress. Called between iterations. */
-function updateTaskProgress(db, taskId, patch) {
+async function updateTaskProgress(db, taskId, patch) {
   const cols = [];
   const vals = [];
   for (const [k, v] of Object.entries(patch)) {
@@ -128,8 +128,8 @@ function updateTaskProgress(db, taskId, patch) {
   }
   if (cols.length === 0) return;
   vals.push(taskId);
-  db.run(`UPDATE agent_tasks SET ${cols.join(', ')} WHERE id = ?`, ...vals);
-  try { persist(); } catch {}
+  await db.run(`UPDATE agent_tasks SET ${cols.join(', ')} WHERE id = ?`, ...vals);
+  await persistIfNeeded();
 }
 
 // ── Core: run a single task ─────────────────────────────────────────────────
@@ -142,17 +142,17 @@ function updateTaskProgress(db, taskId, patch) {
  * function assumes it was already cleared to run.
  */
 async function runTask(taskId) {
-  const db = getDb();
-  const task = db.get('SELECT * FROM agent_tasks WHERE id = ?', taskId);
+  const db = getAsyncDb();
+  const task = await db.get('SELECT * FROM agent_tasks WHERE id = ?', taskId);
   if (!task) return;
   if (task.status === 'cancelled') return;
 
-  const therapist = db.get(
+  const therapist = await db.get(
     'SELECT id, full_name, first_name, preferred_timezone FROM therapists WHERE id = ?',
     task.therapist_id,
   );
   if (!therapist) {
-    updateTaskProgress(db, taskId, {
+    await updateTaskProgress(db, taskId, {
       status: 'failed',
       error_message: 'Therapist not found',
       completed_at: new Date().toISOString(),
@@ -162,7 +162,7 @@ async function runTask(taskId) {
 
   // Mark running
   const startedAt = new Date();
-  updateTaskProgress(db, taskId, {
+  await updateTaskProgress(db, taskId, {
     status: 'running',
     started_at: startedAt.toISOString(),
   });
@@ -186,7 +186,7 @@ async function runTask(taskId) {
   const localTime = now.toLocaleTimeString('en-US', { timeZone: tz, hour: 'numeric', minute: '2-digit', hour12: true });
   const dateContext = `Today is ${localDate}. Current time: ${localTime} (${tz}).`;
 
-  const caseloadSummary = buildCaseloadSummary(db, therapist.id);
+  const caseloadSummary = await buildCaseloadSummary(db, therapist.id);
   const systemPrompt = buildSystemPrompt({ therapist, caseloadSummary, dateContext });
 
   // Scrub prompt for PHI (same approach as sync agent — conservative default)
@@ -206,7 +206,7 @@ async function runTask(taskId) {
       }
 
       // Re-read task status to catch user-initiated cancel mid-loop
-      const latest = db.get('SELECT status FROM agent_tasks WHERE id = ?', taskId);
+      const latest = await db.get('SELECT status FROM agent_tasks WHERE id = ?', taskId);
       if (latest?.status === 'cancelled') {
         terminalStatus = 'cancelled';
         break;
@@ -279,7 +279,7 @@ async function runTask(taskId) {
 
       // Persist partial progress after every iteration so the UI can show
       // "12 tool calls, still working..." while the task runs.
-      updateTaskProgress(db, taskId, {
+      await updateTaskProgress(db, taskId, {
         iterations,
         tool_calls_json: JSON.stringify(toolCallLog),
       });
@@ -296,7 +296,7 @@ async function runTask(taskId) {
     _running.delete(taskId);
   }
 
-  updateTaskProgress(db, taskId, {
+  await updateTaskProgress(db, taskId, {
     status: terminalStatus,
     result_text: finalText || null,
     error_message: terminalError,
@@ -322,17 +322,19 @@ function startWorker() {
 
   // Crash recovery: any row stuck in status='running' on boot was orphaned
   // by a previous process crash. Re-queue them so they pick back up.
+  (async () => {
   try {
-    const db = getDb();
-    const orphans = db.all('SELECT id FROM agent_tasks WHERE status = ?', 'running');
+    const db = getAsyncDb();
+    const orphans = await db.all('SELECT id FROM agent_tasks WHERE status = ?', 'running');
     if (orphans.length > 0) {
-      db.run("UPDATE agent_tasks SET status = 'queued' WHERE status = 'running'");
-      try { persist(); } catch {}
+      await db.run("UPDATE agent_tasks SET status = 'queued' WHERE status = 'running'");
+      await persistIfNeeded();
       console.log(`[task-runner] Recovered ${orphans.length} orphaned task(s) from prior crash`);
     }
   } catch (err) {
     console.warn('[task-runner] Crash recovery failed:', err.message);
   }
+  })();
 
   setInterval(pollOnce, POLL_INTERVAL_MS).unref();
 }
@@ -342,15 +344,15 @@ function startWorker() {
  * Runs every POLL_INTERVAL_MS; also called inline when a new task is created
  * so the user doesn't wait a full 5 sec for the worker to pick it up.
  */
-function pollOnce() {
+async function pollOnce() {
   if (_running.size >= MAX_CONCURRENT) return;
 
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const slotsAvailable = MAX_CONCURRENT - _running.size;
     // Fetch more candidates than we need, because some might be blocked by
     // per-therapist caps.
-    const candidates = db.all(
+    const candidates = await db.all(
       `SELECT id, therapist_id FROM agent_tasks
         WHERE status = 'queued'
         ORDER BY created_at ASC
@@ -392,19 +394,19 @@ function cancelRunning(taskId) {
  * Insert a new queued task and nudge the worker to pick it up.
  * Returns the full task row.
  */
-function enqueueTask({ therapistId, prompt, title }) {
+async function enqueueTask({ therapistId, prompt, title }) {
   if (!therapistId) throw new Error('therapistId required');
   if (!prompt || !prompt.trim()) throw new Error('prompt required');
 
-  const db = getDb();
-  const insert = db.insert(
+  const db = getAsyncDb();
+  const insert = await db.insert(
     `INSERT INTO agent_tasks (therapist_id, title, prompt, status)
      VALUES (?, ?, ?, 'queued')`,
     therapistId,
     (title && title.trim()) || deriveTitle(prompt),
     prompt.trim(),
   );
-  try { persist(); } catch {}
+  await persistIfNeeded();
 
   // Kick the worker so the task starts within a few hundred ms instead of up
   // to POLL_INTERVAL_MS from now.

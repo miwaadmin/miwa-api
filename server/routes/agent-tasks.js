@@ -23,7 +23,7 @@ const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { enqueueTask, cancelRunning } = require('../services/task-runner');
 
 // ── POST / — create a new background task ───────────────────────────────────
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const { prompt, title } = req.body || {};
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
@@ -33,7 +33,7 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'prompt too long (max 8000 chars)' });
     }
 
-    const task = enqueueTask({
+    const task = await enqueueTask({
       therapistId: req.therapist.id,
       prompt,
       title,

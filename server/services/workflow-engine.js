@@ -17,7 +17,7 @@
  *   workflow_steps   - individual step records
  */
 
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Workflow Templates
@@ -203,16 +203,16 @@ const WORKFLOW_TEMPLATES = {
  * @param {Object}  params        - Template-specific parameters
  * @returns {{ workflowId: number, steps: number, label: string }}
  */
-function createWorkflow(therapistId, workflowType, params = {}) {
+async function createWorkflow(therapistId, workflowType, params = {}) {
   const template = WORKFLOW_TEMPLATES[workflowType];
   if (!template) {
     throw new Error(`Unknown workflow type: ${workflowType}`);
   }
 
-  const db = getDb();
+  const db = getAsyncDb();
   const steps = template.buildSteps(params);
 
-  const { lastInsertRowid: workflowId } = db.insert(
+  const { lastInsertRowid: workflowId } = await db.insert(
     `INSERT INTO workflows
        (therapist_id, workflow_type, label, status, steps_json, current_step, context_json)
      VALUES (?, ?, ?, 'running', ?, 0, ?)`,
@@ -224,8 +224,8 @@ function createWorkflow(therapistId, workflowType, params = {}) {
   );
 
   // Persist individual step records so we can track each one independently.
-  steps.forEach((step, i) => {
-    db.run(
+  for (const [i, step] of steps.entries()) {
+    await db.run(
       `INSERT INTO workflow_steps
          (workflow_id, step_number, tool_name, args_json, status, requires_approval)
        VALUES (?, ?, ?, ?, 'pending', ?)`,
@@ -235,7 +235,9 @@ function createWorkflow(therapistId, workflowType, params = {}) {
       JSON.stringify(step.args || {}),
       step.requiresApproval ? 1 : 0,
     );
-  });
+  }
+
+  await persistIfNeeded();
 
   return { workflowId, steps: steps.length, label: template.label };
 }
@@ -247,16 +249,16 @@ function createWorkflow(therapistId, workflowType, params = {}) {
  * @param {string} therapistId
  * @returns {Object|null}  Workflow record augmented with step details, or null
  */
-function getWorkflowStatus(workflowId, therapistId) {
-  const db = getDb();
-  const workflow = db.get(
+async function getWorkflowStatus(workflowId, therapistId) {
+  const db = getAsyncDb();
+  const workflow = await db.get(
     'SELECT * FROM workflows WHERE id = ? AND therapist_id = ?',
     workflowId,
     therapistId,
   );
   if (!workflow) return null;
 
-  const steps = db.all(
+  const steps = await db.all(
     'SELECT * FROM workflow_steps WHERE workflow_id = ? ORDER BY step_number',
     workflowId,
   );
@@ -293,12 +295,12 @@ function getWorkflowStatus(workflowId, therapistId) {
  * @param {number} workflowId
  * @returns {Object|null}
  */
-function advanceWorkflow(workflowId) {
-  const db = getDb();
-  const workflow = db.get('SELECT * FROM workflows WHERE id = ?', workflowId);
+async function advanceWorkflow(workflowId) {
+  const db = getAsyncDb();
+  const workflow = await db.get('SELECT * FROM workflows WHERE id = ?', workflowId);
   if (!workflow || workflow.status !== 'running') return null;
 
-  const steps = db.all(
+  const steps = await db.all(
     'SELECT * FROM workflow_steps WHERE workflow_id = ? ORDER BY step_number',
     workflowId,
   );
@@ -306,7 +308,7 @@ function advanceWorkflow(workflowId) {
 
   // All steps already completed -- mark workflow done.
   if (currentIdx >= steps.length) {
-    db.run(
+    await db.run(
       "UPDATE workflows SET status = 'completed', completed_at = datetime('now') WHERE id = ?",
       workflowId,
     );
@@ -317,11 +319,11 @@ function advanceWorkflow(workflowId) {
 
   // Pause when a step needs therapist sign-off and hasn't been approved yet.
   if (step.requires_approval && !step.approved_at && step.status !== 'completed') {
-    db.run(
+    await db.run(
       "UPDATE workflow_steps SET status = 'awaiting_approval' WHERE id = ?",
       step.id,
     );
-    db.run(
+    await db.run(
       "UPDATE workflows SET status = 'paused' WHERE id = ?",
       workflowId,
     );
@@ -357,9 +359,9 @@ function advanceWorkflow(workflowId) {
  * @param {number} stepNumber
  * @param {*}      result - Arbitrary JSON-serialisable result from the tool
  */
-function completeStep(workflowId, stepNumber, result) {
-  const db = getDb();
-  db.run(
+async function completeStep(workflowId, stepNumber, result) {
+  const db = getAsyncDb();
+  await db.run(
     `UPDATE workflow_steps
         SET status = 'completed', result_json = ?, completed_at = datetime('now')
       WHERE workflow_id = ? AND step_number = ?`,
@@ -367,11 +369,12 @@ function completeStep(workflowId, stepNumber, result) {
     workflowId,
     stepNumber,
   );
-  db.run(
+  await db.run(
     'UPDATE workflows SET current_step = ? WHERE id = ?',
     stepNumber + 1,
     workflowId,
   );
+  await persistIfNeeded();
 }
 
 /**
@@ -381,9 +384,9 @@ function completeStep(workflowId, stepNumber, result) {
  * @param {number} stepNumber
  * @param {string} error - Human-readable error message
  */
-function failStep(workflowId, stepNumber, error) {
-  const db = getDb();
-  db.run(
+async function failStep(workflowId, stepNumber, error) {
+  const db = getAsyncDb();
+  await db.run(
     `UPDATE workflow_steps
         SET status = 'failed', error = ?, completed_at = datetime('now')
       WHERE workflow_id = ? AND step_number = ?`,
@@ -391,11 +394,12 @@ function failStep(workflowId, stepNumber, error) {
     workflowId,
     stepNumber,
   );
-  db.run(
+  await db.run(
     "UPDATE workflows SET status = 'failed', error = ? WHERE id = ?",
     error,
     workflowId,
   );
+  await persistIfNeeded();
 }
 
 /**
@@ -410,24 +414,25 @@ function failStep(workflowId, stepNumber, error) {
  * @param {string} therapistId
  * @returns {true|null}
  */
-function approveWorkflowStep(workflowId, stepNumber, therapistId) {
-  const db = getDb();
-  const workflow = db.get(
+async function approveWorkflowStep(workflowId, stepNumber, therapistId) {
+  const db = getAsyncDb();
+  const workflow = await db.get(
     'SELECT * FROM workflows WHERE id = ? AND therapist_id = ?',
     workflowId,
     therapistId,
   );
   if (!workflow) return null;
 
-  db.run(
+  await db.run(
     "UPDATE workflow_steps SET approved_at = datetime('now'), status = 'pending' WHERE workflow_id = ? AND step_number = ?",
     workflowId,
     stepNumber,
   );
-  db.run(
+  await db.run(
     "UPDATE workflows SET status = 'running' WHERE id = ?",
     workflowId,
   );
+  await persistIfNeeded();
   return true;
 }
 
@@ -438,8 +443,8 @@ function approveWorkflowStep(workflowId, stepNumber, therapistId) {
  * @param {string|null} status - 'planning' | 'running' | 'paused' | 'completed' | 'failed' | null (all)
  * @returns {Object[]}
  */
-function listWorkflows(therapistId, status = null) {
-  const db = getDb();
+async function listWorkflows(therapistId, status = null) {
+  const db = getAsyncDb();
   if (status) {
     return db.all(
       'SELECT * FROM workflows WHERE therapist_id = ? AND status = ? ORDER BY created_at DESC LIMIT 20',
