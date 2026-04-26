@@ -10,8 +10,8 @@ const cors = require('cors');
 const cookieParser = require('cookie-parser');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
-const { initDb, getDb } = require('./db');
-const { getAsyncDb } = require('./db/asyncDb');
+const { initDb } = require('./db');
+const { getAsyncDb, persistIfNeeded } = require('./db/asyncDb');
 const requireAuth = require('./middleware/auth');
 const { phiAuditLog } = require('./middleware/auditLog');
 
@@ -158,10 +158,17 @@ app.use('/api/onboarding',                    apiLimiter, require('./routes/onbo
 // /api/practice removed — group practice is a separate product
 
 // Settings — per-therapist
-app.get('/api/settings', requireAuth, (req, res) => {
+app.get('/api/settings', requireAuth, async (req, res) => {
   try {
-    const db = getDb();
-    const row = db.get('SELECT user_role, referral_code, assistant_action_mode, assistant_tone, assistant_orientation, assistant_verbosity, assistant_memory, assistant_permissions_json FROM therapists WHERE id = ?', req.therapist.id);
+    const db = getAsyncDb();
+    const row = await db.get(
+      `SELECT user_role, referral_code, assistant_action_mode, assistant_tone,
+              assistant_orientation, assistant_verbosity, assistant_memory,
+              assistant_permissions_json, training_data_opt_out,
+              onboarding_completed, soul_markdown
+       FROM therapists WHERE id = ?`,
+      req.therapist.id
+    );
     res.json({
       user_role: row?.user_role || 'licensed',
       referral_code: row?.referral_code || null,
@@ -179,71 +186,57 @@ app.get('/api/settings', requireAuth, (req, res) => {
       auto_mbc_enabled: (() => {
         try { const p = row?.assistant_permissions_json ? JSON.parse(row.assistant_permissions_json) : {}; return p.auto_mbc_enabled !== false } catch { return true }
       })(),
-      training_data_opt_out: (() => {
-        try {
-          const r = db.get('SELECT training_data_opt_out FROM therapists WHERE id = ?', req.therapist.id);
-          return !!(r && r.training_data_opt_out);
-        } catch { return false; }
-      })(),
-      onboarding_completed: (() => {
-        try {
-          const r = db.get('SELECT onboarding_completed FROM therapists WHERE id = ?', req.therapist.id);
-          return !!(r && r.onboarding_completed);
-        } catch { return true; }  // Default true = don't auto-pop for existing users
-      })(),
-      soul_markdown: (() => {
-        try {
-          const r = db.get('SELECT soul_markdown FROM therapists WHERE id = ?', req.therapist.id);
-          return r?.soul_markdown || null;
-        } catch { return null; }
-      })(),
+      training_data_opt_out: !!row?.training_data_opt_out,
+      onboarding_completed: row?.onboarding_completed === undefined ? true : !!row?.onboarding_completed,
+      soul_markdown: row?.soul_markdown || null,
     });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-app.post('/api/settings', requireAuth, (req, res) => {
+app.post('/api/settings', requireAuth, async (req, res) => {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const { key, value } = req.body;
     if (!key) return res.status(400).json({ error: 'key is required' });
     if (key === 'user_role') {
-      db.run('UPDATE therapists SET user_role = ? WHERE id = ?', value, req.therapist.id);
+      await db.run('UPDATE therapists SET user_role = ? WHERE id = ?', value, req.therapist.id);
     }
     if (key === 'assistant_verbosity') {
-      db.run('UPDATE therapists SET assistant_verbosity = ? WHERE id = ?', value, req.therapist.id);
+      await db.run('UPDATE therapists SET assistant_verbosity = ? WHERE id = ?', value, req.therapist.id);
     }
     if (key === 'assistant_action_mode') {
-      db.run('UPDATE therapists SET assistant_action_mode = ? WHERE id = ?', value, req.therapist.id);
+      await db.run('UPDATE therapists SET assistant_action_mode = ? WHERE id = ?', value, req.therapist.id);
     }
     if (key === 'assistant_tone') {
-      db.run('UPDATE therapists SET assistant_tone = ? WHERE id = ?', value, req.therapist.id);
+      await db.run('UPDATE therapists SET assistant_tone = ? WHERE id = ?', value, req.therapist.id);
     }
     if (key === 'assistant_orientation') {
-      db.run('UPDATE therapists SET assistant_orientation = ? WHERE id = ?', value, req.therapist.id);
+      await db.run('UPDATE therapists SET assistant_orientation = ? WHERE id = ?', value, req.therapist.id);
     }
     if (key === 'assistant_memory') {
-      db.run('UPDATE therapists SET assistant_memory = ? WHERE id = ?', value, req.therapist.id);
+      await db.run('UPDATE therapists SET assistant_memory = ? WHERE id = ?', value, req.therapist.id);
     }
     if (key === 'assistant_permissions') {
-      db.run('UPDATE therapists SET assistant_permissions_json = ? WHERE id = ?', JSON.stringify(value || []), req.therapist.id);
+      await db.run('UPDATE therapists SET assistant_permissions_json = ? WHERE id = ?', JSON.stringify(value || []), req.therapist.id);
     }
     if (key === 'auto_mbc_enabled') {
-      const row2 = db.get('SELECT assistant_permissions_json FROM therapists WHERE id = ?', req.therapist.id);
+      const row2 = await db.get('SELECT assistant_permissions_json FROM therapists WHERE id = ?', req.therapist.id);
       const perms = (() => { try { return row2?.assistant_permissions_json ? JSON.parse(row2.assistant_permissions_json) : {} } catch { return {} } })();
       perms.auto_mbc_enabled = !!value;
-      db.run('UPDATE therapists SET assistant_permissions_json = ? WHERE id = ?', JSON.stringify(perms), req.therapist.id);
+      await db.run('UPDATE therapists SET assistant_permissions_json = ? WHERE id = ?', JSON.stringify(perms), req.therapist.id);
     }
     if (key === 'training_data_opt_out') {
-      db.run('UPDATE therapists SET training_data_opt_out = ? WHERE id = ?', value ? 1 : 0, req.therapist.id);
+      await db.run('UPDATE therapists SET training_data_opt_out = ? WHERE id = ?', value ? 1 : 0, req.therapist.id);
     }
     if (key === 'onboarding_completed') {
-      db.run('UPDATE therapists SET onboarding_completed = ? WHERE id = ?', value ? 1 : 0, req.therapist.id);
+      await db.run('UPDATE therapists SET onboarding_completed = ? WHERE id = ?', value ? 1 : 0, req.therapist.id);
     }
     if (key === 'soul_markdown') {
-      db.run('UPDATE therapists SET soul_markdown = ?, onboarding_completed = 1 WHERE id = ?', String(value || ''), req.therapist.id);
+      await db.run('UPDATE therapists SET soul_markdown = ?, onboarding_completed = 1 WHERE id = ?', String(value || ''), req.therapist.id);
     }
+    await persistIfNeeded();
     res.json({ message: 'Setting saved' });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
