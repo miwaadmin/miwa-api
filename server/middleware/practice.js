@@ -10,7 +10,7 @@
  *   shared_patients, supervision_links
  */
 
-const { getDb } = require('../db');
+const { getAsyncDb } = require('../db/asyncDb');
 
 // ── Role hierarchy (higher index = more privilege) ──────────────────────────
 const ROLE_HIERARCHY = ['clinician', 'supervisor', 'admin', 'owner'];
@@ -20,16 +20,16 @@ const ROLE_HIERARCHY = ['clinician', 'supervisor', 'admin', 'owner'];
 //    Ensures the authenticated therapist belongs to an active practice.
 //    Attaches req.practice (full row) and req.practiceRole (string).
 // ─────────────────────────────────────────────────────────────────────────────
-function requirePracticeMember(req, res, next) {
+async function requirePracticeMember(req, res, next) {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const therapistId = req.therapist?.id;
     if (!therapistId) {
       return res.status(401).json({ error: 'Authentication required.' });
     }
 
     // Look up the therapist's active practice membership
-    const member = db.get(
+    const member = await db.get(
       `SELECT pm.practice_id, pm.role, pm.status
        FROM practice_members pm
        WHERE pm.therapist_id = ? AND pm.status = 'active'
@@ -44,7 +44,7 @@ function requirePracticeMember(req, res, next) {
     }
 
     // Fetch the practice itself
-    const practice = db.get(
+    const practice = await db.get(
       'SELECT * FROM practices WHERE id = ?',
       member.practice_id
     );
@@ -105,9 +105,9 @@ function requirePracticeRole(...roles) {
 //
 //    Sets req.patientAccessLevel on success.
 // ─────────────────────────────────────────────────────────────────────────────
-function canAccessPatient(req, res, next) {
+async function canAccessPatient(req, res, next) {
   try {
-    const db = getDb();
+    const db = getAsyncDb();
     const therapistId = req.therapist?.id;
     const patientId = req.params.patientId || req.params.id;
 
@@ -120,7 +120,7 @@ function canAccessPatient(req, res, next) {
     }
 
     // Fetch the patient to check ownership
-    const patient = db.get(
+    const patient = await db.get(
       'SELECT id, therapist_id FROM patients WHERE id = ?',
       patientId
     );
@@ -136,7 +136,7 @@ function canAccessPatient(req, res, next) {
     }
 
     // (b) Shared via shared_patients table
-    const shared = db.get(
+    const shared = await db.get(
       `SELECT id, access_level FROM shared_patients
        WHERE patient_id = ? AND shared_with_id = ?`,
       patientId, therapistId
@@ -149,7 +149,7 @@ function canAccessPatient(req, res, next) {
     }
 
     // (c) Supervision — current therapist supervises the patient's therapist
-    const supervision = db.get(
+    const supervision = await db.get(
       `SELECT id, access_level FROM supervision_links
        WHERE supervisor_id = ? AND supervisee_id = ? AND status = 'active'`,
       therapistId, patient.therapist_id

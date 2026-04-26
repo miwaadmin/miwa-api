@@ -1,57 +1,28 @@
 /**
- * Event Bus — Tier 1 Agentic Upgrade (Feature 5)
+ * Event Bus - Tier 1 Agentic Upgrade (Feature 5)
  *
  * Lightweight pub/sub system that connects real-time clinical events
  * (assessment submitted, appointment no-show, session signed) to
  * configurable trigger actions (alerts, auto-sends, logging).
- *
- * Usage:
- *   const { emit } = require('./event-bus');
- *   emit('assessment_submitted', { therapist_id, patient_id, template_type, total_score, severity_level });
  */
-const { getDb, persist } = require('../db');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 
 const listeners = {};
 
 /**
- * Emit an event. Checks the event_triggers table for matching rules
- * and executes their configured actions. Also notifies in-memory listeners.
+ * Emit an event. Database trigger work runs in the background so callers do
+ * not block clinical flows. In-memory listeners still run synchronously.
  */
 function emit(eventType, data) {
   console.log(`[event-bus] ${eventType}: therapist_id=${data?.therapist_id || 'n/a'} patient_id=${data?.patient_id || 'n/a'}`);
 
-  // Check for matching database triggers
-  try {
-    const db = getDb();
-    const triggers = db.all(
-      "SELECT * FROM event_triggers WHERE event_type = ? AND enabled = 1",
-      eventType
-    );
-
-    for (const trigger of triggers) {
-      try {
-        // Only fire if therapist matches (triggers are per-therapist)
-        if (data.therapist_id && trigger.therapist_id !== data.therapist_id) continue;
-
-        executeTriggerAction(db, trigger, data);
-        db.run(
-          "UPDATE event_triggers SET fire_count = fire_count + 1, last_fired_at = datetime('now') WHERE id = ?",
-          trigger.id
-        );
-      } catch (err) {
-        console.error(`[event-bus] Trigger ${trigger.id} failed:`, err.message);
-      }
-    }
-
-    if (triggers.length > 0) persist();
-  } catch (err) {
-    // DB not ready or table doesn't exist yet — silently skip
+  handleDatabaseTriggers(eventType, data).catch((err) => {
+    // DB not ready or table doesn't exist yet - silently skip.
     if (!err.message?.includes('not initialised') && !err.message?.includes('no such table')) {
       console.error('[event-bus] DB error:', err.message);
     }
-  }
+  });
 
-  // Notify in-memory listeners
   if (listeners[eventType]) {
     for (const fn of listeners[eventType]) {
       try { fn(data); } catch (err) {
@@ -59,6 +30,30 @@ function emit(eventType, data) {
       }
     }
   }
+}
+
+async function handleDatabaseTriggers(eventType, data) {
+  const db = getAsyncDb();
+  const triggers = await db.all(
+    "SELECT * FROM event_triggers WHERE event_type = ? AND enabled = 1",
+    eventType
+  );
+
+  for (const trigger of triggers) {
+    try {
+      if (data.therapist_id && trigger.therapist_id !== data.therapist_id) continue;
+
+      await executeTriggerAction(db, trigger, data);
+      await db.run(
+        "UPDATE event_triggers SET fire_count = fire_count + 1, last_fired_at = datetime('now') WHERE id = ?",
+        trigger.id
+      );
+    } catch (err) {
+      console.error(`[event-bus] Trigger ${trigger.id} failed:`, err.message);
+    }
+  }
+
+  if (triggers.length > 0) await persistIfNeeded();
 }
 
 /**
@@ -72,15 +67,14 @@ function on(eventType, fn) {
 /**
  * Execute the action configured for a trigger.
  */
-function executeTriggerAction(db, trigger, data) {
+async function executeTriggerAction(db, trigger, data) {
   const config = JSON.parse(trigger.config_json || '{}');
 
   switch (trigger.action_type) {
     case 'create_alert': {
-      // Severity filtering — only fire alert if the data meets severity threshold
       if (config.min_score && data.total_score !== undefined && data.total_score < config.min_score) return;
 
-      db.insert(
+      await db.insert(
         "INSERT INTO proactive_alerts (therapist_id, patient_id, alert_type, severity, title, description) VALUES (?, ?, ?, ?, ?, ?)",
         trigger.therapist_id,
         data.patient_id || 0,
@@ -94,7 +88,6 @@ function executeTriggerAction(db, trigger, data) {
     }
 
     case 'send_assessment':
-      // Queue assessment send — to be implemented with existing twilio infrastructure
       console.log(`[event-bus] Assessment send queued for trigger ${trigger.id}`);
       break;
 
@@ -111,9 +104,8 @@ function executeTriggerAction(db, trigger, data) {
  * Create default event triggers for a therapist.
  * Called during registration or first-time setup.
  */
-function createDefaultTriggers(db, therapistId) {
+async function createDefaultTriggers(db, therapistId) {
   const defaults = [
-    // Assessment submitted with high severity -> alert
     {
       event_type: 'assessment_submitted',
       action_type: 'create_alert',
@@ -124,7 +116,6 @@ function createDefaultTriggers(db, therapistId) {
         min_score: 15,
       }),
     },
-    // Appointment no-show -> alert
     {
       event_type: 'appointment_noshow',
       action_type: 'create_alert',
@@ -134,7 +125,6 @@ function createDefaultTriggers(db, therapistId) {
         title: 'Client no-show',
       }),
     },
-    // Session signed -> log for enrichment pipeline
     {
       event_type: 'session_signed',
       action_type: 'log',
@@ -143,13 +133,12 @@ function createDefaultTriggers(db, therapistId) {
   ];
 
   for (const trigger of defaults) {
-    // Only create if not already exists
-    const existing = db.get(
+    const existing = await db.get(
       "SELECT id FROM event_triggers WHERE therapist_id = ? AND event_type = ? AND action_type = ?",
       therapistId, trigger.event_type, trigger.action_type
     );
     if (!existing) {
-      db.insert(
+      await db.insert(
         "INSERT INTO event_triggers (therapist_id, event_type, action_type, config_json) VALUES (?, ?, ?, ?)",
         therapistId, trigger.event_type, trigger.action_type, trigger.config_json
       );
