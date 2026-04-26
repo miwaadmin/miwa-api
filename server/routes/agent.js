@@ -11,6 +11,12 @@ const {
   isAIServiceError,
   safeAIErrorResponse,
 } = require('../services/aiClient');
+const {
+  makeStorageKey,
+  readStoredFile,
+  storedFileExists,
+  uploadLocalFile,
+} = require('../services/fileStorage');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 const { scrubText } = require('../lib/scrubber');
@@ -123,6 +129,14 @@ if (!fs.existsSync(REPORTS_DIR)) fs.mkdirSync(REPORTS_DIR, { recursive: true });
 
 function sendRouteError(res, err) {
   return res.status(isAIServiceError(err) ? 502 : 500).json(safeAIErrorResponse(err));
+}
+
+function safePdfDownloadName(title) {
+  const base = String(title || 'miwa-report')
+    .replace(/[^a-z0-9\-_. ]/gi, '_')
+    .slice(0, 90)
+    .trim() || 'miwa-report';
+  return `${base}.pdf`;
 }
 
 function escapeJsonForPrompt(value) {
@@ -1458,10 +1472,22 @@ async function createReportPdf({ patient, report, chartData, audience, purpose }
 async function createAndStoreReport({ therapistId, patient, report, chartData, audience, purpose }) {
   const db = getDb();
   const pdfBuffer = await createReportPdf({ patient, report, chartData, audience, purpose });
-  const titleSafe = report.title.replace(/[^a-z0-9\-_. ]/gi, '_').slice(0, 90);
-  const filename = `${Date.now()}-${titleSafe || 'review'}.pdf`;
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.pdf`;
   const filePath = path.join(REPORTS_DIR, filename);
   fs.writeFileSync(filePath, pdfBuffer);
+  const storedPath = await uploadLocalFile({
+    localPath: filePath,
+    key: makeStorageKey({
+      therapistId,
+      patientId: patient.id,
+      originalName: 'miwa-report.pdf',
+    }).replace('documents/', 'reports/'),
+    contentType: 'application/pdf',
+  });
+
+  if (storedPath !== filePath && fs.existsSync(filePath)) {
+    fs.unlinkSync(filePath);
+  }
 
   const insert = db.insert(
     `INSERT INTO agent_reports (therapist_id, patient_id, title, audience, purpose, report_json, pdf_path)
@@ -1472,12 +1498,12 @@ async function createAndStoreReport({ therapistId, patient, report, chartData, a
     audience || null,
     purpose || null,
     JSON.stringify({ ...report, chartData }),
-    filePath,
+    storedPath,
   );
 
   return {
     reportId: insert.lastInsertRowid,
-    filePath,
+    filePath: storedPath,
     title: report.title,
   };
 }
@@ -3134,15 +3160,22 @@ router.delete('/appointments/:id', async (req, res) => {
   }
 });
 
-router.get('/reports/:id/download', (req, res) => {
+router.get('/reports/:id/download', async (req, res) => {
   try {
     const db = getDb();
     const row = db.get('SELECT * FROM agent_reports WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
     if (!row) return res.status(404).json({ error: 'Report not found' });
-    if (!row.pdf_path || !fs.existsSync(row.pdf_path)) {
+    if (!row.pdf_path || !(await storedFileExists(row.pdf_path))) {
       return res.status(404).json({ error: 'PDF file is missing' });
     }
-    return res.download(row.pdf_path, `${row.title || 'miwa-report'}.pdf`);
+    const downloadName = safePdfDownloadName(row.title);
+    if (!row.pdf_path.startsWith('azure-blob://')) {
+      return res.download(row.pdf_path, downloadName);
+    }
+    const pdf = await readStoredFile(row.pdf_path);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${downloadName}"`);
+    return res.send(pdf);
   } catch (err) {
     sendRouteError(res, err);
   }
