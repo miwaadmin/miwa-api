@@ -78,7 +78,10 @@ async function request(method, urlPath, body = null, options = {}) {
   };
   if (body !== null) headers['Content-Type'] = 'application/json';
   if (authToken && options.auth !== false) headers.Authorization = `Bearer ${authToken}`;
-  if (cookie && options.auth !== false) headers.Cookie = cookie;
+  // Once login returns a token, prefer bearer auth only. The API accepts both
+  // cookie and Authorization auth, but middleware checks cookies first; a
+  // command-line cookie jar can accidentally shadow a valid bearer token.
+  if (!authToken && cookie && options.auth !== false) headers.Cookie = cookie;
 
   const res = await fetch(urlFor(urlPath), {
     method,
