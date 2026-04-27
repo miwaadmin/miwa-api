@@ -17,6 +17,7 @@
 
 const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { MODELS, callAI, synthesizeResearch } = require('../lib/aiExecutor');
+const { sendMail } = require('./mailer');
 
 // ── PubMed helpers ────────────────────────────────────────────────────────────
 
@@ -319,7 +320,7 @@ async function synthesizeBrief(articles, topics, briefType, therapistName, thera
   return synthesizeResearch(systemPrompt, userPrompt, 1400, { therapistId });
 }
 
-// ── Email delivery (Resend) ───────────────────────────────────────────────────
+// ── Email delivery ────────────────────────────────────────────────────────────
 
 function escapeHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -395,8 +396,6 @@ function mdToHtml(md) {
 }
 
 async function sendBriefEmail(therapist, title, content, articles) {
-  if (!process.env.RESEND_API_KEY) return false;
-
   try {
     const articleLinksHtml = articles
       .map(a => `<li><a href="${a.url}" target="_blank">${a.title}</a> — ${a.authors} (${a.journal})</li>`)
@@ -450,21 +449,14 @@ async function sendBriefEmail(therapist, title, content, articles) {
 </body>
 </html>`;
 
-    const res = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'Miwa Research <research@miwa.care>',
-        to: [therapist.email],
-        subject: `📚 ${title}`,
-        html: htmlContent,
-      }),
+    await sendMail({
+      to: therapist.email,
+      subject: `Miwa Research Brief: ${title}`,
+      html: htmlContent,
+      text: `${title}\n\n${content}`,
     });
 
-    return res.ok;
+    return true;
   } catch (err) {
     console.error('[researcher] Email send error:', err.message);
     return false;
