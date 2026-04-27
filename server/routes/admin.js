@@ -47,6 +47,91 @@ function configuredStripePrices() {
   return { required, missing };
 }
 
+const STRIPE_PRICE_ENV = [
+  ['trainee', 'STRIPE_PRICE_TRAINEE'],
+  ['associate', 'STRIPE_PRICE_ASSOCIATE'],
+  ['solo', 'STRIPE_PRICE_SOLO'],
+  ['group_base', 'STRIPE_PRICE_GROUP_BASE'],
+  ['group_per_seat', 'STRIPE_PRICE_GROUP_PER_SEAT'],
+];
+
+function classifyStripeId(value) {
+  if (!value) return 'missing';
+  if (value.startsWith('price_REPLACE')) return 'placeholder';
+  if (value.startsWith('price_')) return 'price';
+  if (value.startsWith('prod_')) return 'product';
+  return 'unknown';
+}
+
+function redactStripeId(value) {
+  if (!value) return null;
+  if (value.length <= 12) return value.replace(/./g, '*');
+  return `${value.slice(0, 8)}...${value.slice(-4)}`;
+}
+
+function stripeKeyMode(value) {
+  if (!value) return 'missing';
+  if (value.startsWith('sk_live_')) return 'live';
+  if (value.startsWith('sk_test_')) return 'test';
+  return 'unknown';
+}
+
+function sanitizeStripeAdminError(err) {
+  return {
+    message: 'Stripe verification failed',
+    type: err?.type || null,
+    code: err?.code || null,
+    statusCode: err?.statusCode || err?.status || null,
+    requestId: err?.requestId || err?.request_id || null,
+  };
+}
+
+async function verifyStripeCatalogItem(stripe, name, envName, value) {
+  const type = classifyStripeId(value);
+  const item = {
+    name,
+    env: envName,
+    configured: type !== 'missing' && type !== 'placeholder',
+    type,
+    id: redactStripeId(value),
+    exists: null,
+    active: null,
+    recurring: null,
+    currency: null,
+    error: null,
+  };
+
+  if (!item.configured || !stripe) return item;
+
+  try {
+    if (type === 'price') {
+      const price = await stripe.prices.retrieve(value);
+      item.exists = true;
+      item.active = !!price.active;
+      item.recurring = !!price.recurring;
+      item.currency = price.currency || null;
+      return item;
+    }
+
+    if (type === 'product') {
+      const product = await stripe.products.retrieve(value, { expand: ['default_price'] });
+      const defaultPrice = product?.default_price;
+      item.exists = true;
+      item.active = !!product.active;
+      item.recurring = !!(defaultPrice && typeof defaultPrice === 'object' && defaultPrice.recurring);
+      item.currency = typeof defaultPrice === 'object' ? defaultPrice.currency || null : null;
+      return item;
+    }
+
+    item.error = 'Unsupported Stripe ID prefix';
+    return item;
+  } catch (err) {
+    item.exists = false;
+    item.error = sanitizeStripeAdminError(err);
+    return item;
+  }
+}
+
 function configuredSmsProvider() {
   const twilioHasAuth = hasEnv('TWILIO_AUTH_TOKEN')
     || (hasEnv('TWILIO_API_KEY_SID') && hasEnv('TWILIO_API_KEY_SECRET'));
@@ -237,6 +322,83 @@ router.get('/readiness', async (req, res) => {
     summary,
     checks,
   });
+});
+
+router.get('/stripe/status', async (req, res) => {
+  const secretKey = envValue('STRIPE_SECRET_KEY');
+  const webhookSecret = envValue('STRIPE_WEBHOOK_SECRET');
+  const mode = stripeKeyMode(secretKey);
+  const prices = STRIPE_PRICE_ENV.map(([name, envName]) => ({
+    name,
+    env: envName,
+    configured: (() => {
+      const type = classifyStripeId(envValue(envName));
+      return type !== 'missing' && type !== 'placeholder';
+    })(),
+    type: classifyStripeId(envValue(envName)),
+    id: redactStripeId(envValue(envName)),
+    exists: null,
+    active: null,
+    recurring: null,
+    currency: null,
+    error: null,
+  }));
+
+  const result = {
+    ok: false,
+    provider: 'stripe',
+    mode,
+    configured: mode === 'live' || mode === 'test',
+    webhook: {
+      configured: webhookSecret.startsWith('whsec_'),
+    },
+    app_url: {
+      value: process.env.APP_URL || process.env.APP_BASE_URL || null,
+      canonical: /^https:\/\/(www\.)?miwa\.care\/?$/i.test(process.env.APP_URL || process.env.APP_BASE_URL || ''),
+    },
+    account: {
+      reachable: false,
+      id: null,
+      country: null,
+      default_currency: null,
+      charges_enabled: null,
+      payouts_enabled: null,
+      error: null,
+    },
+    prices,
+    time: new Date().toISOString(),
+  };
+
+  if (!result.configured) {
+    result.ok = false;
+    return res.json(result);
+  }
+
+  try {
+    const stripe = require('stripe')(secretKey);
+    const account = await stripe.accounts.retrieve();
+    result.account = {
+      reachable: true,
+      id: account.id || null,
+      country: account.country || null,
+      default_currency: account.default_currency || null,
+      charges_enabled: !!account.charges_enabled,
+      payouts_enabled: !!account.payouts_enabled,
+      error: null,
+    };
+    result.prices = await Promise.all(
+      STRIPE_PRICE_ENV.map(([name, envName]) => verifyStripeCatalogItem(stripe, name, envName, envValue(envName)))
+    );
+  } catch (err) {
+    result.account.error = sanitizeStripeAdminError(err);
+  }
+
+  result.ok = result.account.reachable
+    && result.webhook.configured
+    && result.app_url.canonical
+    && result.prices.every((price) => price.configured && price.exists !== false && price.active !== false && price.recurring !== false);
+
+  return res.json(result);
 });
 
 router.get('/postgres/status', async (req, res) => {

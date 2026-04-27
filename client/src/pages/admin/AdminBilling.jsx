@@ -6,6 +6,7 @@ export default function AdminBilling() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [billing, setBilling] = useState(null)
+  const [stripeStatus, setStripeStatus] = useState(null)
   const [allAccounts, setAllAccounts] = useState([])
   const [loadingAccounts, setLoadingAccounts] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -14,9 +15,14 @@ export default function AdminBilling() {
     setLoading(true)
     setError('')
     try {
-      const res = await adminApiFetch('/admin/billing')
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to load billing')
+      const [billingRes, stripeRes] = await Promise.all([
+        adminApiFetch('/admin/billing'),
+        adminApiFetch('/admin/stripe/status'),
+      ])
+      const data = await billingRes.json()
+      const stripeData = await stripeRes.json()
+      if (!billingRes.ok) throw new Error(data.error || 'Failed to load billing')
+      if (stripeRes.ok) setStripeStatus(stripeData)
       setBilling(data)
     } catch (err) {
       setError(err.message)
@@ -60,6 +66,67 @@ export default function AdminBilling() {
       </div>
 
       <AdminBanners error={error} />
+
+      <div className="card p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Stripe launch check</h2>
+            <p className="mt-1 text-xs text-gray-500">
+              Confirms the API key, webhook secret, app URL, and plan prices without showing secrets.
+            </p>
+          </div>
+          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+            stripeStatus?.ok ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
+          }`}>
+            {stripeStatus?.ok ? 'Ready' : 'Needs review'}
+          </span>
+        </div>
+
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          {[
+            ['Mode', stripeStatus?.mode || 'unknown'],
+            ['API account', stripeStatus?.account?.reachable ? 'reachable' : 'not verified'],
+            ['Webhook', stripeStatus?.webhook?.configured ? 'configured' : 'missing'],
+            ['App URL', stripeStatus?.app_url?.canonical ? 'miwa.care' : 'review'],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-md border border-gray-100 p-3">
+              <p className="text-xs uppercase tracking-wide text-gray-400">{label}</p>
+              <p className="mt-1 text-sm font-semibold text-gray-900">{value}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-gray-200 text-left text-gray-500">
+                <th className="py-2 pr-3 font-semibold">Plan</th>
+                <th className="py-2 pr-3 font-semibold">Env</th>
+                <th className="py-2 pr-3 font-semibold">Type</th>
+                <th className="py-2 pr-3 font-semibold">Status</th>
+                <th className="py-2 pr-3 font-semibold">Currency</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(stripeStatus?.prices || []).map(price => (
+                <tr key={price.env} className="border-b border-gray-100">
+                  <td className="py-2 pr-3 font-medium text-gray-900">{price.name}</td>
+                  <td className="py-2 pr-3 text-gray-500">{price.env}</td>
+                  <td className="py-2 pr-3 text-gray-600">{price.type}</td>
+                  <td className="py-2 pr-3">
+                    {price.configured && price.exists !== false && price.active !== false && price.recurring !== false ? (
+                      <span className="text-green-700">ready</span>
+                    ) : (
+                      <span className="text-amber-700">{price.configured ? 'review' : 'missing'}</span>
+                    )}
+                  </td>
+                  <td className="py-2 pr-3 text-gray-500">{price.currency || '-'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[

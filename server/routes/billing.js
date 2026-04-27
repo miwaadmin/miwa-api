@@ -7,30 +7,39 @@ const { getUsageSummary } = require('../services/costTracker');
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key || key.startsWith('***')) {
-    throw new Error('Stripe is not configured. Add your STRIPE_SECRET_KEY to server/.env');
+    throw new Error('Stripe is not configured. Add STRIPE_SECRET_KEY to the environment.');
   }
   return require('stripe')(key);
 }
 
-// Price / product ID map
-// Group practice uses two separate prices: base flat ($399) + per-seat add-on ($39/each)
+// Price / product ID map.
+// Group practice uses two separate prices: base flat fee + per-seat add-on.
 const PRICE_IDS = {
-  trainee:   () => process.env.STRIPE_PRICE_TRAINEE,
+  trainee: () => process.env.STRIPE_PRICE_TRAINEE,
   associate: () => process.env.STRIPE_PRICE_ASSOCIATE,
-  solo:      () => process.env.STRIPE_PRICE_SOLO,
-  group:     () => ({
-    base:    process.env.STRIPE_PRICE_GROUP_BASE,
+  solo: () => process.env.STRIPE_PRICE_SOLO,
+  group: () => ({
+    base: process.env.STRIPE_PRICE_GROUP_BASE,
     perSeat: process.env.STRIPE_PRICE_GROUP_PER_SEAT,
   }),
 };
 
 const VALID_PLANS = ['trainee', 'associate', 'solo', 'group'];
 
+function sanitizeStripeError(err) {
+  return {
+    message: 'Stripe operation failed',
+    type: err?.type || null,
+    code: err?.code || null,
+    statusCode: err?.statusCode || err?.status || null,
+    requestId: err?.requestId || err?.request_id || null,
+  };
+}
+
 async function resolvePriceId(stripe, plan) {
   const val = PRICE_IDS[plan]?.();
   if (!val) throw new Error(`Stripe price ID for "${plan}" is not configured yet.`);
 
-  // Group returns an object — handled separately in the checkout endpoint
   if (typeof val === 'object') return val;
 
   if (val.startsWith('prod_')) {
@@ -41,31 +50,110 @@ async function resolvePriceId(stripe, plan) {
     if (!priceId) throw new Error(`Product "${plan}" does not have a default recurring price in Stripe.`);
     return priceId;
   }
+
   if (val.startsWith('price_REPLACE')) {
     throw new Error(`Stripe price ID for "${plan}" is not configured yet.`);
   }
+
   return val;
 }
 
-// ── GET /api/billing/usage ──────────────────────────────────────────────────
-// Returns this therapist's AI token usage + budget + top-spending tasks this month.
+async function findTherapistForSubscription(db, subscription) {
+  const byCustomer = subscription.customer
+    ? await db.get('SELECT id FROM therapists WHERE stripe_customer_id = ?', subscription.customer)
+    : null;
+  if (byCustomer) return byCustomer;
+
+  const therapistId = parseInt(subscription.metadata?.therapist_id, 10);
+  if (!therapistId) return null;
+  return db.get('SELECT id FROM therapists WHERE id = ?', therapistId);
+}
+
+async function handleStripeEvent(db, event) {
+  switch (event.type) {
+    case 'customer.subscription.created':
+    case 'customer.subscription.updated': {
+      const sub = event.data.object;
+      const therapist = await findTherapistForSubscription(db, sub);
+      if (!therapist) return { handled: false, reason: 'therapist_not_found', type: event.type };
+
+      const status = sub.status;
+      const plan = sub.metadata?.plan || null;
+
+      if (status === 'active' || status === 'trialing') {
+        await db.run(
+          'UPDATE therapists SET subscription_status = ?, subscription_tier = ?, stripe_subscription_id = ? WHERE id = ?',
+          'active', plan, sub.id, therapist.id,
+        );
+        return { handled: true, therapistId: therapist.id, subscriptionStatus: 'active', plan, type: event.type };
+      }
+
+      if (status === 'past_due') {
+        await db.run('UPDATE therapists SET subscription_status = ? WHERE id = ?', 'past_due', therapist.id);
+        return { handled: true, therapistId: therapist.id, subscriptionStatus: 'past_due', plan, type: event.type };
+      }
+
+      if (status === 'canceled' || status === 'unpaid') {
+        await db.run(
+          'UPDATE therapists SET subscription_status = ?, subscription_tier = NULL WHERE id = ?',
+          'trial', therapist.id,
+        );
+        return { handled: true, therapistId: therapist.id, subscriptionStatus: 'trial', plan, type: event.type };
+      }
+
+      return { handled: true, therapistId: therapist.id, subscriptionStatus: status, plan, type: event.type };
+    }
+
+    case 'customer.subscription.deleted': {
+      const sub = event.data.object;
+      const therapist = await findTherapistForSubscription(db, sub);
+      if (!therapist) return { handled: false, reason: 'therapist_not_found', type: event.type };
+      await db.run(
+        'UPDATE therapists SET subscription_status = ?, subscription_tier = NULL, stripe_subscription_id = NULL WHERE id = ?',
+        'expired', therapist.id,
+      );
+      return { handled: true, therapistId: therapist.id, subscriptionStatus: 'expired', type: event.type };
+    }
+
+    case 'invoice.payment_failed': {
+      const invoice = event.data.object;
+      const therapist = await db.get('SELECT id FROM therapists WHERE stripe_customer_id = ?', invoice.customer);
+      if (!therapist) return { handled: false, reason: 'therapist_not_found', type: event.type };
+      await db.run('UPDATE therapists SET subscription_status = ? WHERE id = ?', 'past_due', therapist.id);
+      return { handled: true, therapistId: therapist.id, subscriptionStatus: 'past_due', type: event.type };
+    }
+
+    case 'invoice.payment_succeeded': {
+      const invoice = event.data.object;
+      const therapist = await db.get('SELECT id FROM therapists WHERE stripe_customer_id = ?', invoice.customer);
+      if (!therapist) return { handled: false, reason: 'therapist_not_found', type: event.type };
+      await db.run(
+        `UPDATE therapists SET subscription_status = 'active' WHERE id = ? AND subscription_status = 'past_due'`,
+        therapist.id,
+      );
+      return { handled: true, therapistId: therapist.id, subscriptionStatus: 'active_if_past_due', type: event.type };
+    }
+
+    default:
+      return { handled: false, reason: 'unhandled_event_type', type: event.type };
+  }
+}
+
 router.get('/usage', requireAuth, async (req, res) => {
   try {
     const db = getAsyncDb();
     const summary = await getUsageSummary(req.therapist.id);
-
-    // Breakdown by task kind for the current month
     const byKind = await db.all(
       `SELECT kind,
               COUNT(*) AS call_count,
-              COALESCE(SUM(input_tokens),  0) AS input_tokens,
+              COALESCE(SUM(input_tokens), 0) AS input_tokens,
               COALESCE(SUM(output_tokens), 0) AS output_tokens,
-              COALESCE(SUM(cost_cents),    0) AS cost_cents
+              COALESCE(SUM(cost_cents), 0) AS cost_cents
          FROM cost_events
         WHERE therapist_id = ?
           AND created_at >= date('now', 'start of month')
-     GROUP BY kind
-     ORDER BY cost_cents DESC`,
+        GROUP BY kind
+        ORDER BY cost_cents DESC`,
       req.therapist.id,
     );
 
@@ -75,8 +163,6 @@ router.get('/usage', requireAuth, async (req, res) => {
   }
 });
 
-// ── GET /api/billing/status ─────────────────────────────────────────────────
-// Returns current subscription info for the logged-in therapist
 router.get('/status', requireAuth, async (req, res) => {
   try {
     const db = getAsyncDb();
@@ -87,24 +173,21 @@ router.get('/status', requireAuth, async (req, res) => {
     if (!row) return res.status(404).json({ error: 'Therapist not found' });
 
     const trialLimit = row.trial_limit || 10;
-    const trialUsed  = row.workspace_uses || 0;
+    const trialUsed = row.workspace_uses || 0;
     res.json({
       subscription_status: row.subscription_status || 'trial',
-      subscription_tier:   row.subscription_tier   || null,
-      workspace_uses:      trialUsed,
-      trial_limit:         trialLimit,
-      trial_remaining:     Math.max(0, trialLimit - trialUsed),
-      is_active:           row.subscription_status === 'active',
-      is_trial:            (row.subscription_status || 'trial') === 'trial',
+      subscription_tier: row.subscription_tier || null,
+      workspace_uses: trialUsed,
+      trial_limit: trialLimit,
+      trial_remaining: Math.max(0, trialLimit - trialUsed),
+      is_active: row.subscription_status === 'active',
+      is_trial: (row.subscription_status || 'trial') === 'trial',
     });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ── POST /api/billing/create-checkout-session ───────────────────────────────
-// Creates a Stripe Checkout session for the selected plan
-// Body: { plan: 'trainee'|'associate'|'solo'|'group', additionalSeats?: number }
 router.post('/create-checkout-session', requireAuth, async (req, res) => {
   try {
     const stripe = getStripe();
@@ -118,14 +201,13 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
     const appUrl = process.env.APP_URL || 'http://localhost:3000';
     const priceVal = await resolvePriceId(stripe, plan);
 
-    // Get or create Stripe customer
     let row = await db.get('SELECT stripe_customer_id, email, full_name FROM therapists WHERE id = ?', req.therapist.id);
     let customerId = row?.stripe_customer_id;
 
     if (!customerId) {
       const customer = await stripe.customers.create({
         email: row.email,
-        name:  row.full_name || undefined,
+        name: row.full_name || undefined,
         metadata: { therapist_id: String(req.therapist.id) },
       });
       customerId = customer.id;
@@ -133,7 +215,6 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
       await persistIfNeeded();
     }
 
-    // Build line items — group uses base flat price + optional per-seat add-on
     let lineItems;
     if (plan === 'group' && typeof priceVal === 'object') {
       const { base, perSeat } = priceVal;
@@ -151,7 +232,7 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
       customer: customerId,
       line_items: lineItems,
       success_url: `${appUrl}/settings?subscribed=1`,
-      cancel_url:  `${appUrl}/settings?canceled=1`,
+      cancel_url: `${appUrl}/settings?canceled=1`,
       subscription_data: {
         metadata: { therapist_id: String(req.therapist.id), plan },
       },
@@ -160,13 +241,11 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
 
     res.json({ url: session.url });
   } catch (err) {
-    console.error('[billing] create-checkout-session error:', err.message);
+    console.error('[billing] create-checkout-session error:', sanitizeStripeError(err));
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-// ── POST /api/billing/portal ────────────────────────────────────────────────
-// Creates a Stripe Customer Portal session so users can manage / cancel
 router.post('/portal', requireAuth, async (req, res) => {
   try {
     const db = getAsyncDb();
@@ -178,16 +257,14 @@ router.post('/portal', requireAuth, async (req, res) => {
     }
 
     const portal = await stripe.billingPortal.sessions.create({
-      customer:   row.stripe_customer_id,
+      customer: row.stripe_customer_id,
       return_url: `${appUrl}/settings`,
     });
 
     res.json({ url: portal.url });
   } catch (err) {
-    console.error('[billing] portal error:', err.message);
+    console.error('[billing] portal error:', sanitizeStripeError(err));
 
-    // Stale test-mode customer ID used against live key (or vice versa).
-    // Clear it from the DB so the next checkout creates a fresh live customer.
     const isStaleCustomer =
       err.message?.includes('No such customer') ||
       err.message?.includes('test mode') ||
@@ -201,7 +278,7 @@ router.post('/portal', requireAuth, async (req, res) => {
         console.warn('[billing] Cleared stale stripe_customer_id for therapist', req.therapist.id);
       } catch {}
       return res.status(400).json({
-        error: 'Your billing account needs to be refreshed. Please go to Billing and start a new subscription — your previous test account was not carried over to the live system.',
+        error: 'Your billing account needs to be refreshed. Please go to Billing and start a new subscription - your previous test account was not carried over to the live system.',
       });
     }
 
@@ -209,10 +286,8 @@ router.post('/portal', requireAuth, async (req, res) => {
   }
 });
 
-// ── POST /api/billing/webhook ───────────────────────────────────────────────
-// Stripe sends events here — must be raw body (handled below)
 router.post('/webhook', express.raw({ type: 'application/json' }), async (req, res) => {
-  const sig    = req.headers['stripe-signature'];
+  const sig = req.headers['stripe-signature'];
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
 
   if (!secret) {
@@ -225,99 +300,33 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     const stripe = getStripe();
     event = stripe.webhooks.constructEvent(req.body, sig, secret);
   } catch (err) {
-    console.error('[billing] Webhook signature error:', err.message);
+    console.error('[billing] Webhook signature error:', sanitizeStripeError(err));
     return res.status(400).send('Webhook signature verification failed');
   }
 
-  const db = getAsyncDb();
-
-  // Helper: find therapist by Stripe customer ID
-  const byCustomer = (customerId) =>
-    db.get('SELECT id FROM therapists WHERE stripe_customer_id = ?', customerId);
-
-  // Helper: find therapist by subscription metadata
-  const bySubMeta = (subscription) => {
-    const tid = subscription.metadata?.therapist_id;
-    return tid ? db.get('SELECT id FROM therapists WHERE id = ?', parseInt(tid, 10)) : null;
-  };
-
   try {
-    switch (event.type) {
-      // ── Subscription became active (new or renewed) ──────────────────────
-      case 'customer.subscription.created':
-      case 'customer.subscription.updated': {
-        const sub = event.data.object;
-        const therapist = (await byCustomer(sub.customer)) || (await bySubMeta(sub));
-        if (!therapist) { console.warn('[billing] No therapist found for customer', sub.customer); break; }
-
-        const status = sub.status; // 'active', 'trialing', 'past_due', 'canceled', etc.
-        const plan   = sub.metadata?.plan || null;
-
-        if (status === 'active' || status === 'trialing') {
-          await db.run(
-            'UPDATE therapists SET subscription_status = ?, subscription_tier = ?, stripe_subscription_id = ? WHERE id = ?',
-            'active', plan, sub.id, therapist.id,
-          );
-          console.log(`[billing] Therapist ${therapist.id} subscription active (${plan})`);
-        } else if (status === 'past_due') {
-          await db.run('UPDATE therapists SET subscription_status = ? WHERE id = ?', 'past_due', therapist.id);
-          console.log(`[billing] Therapist ${therapist.id} subscription past_due`);
-        } else if (status === 'canceled' || status === 'unpaid') {
-          await db.run(
-            'UPDATE therapists SET subscription_status = ?, subscription_tier = NULL WHERE id = ?',
-            'trial', therapist.id,
-          );
-          console.log(`[billing] Therapist ${therapist.id} subscription canceled`);
-        }
-        break;
-      }
-
-      // ── Subscription deleted (canceled at end of period) ─────────────────
-      case 'customer.subscription.deleted': {
-        const sub = event.data.object;
-        const therapist = (await byCustomer(sub.customer)) || (await bySubMeta(sub));
-        if (!therapist) break;
-        await db.run(
-          'UPDATE therapists SET subscription_status = ?, subscription_tier = NULL, stripe_subscription_id = NULL WHERE id = ?',
-          'expired', therapist.id,
-        );
-        console.log(`[billing] Therapist ${therapist.id} subscription expired`);
-        break;
-      }
-
-      // ── Payment failed ────────────────────────────────────────────────────
-      case 'invoice.payment_failed': {
-        const invoice = event.data.object;
-        const therapist = await byCustomer(invoice.customer);
-        if (!therapist) break;
-        await db.run('UPDATE therapists SET subscription_status = ? WHERE id = ?', 'past_due', therapist.id);
-        console.log(`[billing] Therapist ${therapist.id} payment failed`);
-        break;
-      }
-
-      // ── Payment succeeded ─────────────────────────────────────────────────
-      case 'invoice.payment_succeeded': {
-        const invoice = event.data.object;
-        const therapist = await byCustomer(invoice.customer);
-        if (!therapist) break;
-        // Restore to active if they had failed before
-        await db.run(
-          `UPDATE therapists SET subscription_status = 'active' WHERE id = ? AND subscription_status = 'past_due'`,
-          therapist.id,
-        );
-        break;
-      }
-
-      default:
-        // Ignore unhandled events
-        break;
+    const result = await handleStripeEvent(getAsyncDb(), event);
+    if (result.handled) {
+      console.log('[billing] Stripe webhook handled:', {
+        type: result.type,
+        therapistId: result.therapistId,
+        subscriptionStatus: result.subscriptionStatus,
+      });
+    } else if (result.reason === 'therapist_not_found') {
+      console.warn('[billing] Stripe webhook therapist not found:', { type: result.type });
     }
   } catch (handlerErr) {
-    console.error('[billing] Webhook handler error:', handlerErr.message);
+    console.error('[billing] Webhook handler error:', sanitizeStripeError(handlerErr));
   }
 
   try { await persistIfNeeded(); } catch {}
   res.json({ received: true });
 });
+
+router._test = {
+  handleStripeEvent,
+  resolvePriceId,
+  sanitizeStripeError,
+};
 
 module.exports = router;
