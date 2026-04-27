@@ -10,6 +10,7 @@ const REMOTE_MODE = MODE === 'remote' || process.env.MIWA_SMOKE_REMOTE === 'true
 let baseUrl = (process.env.LAUNCH_API_URL || (REMOTE_MODE ? DEFAULT_REMOTE_API : '')).replace(/\/$/, '');
 let server = null;
 let cookie = null;
+let authToken = null;
 let localTestDir = null;
 
 const results = [];
@@ -76,6 +77,7 @@ async function request(method, urlPath, body = null, options = {}) {
     ...(options.headers || {}),
   };
   if (body !== null) headers['Content-Type'] = 'application/json';
+  if (authToken && options.auth !== false) headers.Authorization = `Bearer ${authToken}`;
   if (cookie && options.auth !== false) headers.Cookie = cookie;
 
   const res = await fetch(urlFor(urlPath), {
@@ -196,6 +198,8 @@ async function loginLocalAdmin() {
   const login = await request('POST', '/api/auth/login', { email, password }, { auth: false });
   assertStatus(login, 200, 'local clinician login');
   assertBody(login.body?.therapist?.id, 'local login did not return a therapist id');
+  assertBody(login.body?.token, 'local login did not return an auth token');
+  authToken = login.body.token;
   context.therapistId = login.body.therapist.id;
   return { status: login.status, therapistId: context.therapistId };
 }
@@ -212,6 +216,8 @@ async function loginRemoteClinician() {
   const login = await request('POST', '/api/auth/login', { email, password }, { auth: false });
   assertStatus(login, 200, 'remote clinician login');
   assertBody(login.body?.therapist?.id, 'remote login did not return a therapist id');
+  assertBody(login.body?.token, 'remote login did not return an auth token');
+  authToken = login.body.token;
   context.therapistId = login.body.therapist.id;
   return { status: login.status, therapistId: context.therapistId };
 }
