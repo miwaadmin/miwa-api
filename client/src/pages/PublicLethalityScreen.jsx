@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import PublicPageShell from '../components/PublicPageShell'
 import PublicNav from '../components/PublicNav'
 import PublicFooter from '../components/PublicFooter'
+import { API_BASE } from '../lib/api'
 
 /**
  * PublicLethalityScreen — an anonymous, unauthenticated web version of
@@ -154,7 +155,7 @@ export default function PublicLethalityScreen() {
     setSubmitting(true)
     setError('')
     try {
-      const r = await fetch('/api/public/lethality-screen', {
+      const r = await fetch(`${API_BASE}/public/lethality-screen`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ answers, openText: openText.trim() || undefined }),

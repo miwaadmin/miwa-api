@@ -8,6 +8,7 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { apiFetch } from '../../lib/api'
 import { renderClinical } from '../../lib/renderClinical'
 
 function fmtDate(iso) {
@@ -33,7 +34,7 @@ export default function MobileBriefs() {
   const load = useCallback(async () => {
     setLoading(true); setError('')
     try {
-      const res = await fetch('/api/research/briefs', { credentials: 'include' })
+      const res = await apiFetch('/research/briefs')
       if (!res.ok) throw new Error('Failed to load briefs')
       const data = await res.json()
       setBriefs(Array.isArray(data) ? data : (data?.briefs || []))
@@ -49,7 +50,7 @@ export default function MobileBriefs() {
   const handleGenerate = async () => {
     setGenerating(true); setError('')
     try {
-      const res = await fetch('/api/research/generate', { method: 'POST', credentials: 'include' })
+      const res = await apiFetch('/research/generate', { method: 'POST' })
       if (!res.ok) throw new Error('Couldn\'t generate a new brief')
       await load()
     } catch (err) {
@@ -61,7 +62,7 @@ export default function MobileBriefs() {
 
   const handleToggleSave = async (b) => {
     try {
-      await fetch(`/api/research/briefs/${b.id}/save`, { method: 'POST', credentials: 'include' })
+      await apiFetch(`/research/briefs/${b.id}/save`, { method: 'POST' })
       setBriefs(list => list.map(x => x.id === b.id ? { ...x, saved: !x.saved } : x))
     } catch {}
   }
@@ -69,7 +70,7 @@ export default function MobileBriefs() {
   const handleDelete = async (b) => {
     if (!window.confirm('Delete this brief?')) return
     try {
-      await fetch(`/api/research/briefs/${b.id}`, { method: 'DELETE', credentials: 'include' })
+      await apiFetch(`/research/briefs/${b.id}`, { method: 'DELETE' })
       setBriefs(list => list.filter(x => x.id !== b.id))
     } catch {}
   }
@@ -80,7 +81,7 @@ export default function MobileBriefs() {
     }
     setExpandedId(b.id)
     if (!b.opened_at) {
-      try { await fetch(`/api/research/briefs/${b.id}/open`, { method: 'POST', credentials: 'include' }) } catch {}
+      try { await apiFetch(`/research/briefs/${b.id}/open`, { method: 'POST' }) } catch {}
     }
   }
 

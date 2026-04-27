@@ -8,8 +8,9 @@
 import { useState } from 'react'
 import { useNavigate, Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
+import { API_BASE } from '../../lib/api'
 
-const API = import.meta.env.VITE_API_URL ?? '/api'
+const API = API_BASE
 
 export default function MobileLogin() {
   const { therapist, login } = useAuth()

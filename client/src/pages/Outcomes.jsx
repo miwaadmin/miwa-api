@@ -4,8 +4,9 @@ import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
   Legend, ReferenceArea, ResponsiveContainer, ReferenceLine
 } from 'recharts'
+import { API_BASE } from '../lib/api'
 
-const API = import.meta.env.VITE_API_URL ?? '/api'
+const API = API_BASE
 
 const SOUL_COLORS = ['#6366F1', '#8B5CF6', '#EC4899', '#14B8A6', '#F59E0B', '#10B981']
 

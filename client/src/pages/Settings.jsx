@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTour } from '../context/TourContext'
-import { apiFetch } from '../lib/api'
+import { API_BASE, apiFetch } from '../lib/api'
 import { therapistInitials } from '../lib/avatar'
 import { COMMON_TIMEZONES } from '../lib/dateUtils'
 import OutreachSettings from '../components/OutreachSettings'
 
-const API = import.meta.env.VITE_API_URL ?? '/api'
+const API = API_BASE
 
 const ASSISTANT_ACTION_MODES = [
   { id: 'read_only', label: 'Read-only', desc: 'Analyze and explain only' },

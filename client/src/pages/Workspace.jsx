@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiFetch } from '../lib/api'
+import { apiFetch, apiUpload } from '../lib/api'
 
 
 const ORIENTATIONS = [
@@ -340,11 +340,7 @@ export default function Workspace() {
     const formData = new FormData()
     formData.append('file', blob, fallbackName)
     formData.append('mode', sessionType)
-    const res = await fetch('/api/ai/audio-import', {
-      method: 'POST',
-      credentials: 'include',
-      body: formData,
-    })
+    const res = await apiUpload('/ai/audio-import', formData)
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || 'Failed to import audio')
 
@@ -447,11 +443,7 @@ export default function Workspace() {
     try {
       const formData = new FormData()
       formData.append('file', file)
-      const res = await fetch('/api/ai/intake-import', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
-      })
+      const res = await apiUpload('/ai/intake-import', formData)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to import intake form')
       setUploadedAudioName('')
@@ -477,11 +469,7 @@ export default function Workspace() {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('mode', sessionType)
-      const res = await fetch('/api/ai/audio-import', {
-        method: 'POST',
-        credentials: 'include',
-        body: formData,
-      })
+      const res = await apiUpload('/ai/audio-import', formData)
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to import audio')
 

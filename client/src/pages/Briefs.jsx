@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { formatDateOnlyInTimezone } from '../lib/dateUtils'
+import { apiFetch } from '../lib/api'
 import { renderClinical } from '../lib/renderClinical'
 
 // Shared clinical markdown renderer (app-wide styling)
@@ -103,7 +104,7 @@ function ResearchTab() {
   const [expanded, setExpanded] = useState(null)
 
   useEffect(() => {
-    fetch('/api/research/briefs', { credentials: 'include' })
+    apiFetch('/research/briefs')
       .then(r => r.json())
       .then(data => { setBriefs(Array.isArray(data) ? data : []); setLoading(false) })
       .catch(() => setLoading(false))
@@ -116,17 +117,15 @@ function ResearchTab() {
     setGeneratingType(type)
     setGenError(null)
     try {
-      const res = await fetch('/api/research/generate', {
+      const res = await apiFetch('/research/generate', {
         method: 'POST',
-        credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ type }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Generation failed')
 
       // Refresh the briefs list
-      const briefsRes = await fetch('/api/research/briefs', { credentials: 'include' })
+      const briefsRes = await apiFetch('/research/briefs')
       const briefsData = await briefsRes.json()
       setBriefs(Array.isArray(briefsData) ? briefsData : [])
     } catch (err) {
@@ -141,13 +140,13 @@ function ResearchTab() {
   async function handleDelete(briefId) {
     setBriefs(prev => prev.filter(b => b.id !== briefId))
     try {
-      await fetch(`/api/research/briefs/${briefId}`, { method: 'DELETE', credentials: 'include' })
+      await apiFetch(`/research/briefs/${briefId}`, { method: 'DELETE' })
     } catch {}
   }
 
   async function handleToggleSave(briefId) {
     try {
-      const res = await fetch(`/api/research/briefs/${briefId}/save`, { method: 'POST', credentials: 'include' })
+      const res = await apiFetch(`/research/briefs/${briefId}/save`, { method: 'POST' })
       const data = await res.json()
       if (res.ok) {
         setBriefs(prev => prev.map(b => b.id === briefId ? { ...b, saved: data.saved } : b))
@@ -160,7 +159,7 @@ function ResearchTab() {
     const brief = briefs.find(b => b.id === briefId)
     if (brief && !brief.opened_at) {
       setBriefs(prev => prev.map(b => b.id === briefId ? { ...b, opened_at: new Date().toISOString() } : b))
-      try { await fetch(`/api/research/briefs/${briefId}/open`, { method: 'POST', credentials: 'include' }) } catch {}
+      try { await apiFetch(`/research/briefs/${briefId}/open`, { method: 'POST' }) } catch {}
     }
   }
 
@@ -383,7 +382,7 @@ function NewsTab() {
   const [refreshing, setRefreshing] = useState(false)
 
   function loadNews() {
-    return fetch('/api/research/news?limit=5', { credentials: 'include' })
+    return apiFetch('/research/news?limit=5')
       .then(r => r.json())
       .then(data => { setArticles(Array.isArray(data) ? data : []) })
       .catch(() => { setArticles([]) })
@@ -393,7 +392,7 @@ function NewsTab() {
 
   async function handleRefresh() {
     setRefreshing(true)
-    await fetch('/api/research/news/refresh', { method: 'POST', credentials: 'include' })
+    await apiFetch('/research/news/refresh', { method: 'POST' })
     setTimeout(() => { loadNews().finally(() => setRefreshing(false)) }, 18000)
   }
 

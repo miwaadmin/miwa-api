@@ -11,8 +11,9 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { MiwaLogo } from '../components/Sidebar'
+import { API_BASE } from '../lib/api'
 
-const API = import.meta.env.VITE_API_URL ?? '/api'
+const API = API_BASE
 
 export default function Bootstrap() {
   const navigate = useNavigate()

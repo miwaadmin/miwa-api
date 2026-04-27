@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { apiFetch, apiUpload } from '../lib/api'
+import { API_BASE, apiFetch, apiUpload } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -425,8 +425,6 @@ function RecordFilesPanel({ patientId }) {
     </div>
   )
 }
-
-const API_BASE = import.meta.env.VITE_API_URL ?? '/api'
 
 function TrendArrow({ trend, baseline, current }) {
   const dir = current > baseline ? '↑' : current < baseline ? '↓' : '→'

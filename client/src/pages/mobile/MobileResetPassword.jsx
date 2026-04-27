@@ -6,8 +6,9 @@
  */
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import { API_BASE } from '../../lib/api'
 
-const API = import.meta.env.VITE_API_URL ?? '/api'
+const API = API_BASE
 
 export default function MobileResetPassword() {
   const navigate = useNavigate()

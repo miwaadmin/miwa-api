@@ -4,13 +4,15 @@
  * Authorization header is used instead (see AuthContext for token storage).
  */
 // On web: relative /api. On Capacitor native: full API URL (no local server on phone)
-const BASE = (() => {
+export const API_BASE = (() => {
   if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL
   try {
     if (window.Capacitor?.isNativePlatform?.()) return 'https://api.miwa.care/api'
   } catch {}
   return '/api'
 })()
+
+const BASE = API_BASE
 
 function mobileBearerHeader() {
   try {

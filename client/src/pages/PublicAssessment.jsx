@@ -16,8 +16,7 @@
  */
 import { useEffect, useMemo, useState, useRef } from 'react'
 import { useParams } from 'react-router-dom'
-
-const API_BASE = import.meta.env.VITE_API_URL ?? '/api'
+import { API_BASE } from '../lib/api'
 
 function Spinner() {
   return <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />

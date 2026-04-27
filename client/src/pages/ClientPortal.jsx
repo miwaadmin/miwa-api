@@ -17,8 +17,9 @@
  */
 import { useEffect, useState, useRef } from 'react'
 import { useParams } from 'react-router-dom'
+import { API_BASE } from '../lib/api'
 
-const API = import.meta.env.VITE_API_URL ?? '/api'
+const API = API_BASE
 
 const ASSESSMENT_LABELS = {
   'phq-9':  'Depression screen',

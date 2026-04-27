@@ -10,8 +10,9 @@
  */
 import { useState, useEffect } from 'react'
 import { useParams } from 'react-router-dom'
+import { API_BASE } from '../lib/api'
 
-const API = import.meta.env.VITE_API_URL ?? '/api'
+const API = API_BASE
 
 const MOODS = [
   { score: 1,  emoji: '😞', label: 'Very difficult' },

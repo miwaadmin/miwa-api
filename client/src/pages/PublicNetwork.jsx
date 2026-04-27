@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import PublicPageShell from '../components/PublicPageShell'
 import PublicNav from '../components/PublicNav'
 import PublicFooter from '../components/PublicFooter'
+import { API_BASE } from '../lib/api'
 
 /**
  * PublicNetwork — a public-facing directory of professionals in Miwa's
@@ -91,7 +92,7 @@ export default function PublicNetwork() {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    fetch('/api/public/network')
+    fetch(`${API_BASE}/public/network`)
       .then(r => r.json())
       .then(d => setContacts(Array.isArray(d.contacts) ? d.contacts : []))
       .catch(() => setContacts([]))

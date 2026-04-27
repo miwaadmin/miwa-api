@@ -6,8 +6,9 @@
  * a Bearer header since cookies don't work cross-origin in WebViews.
  */
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
+import { API_BASE } from '../lib/api'
 
-const BASE = import.meta.env.VITE_API_URL ?? '/api'
+const BASE = API_BASE
 const AuthContext = createContext(null)
 
 // Detect Capacitor native runtime — false on web browsers

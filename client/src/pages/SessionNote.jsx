@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { apiFetch } from '../lib/api'
+import { API_BASE, apiFetch } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { generateExportHTML, exportToPDF, downloadText, exportAsText } from '../lib/exportNotes'
 import NoteEnrichments from '../components/NoteEnrichments'
@@ -42,7 +42,7 @@ function DictationPanel({ onApply, onClose }) {
           const blob = new Blob(chunksRef.current, { type: mimeType })
           const fd = new FormData()
           fd.append('audio', blob, 'dictation.webm')
-          const API = import.meta.env.VITE_API_URL ?? '/api'
+          const API = API_BASE
           const res = await fetch(`${API}/ai/dictate-session`, {
             method: 'POST',
             credentials: 'include',
@@ -184,7 +184,7 @@ function DictationPanel({ onApply, onClose }) {
   )
 }
 
-const API = import.meta.env.VITE_API_URL ?? '/api'
+const API = API_BASE
 
 const SESSION_TEMPLATES = {
   'phq-9': {

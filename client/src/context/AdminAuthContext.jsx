@@ -4,8 +4,9 @@
  * admin and clinician sessions can coexist.
  */
 import { createContext, useContext, useState, useEffect } from 'react'
+import { API_BASE } from '../lib/api'
 
-const BASE = import.meta.env.VITE_API_URL ?? '/api'
+const BASE = API_BASE
 const AdminAuthContext = createContext(null)
 
 function isCapacitor() {

@@ -2,8 +2,9 @@ import { useEffect, useState } from 'react'
 import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { MiwaLogo } from '../components/Sidebar'
+import { API_BASE } from '../lib/api'
 
-const API = import.meta.env.VITE_API_URL ?? '/api'
+const API = API_BASE
 
 export default function VerifyEmail() {
   const { therapist, login } = useAuth()
