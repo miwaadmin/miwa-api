@@ -206,10 +206,8 @@ export default function App() {
               </Route>
 
               {/* Protected clinician routes */}
-              <Route path="/dashboard" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-                <Route index element={<MobileDashboardRedirect />} />
-              </Route>
               <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
+                <Route path="/dashboard" element={<MobileDashboardRedirect />} />
                 <Route path="/workspace" element={<Workspace />} />
                 <Route path="/patients" element={<Patients />} />
                 <Route path="/patients/:id" element={<PatientDetail />} />
@@ -225,7 +223,6 @@ export default function App() {
                 <Route path="/calendar" element={<Navigate to="/schedule" replace />} />
                 <Route path="/schedule" element={<Schedule />} />
                 <Route path="/unsigned" element={<UnsignedSessions />} />
-                <Route path="/library" element={<DashboardResources />} />
                 <Route path="/tasks/:id" element={<TaskDetail />} />
                 {/* Practice routes removed — separate product */}
               </Route>
