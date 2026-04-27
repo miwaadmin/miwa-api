@@ -74,6 +74,24 @@ function hasHipaaCoveredProvider() {
   return hasGmailApi || hasSmtp;
 }
 
+function isProduction() {
+  return String(process.env.NODE_ENV || '').toLowerCase() === 'production';
+}
+
+function legacyResendAllowed() {
+  return String(process.env.ALLOW_LEGACY_RESEND_EMAIL || '').toLowerCase() === 'true';
+}
+
+function getMailerConfigStatus() {
+  return {
+    gmailApiConfigured: !!(GOOGLE_SERVICE_ACCOUNT_JSON && GMAIL_IMPERSONATE_USER),
+    smtpConfigured: !!(SMTP_USER && SMTP_PASS),
+    resendConfigured: !!RESEND_API_KEY,
+    legacyResendAllowed: legacyResendAllowed(),
+    hipaaCoveredProvider: hasHipaaCoveredProvider(),
+  };
+}
+
 // Gmail API (HTTPS) - preferred production mail path.
 //
 // Uses a Google Cloud service account with domain-wide delegation to
@@ -338,6 +356,10 @@ async function sendMail({ to, subject, html, text, attachments }) {
 
   // Legacy fallback: Resend REST API (NOT BAA-covered — not safe for PHI)
   if (RESEND_API_KEY) {
+    if (isProduction() && !legacyResendAllowed()) {
+      throw new Error('No HIPAA-covered email provider configured for production.');
+    }
+
     const payload = JSON.stringify({
       from: FROM_EMAIL,
       to: Array.isArray(to) ? to : [to],
@@ -381,6 +403,10 @@ async function sendMail({ to, subject, html, text, attachments }) {
   }
 
   // Dev fallback: no provider configured
+  if (isProduction()) {
+    throw new Error('No HIPAA-covered email provider configured for production.');
+  }
+
   console.log(`\n[MAILER DEV] To: ${to}\nSubject: ${subject}\n${text || ''}\n`);
   return { ok: true, dev: true, provider: 'console' };
 }
@@ -719,4 +745,5 @@ module.exports = {
   sendDuplicateRegistrationEmail,
   sendFeedbackResolutionEmail,
   hasHipaaCoveredProvider,
+  getMailerConfigStatus,
 };

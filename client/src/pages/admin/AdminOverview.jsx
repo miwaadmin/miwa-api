@@ -94,6 +94,10 @@ export default function AdminOverview() {
   const [backupBusy, setBackupBusy] = useState(false)
   const [backupResult, setBackupResult] = useState(null)
   const [backupError, setBackupError] = useState('')
+  const [postgresStatus, setPostgresStatus] = useState(null)
+  const [opsBusy, setOpsBusy] = useState('')
+  const [opsMessage, setOpsMessage] = useState('')
+  const [opsError, setOpsError] = useState('')
 
   const load = async () => {
     setLoading(true)
@@ -149,7 +153,45 @@ export default function AdminOverview() {
     }
   }
 
-  useEffect(() => { load(); loadReadiness(); loadBackupStatus() }, [])
+  const checkPostgres = async () => {
+    setOpsBusy('postgres')
+    setOpsError('')
+    setOpsMessage('')
+    try {
+      const r = await adminApiFetch('/admin/postgres/status')
+      const d = await r.json()
+      setPostgresStatus(d)
+      if (!r.ok) throw new Error(d?.error?.message || d.message || 'PostgreSQL check failed')
+      setOpsMessage(`PostgreSQL OK: ${d.database || 'miwa'}`)
+    } catch (err) {
+      setOpsError(err.message)
+    } finally {
+      setOpsBusy('')
+    }
+  }
+
+  const sendEmailDiagnostic = async () => {
+    const to = window.prompt('Send the Miwa diagnostic email to:')
+    if (!to) return
+    setOpsBusy('email')
+    setOpsError('')
+    setOpsMessage('')
+    try {
+      const r = await adminApiFetch('/admin/email-diag', {
+        method: 'POST',
+        body: JSON.stringify({ to }),
+      })
+      const d = await r.json()
+      if (!r.ok) throw new Error(d.error || 'Email diagnostic failed')
+      setOpsMessage(`Email sent through ${d.result?.provider || 'configured provider'}`)
+    } catch (err) {
+      setOpsError(err.message)
+    } finally {
+      setOpsBusy('')
+    }
+  }
+
+  useEffect(() => { load(); loadReadiness(); loadBackupStatus(); checkPostgres() }, [])
 
   const topCards = useMemo(() => ([
     ['Accounts created', overview?.totals?.total_therapists || 0, '/admin/accounts'],
@@ -209,6 +251,65 @@ export default function AdminOverview() {
             <p className="mt-2 text-2xl font-bold text-gray-900">{value}</p>
           </div>
         ))}
+      </div>
+
+      <div className="card p-5">
+        <div className="flex items-start justify-between gap-4 flex-wrap mb-4">
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Launch operations</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Quick production checks for the API, database, and transactional email path.
+            </p>
+          </div>
+          <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${
+            postgresStatus?.ok ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'
+          }`}>
+            {postgresStatus?.ok ? 'POSTGRES OK' : 'POSTGRES NOT CONFIRMED'}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-2 flex-wrap">
+          <button
+            type="button"
+            onClick={checkPostgres}
+            disabled={opsBusy === 'postgres'}
+            className="px-4 py-2 rounded-lg text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 disabled:opacity-50 transition-colors"
+          >
+            {opsBusy === 'postgres' ? 'Checking...' : 'Check PostgreSQL'}
+          </button>
+          <button
+            type="button"
+            onClick={sendEmailDiagnostic}
+            disabled={opsBusy === 'email'}
+            className="px-4 py-2 rounded-lg text-xs font-bold text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-200 disabled:opacity-50 transition-colors"
+          >
+            {opsBusy === 'email' ? 'Sending...' : 'Send test email'}
+          </button>
+          <a
+            href="https://api.miwa.care/health"
+            target="_blank"
+            rel="noreferrer"
+            className="px-4 py-2 rounded-lg text-xs font-bold text-gray-700 bg-gray-50 hover:bg-gray-100 border border-gray-200 transition-colors"
+          >
+            Open API health
+          </a>
+        </div>
+
+        {postgresStatus?.time && (
+          <p className="mt-3 text-xs text-gray-500">
+            Last database check: {formatDate(postgresStatus.time)}
+          </p>
+        )}
+        {opsMessage && (
+          <div className="mt-3 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-2 text-xs text-emerald-800">
+            {opsMessage}
+          </div>
+        )}
+        {opsError && (
+          <div className="mt-3 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">
+            {opsError}
+          </div>
+        )}
       </div>
 
       {/* ── Backup card ─────────────────────────────────────────────────── */}

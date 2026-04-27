@@ -2,7 +2,7 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { requireAdminAuth } = require('../middleware/auth');
-const { sendMail, hasHipaaCoveredProvider } = require('../services/mailer');
+const { sendMail, hasHipaaCoveredProvider, getMailerConfigStatus } = require('../services/mailer');
 
 const router = express.Router();
 router.use(requireAdminAuth);
@@ -47,6 +47,21 @@ function configuredStripePrices() {
   return { required, missing };
 }
 
+function configuredSmsProvider() {
+  const twilioHasAuth = hasEnv('TWILIO_AUTH_TOKEN')
+    || (hasEnv('TWILIO_API_KEY_SID') && hasEnv('TWILIO_API_KEY_SECRET'));
+  const twilioConfigured = hasEnv('TWILIO_ACCOUNT_SID')
+    && twilioHasAuth
+    && (hasEnv('TWILIO_PHONE_NUMBER') || hasEnv('TWILIO_MESSAGING_SERVICE_SID'));
+  const vonageConfigured = hasEnv('VONAGE_API_KEY')
+    && hasEnv('VONAGE_API_SECRET')
+    && hasEnv('VONAGE_FROM_NUMBER');
+  const providers = [];
+  if (twilioConfigured) providers.push('twilio');
+  if (vonageConfigured) providers.push('vonage');
+  return { configured: providers.length > 0, providers };
+}
+
 function buildReadinessChecks() {
   const dbProvider = String(process.env.DB_PROVIDER || 'sqlite').toLowerCase();
   const pgSslMode = String(process.env.PGSSLMODE || '').toLowerCase();
@@ -57,6 +72,8 @@ function buildReadinessChecks() {
   const stripeWebhookSecret = envValue('STRIPE_WEBHOOK_SECRET');
   const stripePrices = configuredStripePrices();
   const fromEmail = envValue('FROM_EMAIL');
+  const mailer = getMailerConfigStatus();
+  const sms = configuredSmsProvider();
 
   const checks = [
     check(
@@ -130,10 +147,12 @@ function buildReadinessChecks() {
     check(
       'legacy_mailer',
       'Legacy non-BAA email fallback',
-      !hasEnv('RESEND_API_KEY') ? 'pass' : 'warn',
-      !hasEnv('RESEND_API_KEY')
+      !mailer.resendConfigured || !mailer.legacyResendAllowed ? 'pass' : 'warn',
+      !mailer.resendConfigured
         ? 'RESEND_API_KEY is not configured'
-        : 'RESEND_API_KEY is configured; verify PHI-related email cannot use non-BAA fallback'
+        : (mailer.legacyResendAllowed
+            ? 'Legacy Resend fallback is explicitly enabled; do not send PHI without a BAA'
+            : 'RESEND_API_KEY is configured but blocked from production fallback by default')
     ),
     check(
       'from_email',
@@ -166,6 +185,14 @@ function buildReadinessChecks() {
       hasEnv('AZURE_STORAGE_CONNECTION_STRING') || hasEnv('AZURE_BLOB_CONNECTION_STRING')
         ? 'Document uploads are configured for private Azure Blob Storage'
         : 'Document uploads and generated reports should move to private Azure Blob Storage before real launch'
+    ),
+    check(
+      'sms_provider',
+      'SMS delivery provider',
+      sms.configured ? 'pass' : 'warn',
+      sms.configured
+        ? `Configured SMS provider: ${sms.providers.join(', ')}`
+        : 'Configure Twilio or Vonage before relying on SMS links/reminders'
     ),
     check(
       'stripe_secret',
@@ -310,13 +337,11 @@ router.post('/email-diag', async (req, res) => {
   }
 
   const env = {
-    SMTP_HOST: process.env.SMTP_HOST || '(unset, defaults to smtp.gmail.com)',
-    SMTP_PORT: process.env.SMTP_PORT || '(unset, defaults to 587)',
-    SMTP_USER: process.env.SMTP_USER ? process.env.SMTP_USER : '(unset)',
-    SMTP_PASS_set: !!process.env.SMTP_PASS,
-    SMTP_PASS_length: process.env.SMTP_PASS ? process.env.SMTP_PASS.length : 0,
-    FROM_EMAIL: process.env.FROM_EMAIL || '(unset)',
-    RESEND_API_KEY_set: !!process.env.RESEND_API_KEY,
+    smtpConfigured: !!(process.env.SMTP_USER && process.env.SMTP_PASS),
+    gmailApiConfigured: !!(process.env.GOOGLE_SERVICE_ACCOUNT_JSON && process.env.GMAIL_IMPERSONATE_USER),
+    fromEmailConfigured: !!process.env.FROM_EMAIL,
+    resendConfigured: !!process.env.RESEND_API_KEY,
+    legacyResendAllowed: String(process.env.ALLOW_LEGACY_RESEND_EMAIL || '').toLowerCase() === 'true',
     hipaaCoveredProvider: hasHipaaCoveredProvider(),
   };
 
@@ -332,11 +357,9 @@ router.post('/email-diag', async (req, res) => {
     return res.status(500).json({
       ok: false,
       env,
-      error: err?.message || String(err),
+      error: 'Email diagnostic failed',
       errorName: err?.name,
       errorCode: err?.code,
-      // nodemailer surfaces SMTP server responses in .response:
-      smtpResponse: err?.response,
     });
   }
 });
