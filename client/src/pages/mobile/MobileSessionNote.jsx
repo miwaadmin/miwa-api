@@ -240,7 +240,7 @@ export default function MobileSessionNote() {
             body: fd,
           })
           const data = await res.json()
-          if (!res.ok) throw new Error(data.error || 'Transcription failed')
+          if (!res.ok) throw new Error(data.message || data.error || 'Transcription failed')
 
           // If we get structured sections, apply all; otherwise append transcript to the active field
           if (data.sections) {

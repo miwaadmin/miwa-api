@@ -343,7 +343,7 @@ export default function Workspace() {
     formData.append('mode', sessionType)
     const res = await apiUpload('/ai/audio-import', formData)
     const data = await res.json()
-    if (!res.ok) throw new Error(data.error || 'Failed to import audio')
+    if (!res.ok) throw new Error(data.message || data.error || 'Failed to import audio')
 
     setUploadedAudioName(data.fileName || fallbackName)
     setUploadedAudioTranscript(data.transcript || '')
@@ -472,7 +472,7 @@ export default function Workspace() {
       formData.append('mode', sessionType)
       const res = await apiUpload('/ai/audio-import', formData)
       const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to import audio')
+      if (!res.ok) throw new Error(data.message || data.error || 'Failed to import audio')
 
       setUploadedAudioName(data.fileName || file.name)
       setUploadedAudioTranscript(data.transcript || '')

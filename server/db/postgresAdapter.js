@@ -47,6 +47,8 @@ function translateSqliteSql(sql) {
   return translateSqlitePlaceholders(String(sql || ''))
     .replace(/\s+COLLATE\s+NOCASE/gi, '')
     .replace(/\bCOALESCE\s*\(([^)]*),\s*""\s*\)/gi, "COALESCE($1, '')")
+    .replace(/\bORDER\s+BY\s+COALESCE\s*\(\s*((?:[A-Za-z_][A-Za-z0-9_]*\.)?session_date)\s*,\s*((?:[A-Za-z_][A-Za-z0-9_]*\.)?created_at)\s*\)/gi, "ORDER BY COALESCE(NULLIF($1, '')::timestamp, $2::timestamp)")
+    .replace(/\bORDER\s+BY\s+COALESCE\s*\(\s*((?:[A-Za-z_][A-Za-z0-9_]*\.)?scheduled_start)\s*,\s*((?:[A-Za-z_][A-Za-z0-9_]*\.)?created_at)\s*\)/gi, "ORDER BY COALESCE(NULLIF($1, '')::timestamp, $2::timestamp)")
     .replace(/\bJULIANDAY\s*\(\s*COALESCE\s*\(([^)]*)\)\s*\)/gi, "(EXTRACT(EPOCH FROM COALESCE($1)::timestamp) / 86400)")
     .replace(/\bJULIANDAY\s*\(\s*([^)]+?)\s*\)/gi, "(EXTRACT(EPOCH FROM $1::timestamp) / 86400)")
     .replace(/\bjson_extract\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*,\s*'\$\.([A-Za-z_][A-Za-z0-9_]*)'\s*\)/gi, "($1::jsonb ->> '$2')")

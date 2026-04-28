@@ -49,7 +49,7 @@ function DictationPanel({ onApply, onClose }) {
             body: fd,
           })
           const data = await res.json()
-          if (!res.ok) throw new Error(data.error || 'Transcription failed')
+          if (!res.ok) throw new Error(data.message || data.error || 'Transcription failed')
           setTranscript(data.transcript || '')
           setSections(data.sections || null)
           setPhase('done')

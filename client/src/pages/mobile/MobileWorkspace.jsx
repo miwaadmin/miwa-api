@@ -79,7 +79,7 @@ export default function MobileWorkspace() {
       const endpoint = isAudio ? '/api/ai/audio-import' : '/api/ai/intake-import'
       const res = await fetch(endpoint, { method: 'POST', credentials: 'include', body: form })
       const data = await res.json()
-      if (!res.ok) throw new Error(data?.error || 'Import failed')
+      if (!res.ok) throw new Error(data?.message || data?.error || 'Import failed')
       // Navigate into the new/parsed patient record
       if (data.patient_id) {
         navigate(`/m/clients/${data.patient_id}`)
