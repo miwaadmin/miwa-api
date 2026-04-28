@@ -260,6 +260,18 @@ app.get('/api/stats', requireAuth, async (req, res) => {
     const mondayUTC = new Date(todayUTC);
     mondayUTC.setUTCDate(mondayUTC.getUTCDate() - daysSinceMonday);
     const mondayStr = mondayUTC.toISOString().slice(0, 10);
+    const monthStartStr = `${todayStr.slice(0, 8)}01`;
+
+    const isPostgres = process.env.DB_PROVIDER === 'postgres';
+    const sessionDateExpr = isPostgres
+      ? "COALESCE(NULLIF(session_date::text, '')::date, created_at::date)"
+      : "COALESCE(session_date, date(created_at))";
+    const sessionOrderExpr = isPostgres
+      ? "COALESCE(NULLIF(s.session_date::text, '')::timestamp, s.created_at::timestamp)"
+      : "COALESCE(s.session_date, s.created_at)";
+    const appointmentDateExpr = isPostgres
+      ? "scheduled_start::timestamp::date"
+      : "DATE(scheduled_start)";
 
     // Caseload count. (No `status` column on patients today — when we add
     // archive/inactive support later, gate this with `status != 'inactive'`.)
@@ -267,7 +279,7 @@ app.get('/api/stats', requireAuth, async (req, res) => {
       `SELECT COUNT(*) as count
        FROM patients
        WHERE therapist_id = ?
-         AND COALESCE(status, 'active') != 'archived'`,
+         AND COALESCE(NULLIF(status, ''), 'active') != 'archived'`,
       tid
     )).count;
 
@@ -278,15 +290,15 @@ app.get('/api/stats', requireAuth, async (req, res) => {
     const sessionsThisWeek = (await db.get(
       `SELECT COUNT(*) as count FROM sessions
        WHERE therapist_id = ?
-         AND COALESCE(session_date, date(created_at)) >= ?`,
+         AND ${sessionDateExpr} >= ?`,
       tid, mondayStr
     )).count;
 
     const sessionsThisMonth = (await db.get(
       `SELECT COUNT(*) as count FROM sessions
        WHERE therapist_id = ?
-         AND COALESCE(session_date, date(created_at)) >= ?`,
-      tid, todayStr.slice(0, 8) + '01'  // first of this month
+         AND ${sessionDateExpr} >= ?`,
+      tid, monthStartStr
     )).count;
 
     // Appointments scheduled for today in the therapist's TZ. We match by the
@@ -297,7 +309,7 @@ app.get('/api/stats', requireAuth, async (req, res) => {
       `SELECT COUNT(*) as count FROM appointments
        WHERE therapist_id = ?
          AND status NOT IN ('cancelled', 'no_show', 'completed')
-         AND DATE(scheduled_start) = ?`,
+         AND ${appointmentDateExpr} = ?`,
       tid, todayStr
     )).count;
 
@@ -314,8 +326,7 @@ app.get('/api/stats', requireAuth, async (req, res) => {
              p.client_id, p.display_name, s.note_format, s.signed_at
       FROM sessions s JOIN patients p ON s.patient_id = p.id
       WHERE s.therapist_id = ?
-        AND COALESCE(s.session_date, date(s.created_at)) >= date('now', '-7 days')
-      ORDER BY COALESCE(s.session_date, s.created_at) DESC
+      ORDER BY ${sessionOrderExpr} DESC
       LIMIT 10
     `, tid);
 
@@ -324,6 +335,7 @@ app.get('/api/stats', requireAuth, async (req, res) => {
       appointmentsToday, unsignedNotes, recentSessions,
     });
   } catch (err) {
+    console.warn('[stats] dashboard stats failed:', err?.message || err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

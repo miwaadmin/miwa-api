@@ -111,6 +111,14 @@ function splitBriefingAtSecondHeading(md) {
   }
 }
 
+async function readJsonOrThrow(response, label) {
+  const data = await response.json().catch(() => ({}))
+  if (!response.ok) {
+    throw new Error(`${label} returned HTTP ${response.status}`)
+  }
+  return data
+}
+
 export default function Dashboard() {
   const [stats, setStats] = useState({ totalPatients: 0, totalSessions: 0, sessionsThisWeek: 0, sessionsThisMonth: 0, appointmentsToday: 0, unsignedNotes: 0, recentSessions: [] })
   const [alerts, setAlerts] = useState([])
@@ -127,7 +135,19 @@ export default function Dashboard() {
   const { therapist } = useAuth()
   const greeting = getGreeting(therapist?.full_name)
   const recentSessions = Array.isArray(stats.recentSessions) ? stats.recentSessions : []
-  const isNewAccount = stats.totalPatients === 0 && stats.totalSessions === 0
+  const briefingStats = dailyBriefing?.stats || {}
+  const briefingCaseloadCount = Array.isArray(dailyBriefing?.caseload) ? dailyBriefing.caseload.length : 0
+  const displayStats = {
+    ...stats,
+    totalPatients: Number(stats.totalPatients) || briefingCaseloadCount || Number(briefingStats.active_clients) || 0,
+    totalSessions: Number(stats.totalSessions) || 0,
+    sessionsThisWeek: Number(stats.sessionsThisWeek) || 0,
+    sessionsThisMonth: Number(stats.sessionsThisMonth) || 0,
+    appointmentsToday: Number(stats.appointmentsToday) || Number(briefingStats.session_count) || 0,
+    unsignedNotes: Number(stats.unsignedNotes) || 0,
+  }
+  const hasPracticeActivity = displayStats.totalPatients > 0 || displayStats.appointmentsToday > 0 || recentSessions.length > 0
+  const isNewAccount = !hasPracticeActivity && displayStats.totalSessions === 0
   const dateLabel = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
   const timeLabel = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })
 
@@ -139,10 +159,10 @@ export default function Dashboard() {
     localStorage.setItem('miwa_dashboard_visits', String(visits + 1))
 
     Promise.allSettled([
-      apiFetch('/stats').then(r => r.json()),
-      apiFetch('/settings').then(r => r.json()),
-      apiFetch('/patients/alerts').then(r => r.json()),
-      apiFetch('/research/daily-briefing').then(r => r.json()),
+      apiFetch('/stats').then(r => readJsonOrThrow(r, 'stats')),
+      apiFetch('/settings').then(r => readJsonOrThrow(r, 'settings')),
+      apiFetch('/patients/alerts').then(r => readJsonOrThrow(r, 'alerts')),
+      apiFetch('/research/daily-briefing').then(r => readJsonOrThrow(r, 'daily briefing')),
     ]).then(([statsResult, , alertsResult, dailyResult]) => {
       if (dailyResult?.status === 'rejected') {
         console.warn('[dashboard] daily-briefing fetch rejected:', dailyResult.reason)
@@ -152,6 +172,10 @@ export default function Dashboard() {
       if (dailyResult?.status === 'fulfilled' && dailyResult.value && dailyResult.value.markdown) {
         setDailyBriefing(dailyResult.value)
       }
+      const briefingCanPopulateStats = dailyResult?.status === 'fulfilled' && (
+        (Array.isArray(dailyResult.value?.caseload) && dailyResult.value.caseload.length > 0) ||
+        Number(dailyResult.value?.stats?.session_count || 0) > 0
+      )
       if (statsResult.status === 'fulfilled' && statsResult.value) {
         setStats({
           totalPatients: 0,
@@ -163,7 +187,7 @@ export default function Dashboard() {
           recentSessions: [],
           ...statsResult.value,
         })
-      } else {
+      } else if (!briefingCanPopulateStats) {
         setLoadError('Unable to load dashboard data right now. Showing local shortcuts so you can keep working.')
       }
       if (alertsResult.status === 'fulfilled' && Array.isArray(alertsResult.value)) {
@@ -257,9 +281,9 @@ export default function Dashboard() {
                 {isNewAccount ? 'Your calm, review-first AI therapist copilot' : (() => {
                   // Contextual nudge — surface the single most actionable thing,
                   // not a static restatement of the tile numbers above.
-                  const u = stats.unsignedNotes || 0
-                  const t = stats.appointmentsToday || 0
-                  const w = stats.sessionsThisWeek || 0
+                  const u = displayStats.unsignedNotes || 0
+                  const t = displayStats.appointmentsToday || 0
+                  const w = displayStats.sessionsThisWeek || 0
                   if (u > 0) return `${u} note${u === 1 ? '' : 's'} from past sessions need${u === 1 ? 's' : ''} signing.`
                   if (t > 0) return `${t} session${t === 1 ? '' : 's'} on deck today.`
                   if (w > 0) return `${w} session${w === 1 ? '' : 's'} done this week. All notes signed.`
@@ -290,9 +314,9 @@ export default function Dashboard() {
                 read-outs. */}
             <div className="flex gap-3 flex-shrink-0">
               {[
-                { value: stats.totalPatients || 0, label: 'Patients' },
-                { value: stats.appointmentsToday || 0, label: 'Today' },
-                { value: stats.sessionsThisWeek || 0, label: 'This Week' },
+                { value: displayStats.totalPatients || 0, label: 'Patients' },
+                { value: displayStats.appointmentsToday || 0, label: 'Today' },
+                { value: displayStats.sessionsThisWeek || 0, label: 'This Week' },
               ].map(s => (
                 <div key={s.label} className="rounded-xl px-4 py-3 text-center min-w-[64px]"
                   style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}>
@@ -300,7 +324,7 @@ export default function Dashboard() {
                   <div className="text-[11px] text-white/55 mt-1">{s.label}</div>
                 </div>
               ))}
-              {stats.unsignedNotes > 0 ? (
+              {displayStats.unsignedNotes > 0 ? (
                 <button
                   type="button"
                   onClick={() => navigate('/unsigned')}
@@ -308,7 +332,7 @@ export default function Dashboard() {
                   style={{ background: 'rgba(251,191,36,0.15)', border: '1px solid rgba(251,191,36,0.3)' }}
                   title="See all unsigned session notes"
                 >
-                  <div className="text-2xl font-bold leading-none text-amber-300">{stats.unsignedNotes}</div>
+                  <div className="text-2xl font-bold leading-none text-amber-300">{displayStats.unsignedNotes}</div>
                   <div className="text-[11px] text-amber-300/70 mt-1">Unsigned</div>
                 </button>
               ) : (
@@ -536,7 +560,7 @@ export default function Dashboard() {
                 desc: 'Go to Patients and click "+ New Patient". Enter a client ID, display name, and presenting concerns.',
                 to: '/patients',
                 cta: 'Add Patient',
-                done: stats.totalPatients > 0,
+                done: displayStats.totalPatients > 0,
               },
               {
                 step: 2,
@@ -544,7 +568,7 @@ export default function Dashboard() {
                 desc: 'Open your client → "New Session". Type bullets or dictate — Miwa generates SOAP, BIRP, and DAP notes.',
                 to: '/workspace',
                 cta: 'Open Workspace',
-                done: stats.totalSessions > 0,
+                done: displayStats.totalSessions > 0,
               },
               {
                 step: 3,
@@ -618,22 +642,22 @@ export default function Dashboard() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-              {stats.totalPatients === 0 ? (
+              {displayStats.totalPatients === 0 ? (
                 <>
                   <p className="text-sm text-gray-500 mb-4">No clients yet. Add a patient to get started.</p>
                   <Link to="/patients" className="btn-primary">Add Patient</Link>
                 </>
-              ) : stats.totalSessions === 0 ? (
+              ) : displayStats.totalSessions === 0 ? (
                 <>
                   <p className="text-sm text-gray-500 mb-4">
-                    {stats.totalPatients === 1 ? 'Your client has' : `Your ${stats.totalPatients} clients have`} no sessions yet. Open Workspace to record one.
+                    {displayStats.totalPatients === 1 ? 'Your client has' : `Your ${displayStats.totalPatients} clients have`} no sessions yet. Open Workspace to record one.
                   </p>
                   <Link to="/workspace" className="btn-primary">Open Workspace</Link>
                 </>
               ) : (
                 <>
                   <p className="text-sm text-gray-500 mb-4">
-                    No sessions in the last 7 days. {stats.totalSessions} session{stats.totalSessions === 1 ? '' : 's'} on record.
+                    No recent sessions found. {displayStats.totalSessions} session{displayStats.totalSessions === 1 ? '' : 's'} on record.
                   </p>
                   <Link to="/patients" className="btn-primary">View All Patients</Link>
                 </>
