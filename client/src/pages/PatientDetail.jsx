@@ -204,6 +204,164 @@ function fileTypeIcon(ft) {
   return '📎'
 }
 
+function CaseIntelligencePanel({ patientId }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const load = useCallback(() => {
+    setLoading(true)
+    setError('')
+    apiFetch(`/patients/${patientId}/case-intelligence`)
+      .then(async (res) => {
+        const body = await res.json().catch(() => null)
+        if (!res.ok) throw new Error(body?.error || 'Unable to load case intelligence')
+        setData(body)
+      })
+      .catch((err) => setError(err.message || 'Unable to load case intelligence'))
+      .finally(() => setLoading(false))
+  }, [patientId])
+
+  useEffect(() => { load() }, [load])
+
+  const riskTone = {
+    none: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    watch: 'bg-amber-50 text-amber-700 border-amber-200',
+    elevated: 'bg-orange-50 text-orange-700 border-orange-200',
+    acute: 'bg-red-50 text-red-700 border-red-200',
+  }[data?.status?.risk_level || 'none']
+
+  const readinessTone = data?.status?.documentation_readiness === 'ready'
+    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    : 'bg-amber-50 text-amber-700 border-amber-200'
+
+  if (loading) {
+    return (
+      <div className="card p-5 mb-5">
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+          <div>
+            <h3 className="text-sm font-bold text-gray-900">Case Intelligence</h3>
+            <p className="text-xs text-gray-500 mt-0.5">Reading chart data...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error || !data) {
+    return (
+      <div className="card p-5 mb-5 border-amber-100 bg-amber-50">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h3 className="text-sm font-bold text-amber-900">Case Intelligence unavailable</h3>
+            <p className="text-xs text-amber-700 mt-1">{error || 'Try again after the chart finishes loading.'}</p>
+          </div>
+          <button onClick={load} className="btn-secondary text-xs">Retry</button>
+        </div>
+      </div>
+    )
+  }
+
+  const gaps = data.gaps || []
+  const evidence = data.evidence || []
+  const focus = data.status?.next_session_focus || []
+  const actions = data.next_actions || []
+
+  return (
+    <div className="card p-5 mb-5">
+      <div className="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <p className="text-[10px] font-bold text-brand-500 uppercase tracking-[0.18em]">Miwa Case Intelligence</p>
+          <h3 className="text-lg font-bold text-gray-900 mt-1">Current clinical state</h3>
+          <p className="text-xs text-gray-500 mt-1">Built from this chart's sessions, assessments, treatment plan, and alerts.</p>
+        </div>
+        <button onClick={load} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Refresh</button>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+        <div className={`rounded-xl border px-3 py-2 ${riskTone}`}>
+          <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">Risk</p>
+          <p className="text-sm font-bold capitalize">{data.status.risk_level}</p>
+        </div>
+        <div className={`rounded-xl border px-3 py-2 ${readinessTone}`}>
+          <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">Documentation</p>
+          <p className="text-sm font-bold capitalize">{String(data.status.documentation_readiness).replace('_', ' ')}</p>
+        </div>
+        <div className="rounded-xl border border-indigo-100 bg-indigo-50 text-indigo-700 px-3 py-2">
+          <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">Treatment Plan</p>
+          <p className="text-sm font-bold capitalize">{String(data.status.treatment_plan_status).replace('_', ' ')}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+        <div>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Next session focus</p>
+          <div className="space-y-2">
+            {focus.map((item, idx) => (
+              <div key={idx} className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 leading-snug">
+                {item}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Quality gates</p>
+          {gaps.length === 0 ? (
+            <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+              No launch-critical chart gaps detected.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {gaps.slice(0, 4).map((gap) => (
+                <div key={gap.id} className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-amber-900">{gap.title}</p>
+                    <span className="text-[10px] font-bold uppercase text-amber-600">{gap.severity}</span>
+                  </div>
+                  <p className="text-xs text-amber-700 mt-1">{gap.action}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {actions.length > 0 && (
+        <div className="mt-4 rounded-xl border border-brand-100 bg-brand-50 px-3 py-3">
+          <p className="text-xs font-bold text-brand-700 uppercase tracking-wide mb-2">Recommended actions</p>
+          <ul className="space-y-1">
+            {actions.slice(0, 3).map((action) => (
+              <li key={action.id} className="text-sm text-brand-900 leading-snug">{action.label}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {evidence.length > 0 && (
+        <details className="mt-4 rounded-xl border border-gray-200 bg-white overflow-hidden">
+          <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide list-none flex items-center justify-between select-none hover:bg-gray-50">
+            <span>Why Miwa thinks this</span>
+            <span className="text-gray-300">{evidence.length} signals</span>
+          </summary>
+          <div className="border-t border-gray-100 divide-y divide-gray-50">
+            {evidence.map((item, idx) => (
+              <div key={`${item.type}-${idx}`} className="px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-gray-700">{item.label}</p>
+                  {item.date && <span className="text-[10px] text-gray-400">{formatDate(item.date)}</span>}
+                </div>
+                {item.detail && <p className="text-xs text-gray-500 mt-1 leading-snug">{item.detail}</p>}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  )
+}
+
 function IntakeSourcesPanel({ patientId, onPatientUpdated }) {
   const [docs, setDocs] = useState([])
   const [uploading, setUploading] = useState(false)
@@ -2099,6 +2257,8 @@ export default function PatientDetail() {
 
         {/* Right: Session Detail */}
         <div className="lg:col-span-2">
+          <CaseIntelligencePanel patientId={id} />
+
           {activeSession ? (
             <div className="card overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 180px)' }}>
               {/* Session header */}

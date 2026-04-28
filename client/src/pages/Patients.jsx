@@ -19,7 +19,7 @@ const CLIENT_TYPE_DEFAULTS = {
 function PatientModal({ patient, onClose, onSave }) {
   const defaultMembers = patient?.members ? JSON.parse(patient.members) : (CLIENT_TYPE_DEFAULTS[patient?.client_type || 'individual'] || [])
   const [form, setForm] = useState(
-    patient || { client_id: '', age: '', gender: '', presenting_concerns: '', diagnoses: '', notes: '', client_type: 'individual', display_name: '', phone: '' }
+    patient || { client_id: '', first_name: '', last_name: '', age: '', gender: '', presenting_concerns: '', diagnoses: '', notes: '', client_type: 'individual', display_name: '', phone: '' }
   )
   const [members, setMembers] = useState(defaultMembers)
   const [saving, setSaving] = useState(false)
@@ -97,31 +97,54 @@ function PatientModal({ patient, onClose, onSave }) {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
+            {clientType === 'individual' && (
+              <>
+                <div>
+                  <label className="label">First name</label>
+                  <input
+                    className="input"
+                    value={form.first_name || ''}
+                    onChange={e => setForm(f => ({ ...f, first_name: e.target.value }))}
+                    placeholder="e.g. Sarah"
+                    autoComplete="given-name"
+                  />
+                </div>
+                <div>
+                  <label className="label">Last name</label>
+                  <input
+                    className="input"
+                    value={form.last_name || ''}
+                    onChange={e => setForm(f => ({ ...f, last_name: e.target.value }))}
+                    placeholder="e.g. Martinez"
+                    autoComplete="family-name"
+                  />
+                </div>
+              </>
+            )}
             <div className="col-span-2">
-              <label className="label">Client ID <span className="text-red-500">*</span></label>
+              <label className="label">Chart code <span className="text-xs font-normal text-gray-400">(optional)</span></label>
               <input
                 className="input"
-                value={form.client_id}
+                value={form.client_id || ''}
                 onChange={e => setForm(f => ({ ...f, client_id: e.target.value }))}
                 placeholder={clientType === 'individual' ? 'e.g. CLT-001' : clientType === 'couple' ? 'e.g. CPL-001' : 'e.g. FAM-001'}
-                required
               />
-              <p className="text-xs text-gray-400 mt-1">Unique code used in charts and exports.</p>
+              <p className="text-xs text-gray-400 mt-1">Miwa creates one automatically if left blank.</p>
             </div>
 
             {/* Display name — used in UI and by Miwa agent, never sent to AI */}
             <div>
               <label className="label">
-                Name / Nickname
-                <span className="ml-1 text-xs font-normal text-gray-400">(for Miwa)</span>
+                {clientType === 'individual' ? 'Preferred name' : clientType === 'couple' ? 'Couple label' : 'Family label'}
+                <span className="ml-1 text-xs font-normal text-gray-400">{clientType === 'individual' ? '(optional)' : '(for Miwa)'}</span>
               </label>
               <input
                 className="input"
                 value={form.display_name || ''}
                 onChange={e => setForm(f => ({ ...f, display_name: e.target.value }))}
-                placeholder='e.g. "Sarah" or "The Garcias"'
+                placeholder={clientType === 'individual' ? 'e.g. "Sarah"' : clientType === 'couple' ? 'e.g. "Sarah and Alex"' : 'e.g. "The Garcias"'}
               />
-              <p className="text-xs text-gray-400 mt-1">How you refer to this client with Miwa. Never sent to AI.</p>
+              <p className="text-xs text-gray-400 mt-1">{clientType === 'individual' ? 'Used in Miwa screens when different from legal name.' : 'How this couple or family appears in your caseload.'}</p>
             </div>
 
             {/* Phone for SMS assessment delivery */}
@@ -281,7 +304,7 @@ export default function Patients() {
 
   const handleBatchDelete = async () => {
     if (selected.size === 0) return
-    if (!confirm(`Delete ${selected.size} patient(s) and ALL their records? This cannot be undone.`)) return
+    if (!confirm(`Archive ${selected.size} client(s)? Miwa keeps retained clinical records but removes them from your active caseload.`)) return
     setDeleting(true)
     try {
       const res = await apiFetch('/patients/batch', {
@@ -320,7 +343,7 @@ export default function Patients() {
   }, [search, load])
 
   const sortedPatients = [...patients].sort((a, b) => {
-    if (sortBy === 'name') return (a.client_id || '').localeCompare(b.client_id || '')
+    if (sortBy === 'name') return (a.display_name || a.client_id || '').localeCompare(b.display_name || b.client_id || '')
     if (sortBy === 'sessions') return (b.session_count || 0) - (a.session_count || 0)
     // 'recent': patients with a last_session_date first, then by updated_at
     if (a.last_session_date && b.last_session_date)
@@ -336,7 +359,7 @@ export default function Patients() {
   }
 
   const handleDelete = async (patient) => {
-    if (!confirm(`Delete patient ${patient.client_id}? This will also delete all their sessions. This cannot be undone.`)) return
+    if (!confirm(`Archive ${patient.display_name || patient.client_id}? Miwa keeps retained clinical records but removes this client from your active caseload.`)) return
     try {
       const res = await apiFetch(`/patients/${patient.id}`, { method: 'DELETE' })
       if (!res.ok) {
@@ -360,7 +383,7 @@ export default function Patients() {
           </svg>
           <input
             className="input pl-9"
-            placeholder="Search by ID, concerns, or diagnoses..."
+            placeholder="Search by name, chart code, concerns, or diagnoses..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
@@ -422,7 +445,7 @@ export default function Patients() {
               disabled={deleting}
               className="px-4 py-1.5 rounded-lg text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition-colors disabled:opacity-50"
             >
-              {deleting ? 'Deleting...' : `Delete ${selected.size} patient${selected.size > 1 ? 's' : ''}`}
+              {deleting ? 'Archiving...' : `Archive ${selected.size} client${selected.size > 1 ? 's' : ''}`}
             </button>
           </div>
         )}
@@ -500,7 +523,7 @@ export default function Patients() {
                 <button
                   onClick={() => handleDelete(patient)}
                   className="p-2 rounded-lg text-gray-300 hover:text-red-500 hover:bg-red-50 transition-colors"
-                  title="Delete"
+                  title="Archive"
                 >
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />

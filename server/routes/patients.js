@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { calculateRetention, isRetentionExpired } = require('../lib/retentionPolicy');
+const { buildCaseIntelligence } = require('../services/case-intelligence');
 
 // All routes: req.therapist set by requireAuth middleware in index.js
 
@@ -9,6 +10,37 @@ function normalizeDateOnly(value) {
   if (!value) return null;
   const date = new Date(`${String(value).slice(0, 10)}T00:00:00.000Z`);
   return Number.isNaN(date.getTime()) ? null : date.toISOString().slice(0, 10);
+}
+
+function normalizeNamePart(value) {
+  const text = String(value || '').trim().replace(/\s+/g, ' ');
+  return text || null;
+}
+
+function buildDisplayName({ firstName, lastName, displayName, clientType }) {
+  const preferred = normalizeNamePart(displayName);
+  if (preferred) return preferred;
+  if ((clientType || 'individual') === 'individual') {
+    return [firstName, lastName].filter(Boolean).join(' ').trim() || null;
+  }
+  return null;
+}
+
+function chartCodePrefix(clientType) {
+  if (clientType === 'couple') return 'CPL';
+  if (clientType === 'family') return 'FAM';
+  return 'CLT';
+}
+
+async function generateClientId(db, therapistId, clientType) {
+  const prefix = chartCodePrefix(clientType);
+  for (let i = 0; i < 25; i += 1) {
+    const suffix = String(Date.now() + i).slice(-6);
+    const candidate = `${prefix}-${suffix}`;
+    const existing = await db.get('SELECT id FROM patients WHERE client_id = ? AND therapist_id = ?', candidate, therapistId);
+    if (!existing) return candidate;
+  }
+  return `${prefix}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 }
 
 async function archivePatient(db, patient, { therapyEndedAt, legalHold, legalHoldReason } = {}) {
@@ -68,7 +100,7 @@ router.get('/', async (req, res) => {
     const { search, include_archived, status } = req.query;
 
     // Lightweight columns only for list view — skip heavy text fields (client_overview, mental_health_history, etc.)
-    const listColumns = `patients.id, patients.client_id, patients.display_name, patients.age, patients.gender,
+    const listColumns = `patients.id, patients.client_id, patients.first_name, patients.last_name, patients.display_name, patients.age, patients.gender,
       patients.case_type, patients.client_type, patients.age_range, patients.presenting_concerns, patients.diagnoses,
       patients.risk_screening, patients.phone, patients.email, patients.preferred_contact_method,
       patients.sms_consent, patients.sms_consent_at,
@@ -98,9 +130,9 @@ router.get('/', async (req, res) => {
       patients = await db.all(
         `SELECT ${listColumns}, COALESCE(ss.session_count, 0) AS session_count, ss.last_session_date
          FROM patients${sessionStatsJoin}
-         WHERE patients.therapist_id = ?${statusClause} AND (client_id LIKE ? OR display_name LIKE ? OR presenting_concerns LIKE ? OR diagnoses LIKE ?)
-         ORDER BY patients.updated_at DESC`,
-        ...(status ? [tid, tid, status, q, q, q, q] : [tid, tid, q, q, q, q])
+         WHERE patients.therapist_id = ?${statusClause} AND (client_id LIKE ? OR first_name LIKE ? OR last_name LIKE ? OR display_name LIKE ? OR presenting_concerns LIKE ? OR diagnoses LIKE ?)
+          ORDER BY patients.updated_at DESC`,
+        ...(status ? [tid, tid, status, q, q, q, q, q, q] : [tid, tid, q, q, q, q, q, q])
       );
     } else {
       patients = await db.all(
@@ -128,12 +160,23 @@ router.get('/:id', async (req, res) => {
   }
 });
 
+router.get('/:id/case-intelligence', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const intelligence = await buildCaseIntelligence(db, req.therapist.id, req.params.id);
+    if (!intelligence) return res.status(404).json({ error: 'Patient not found' });
+    res.json(intelligence);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.post('/', async (req, res) => {
   try {
     const db = getAsyncDb();
     const tid = req.therapist.id;
     const {
-      client_id, age, gender, case_type, client_type, members, age_range, referral_source, living_situation,
+      client_id, first_name, last_name, age, gender, case_type, client_type, members, age_range, referral_source, living_situation,
       presenting_concerns, diagnoses, notes, client_overview, client_overview_signature,
       mental_health_history, substance_use, risk_screening, family_social_history,
       mental_status_observations, treatment_goals, medical_history, medications,
@@ -141,9 +184,19 @@ router.post('/', async (req, res) => {
       display_name, phone, sms_consent, date_of_birth,
       session_modality, session_duration,
     } = req.body;
-    if (!client_id) return res.status(400).json({ error: 'client_id is required' });
 
-    const existing = await db.get('SELECT id FROM patients WHERE client_id = ? AND therapist_id = ?', client_id, tid);
+    const normalizedClientType = client_type || 'individual';
+    const resolvedClientId = normalizeNamePart(client_id) || await generateClientId(db, tid, normalizedClientType);
+    const normalizedFirstName = normalizeNamePart(first_name);
+    const normalizedLastName = normalizeNamePart(last_name);
+    const resolvedDisplayName = buildDisplayName({
+      firstName: normalizedFirstName,
+      lastName: normalizedLastName,
+      displayName: display_name,
+      clientType: normalizedClientType,
+    }) || resolvedClientId;
+
+    const existing = await db.get('SELECT id FROM patients WHERE client_id = ? AND therapist_id = ?', resolvedClientId, tid);
     if (existing) return res.status(409).json({ error: 'A patient with this Client ID already exists' });
 
     const consent = phone && sms_consent ? 1 : 0;
@@ -151,18 +204,20 @@ router.post('/', async (req, res) => {
 
     const result = await db.insert(
       `INSERT INTO patients (
-        client_id, age, gender, case_type, client_type, members, age_range, referral_source, living_situation,
+        client_id, first_name, last_name, age, gender, case_type, client_type, members, age_range, referral_source, living_situation,
         presenting_concerns, diagnoses, notes, client_overview, client_overview_signature,
         mental_health_history, substance_use, risk_screening, family_social_history,
         mental_status_observations, treatment_goals, medical_history, medications,
         trauma_history, strengths_protective_factors, functional_impairments,
         display_name, phone, sms_consent, sms_consent_at, date_of_birth, session_modality, session_duration, therapist_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      client_id,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      resolvedClientId,
+      normalizedFirstName,
+      normalizedLastName,
       age || null,
       gender || null,
       case_type || null,
-      client_type || 'individual',
+      normalizedClientType,
       members || null,
       age_range || null,
       referral_source || null,
@@ -183,7 +238,7 @@ router.post('/', async (req, res) => {
       trauma_history || null,
       strengths_protective_factors || null,
       functional_impairments || null,
-      display_name || null,
+      resolvedDisplayName,
       phone || null,
       consent,
       consentAt,
@@ -203,7 +258,7 @@ router.put('/:id', async (req, res) => {
   try {
     const db = getAsyncDb();
     const {
-      client_id, age, gender, case_type, client_type, members, age_range, referral_source, living_situation,
+      client_id, first_name, last_name, age, gender, case_type, client_type, members, age_range, referral_source, living_situation,
       presenting_concerns, diagnoses, notes, client_overview, client_overview_signature,
       mental_health_history, substance_use, risk_screening, family_social_history,
       mental_status_observations, treatment_goals, medical_history, medications,
@@ -213,6 +268,23 @@ router.put('/:id', async (req, res) => {
     } = req.body;
     const existing = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
     if (!existing) return res.status(404).json({ error: 'Patient not found' });
+
+    const nextClientType = client_type !== undefined ? client_type : (existing.client_type || 'individual');
+    const nextFirstName = first_name !== undefined ? normalizeNamePart(first_name) : existing.first_name;
+    const nextLastName = last_name !== undefined ? normalizeNamePart(last_name) : existing.last_name;
+    const nextDisplayName = (
+      display_name !== undefined ||
+      first_name !== undefined ||
+      last_name !== undefined ||
+      client_type !== undefined
+    )
+      ? (buildDisplayName({
+          firstName: nextFirstName,
+          lastName: nextLastName,
+          displayName: display_name !== undefined ? display_name : existing.display_name,
+          clientType: nextClientType,
+        }) || (client_id ?? existing.client_id))
+      : existing.display_name;
 
     // Resolve consent: explicit body wins; if phone is removed/changed, drop existing consent
     const newPhone = phone !== undefined ? phone : existing.phone;
@@ -235,7 +307,7 @@ router.put('/:id', async (req, res) => {
 
     await db.run(
       `UPDATE patients SET
-         client_id=?, age=?, gender=?, case_type=?, client_type=?, members=?, age_range=?, referral_source=?, living_situation=?,
+         client_id=?, first_name=?, last_name=?, age=?, gender=?, case_type=?, client_type=?, members=?, age_range=?, referral_source=?, living_situation=?,
          presenting_concerns=?, diagnoses=?, notes=?, client_overview=?, client_overview_signature=?, mental_health_history=?, substance_use=?,
          risk_screening=?, family_social_history=?, mental_status_observations=?, treatment_goals=?,
          medical_history=?, medications=?, trauma_history=?, strengths_protective_factors=?, functional_impairments=?,
@@ -245,10 +317,12 @@ router.put('/:id', async (req, res) => {
          updated_at=CURRENT_TIMESTAMP
        WHERE id=? AND therapist_id=?`,
       client_id ?? existing.client_id,
+      nextFirstName,
+      nextLastName,
       age !== undefined ? age : existing.age,
       gender !== undefined ? gender : existing.gender,
       case_type !== undefined ? case_type : existing.case_type,
-      client_type !== undefined ? client_type : (existing.client_type || 'individual'),
+      nextClientType,
       members !== undefined ? members : existing.members,
       age_range !== undefined ? age_range : existing.age_range,
       referral_source !== undefined ? referral_source : existing.referral_source,
@@ -269,7 +343,7 @@ router.put('/:id', async (req, res) => {
       trauma_history !== undefined ? trauma_history : existing.trauma_history,
       strengths_protective_factors !== undefined ? strengths_protective_factors : existing.strengths_protective_factors,
       functional_impairments !== undefined ? functional_impairments : existing.functional_impairments,
-      display_name !== undefined ? display_name : existing.display_name,
+      nextDisplayName,
       newPhone,
       nextConsent,
       nextConsentAt,

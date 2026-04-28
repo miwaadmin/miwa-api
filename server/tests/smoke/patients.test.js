@@ -32,6 +32,25 @@ test('patients + sessions CRUD', async (t) => {
     patientId = r.body.id;
   });
 
+  await t.test('POST /api/patients can auto-generate a chart code from first and last name', async () => {
+    const r = await api('POST', '/api/patients', {
+      first_name: 'Maria',
+      last_name: 'Lopez',
+      age: 34,
+      presenting_concerns: 'work stress',
+    }, cookie);
+    assert.equal(r.status, 201);
+    assert.match(r.body.client_id, /^CLT-/);
+    assert.equal(r.body.first_name, 'Maria');
+    assert.equal(r.body.last_name, 'Lopez');
+    assert.equal(r.body.display_name, 'Maria Lopez');
+
+    const archive = await api('POST', `/api/patients/${r.body.id}/archive`, {
+      therapy_ended_at: '2026-04-26',
+    }, cookie);
+    assert.equal(archive.status, 200);
+  });
+
   await t.test('GET /api/patients/:id returns the created patient', async () => {
     const r = await api('GET', `/api/patients/${patientId}`, null, cookie);
     assert.equal(r.status, 200);
@@ -82,6 +101,20 @@ test('patients + sessions CRUD', async (t) => {
     assert.equal(r.body.sessions[0].display_name, 'Test Client (renamed)');
   });
 
+  await t.test('GET /api/patients/:id/case-intelligence returns chart quality and next-step signals', async () => {
+    const r = await api('GET', `/api/patients/${patientId}/case-intelligence`, null, cookie);
+    assert.equal(r.status, 200);
+    assert.equal(r.body.patient.id, patientId);
+    assert.equal(r.body.patient.display_name, 'Test Client (renamed)');
+    assert.equal(r.body.status.risk_level, 'none');
+    assert.equal(r.body.status.treatment_plan_status, 'missing');
+    assert.ok(Array.isArray(r.body.status.next_session_focus));
+    assert.ok(r.body.status.next_session_focus.length > 0);
+    assert.ok(r.body.gaps.some(gap => gap.id === 'treatment_plan_missing'));
+    assert.ok(r.body.gaps.some(gap => gap.id === 'unsigned_notes'));
+    assert.ok(r.body.evidence.some(item => item.type === 'session'));
+  });
+
   await t.test('closing a patient archives the record with a 7-year retention date', async () => {
     const close = await api('POST', `/api/patients/${patientId}/close`, {
       therapy_ended_at: '2026-04-26',
@@ -98,8 +131,7 @@ test('patients + sessions CRUD', async (t) => {
 
     const archivedList = await api('GET', '/api/patients?include_archived=true', null, cookie);
     assert.equal(archivedList.status, 200);
-    assert.equal(archivedList.body.length, 1);
-    assert.equal(archivedList.body[0].id, patientId);
+    assert.ok(archivedList.body.some(p => p.id === patientId));
   });
 
   await t.test('permanent patient deletion is blocked while retention is active', async () => {

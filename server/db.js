@@ -123,6 +123,8 @@ function createSchema() {
     CREATE TABLE IF NOT EXISTS patients (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       client_id TEXT NOT NULL,
+      first_name TEXT,
+      last_name TEXT,
       age INTEGER,
       gender TEXT,
       case_type TEXT,
@@ -1099,6 +1101,8 @@ function runMigrations() {
     ['trauma_history', 'TEXT'],
     ['strengths_protective_factors', 'TEXT'],
     ['functional_impairments', 'TEXT'],
+    ['first_name', 'TEXT'],
+    ['last_name', 'TEXT'],
     // Couple / family / souls support
     ['client_type', "TEXT NOT NULL DEFAULT 'individual'"],
     ['members', 'TEXT'], // JSON array e.g. ["Soul-1","Soul-2"]
@@ -1267,20 +1271,17 @@ function runMigrations() {
     try { db.run('ALTER TABLE research_briefs ADD COLUMN opened_at DATETIME'); } catch {}
   }
 
-  // Auto-backfill: give real names to any clients that only have codes
+  // Auto-backfill: keep missing names boring and deterministic. Never invent
+  // fake human names for clinical records.
   try {
-    const FIRST = ['Sarah','Michael','Alex','Jordan','Taylor','Chris','Maria','Marcus','Jessica','David','Emily','James','Olivia','Daniel','Ashley','Ryan','Priya','Sofia','Ethan','Liam'];
-    const LAST = ['Martinez','Chen','Thompson','Nguyen','Patel','Williams','Garcia','Johnson','Brown','Davis','Kim','Wilson','Anderson','Thomas','Jackson','Robinson','Lee','Clark','Hall','Ramirez'];
-    const pick = arr => arr[Math.floor(Math.random() * arr.length)];
-    const stmt = db.prepare("SELECT id FROM patients WHERE display_name IS NULL OR display_name = ''");
+    const stmt = db.prepare("SELECT id, client_id FROM patients WHERE display_name IS NULL OR display_name = ''");
     const unnamed = [];
     while (stmt.step()) unnamed.push(stmt.getAsObject());
     stmt.free();
     for (const p of unnamed) {
-      const name = `${pick(FIRST)} ${pick(LAST)}`;
-      db.run('UPDATE patients SET display_name = ? WHERE id = ?', [name, p.id]);
+      db.run('UPDATE patients SET display_name = ? WHERE id = ?', [p.client_id || `Client ${p.id}`, p.id]);
     }
-    if (unnamed.length > 0) console.log(`[db] Auto-named ${unnamed.length} client(s) missing display_name`);
+    if (unnamed.length > 0) console.log(`[db] Backfilled ${unnamed.length} missing client display name(s) from chart codes`);
   } catch {}
 
   // Backfill: populate appointments.client_display_name for existing rows.
