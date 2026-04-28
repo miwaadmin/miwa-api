@@ -204,7 +204,24 @@ function fileTypeIcon(ft) {
   return '📎'
 }
 
-function CaseIntelligencePanel({ patientId }) {
+// Unified clinical profile experience. Subsumes the old CaseIntelligencePanel
+// and the right-column "Clinical Profile" duplicate. Two render modes:
+//   • mode="compact" — thin status strip used above an active session viewer
+//   • mode="full"    — full living-profile panel: status + AI clinical summary
+//                       + outcome progress + next focus + quality gates +
+//                       recommended actions + ICD-10 + evidence collapsible
+// Diagnosis and intake fields stay in the left-column profile card; this panel
+// owns *live, evolving* clinical state only.
+function ClinicalProfilePanel({
+  patientId,
+  patient = null,
+  sessions = [],
+  clientSummary = '',
+  summaryLoading = false,
+  onGenerateSummary = null,
+  newSessionHref = null,
+  mode = 'full',
+}) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -215,149 +232,259 @@ function CaseIntelligencePanel({ patientId }) {
     apiFetch(`/patients/${patientId}/case-intelligence`)
       .then(async (res) => {
         const body = await res.json().catch(() => null)
-        if (!res.ok) throw new Error(body?.error || 'Unable to load case intelligence')
+        if (!res.ok) throw new Error(body?.error || 'Unable to load clinical profile')
         setData(body)
       })
-      .catch((err) => setError(err.message || 'Unable to load case intelligence'))
+      .catch((err) => setError(err.message || 'Unable to load clinical profile'))
       .finally(() => setLoading(false))
   }, [patientId])
 
   useEffect(() => { load() }, [load])
 
+  const status = data?.status || {}
   const riskTone = {
     none: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     watch: 'bg-amber-50 text-amber-700 border-amber-200',
     elevated: 'bg-orange-50 text-orange-700 border-orange-200',
     acute: 'bg-red-50 text-red-700 border-red-200',
-  }[data?.status?.risk_level || 'none']
+  }[status.risk_level || 'none']
 
-  const readinessTone = data?.status?.documentation_readiness === 'ready'
+  const readinessTone = status.documentation_readiness === 'ready'
     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
     : 'bg-amber-50 text-amber-700 border-amber-200'
 
-  if (loading) {
-    return (
-      <div className="card p-5 mb-5">
-        <div className="flex items-center gap-3">
-          <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-          <div>
-            <h3 className="text-sm font-bold text-gray-900">Case Intelligence</h3>
-            <p className="text-xs text-gray-500 mt-0.5">Reading chart data...</p>
+  // ── Compact mode ─────────────────────────────────────────────────────────
+  // One-line status strip; lives above the active session viewer so the
+  // clinician keeps the live state in view while reading a note.
+  if (mode === 'compact') {
+    if (loading) {
+      return (
+        <div className="card p-3 mb-4">
+          <div className="flex items-center gap-2 text-xs text-gray-500">
+            <div className="w-3 h-3 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+            <span>Reading clinical state…</span>
           </div>
+        </div>
+      )
+    }
+    if (error || !data) {
+      return (
+        <div className="card p-3 mb-4 border-amber-100 bg-amber-50">
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-amber-800">{error || 'Clinical state unavailable.'}</p>
+            <button onClick={load} className="text-xs font-semibold text-amber-700 hover:text-amber-900">Retry</button>
+          </div>
+        </div>
+      )
+    }
+    const focusFirst = (status.next_session_focus || [])[0]
+    return (
+      <div className="card p-3 mb-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full border ${riskTone}`}>Risk · {status.risk_level}</span>
+          <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full border ${readinessTone}`}>Doc · {String(status.documentation_readiness || '').replace('_', ' ')}</span>
+          <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full border bg-indigo-50 text-indigo-700 border-indigo-200">Plan · {String(status.treatment_plan_status || '').replace('_', ' ')}</span>
+          {focusFirst && (
+            <span className="text-xs text-gray-600 ml-auto truncate max-w-[60%]" title={focusFirst}>
+              <span className="text-gray-400 mr-1">Next focus:</span>{focusFirst}
+            </span>
+          )}
         </div>
       </div>
     )
   }
 
-  if (error || !data) {
-    return (
-      <div className="card p-5 mb-5 border-amber-100 bg-amber-50">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="text-sm font-bold text-amber-900">Case Intelligence unavailable</h3>
-            <p className="text-xs text-amber-700 mt-1">{error || 'Try again after the chart finishes loading.'}</p>
-          </div>
-          <button onClick={load} className="btn-secondary text-xs">Retry</button>
-        </div>
-      </div>
-    )
-  }
-
-  const gaps = data.gaps || []
-  const evidence = data.evidence || []
-  const focus = data.status?.next_session_focus || []
-  const actions = data.next_actions || []
+  // ── Full mode ────────────────────────────────────────────────────────────
+  // ICD-10 codes harvested from the most recent session ai_feedback.
+  const codes = sessions.length
+    ? [...new Set((sessions.find(s => s.ai_feedback)?.ai_feedback || '').match(/\b([A-Z]\d{2}\.?\d*[A-Z0-9]*)\b/g) || [])].filter(c => c.length >= 3).slice(0, 8)
+    : []
 
   return (
-    <div className="card p-5 mb-5">
-      <div className="flex items-start justify-between gap-4 mb-4">
+    <div className="card overflow-hidden mb-5">
+      <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between gap-3 flex-wrap">
         <div>
-          <p className="text-[10px] font-bold text-brand-500 uppercase tracking-[0.18em]">Miwa Case Intelligence</p>
-          <h3 className="text-lg font-bold text-gray-900 mt-1">Current clinical state</h3>
-          <p className="text-xs text-gray-500 mt-1">Built from this chart's sessions, assessments, treatment plan, and alerts.</p>
+          <p className="text-[10px] font-bold text-brand-500 uppercase tracking-[0.18em]">Miwa Clinical Profile</p>
+          <h3 className="text-base font-bold text-gray-900 mt-1">Living clinical state</h3>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {sessions.length} session{sessions.length !== 1 ? 's' : ''}
+            {sessions[0] && <> · last seen {formatDate(sessions[0].session_date)}</>}
+          </p>
         </div>
-        <button onClick={load} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Refresh</button>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
-        <div className={`rounded-xl border px-3 py-2 ${riskTone}`}>
-          <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">Risk</p>
-          <p className="text-sm font-bold capitalize">{data.status.risk_level}</p>
-        </div>
-        <div className={`rounded-xl border px-3 py-2 ${readinessTone}`}>
-          <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">Documentation</p>
-          <p className="text-sm font-bold capitalize">{String(data.status.documentation_readiness).replace('_', ' ')}</p>
-        </div>
-        <div className="rounded-xl border border-indigo-100 bg-indigo-50 text-indigo-700 px-3 py-2">
-          <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">Treatment Plan</p>
-          <p className="text-sm font-bold capitalize">{String(data.status.treatment_plan_status).replace('_', ' ')}</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
-        <div>
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Next session focus</p>
-          <div className="space-y-2">
-            {focus.map((item, idx) => (
-              <div key={idx} className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 leading-snug">
-                {item}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Quality gates</p>
-          {gaps.length === 0 ? (
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
-              No launch-critical chart gaps detected.
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {gaps.slice(0, 4).map((gap) => (
-                <div key={gap.id} className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-amber-900">{gap.title}</p>
-                    <span className="text-[10px] font-bold uppercase text-amber-600">{gap.severity}</span>
-                  </div>
-                  <p className="text-xs text-amber-700 mt-1">{gap.action}</p>
-                </div>
-              ))}
-            </div>
+        <div className="flex items-center gap-2">
+          {clientSummary && onGenerateSummary && (
+            <button
+              onClick={onGenerateSummary}
+              disabled={summaryLoading}
+              className="btn-secondary text-xs flex items-center gap-1.5"
+              title="Regenerate the AI clinical summary"
+            >
+              {summaryLoading
+                ? <><div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />Refreshing…</>
+                : <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>Refresh summary</>
+              }
+            </button>
+          )}
+          <button onClick={load} className="text-xs font-semibold text-brand-600 hover:text-brand-700">Refresh state</button>
+          {newSessionHref && (
+            <Link to={newSessionHref} className="btn-primary text-xs">+ New Session</Link>
           )}
         </div>
       </div>
 
-      {actions.length > 0 && (
-        <div className="mt-4 rounded-xl border border-brand-100 bg-brand-50 px-3 py-3">
-          <p className="text-xs font-bold text-brand-700 uppercase tracking-wide mb-2">Recommended actions</p>
-          <ul className="space-y-1">
-            {actions.slice(0, 3).map((action) => (
-              <li key={action.id} className="text-sm text-brand-900 leading-snug">{action.label}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {evidence.length > 0 && (
-        <details className="mt-4 rounded-xl border border-gray-200 bg-white overflow-hidden">
-          <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide list-none flex items-center justify-between select-none hover:bg-gray-50">
-            <span>Why Miwa thinks this</span>
-            <span className="text-gray-300">{evidence.length} signals</span>
-          </summary>
-          <div className="border-t border-gray-100 divide-y divide-gray-50">
-            {evidence.map((item, idx) => (
-              <div key={`${item.type}-${idx}`} className="px-3 py-2">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs font-semibold text-gray-700">{item.label}</p>
-                  {item.date && <span className="text-[10px] text-gray-400">{formatDate(item.date)}</span>}
-                </div>
-                {item.detail && <p className="text-xs text-gray-500 mt-1 leading-snug">{item.detail}</p>}
-              </div>
-            ))}
+      <div className="p-5 space-y-5">
+        {/* Status strip */}
+        {(loading || error || !data) ? (
+          <div className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 flex items-center gap-2">
+            {loading
+              ? <><div className="w-3 h-3 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" /><span className="text-xs text-gray-500">Reading chart data…</span></>
+              : <><span className="text-xs text-amber-700">{error || 'Clinical state unavailable.'}</span>{!loading && <button onClick={load} className="ml-auto text-xs font-semibold text-amber-700 hover:text-amber-900">Retry</button>}</>
+            }
           </div>
-        </details>
-      )}
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div className={`rounded-xl border px-3 py-2 ${riskTone}`}>
+              <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">Risk</p>
+              <p className="text-sm font-bold capitalize">{status.risk_level}</p>
+            </div>
+            <div className={`rounded-xl border px-3 py-2 ${readinessTone}`}>
+              <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">Documentation</p>
+              <p className="text-sm font-bold capitalize">{String(status.documentation_readiness).replace('_', ' ')}</p>
+            </div>
+            <div className="rounded-xl border border-indigo-100 bg-indigo-50 text-indigo-700 px-3 py-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">Treatment Plan</p>
+              <p className="text-sm font-bold capitalize">{String(status.treatment_plan_status).replace('_', ' ')}</p>
+            </div>
+          </div>
+        )}
+
+        {/* AI Clinical Summary — narrative across the whole chart */}
+        <div>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Clinical Summary</p>
+          {summaryLoading && !clientSummary ? (
+            <div className="flex items-center gap-3 py-4">
+              <div className="w-5 h-5 border-2 border-brand-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+              <p className="text-sm text-gray-500">Synthesizing {sessions.length} session{sessions.length !== 1 ? 's' : ''}…</p>
+            </div>
+          ) : clientSummary ? (
+            <>
+              {summaryLoading && (
+                <div className="flex items-center gap-2 mb-2 text-xs text-brand-500">
+                  <div className="w-3 h-3 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
+                  Updating…
+                </div>
+              )}
+              <div className="prose-clinical text-sm text-gray-700"
+                dangerouslySetInnerHTML={{ __html: renderClinical(clientSummary || '') }} />
+            </>
+          ) : sessions.length === 0 ? (
+            <p className="text-sm text-gray-400">No sessions recorded yet — add a session first.</p>
+          ) : (
+            <div className="flex flex-col items-center justify-center py-6 text-center rounded-xl border-2 border-solid border-gray-200">
+              <svg className="w-8 h-8 text-brand-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              <p className="text-sm font-medium text-gray-600 mb-1">No overview yet</p>
+              <p className="text-xs text-gray-400 mb-4">Generate an AI summary across all {sessions.length} session{sessions.length !== 1 ? 's' : ''} for this client.</p>
+              {onGenerateSummary && (
+                <button onClick={onGenerateSummary} className="btn-primary text-sm">
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
+                  Generate Client Overview
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Outcome Progress — assessment trajectory chart */}
+        {patient?.id && <OutcomeProgressCard patientId={patient.id} patient={patient} />}
+
+        {/* Next session focus + Quality gates (intelligence-driven) */}
+        {!loading && !error && data && (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Next session focus</p>
+              {(status.next_session_focus || []).length > 0 ? (
+                <div className="space-y-2">
+                  {(status.next_session_focus || []).map((item, idx) => (
+                    <div key={idx} className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-sm text-gray-700 leading-snug">
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400">No focus areas identified yet.</p>
+              )}
+            </div>
+
+            <div>
+              <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Quality gates</p>
+              {(data.gaps || []).length === 0 ? (
+                <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                  No launch-critical chart gaps detected.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {(data.gaps || []).slice(0, 4).map((gap) => (
+                    <div key={gap.id} className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-amber-900">{gap.title}</p>
+                        <span className="text-[10px] font-bold uppercase text-amber-600">{gap.severity}</span>
+                      </div>
+                      <p className="text-xs text-amber-700 mt-1">{gap.action}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Recommended next actions */}
+        {!loading && !error && data && (data.next_actions || []).length > 0 && (
+          <div className="rounded-xl border border-brand-100 bg-brand-50 px-3 py-3">
+            <p className="text-xs font-bold text-brand-700 uppercase tracking-wide mb-2">Recommended actions</p>
+            <ul className="space-y-1">
+              {(data.next_actions || []).slice(0, 3).map((action) => (
+                <li key={action.id} className="text-sm text-brand-900 leading-snug">{action.label}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* ICD-10 codes from the most recent session AI analysis */}
+        {codes.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">ICD-10 codes from recent analysis</p>
+            <div className="flex flex-wrap gap-1.5">
+              {codes.map(c => (
+                <span key={c} className="px-2 py-0.5 rounded-full text-xs font-semibold bg-brand-50 text-brand-700 border border-brand-100">{c}</span>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Why Miwa thinks this — evidence trail, collapsed by default */}
+        {!loading && !error && data && (data.evidence || []).length > 0 && (
+          <details className="rounded-xl border border-gray-200 bg-white overflow-hidden">
+            <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide list-none flex items-center justify-between select-none hover:bg-gray-50">
+              <span>Why Miwa thinks this</span>
+              <span className="text-gray-300">{(data.evidence || []).length} signals</span>
+            </summary>
+            <div className="border-t border-gray-100 divide-y divide-gray-50">
+              {(data.evidence || []).map((item, idx) => (
+                <div key={`${item.type}-${idx}`} className="px-3 py-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold text-gray-700">{item.label}</p>
+                    {item.date && <span className="text-[10px] text-gray-400">{formatDate(item.date)}</span>}
+                  </div>
+                  {item.detail && <p className="text-xs text-gray-500 mt-1 leading-snug">{item.detail}</p>}
+                </div>
+              ))}
+            </div>
+          </details>
+        )}
+      </div>
     </div>
   )
 }
@@ -2153,7 +2280,7 @@ export default function PatientDetail() {
                 <div className="px-3 pb-3 pt-1 space-y-2.5 border-t border-gray-200">
                   {[
                     ['Living Situation', patient.living_situation],
-                    ['Risk Snapshot', patient.risk_screening],
+                    ['Intake Risk Notes', patient.risk_screening],
                     ['Strengths', patient.strengths_protective_factors],
                     ['Initial Goals', patient.treatment_goals],
                     ['Mental Health History', patient.mental_health_history],
@@ -2266,9 +2393,11 @@ export default function PatientDetail() {
           <TreatmentPlanPanel patientId={id} />
         </div>
 
-        {/* Right: Session Detail */}
+        {/* Right: Living clinical profile (full when no session selected, compact strip when reading one) + session detail */}
         <div className="lg:col-span-2">
-          <CaseIntelligencePanel patientId={id} />
+          {activeSession && (
+            <ClinicalProfilePanel mode="compact" patientId={id} />
+          )}
 
           {activeSession ? (
             <div className="card overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 180px)' }}>
@@ -2463,121 +2592,19 @@ export default function PatientDetail() {
               </div>
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="card overflow-hidden">
-                <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-semibold text-gray-900">Clinical Profile</h3>
-                    <p className="text-xs text-gray-400 mt-0.5">{sessions.length} session{sessions.length !== 1 ? 's' : ''} · last seen {sessions[0] ? formatDate(sessions[0].session_date) : '—'}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {clientSummary && (
-                      <button
-                        onClick={() => generateClientSummary(patient, sessions)}
-                        disabled={summaryLoading}
-                        className="btn-secondary text-xs flex items-center gap-1.5"
-                      >
-                        {summaryLoading
-                          ? <><div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />Regenerating…</>
-                          : <><svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>Refresh</>
-                        }
-                      </button>
-                    )}
-                    <Link to={`/patients/${id}/sessions/new`} className="btn-primary text-xs">+ New Session</Link>
-                  </div>
-                </div>
-
-                <div className="p-5 space-y-5">
-                  {/* Diagnosis */}
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Provisional Diagnosis</p>
-                      {diagnosisProfile.primary ? (
-                        <div className="rounded-2xl border border-teal-100 bg-teal-50 p-4">
-                          <p className="text-[11px] uppercase tracking-wide text-teal-500">Primary</p>
-                          <p className="mt-1 text-sm font-semibold text-teal-800">{diagnosisProfile.primary}</p>
-                        </div>
-                      ) : (
-                        <p className="text-sm text-gray-400">No diagnosis recorded</p>
-                      )}
-                    </div>
-                    {diagnosisProfile.secondary.length > 0 && (
-                      <div>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Secondary / rule-out considerations</p>
-                        <div className="flex flex-wrap gap-2">
-                          {diagnosisProfile.secondary.map((dx, i) => (
-                            <span key={i} className="px-3 py-1 rounded-full text-xs font-semibold bg-gray-50 text-gray-700 border border-gray-200">{dx}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                    {diagnosisProfile.notes && <p className="text-xs text-gray-500">{diagnosisProfile.notes}</p>}
-                  </div>
-
-                  {/* AI-generated client summary */}
-                  <div>
-                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Clinical Summary</p>
-                    {summaryLoading && !clientSummary ? (
-                      <div className="flex items-center gap-3 py-4">
-                        <div className="w-5 h-5 border-2 border-brand-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                        <p className="text-sm text-gray-500">Synthesizing {sessions.length} session{sessions.length !== 1 ? 's' : ''}…</p>
-                      </div>
-                    ) : clientSummary ? (
-                      <>
-                        {summaryLoading && (
-                          <div className="flex items-center gap-2 mb-2 text-xs text-brand-500">
-                            <div className="w-3 h-3 border-2 border-brand-400 border-t-transparent rounded-full animate-spin" />
-                            Updating…
-                          </div>
-                        )}
-                        <div className="prose-clinical text-sm text-gray-700"
-                          dangerouslySetInnerHTML={{ __html: renderClinical(clientSummary || '') }} />
-                      </>
-                    ) : sessions.length === 0 ? (
-                      <p className="text-sm text-gray-400">No sessions recorded yet — add a session first.</p>
-                    ) : (
-                      <div className="flex flex-col items-center justify-center py-6 text-center rounded-xl border-2 border-solid border-gray-200">
-                        <svg className="w-8 h-8 text-brand-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                        </svg>
-                        <p className="text-sm font-medium text-gray-600 mb-1">No overview yet</p>
-                        <p className="text-xs text-gray-400 mb-4">Generate an AI summary across all {sessions.length} session{sessions.length !== 1 ? 's' : ''} for this client.</p>
-                        <button
-                          onClick={() => generateClientSummary(patient, sessions)}
-                          className="btn-primary text-sm"
-                        >
-                          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                          </svg>
-                          Generate Client Overview
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Outcome Progress */}
-                  <OutcomeProgressCard patientId={patient?.id} patient={patient} />
-
-                  {/* ICD-10 codes from latest analysis */}
-                  {(() => {
-                    const codes = [...new Set(
-                      (sessions.find(s => s.ai_feedback)?.ai_feedback || '').match(/\b([A-Z]\d{2}\.?\d*[A-Z0-9]*)\b/g) || []
-                    )].filter(c => c.length >= 3).slice(0, 8)
-                    if (!codes.length) return null
-                    return (
-                      <div>
-                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">ICD-10 Codes</p>
-                        <div className="flex flex-wrap gap-1.5">
-                          {codes.map(c => (
-                            <span key={c} className="px-2 py-0.5 rounded-full text-xs font-semibold bg-brand-50 text-brand-700 border border-brand-100">{c}</span>
-                          ))}
-                        </div>
-                      </div>
-                    )
-                  })()}
-                </div>
-              </div>
-            </div>
+            // No session selected — show the unified Clinical Profile panel.
+            // Diagnosis is intentionally omitted here; it lives once in the
+            // left-column profile card and is the single source of truth.
+            <ClinicalProfilePanel
+              mode="full"
+              patientId={id}
+              patient={patient}
+              sessions={sessions}
+              clientSummary={clientSummary}
+              summaryLoading={summaryLoading}
+              onGenerateSummary={() => generateClientSummary(patient, sessions)}
+              newSessionHref={`/patients/${id}/sessions/new`}
+            />
           )}
         </div>
       </div>
