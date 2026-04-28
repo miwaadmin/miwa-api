@@ -17,7 +17,15 @@ const CLIENT_TYPE_DEFAULTS = {
 }
 
 function PatientModal({ patient, onClose, onSave }) {
-  const defaultMembers = patient?.members ? JSON.parse(patient.members) : (CLIENT_TYPE_DEFAULTS[patient?.client_type || 'individual'] || [])
+  const defaultMembers = (() => {
+    if (!patient?.members) return CLIENT_TYPE_DEFAULTS[patient?.client_type || 'individual'] || []
+    try {
+      const parsed = JSON.parse(patient.members)
+      return Array.isArray(parsed) ? parsed : []
+    } catch {
+      return []
+    }
+  })()
   const [form, setForm] = useState(
     patient || { client_id: '', first_name: '', last_name: '', age: '', gender: '', presenting_concerns: '', diagnoses: '', notes: '', client_type: 'individual', display_name: '', phone: '' }
   )
@@ -292,6 +300,7 @@ export default function Patients() {
   const [modal, setModal] = useState(null) // null | 'add' | patient object
   const [selected, setSelected] = useState(new Set())
   const [deleting, setDeleting] = useState(false)
+  const [loadError, setLoadError] = useState('')
   const navigate = useNavigate()
 
   const toggleSelect = (id) => setSelected(prev => {
@@ -327,11 +336,21 @@ export default function Patients() {
 
   const load = useCallback(async (q = '') => {
     setLoading(true)
+    setLoadError('')
     try {
       const url = q ? `/patients?search=${encodeURIComponent(q)}` : `/patients`
       const res = await apiFetch(url)
-      const data = await res.json()
-      setPatients(data)
+      const data = await res.json().catch(() => null)
+      if (!res.ok) {
+        setPatients([])
+        setLoadError(data?.error || `Unable to load clients (${res.status})`)
+        return
+      }
+      setPatients(Array.isArray(data) ? data : [])
+      if (!Array.isArray(data)) setLoadError('Unable to load clients. Please refresh and sign in again if needed.')
+    } catch (err) {
+      setPatients([])
+      setLoadError(err.message || 'Unable to load clients')
     } finally {
       setLoading(false)
     }
@@ -342,7 +361,7 @@ export default function Patients() {
     return () => clearTimeout(timer)
   }, [search, load])
 
-  const sortedPatients = [...patients].sort((a, b) => {
+  const sortedPatients = (Array.isArray(patients) ? [...patients] : []).sort((a, b) => {
     if (sortBy === 'name') return (a.display_name || a.client_id || '').localeCompare(b.display_name || b.client_id || '')
     if (sortBy === 'sessions') return (b.session_count || 0) - (a.session_count || 0)
     // 'recent': patients with a last_session_date first, then by updated_at
@@ -416,7 +435,7 @@ export default function Patients() {
           <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          <p className="text-gray-500 text-sm">{search ? 'No patients match your search.' : 'No patients yet. Add your first patient.'}</p>
+          <p className="text-gray-500 text-sm">{loadError || (search ? 'No patients match your search.' : 'No patients yet. Add your first patient.')}</p>
           {!search && (
             <button onClick={() => setModal('add')} className="mt-4 btn-primary mx-auto">
               Add First Patient

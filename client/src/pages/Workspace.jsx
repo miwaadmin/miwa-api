@@ -239,6 +239,7 @@ export default function Workspace() {
   const [saveNotice, setSaveNotice] = useState('')
   const [saveError, setSaveError] = useState('')
   const [sessionType, setSessionType] = useState(draft?.sessionType || 'ongoing') // 'ongoing' | 'intake'
+  const [sessionTypeTouched, setSessionTypeTouched] = useState(Boolean(draft?.sessionType))
   const [form, setForm] = useState(draft?.form || createEmptyWorkspaceForm())
   const [loading, setLoading] = useState(false)
   const [connected, setConnected] = useState(false)
@@ -277,10 +278,10 @@ export default function Workspace() {
   }, [])
 
   useEffect(() => {
-    if (!draft && patients.length === 0 && sessionType === 'ongoing') {
+    if (!draft && !sessionTypeTouched && patients.length === 0 && sessionType === 'ongoing') {
       setSessionType('intake')
     }
-  }, [draft, patients.length, sessionType])
+  }, [draft, patients.length, sessionType, sessionTypeTouched])
 
   useEffect(() => () => {
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
@@ -500,6 +501,7 @@ export default function Workspace() {
   const resetWorkspaceComposer = (nextType = 'ongoing') => {
     clearWorkspaceDraft()
     setSessionType(nextType)
+    setSessionTypeTouched(true)
     setForm(createEmptyWorkspaceForm())
     setOutput(null)
     setEditableOutput(null)
@@ -520,6 +522,7 @@ export default function Workspace() {
 
   const switchSessionType = (type) => {
     setSessionType(type)
+    setSessionTypeTouched(true)
     setOutput(null)
     setEditableOutput(null)
     setStreamingText('')
