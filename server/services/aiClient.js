@@ -2,6 +2,19 @@ const { OpenAI, toFile } = require('openai');
 
 const AI_PROVIDER = 'azure-openai';
 const GENERIC_AI_MESSAGE = 'The AI service is temporarily unavailable. Please try again in a moment.';
+const TRANSCRIPTION_DEPLOYMENT_ENV_NAMES = [
+  'AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT',
+  'AZURE_OPENAI_TRANSCRIBE_DEPLOYMENT',
+  'AZURE_OPENAI_AUDIO_TRANSCRIPTION_DEPLOYMENT',
+  'AZURE_OPENAI_AUDIO_TRANSCRIBE_DEPLOYMENT',
+  'AZURE_OPENAI_WHISPER_DEPLOYMENT',
+];
+const TTS_DEPLOYMENT_ENV_NAMES = [
+  'AZURE_OPENAI_TTS_DEPLOYMENT',
+  'AZURE_OPENAI_SPEECH_DEPLOYMENT',
+  'AZURE_OPENAI_AUDIO_SPEECH_DEPLOYMENT',
+  'AZURE_OPENAI_VOICE_DEPLOYMENT',
+];
 
 class AIServiceError extends Error {
   constructor(metadata = {}) {
@@ -121,12 +134,44 @@ async function runAzureRequest(fn, metadata = {}) {
   }
 }
 
-function getFirstEnvValue(names) {
+function getFirstEnvMatch(names) {
   for (const name of names) {
     const value = String(process.env[name] || '').trim();
-    if (value) return value;
+    if (value) return { name, value };
   }
-  return '';
+  return { name: null, value: '' };
+}
+
+function getFirstEnvValue(names) {
+  return getFirstEnvMatch(names).value;
+}
+
+function getEndpointHost(endpoint) {
+  const normalized = normalizeEndpoint(endpoint);
+  if (!normalized) return null;
+  try {
+    return new URL(normalized).host;
+  } catch {
+    return null;
+  }
+}
+
+function getAIConfigStatus() {
+  const endpoint = normalizeEndpoint(process.env.AZURE_OPENAI_ENDPOINT);
+  const transcription = getFirstEnvMatch(TRANSCRIPTION_DEPLOYMENT_ENV_NAMES);
+  const tts = getFirstEnvMatch(TTS_DEPLOYMENT_ENV_NAMES);
+
+  return {
+    provider: AI_PROVIDER,
+    endpointHost: getEndpointHost(endpoint),
+    hasApiKey: Boolean(String(process.env.AZURE_OPENAI_KEY || '').trim()),
+    mainDeployment: String(process.env.AZURE_OPENAI_DEPLOYMENT || '').trim() || null,
+    transcriptionDeployment: transcription.value || null,
+    transcriptionEnvVar: transcription.name,
+    ttsDeployment: tts.value || null,
+    ttsEnvVar: tts.name,
+    apiVersion: String(process.env.AZURE_OPENAI_API_VERSION || '').trim() || null,
+  };
 }
 
 function requireAudioDeployment(kind, envNames) {
@@ -267,11 +312,7 @@ async function generateAIResponseWithTools(systemPrompt, messages, tools, option
 }
 
 async function transcribeAudioBuffer(buffer, filename, mimeType) {
-  const deployment = requireAudioDeployment('transcription', [
-    'AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT',
-    'AZURE_OPENAI_AUDIO_TRANSCRIPTION_DEPLOYMENT',
-    'AZURE_OPENAI_WHISPER_DEPLOYMENT',
-  ]);
+  const deployment = requireAudioDeployment('transcription', TRANSCRIPTION_DEPLOYMENT_ENV_NAMES);
   const audioFile = await toFile(buffer, filename || 'recording.webm', { type: mimeType || 'application/octet-stream' });
   const result = await runAzureRequest(() => getAIClient().audio.transcriptions.create({
     file: audioFile,
@@ -282,10 +323,7 @@ async function transcribeAudioBuffer(buffer, filename, mimeType) {
 }
 
 async function generateSpeechBuffer(text, options = {}) {
-  const deployment = requireAudioDeployment('tts', [
-    'AZURE_OPENAI_TTS_DEPLOYMENT',
-    'AZURE_OPENAI_SPEECH_DEPLOYMENT',
-  ]);
+  const deployment = requireAudioDeployment('tts', TTS_DEPLOYMENT_ENV_NAMES);
   const audio = await runAzureRequest(() => getAIClient().audio.speech.create({
     model: deployment,
     voice: options.voice || 'nova',
@@ -306,6 +344,7 @@ module.exports = {
   generateAIResponseWithTools,
   transcribeAudioBuffer,
   generateSpeechBuffer,
+  getAIConfigStatus,
   AIServiceError,
   isAIServiceError,
   safeAIErrorResponse,

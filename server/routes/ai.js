@@ -13,6 +13,7 @@ const {
   generateAIResponse,
   generateAIResponseWithUsage,
   transcribeAudioBuffer,
+  getAIConfigStatus,
   isAIServiceError,
   safeAIErrorResponse,
 } = require('../services/aiClient');
@@ -20,6 +21,11 @@ const {
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 25 * 1024 * 1024 },
+});
+
+// Authenticated safe diagnostic. Exposes deployment wiring only, never keys or raw endpoints.
+router.get('/audio-config', (_req, res) => {
+  res.json(getAIConfigStatus());
 });
 
 function sendRouteError(res, err) {
