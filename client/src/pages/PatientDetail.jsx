@@ -242,14 +242,17 @@ function ClinicalProfilePanel({
   useEffect(() => { load() }, [load])
 
   const status = data?.status || {}
+  const riskLevel = status.risk_level || 'none'
+  const documentationReadiness = status.documentation_readiness || 'unknown'
+  const treatmentPlanStatus = status.treatment_plan_status || 'not_started'
   const riskTone = {
     none: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     watch: 'bg-amber-50 text-amber-700 border-amber-200',
     elevated: 'bg-orange-50 text-orange-700 border-orange-200',
     acute: 'bg-red-50 text-red-700 border-red-200',
-  }[status.risk_level || 'none']
+  }[riskLevel]
 
-  const readinessTone = status.documentation_readiness === 'ready'
+  const readinessTone = documentationReadiness === 'ready'
     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
     : 'bg-amber-50 text-amber-700 border-amber-200'
 
@@ -281,9 +284,9 @@ function ClinicalProfilePanel({
     return (
       <div className="card p-3 mb-4">
         <div className="flex flex-wrap items-center gap-2">
-          <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full border ${riskTone}`}>Risk · {status.risk_level}</span>
-          <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full border ${readinessTone}`}>Doc · {String(status.documentation_readiness || '').replace('_', ' ')}</span>
-          <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full border bg-indigo-50 text-indigo-700 border-indigo-200">Plan · {String(status.treatment_plan_status || '').replace('_', ' ')}</span>
+          <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full border ${riskTone}`}>Risk · {riskLevel}</span>
+          <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full border ${readinessTone}`}>Doc · {String(documentationReadiness).replace('_', ' ')}</span>
+          <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-full border bg-indigo-50 text-indigo-700 border-indigo-200">Plan · {String(treatmentPlanStatus).replace('_', ' ')}</span>
           {focusFirst && (
             <span className="text-xs text-gray-600 ml-auto truncate max-w-[60%]" title={focusFirst}>
               <span className="text-gray-400 mr-1">Next focus:</span>{focusFirst}
@@ -345,15 +348,15 @@ function ClinicalProfilePanel({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div className={`rounded-xl border px-3 py-2 ${riskTone}`}>
               <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">Risk</p>
-              <p className="text-sm font-bold capitalize">{status.risk_level}</p>
+              <p className="text-sm font-bold capitalize">{riskLevel}</p>
             </div>
             <div className={`rounded-xl border px-3 py-2 ${readinessTone}`}>
               <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">Documentation</p>
-              <p className="text-sm font-bold capitalize">{String(status.documentation_readiness).replace('_', ' ')}</p>
+              <p className="text-sm font-bold capitalize">{String(documentationReadiness).replace('_', ' ')}</p>
             </div>
             <div className="rounded-xl border border-indigo-100 bg-indigo-50 text-indigo-700 px-3 py-2">
               <p className="text-[10px] font-bold uppercase tracking-wide opacity-70">Treatment Plan</p>
-              <p className="text-sm font-bold capitalize">{String(status.treatment_plan_status).replace('_', ' ')}</p>
+              <p className="text-sm font-bold capitalize">{String(treatmentPlanStatus).replace('_', ' ')}</p>
             </div>
           </div>
         )}
@@ -1878,7 +1881,7 @@ export default function PatientDetail() {
   }
   const profileHighlights = [
     patient?.presenting_concerns && ['Presenting Concerns', summarizeProfileText(patient.presenting_concerns, 220)],
-    patient?.risk_screening && ['Risk Snapshot', summarizeProfileText(patient.risk_screening, 200)],
+    patient?.risk_screening && ['Intake Risk Notes', summarizeProfileText(patient.risk_screening, 200)],
     patient?.mental_health_history && ['History Context', summarizeProfileText(patient.mental_health_history, 220)],
     patient?.strengths_protective_factors && ['Strengths', summarizeProfileText(patient.strengths_protective_factors, 180)],
     patient?.treatment_goals && ['Initial Goals', summarizeProfileText(patient.treatment_goals, 180)],
