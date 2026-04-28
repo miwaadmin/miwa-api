@@ -83,6 +83,11 @@ function createEmptyWorkspaceForm() {
     traumaHistory: '',
     strengthsProtectiveFactors: '',
     functionalImpairments: '',
+    newClientFirstName: '',
+    newClientLastName: '',
+    newClientPhone: '',
+    newClientEmail: '',
+    newClientGender: '',
   }
 }
 
@@ -146,6 +151,12 @@ const IMPORT_FIELD_LABELS = {
   strengthsProtectiveFactors: 'Strengths / Protective Factors',
   functionalImpairments: 'Functional Impairments',
   treatmentGoal: 'Initial Treatment Goals',
+  firstName: 'First Name',
+  lastName: 'Last Name',
+  displayName: 'Display Name',
+  phone: 'Phone',
+  email: 'Email',
+  gender: 'Gender',
 }
 
 const IMPORT_SECTION_CONFIG = [
@@ -153,7 +164,7 @@ const IMPORT_SECTION_CONFIG = [
     key: 'clientOverview',
     label: 'Client Overview',
     description: 'High-level intake frame, demographics, and referral context.',
-    fields: ['caseType', 'ageRange', 'referralSource', 'livingSituation'],
+    fields: ['firstName', 'lastName', 'displayName', 'phone', 'email', 'gender', 'caseType', 'ageRange', 'referralSource', 'livingSituation'],
   },
   {
     key: 'presentingConcerns',
@@ -192,6 +203,15 @@ function normalizeImportedField(key, value) {
   if (!raw) return ''
   const normalized = raw.toLowerCase()
 
+  if (['firstName', 'lastName', 'displayName', 'phone', 'email'].includes(key)) {
+    return raw
+  }
+
+  if (key === 'gender') {
+    if (['female', 'male', 'nonbinary', 'transgender'].includes(normalized)) return normalized
+    return raw
+  }
+
   if (key === 'caseType') {
     if (['individual', 'couple', 'family', 'group'].includes(normalized)) return normalized
     return ''
@@ -227,6 +247,16 @@ function normalizeImportedField(key, value) {
   }
 
   return raw
+}
+
+function importedFieldTargetKey(key) {
+  return ({
+    firstName: 'newClientFirstName',
+    lastName: 'newClientLastName',
+    phone: 'newClientPhone',
+    email: 'newClientEmail',
+    gender: 'newClientGender',
+  })[key] || key
 }
 
 export default function Workspace() {
@@ -295,7 +325,7 @@ export default function Workspace() {
       const next = { ...f }
       Object.entries(fieldsToApply || {}).forEach(([key, value]) => {
         const normalized = normalizeImportedField(key, value)
-        if (normalized) next[key] = normalized
+        if (normalized && key !== 'displayName') next[importedFieldTargetKey(key)] = normalized
       })
       return next
     })
@@ -682,7 +712,7 @@ export default function Workspace() {
             phone,
             email,
             age: null,
-            gender: null,
+            gender: (form.newClientGender || '').trim() || null,
             case_type: form.caseType || null,
             client_type: form.caseType || 'individual',
             members: (form.members && form.members.length > 0) ? JSON.stringify(form.members) : null,
@@ -718,7 +748,7 @@ export default function Workspace() {
           body: JSON.stringify({
             client_id: patientRecord.client_id,
             age: patientRecord.age,
-            gender: patientRecord.gender,
+            gender: (form.newClientGender || '').trim() || patientRecord.gender,
             case_type: form.caseType || patientRecord.case_type,
             client_type: form.caseType || patientRecord.client_type || 'individual',
             members: (form.members && form.members.length > 0) ? JSON.stringify(form.members) : (patientRecord.members || null),
@@ -1170,6 +1200,20 @@ export default function Workspace() {
                       placeholder="client@email.com"
                     />
                   </div>
+                </div>
+                <div>
+                  <label className="label">Gender</label>
+                  <select
+                    className="input"
+                    value={form.newClientGender || ''}
+                    onChange={e => setForm(f => ({ ...f, newClientGender: e.target.value }))}
+                  >
+                    <option value="">Select...</option>
+                    <option value="female">Female</option>
+                    <option value="male">Male</option>
+                    <option value="nonbinary">Nonbinary</option>
+                    <option value="transgender">Transgender</option>
+                  </select>
                 </div>
               </div>
             )}

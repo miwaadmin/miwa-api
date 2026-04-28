@@ -9,9 +9,10 @@ class AIServiceError extends Error {
     this.name = 'AIServiceError';
     this.statusCode = 502;
     this.expose = true;
+    const hasDeploymentMetadata = Object.prototype.hasOwnProperty.call(metadata, 'deployment');
     this.ai = {
       provider: AI_PROVIDER,
-      deployment: metadata.deployment || process.env.AZURE_OPENAI_DEPLOYMENT || null,
+      deployment: hasDeploymentMetadata ? metadata.deployment : (process.env.AZURE_OPENAI_DEPLOYMENT || null),
       request_id: metadata.request_id || null,
       status_code: metadata.status_code || null,
       error_type: metadata.error_type || null,
@@ -76,8 +77,9 @@ function getRequestId(err) {
 }
 
 function sanitizeAIError(err, overrides = {}) {
+  const hasDeploymentOverride = Object.prototype.hasOwnProperty.call(overrides, 'deployment');
   const metadata = {
-    deployment: overrides.deployment || process.env.AZURE_OPENAI_DEPLOYMENT || null,
+    deployment: hasDeploymentOverride ? overrides.deployment : (process.env.AZURE_OPENAI_DEPLOYMENT || null),
     request_id: getRequestId(err),
     status_code: err?.status || err?.statusCode || err?.response?.status || null,
     error_type: err?.type || err?.error?.type || err?.name || null,
@@ -117,6 +119,27 @@ async function runAzureRequest(fn, metadata = {}) {
     if (isAIServiceError(err)) throw err;
     throw sanitizeAIError(err, metadata);
   }
+}
+
+function getFirstEnvValue(names) {
+  for (const name of names) {
+    const value = String(process.env[name] || '').trim();
+    if (value) return value;
+  }
+  return '';
+}
+
+function requireAudioDeployment(kind, envNames) {
+  const deployment = getFirstEnvValue(envNames);
+  if (deployment) return deployment;
+
+  throw sanitizeAIError({
+    status: 500,
+    code: `azure_${kind}_deployment_missing`,
+    type: 'configuration_error',
+  }, {
+    deployment: null,
+  });
 }
 
 function normalizeMessageContent(content) {
@@ -244,7 +267,11 @@ async function generateAIResponseWithTools(systemPrompt, messages, tools, option
 }
 
 async function transcribeAudioBuffer(buffer, filename, mimeType) {
-  const deployment = process.env.AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT || 'whisper-1';
+  const deployment = requireAudioDeployment('transcription', [
+    'AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT',
+    'AZURE_OPENAI_AUDIO_TRANSCRIPTION_DEPLOYMENT',
+    'AZURE_OPENAI_WHISPER_DEPLOYMENT',
+  ]);
   const audioFile = await toFile(buffer, filename || 'recording.webm', { type: mimeType || 'application/octet-stream' });
   const result = await runAzureRequest(() => getAIClient().audio.transcriptions.create({
     file: audioFile,
@@ -255,7 +282,10 @@ async function transcribeAudioBuffer(buffer, filename, mimeType) {
 }
 
 async function generateSpeechBuffer(text, options = {}) {
-  const deployment = process.env.AZURE_OPENAI_TTS_DEPLOYMENT || 'tts-1';
+  const deployment = requireAudioDeployment('tts', [
+    'AZURE_OPENAI_TTS_DEPLOYMENT',
+    'AZURE_OPENAI_SPEECH_DEPLOYMENT',
+  ]);
   const audio = await runAzureRequest(() => getAIClient().audio.speech.create({
     model: deployment,
     voice: options.voice || 'nova',

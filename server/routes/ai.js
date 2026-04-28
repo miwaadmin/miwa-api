@@ -8,6 +8,7 @@ const { normalizeAssistantProfile } = require('../lib/assistant');
 const { scrubText, scrubObject } = require('../lib/scrubber');
 const { MODELS, callAI, streamAI, streamAnalyzeNotes } = require('../lib/aiExecutor');
 const { logCostEvent, assertBudgetOk } = require('../services/costTracker');
+const { extractIntakeIdentity } = require('../services/intakeIdentityExtractor');
 const {
   generateAIResponse,
   generateAIResponseWithUsage,
@@ -140,6 +141,7 @@ async function extractPdfFormFieldText(buffer) {
 }
 
 async function buildIntakeDraftFromText(extractedText, originalName = 'uploaded source') {
+  const safeSourceName = scrubText(originalName || 'uploaded source');
   const prompt = `You are Miwa, a privacy-conscious clinical intake assistant.
 
 Read the uploaded intake/assessment document and produce:
@@ -174,9 +176,17 @@ Return valid JSON only with exactly this shape:
     "mentalStatusObservations": string,
     "strengthsProtectiveFactors": string,
     "functionalImpairments": string,
-    "treatmentGoal": string
+    "treatmentGoal": string,
+    "firstName": string,
+    "lastName": string,
+    "displayName": string,
+    "phone": string,
+    "email": string,
+    "gender": string
   }
 }
+
+Identity fields are allowed only when explicitly present in the provided document text. Return empty strings for identity fields if missing or redacted.
 
 For caseType, use only one of:
 - individual
@@ -194,7 +204,7 @@ Section guidance:
 - clinicalObservations: MSE, affect, thought process, behavior, insight/judgment, clinician observations
 - strengthsAndGoals: strengths, supports, motivation, protective factors, functional goals, initial treatment goals
 
-Source name: ${originalName}
+Source name: ${safeSourceName}
 Document text:
 """
 ${extractedText.substring(0, 24000)}
@@ -234,7 +244,27 @@ ${extractedText.substring(0, 24000)}
       strengthsProtectiveFactors: fields.strengthsProtectiveFactors || '',
       functionalImpairments: fields.functionalImpairments || '',
       treatmentGoal: fields.treatmentGoal || '',
+      firstName: fields.firstName || '',
+      lastName: fields.lastName || '',
+      displayName: fields.displayName || '',
+      phone: fields.phone || '',
+      email: fields.email || '',
+      gender: fields.gender || '',
     },
+  };
+}
+
+function mergeLocalIdentityFields(draft, identity) {
+  const mergedFields = { ...(draft?.fields || {}) };
+  const localIdentity = identity || {};
+
+  ['firstName', 'lastName', 'displayName', 'phone', 'email', 'gender'].forEach((key) => {
+    if (localIdentity[key]) mergedFields[key] = localIdentity[key];
+  });
+
+  return {
+    ...draft,
+    fields: mergedFields,
   };
 }
 
@@ -289,15 +319,19 @@ async function extractTextFromUpload(file) {
 router.post('/intake-import', upload.single('file'), async (req, res) => {
   try {
     const rawText     = await extractTextFromUpload(req.file);
-    const extractedText = scrubText(rawText); // scrub before sending to any model
-    const draft = await buildIntakeDraftFromText(extractedText, req.file.originalname);
+    const identity = extractIntakeIdentity(rawText, req.file.originalname);
+    const extractedText = rawText.trim();
+    // This importer is Azure-only and covered by the central AI client. Do not log this payload.
+    const aiDraft = await buildIntakeDraftFromText(extractedText, req.file.originalname);
+    const draft = mergeLocalIdentityFields(aiDraft, identity);
 
     res.json({
       fileName: req.file.originalname,
-      extractedText, // return scrubbed version so UI also shows clean text
+      extractedText,
       ...draft,
     });
   } catch (err) {
+    if (isAIServiceError(err)) return sendRouteError(res, err);
     res.status(400).json({ error: uploadImportErrorMessage(err) });
   }
 });
@@ -317,11 +351,13 @@ router.post('/audio-import', upload.single('file'), async (req, res) => {
       return res.status(400).json({ error: 'The audio could not be transcribed clearly. Try a cleaner recording or a different file.' });
     }
 
-    // Scrub PHI from transcript before any further processing or storage
-    const transcript = scrubText(rawTranscript);
+    const identity = extractIntakeIdentity(rawTranscript, req.file.originalname);
+    // This importer is Azure-only and covered by the central AI client. Do not log this payload.
+    const transcript = rawTranscript.trim();
 
     if (mode === 'intake') {
-      const draft = await buildIntakeDraftFromText(transcript, req.file.originalname);
+      const aiDraft = await buildIntakeDraftFromText(transcript, req.file.originalname);
+      const draft = mergeLocalIdentityFields(aiDraft, identity);
       return res.json({
         fileName: req.file.originalname,
         transcript,

@@ -11,7 +11,10 @@ const ORIGINAL_ENV = {
   AZURE_OPENAI_KEY: process.env.AZURE_OPENAI_KEY,
   AZURE_OPENAI_DEPLOYMENT: process.env.AZURE_OPENAI_DEPLOYMENT,
   AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT: process.env.AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT,
+  AZURE_OPENAI_AUDIO_TRANSCRIPTION_DEPLOYMENT: process.env.AZURE_OPENAI_AUDIO_TRANSCRIPTION_DEPLOYMENT,
+  AZURE_OPENAI_WHISPER_DEPLOYMENT: process.env.AZURE_OPENAI_WHISPER_DEPLOYMENT,
   AZURE_OPENAI_TTS_DEPLOYMENT: process.env.AZURE_OPENAI_TTS_DEPLOYMENT,
+  AZURE_OPENAI_SPEECH_DEPLOYMENT: process.env.AZURE_OPENAI_SPEECH_DEPLOYMENT,
 };
 
 function restoreEnv() {
@@ -166,6 +169,86 @@ describe('Azure OpenAI client error handling', () => {
     assert.deepEqual(seen.map(row => row.slice(0, 2)), [
       ['transcribe', 'whisper-main'],
       ['tts', 'tts-main'],
+    ]);
+  });
+
+  test('missing audio deployment env vars fail safely before sending audio', async () => {
+    process.env.AZURE_OPENAI_ENDPOINT = 'https://example-resource.openai.azure.com';
+    process.env.AZURE_OPENAI_KEY = 'test-key';
+    process.env.AZURE_OPENAI_DEPLOYMENT = 'gpt-main';
+    delete process.env.AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT;
+    delete process.env.AZURE_OPENAI_AUDIO_TRANSCRIPTION_DEPLOYMENT;
+    delete process.env.AZURE_OPENAI_WHISPER_DEPLOYMENT;
+
+    const marker = 'FICTIONAL_UNSENT_AUDIO_MARKER_11873';
+    let wasCalled = false;
+    aiClient._test.setClient({
+      audio: {
+        transcriptions: {
+          create: async () => {
+            wasCalled = true;
+            return 'should not happen';
+          },
+        },
+      },
+    });
+
+    let thrown;
+    const logs = await captureConsoleError(async () => {
+      try {
+        await aiClient.transcribeAudioBuffer(Buffer.from(marker), 'recording.webm', 'audio/webm');
+      } catch (err) {
+        thrown = err;
+      }
+    });
+
+    assert.equal(wasCalled, false);
+    assert.ok(aiClient.isAIServiceError(thrown));
+    assert.equal(thrown.ai.provider, 'azure-openai');
+    assert.equal(thrown.ai.deployment, null);
+    assert.equal(thrown.ai.status_code, 500);
+    assert.equal(thrown.ai.error_type, 'configuration_error');
+    assert.equal(thrown.ai.error_code, 'azure_transcription_deployment_missing');
+    assert.ok(!JSON.stringify(logs).includes(marker));
+    assert.ok(!JSON.stringify(aiClient.safeAIErrorResponse(thrown)).includes(marker));
+  });
+
+  test('alternate audio deployment env names are accepted', async () => {
+    process.env.AZURE_OPENAI_ENDPOINT = 'https://example-resource.openai.azure.com';
+    process.env.AZURE_OPENAI_KEY = 'test-key';
+    process.env.AZURE_OPENAI_DEPLOYMENT = 'gpt-main';
+    delete process.env.AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT;
+    delete process.env.AZURE_OPENAI_TTS_DEPLOYMENT;
+    process.env.AZURE_OPENAI_WHISPER_DEPLOYMENT = 'whisper-alt';
+    process.env.AZURE_OPENAI_SPEECH_DEPLOYMENT = 'speech-alt';
+
+    const seen = [];
+    aiClient._test.setClient({
+      audio: {
+        transcriptions: {
+          create: async (request) => {
+            seen.push(['transcribe', request.model]);
+            return { text: 'fictional transcript' };
+          },
+        },
+        speech: {
+          create: async (request) => {
+            seen.push(['tts', request.model]);
+            return {
+              async arrayBuffer() {
+                return Buffer.from('fake-audio');
+              },
+            };
+          },
+        },
+      },
+    });
+
+    await aiClient.transcribeAudioBuffer(Buffer.from('fake audio'), 'recording.webm', 'audio/webm');
+    await aiClient.generateSpeechBuffer('hello');
+    assert.deepEqual(seen, [
+      ['transcribe', 'whisper-alt'],
+      ['tts', 'speech-alt'],
     ]);
   });
 
