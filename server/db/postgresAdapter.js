@@ -49,6 +49,7 @@ function translateSqliteSql(sql) {
     .replace(/\bCOALESCE\s*\(([^)]*),\s*""\s*\)/gi, "COALESCE($1, '')")
     .replace(/\bJULIANDAY\s*\(\s*COALESCE\s*\(([^)]*)\)\s*\)/gi, "(EXTRACT(EPOCH FROM COALESCE($1)::timestamp) / 86400)")
     .replace(/\bJULIANDAY\s*\(\s*([^)]+?)\s*\)/gi, "(EXTRACT(EPOCH FROM $1::timestamp) / 86400)")
+    .replace(/\bjson_extract\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*,\s*'\$\.([A-Za-z_][A-Za-z0-9_]*)'\s*\)/gi, "($1::jsonb ->> '$2')")
     .replace(/\bdatetime\s*\(\s*'now'\s*,\s*'\+'\s*\|\|\s*(\$\d+)\s*\|\|\s*'\s*minutes?'\s*\)/gi, "(CURRENT_TIMESTAMP + ($1::int * INTERVAL '1 minute'))")
     .replace(/\bdatetime\s*\(\s*'now'\s*,\s*'-'\s*\|\|\s*(\$\d+)\s*\|\|\s*'\s*minutes?'\s*\)/gi, "(CURRENT_TIMESTAMP - ($1::int * INTERVAL '1 minute'))")
     .replace(/\bdatetime\s*\(\s*'now'\s*,\s*'\+'\s*\|\|\s*(\$\d+)\s*\|\|\s*'\s*days?'\s*\)/gi, "(CURRENT_TIMESTAMP + ($1::int * INTERVAL '1 day'))")

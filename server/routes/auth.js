@@ -904,7 +904,13 @@ router.get('/_diag/db', async (req, res) => {
     } catch {}
 
     const db = getAsyncDb();
-    const tables = await db.all(`SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`);
+    const tables = await db.all(`
+      SELECT table_name AS name
+        FROM information_schema.tables
+       WHERE table_schema = 'public'
+         AND table_type = 'BASE TABLE'
+       ORDER BY table_name
+    `);
     const counts = {};
     for (const t of tables) {
       try { counts[t.name] = (await db.get(`SELECT COUNT(*) AS n FROM ${t.name}`)).n; }

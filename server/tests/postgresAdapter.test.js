@@ -86,6 +86,13 @@ test('translateSqliteSql converts julianday comparison helpers', () => {
   );
 });
 
+test('translateSqliteSql converts simple json_extract lookups', () => {
+  assert.equal(
+    translateSqliteSql("SELECT * FROM agent_actions WHERE json_extract(payload_json, '$.patientId') = ?"),
+    "SELECT * FROM agent_actions WHERE (payload_json::jsonb ->> 'patientId') = $1"
+  );
+});
+
 test('translateSqliteSql converts SQLite empty double-string literal in COALESCE', () => {
   assert.equal(
     translateSqliteSql('SELECT lower(coalesce(t.full_name, "")) LIKE ?'),

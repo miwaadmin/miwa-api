@@ -26,6 +26,18 @@ function actionType(method) {
   return 'write';
 }
 
+function logAuditFailure(err, context = {}) {
+  console.error('phi audit log insert failed', {
+    provider: 'database',
+    errorCode: err?.code || null,
+    errorType: err?.name || 'Error',
+    route: context.route || null,
+    method: context.method || null,
+    statusCode: context.statusCode || null,
+    timestamp: new Date().toISOString(),
+  });
+}
+
 /**
  * Express middleware — insert after requireAuth so req.therapist is populated.
  * Usage: app.use('/api/patients', requireAuth, phiAuditLog, router)
@@ -62,8 +74,17 @@ function phiAuditLog(req, res, next) {
         req.method,
         res.statusCode,
         (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim().slice(0, 45),
-      )).catch(() => {});
-    } catch {
+      )).catch((err) => logAuditFailure(err, {
+        route: resource,
+        method: req.method,
+        statusCode: res.statusCode,
+      }));
+    } catch (err) {
+      logAuditFailure(err, {
+        route: resource,
+        method: req.method,
+        statusCode: res.statusCode,
+      });
       // Never let audit logging break the app
     }
   });
@@ -82,7 +103,13 @@ async function logPhiAccess({ therapistId, action, resource, patientId = null, d
        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
       therapistId, action, String(resource).slice(0, 500), patientId, detail || 'SYSTEM', 200, 'internal'
     );
-  } catch {}
+  } catch (err) {
+    logAuditFailure(err, {
+      route: String(resource).slice(0, 500),
+      method: detail || 'SYSTEM',
+      statusCode: 200,
+    });
+  }
 }
 
 module.exports = { phiAuditLog, logPhiAccess };

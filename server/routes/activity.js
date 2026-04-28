@@ -92,7 +92,7 @@ router.get('/', async (req, res) => {
     if (requested.has('actions')) {
       try {
         const patientFilter = patientId ? `AND json_extract(payload_json, '$.patientId') = ?` : '';
-        const args = patientId ? [tid, ...range.args, patientId, limit] : [tid, ...range.args, limit];
+        const args = patientId ? [tid, ...range.args, String(patientId), limit] : [tid, ...range.args, limit];
         const actions = await db.all(
           `SELECT id, kind, payload_json, status, created_at, completed_at
              FROM agent_actions
