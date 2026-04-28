@@ -1,7 +1,8 @@
-const { OpenAI, toFile } = require('openai');
+const { OpenAI, AzureOpenAI, toFile } = require('openai');
 
 const AI_PROVIDER = 'azure-openai';
 const GENERIC_AI_MESSAGE = 'The AI service is temporarily unavailable. Please try again in a moment.';
+const DEFAULT_AZURE_OPENAI_API_VERSION = '2025-04-01-preview';
 const TRANSCRIPTION_DEPLOYMENT_ENV_NAMES = [
   'AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT',
   'AZURE_OPENAI_TRANSCRIBE_DEPLOYMENT',
@@ -46,10 +47,15 @@ function normalizeEndpoint(endpoint) {
   }
 }
 
+function getAzureApiVersion() {
+  return String(process.env.AZURE_OPENAI_API_VERSION || DEFAULT_AZURE_OPENAI_API_VERSION).trim();
+}
+
 function requireAzureConfig() {
   const endpoint = normalizeEndpoint(process.env.AZURE_OPENAI_ENDPOINT);
   const apiKey = process.env.AZURE_OPENAI_KEY;
   const deployment = process.env.AZURE_OPENAI_DEPLOYMENT;
+  const apiVersion = getAzureApiVersion();
 
   if (!endpoint || !apiKey || !deployment) {
     throw sanitizeAIError({
@@ -59,11 +65,13 @@ function requireAzureConfig() {
     });
   }
 
-  return { endpoint, apiKey, deployment };
+  return { endpoint, apiKey, deployment, apiVersion };
 }
 
 let aiClientInstance = null;
+let audioClientInstance = null;
 let testClient = null;
+let testAudioClient = null;
 
 function getAIClient() {
   if (testClient) return testClient;
@@ -74,6 +82,19 @@ function getAIClient() {
     baseURL: `${endpoint}/openai/v1/`,
   });
   return aiClientInstance;
+}
+
+function getAudioAIClient() {
+  if (testAudioClient) return testAudioClient;
+  if (testClient) return testClient;
+  if (audioClientInstance) return audioClientInstance;
+  const { endpoint, apiKey, apiVersion } = requireAzureConfig();
+  audioClientInstance = new AzureOpenAI({
+    endpoint,
+    apiKey,
+    apiVersion,
+  });
+  return audioClientInstance;
 }
 
 // IMPORTANT: ALL PHI MUST GO THROUGH AZURE ONLY
@@ -170,7 +191,7 @@ function getAIConfigStatus() {
     transcriptionEnvVar: transcription.name,
     ttsDeployment: tts.value || null,
     ttsEnvVar: tts.name,
-    apiVersion: String(process.env.AZURE_OPENAI_API_VERSION || '').trim() || null,
+    apiVersion: getAzureApiVersion(),
   };
 }
 
@@ -314,7 +335,7 @@ async function generateAIResponseWithTools(systemPrompt, messages, tools, option
 async function transcribeAudioBuffer(buffer, filename, mimeType) {
   const deployment = requireAudioDeployment('transcription', TRANSCRIPTION_DEPLOYMENT_ENV_NAMES);
   const audioFile = await toFile(buffer, filename || 'recording.webm', { type: mimeType || 'application/octet-stream' });
-  const result = await runAzureRequest(() => getAIClient().audio.transcriptions.create({
+  const result = await runAzureRequest(() => getAudioAIClient().audio.transcriptions.create({
     file: audioFile,
     model: deployment,
     response_format: 'text',
@@ -324,7 +345,7 @@ async function transcribeAudioBuffer(buffer, filename, mimeType) {
 
 async function generateSpeechBuffer(text, options = {}) {
   const deployment = requireAudioDeployment('tts', TTS_DEPLOYMENT_ENV_NAMES);
-  const audio = await runAzureRequest(() => getAIClient().audio.speech.create({
+  const audio = await runAzureRequest(() => getAudioAIClient().audio.speech.create({
     model: deployment,
     voice: options.voice || 'nova',
     input: text,
@@ -351,8 +372,15 @@ module.exports = {
   safeAIErrorMessage,
   _test: {
     setClient(client) { testClient = client; },
-    resetClient() { testClient = null; aiClientInstance = null; },
+    setAudioClient(client) { testAudioClient = client; },
+    resetClient() {
+      testClient = null;
+      testAudioClient = null;
+      aiClientInstance = null;
+      audioClientInstance = null;
+    },
     sanitizeAIError,
     normalizeEndpoint,
+    getAzureApiVersion,
   },
 };

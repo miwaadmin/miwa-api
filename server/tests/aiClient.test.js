@@ -287,6 +287,19 @@ describe('Azure OpenAI client error handling', () => {
     assert.ok(!serialized.includes('/openai/deployments'));
   });
 
+  test('AI config status reports the default Azure API version when unset', () => {
+    process.env.AZURE_OPENAI_ENDPOINT = 'https://example-resource.openai.azure.com';
+    process.env.AZURE_OPENAI_KEY = 'super-secret-key';
+    process.env.AZURE_OPENAI_DEPLOYMENT = 'gpt-main';
+    delete process.env.AZURE_OPENAI_API_VERSION;
+
+    const status = aiClient.getAIConfigStatus();
+
+    assert.equal(status.apiVersion, '2025-04-01-preview');
+    assert.equal(aiClient._test.getAzureApiVersion(), '2025-04-01-preview');
+    assert.ok(!JSON.stringify(status).includes('super-secret-key'));
+  });
+
   test('audio deployment errors log deployment metadata without prompt or audio text', async () => {
     process.env.AZURE_OPENAI_ENDPOINT = 'https://example-resource.openai.azure.com';
     process.env.AZURE_OPENAI_KEY = 'test-key';
