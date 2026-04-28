@@ -1,6 +1,7 @@
 const { Pool } = require('pg');
 const { getDb, initDb, persist } = require('../db');
 const { createPostgresAdapter } = require('./postgresAdapter');
+const { applyPostgresSchema } = require('./postgresSchema');
 
 let pgPool;
 let pgAdapter;
@@ -38,6 +39,7 @@ async function initAsyncDb() {
 
   const db = getAsyncDb();
   await db.get('SELECT 1 AS ok');
+  await applyPostgresSchema(db);
   return db;
 }
 

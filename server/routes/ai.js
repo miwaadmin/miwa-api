@@ -873,15 +873,16 @@ router.post('/chat', async (req, res) => {
 
     // Load last 20 Consult messages (excludes MiwaChat 'agent' rows so the
     // two surfaces don't cross-contaminate conversational memory).
-    const history = canUseHistory
+    const historyRows = canUseHistory
       ? await db.all(
           `SELECT role, content FROM chat_messages
             WHERE therapist_id = ?
               AND (context_type IS NULL OR context_type != 'agent')
             ORDER BY created_at DESC LIMIT 20`,
           tid
-        ).reverse()
+        )
       : [];
+    const history = historyRows.reverse();
 
     // Build context block if patient/session context selected and permitted
     let contextBlock = '';

@@ -29,6 +29,13 @@ test('translateSqliteSql converts sqlite date now helpers used by dashboard quer
   );
 });
 
+test('translateSqliteSql converts date casts on timestamp/text columns', () => {
+  assert.equal(
+    translateSqliteSql('SELECT * FROM appointments WHERE DATE(scheduled_start) = ? AND date(created_at) >= ?'),
+    'SELECT * FROM appointments WHERE (scheduled_start::date) = $1 AND (created_at::date) >= $2'
+  );
+});
+
 test('translateSqliteSql converts sqlite collation and datetime range helpers', () => {
   assert.equal(
     translateSqliteSql("SELECT * FROM contacts WHERE created_at >= datetime('now', '-30 days') ORDER BY name COLLATE NOCASE ASC"),

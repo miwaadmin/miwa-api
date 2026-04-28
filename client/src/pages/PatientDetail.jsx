@@ -1656,6 +1656,7 @@ export default function PatientDetail() {
   const [editingProfile, setEditingProfile] = useState(false)
   const [profileForm, setProfileForm] = useState({})
   const [profileSaving, setProfileSaving] = useState(false)
+  const [profileError, setProfileError] = useState('')
   const [showExportModal, setShowExportModal] = useState(false)
   const [showLetterModal, setShowLetterModal] = useState(false)
 
@@ -1684,8 +1685,8 @@ export default function PatientDetail() {
   const startEditingProfile = () => {
     const parts = (patient.display_name || '').trim().split(/\s+/)
     setProfileForm({
-      first_name: parts[0] || '',
-      last_name: parts.slice(1).join(' ') || '',
+      first_name: patient.first_name || parts[0] || '',
+      last_name: patient.last_name || parts.slice(1).join(' ') || '',
       phone: patient.phone || '',
       sms_consent: !!patient.sms_consent,
       age_range: patient.age_range || '',
@@ -1693,17 +1694,23 @@ export default function PatientDetail() {
       session_modality: patient.session_modality || 'in-person',
       session_duration: String(patient.session_duration || 50),
     })
+    setProfileError('')
     setEditingProfile(true)
   }
 
   const saveProfileEdits = async () => {
     setProfileSaving(true)
+    setProfileError('')
     try {
-      const display_name = [profileForm.first_name, profileForm.last_name].filter(Boolean).join(' ') || null
+      const first_name = (profileForm.first_name || '').trim()
+      const last_name = (profileForm.last_name || '').trim()
+      const display_name = [first_name, last_name].filter(Boolean).join(' ') || null
       const res = await apiFetch(`/patients/${id}`, {
         method: 'PUT',
         body: JSON.stringify({
           client_id: patient.client_id,
+          first_name: first_name || null,
+          last_name: last_name || null,
           display_name,
           phone: profileForm.phone || null,
           sms_consent: profileForm.phone && profileForm.sms_consent ? 1 : 0,
@@ -1714,12 +1721,16 @@ export default function PatientDetail() {
         }),
       })
       const updated = await res.json()
-      if (res.ok) {
-        setPatient(updated)
-        setEditingProfile(false)
+      if (!res.ok) {
+        throw new Error(updated?.error || updated?.message || 'Unable to save client profile.')
       }
-    } catch {}
-    setProfileSaving(false)
+      setPatient(updated)
+      setEditingProfile(false)
+    } catch (err) {
+      setProfileError(err.message || 'Unable to save client profile.')
+    } finally {
+      setProfileSaving(false)
+    }
   }
 
   const diagnosisProfile = parseDiagnosisProfile(patient?.diagnoses)
@@ -2589,6 +2600,11 @@ export default function PatientDetail() {
           </div>
 
           <div className="px-6 py-5 space-y-4">
+            {profileError && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {profileError}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">First Name</label>

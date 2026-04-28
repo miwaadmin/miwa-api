@@ -67,6 +67,8 @@ function translateSqliteSql(sql) {
     .replace(/\bdate\s*\(\s*'now'\s*,\s*'\+(\d+)\s+days?'\s*\)/gi, "(CURRENT_DATE + INTERVAL '$1 days')")
     .replace(/\bdate\s*\(\s*'now'\s*,\s*'start of month'\s*\)/gi, "date_trunc('month', CURRENT_DATE)")
     .replace(/\bdate\s*\(\s*'now'\s*\)/gi, 'CURRENT_DATE')
+    .replace(/\bdate\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/gi, '($1::date)')
+    .replace(/\bDATE\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/g, '($1::date)')
     .replace(/\bdatetime\s*\(\s*'now'\s*\)/gi, 'CURRENT_TIMESTAMP')
     .replace(/\bCURRENT_TIMESTAMP\b/gi, 'CURRENT_TIMESTAMP');
 }
