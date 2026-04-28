@@ -763,7 +763,10 @@ When you're done, I'll save this as your profile and refer back to it in every c
         method: 'POST',
         body: JSON.stringify({ text: clean }),
       })
-      if (!res.ok) throw new Error('TTS request failed')
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}))
+        throw new Error(data.message || data.error || 'TTS request failed')
+      }
       const arrayBuffer = await res.arrayBuffer()
 
       // Ensure context exists and is running
@@ -786,6 +789,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
       audioRef.current = source
     } catch (err) {
       console.error('[Miwa TTS]', err)
+      setError(err.message || 'Could not play Miwa voice response')
       setLoadingAudio(false)
       setSpeaking(false)
     }
@@ -836,7 +840,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
           form.append('audio', blob, `recording.${ext}`)
           const res = await apiUpload('/agent/transcribe', form)
           const data = await res.json()
-          if (!res.ok || !data.text) throw new Error(data.error || 'Transcription failed')
+          if (!res.ok || !data.text) throw new Error(data.message || data.error || 'Transcription failed')
           setStreamingText('')
           setStreaming(false)
           if (voiceEnabledRef.current) {

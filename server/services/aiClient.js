@@ -75,9 +75,9 @@ function getRequestId(err) {
     || null;
 }
 
-function sanitizeAIError(err) {
+function sanitizeAIError(err, overrides = {}) {
   const metadata = {
-    deployment: process.env.AZURE_OPENAI_DEPLOYMENT || null,
+    deployment: overrides.deployment || process.env.AZURE_OPENAI_DEPLOYMENT || null,
     request_id: getRequestId(err),
     status_code: err?.status || err?.statusCode || err?.response?.status || null,
     error_type: err?.type || err?.error?.type || err?.name || null,
@@ -110,12 +110,12 @@ function safeAIErrorMessage(err) {
   return isAIServiceError(err) ? GENERIC_AI_MESSAGE : (err?.message || 'Something went wrong.');
 }
 
-async function runAzureRequest(fn) {
+async function runAzureRequest(fn, metadata = {}) {
   try {
     return await fn();
   } catch (err) {
     if (isAIServiceError(err)) throw err;
-    throw sanitizeAIError(err);
+    throw sanitizeAIError(err, metadata);
   }
 }
 
@@ -244,22 +244,24 @@ async function generateAIResponseWithTools(systemPrompt, messages, tools, option
 }
 
 async function transcribeAudioBuffer(buffer, filename, mimeType) {
+  const deployment = process.env.AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT || 'whisper-1';
   const audioFile = await toFile(buffer, filename || 'recording.webm', { type: mimeType || 'application/octet-stream' });
   const result = await runAzureRequest(() => getAIClient().audio.transcriptions.create({
     file: audioFile,
-    model: process.env.AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT || 'whisper-1',
+    model: deployment,
     response_format: 'text',
-  }));
+  }), { deployment });
   return typeof result === 'string' ? result.trim() : (result?.text || '').trim();
 }
 
 async function generateSpeechBuffer(text, options = {}) {
+  const deployment = process.env.AZURE_OPENAI_TTS_DEPLOYMENT || 'tts-1';
   const audio = await runAzureRequest(() => getAIClient().audio.speech.create({
-    model: process.env.AZURE_OPENAI_TTS_DEPLOYMENT || 'tts-1',
+    model: deployment,
     voice: options.voice || 'nova',
     input: text,
     response_format: options.responseFormat || 'mp3',
-  }));
+  }), { deployment });
   return Buffer.from(await audio.arrayBuffer());
 }
 

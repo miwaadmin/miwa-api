@@ -114,7 +114,7 @@ export default function MobileRecord() {
           const res = await apiUpload('/agent/transcribe', formData)
           if (!res.ok) {
             const data = await res.json().catch(() => ({}))
-            throw new Error(data.error || 'Transcription failed')
+            throw new Error(data.message || data.error || 'Transcription failed')
           }
           const data = await res.json()
           setTranscript(data.transcript || data.text || '')
@@ -207,7 +207,7 @@ export default function MobileRecord() {
         })
         if (!res.ok) {
           const data = await res.json().catch(() => ({}))
-          throw new Error(data.error || 'Note generation failed')
+          throw new Error(data.message || data.error || 'Note generation failed')
         }
         const data = await res.json()
         setGeneratedNote(data)

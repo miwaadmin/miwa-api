@@ -89,7 +89,11 @@ export default function MobileMiwa() {
               setStreamingText('')
               setStreaming(false)
             }
-            if (data.error) throw new Error(data.error)
+            if (data.error) {
+              setError(data.message || data.error)
+              setStreamingText('')
+              setStreaming(false)
+            }
           } catch {}
         }
       }
@@ -178,14 +182,15 @@ export default function MobileMiwa() {
 
         try {
           const res = await apiUpload('/agent/transcribe', formData)
-          if (res.ok) {
-            const data = await res.json()
-            const text = data.transcript || data.text || ''
-            if (text.trim()) {
-              sendMessage(text)
-            }
+          const data = await res.json()
+          if (!res.ok) throw new Error(data.message || data.error || 'Transcription failed')
+          const text = data.transcript || data.text || ''
+          if (text.trim()) {
+            sendMessage(text)
           }
-        } catch {}
+        } catch (err) {
+          setError(err.message || 'Transcription failed')
+        }
       }
 
       recorder.start(1000)

@@ -100,6 +100,17 @@ test('translateSqliteSql converts SQLite empty double-string literal in COALESCE
   );
 });
 
+test('translateSqliteSql casts mixed text/timestamp COALESCE date ordering', () => {
+  assert.equal(
+    translateSqliteSql('ORDER BY COALESCE(session_date, created_at) DESC'),
+    "ORDER BY COALESCE(NULLIF(session_date, '')::timestamp, created_at::timestamp) DESC"
+  );
+  assert.equal(
+    translateSqliteSql('ORDER BY COALESCE(a.scheduled_start, a.created_at) DESC'),
+    "ORDER BY COALESCE(NULLIF(a.scheduled_start, '')::timestamp, a.created_at::timestamp) DESC"
+  );
+});
+
 test('appendReturningId adds RETURNING id to inserts only once', () => {
   assert.equal(
     appendReturningId('INSERT INTO patients (client_id) VALUES (?)'),

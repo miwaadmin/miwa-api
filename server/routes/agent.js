@@ -153,6 +153,17 @@ function safeJsonParse(text) {
   return JSON.parse(cleaned);
 }
 
+function isInternalModelQuestion(text = '') {
+  const normalized = String(text).toLowerCase();
+  const asksModel = /\b(model|gpt|gpt-4|gpt4|claude|openai|azure|api|deployment|provider|llm|ai engine|system prompt|prompt)\b/.test(normalized);
+  const asksIdentity = /\b(what|which|who|how)\b/.test(normalized) || normalized.includes('are you using') || normalized.includes('do you use');
+  return asksModel && asksIdentity;
+}
+
+function internalModelDisclosureReply() {
+  return "I'm Miwa, the clinical assistant built into this platform. I can help with clinical work and practice operations, but I don't disclose internal system details.";
+}
+
 function inferAppointmentType(patient, overrideType = '') {
   const normalized = String(overrideType || '').trim().toLowerCase();
   if (normalized) return normalized;
@@ -3455,6 +3466,25 @@ router.post('/chat', async (req, res) => {
     // which strips common names like "Robert" even when creating a new client
     const message = scrubNamesFromMessage(rawMessage, nameMap);
     if (!message) return res.status(400).json({ error: 'Message is required' });
+
+    if (isInternalModelQuestion(rawMessage)) {
+      const fixedReply = internalModelDisclosureReply();
+      await db.insert(
+        `INSERT INTO chat_messages (therapist_id, role, content, context_type, context_id) VALUES (?, 'user', ?, 'agent', ?)`,
+        req.therapist.id, message, contextId || null
+      );
+      await db.insert(
+        `INSERT INTO chat_messages (therapist_id, role, content, context_type, context_id) VALUES (?, 'assistant', ?, 'agent', ?)`,
+        req.therapist.id, fixedReply, contextId || null
+      );
+      await persistIfNeeded();
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+      res.write(`data: ${JSON.stringify({ type: 'text', text: fixedReply })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'done' })}\n\n`);
+      return res.end();
+    }
 
     // Patient context for current open record (if any)
     const patientId = contextType === 'patient' && contextId ? Number(contextId) : null;

@@ -25,6 +25,18 @@ function sendRouteError(res, err) {
   return res.status(isAIServiceError(err) ? 502 : 500).json(safeAIErrorResponse(err));
 }
 
+function sendAudioImportError(res, err) {
+  if (isAIServiceError(err)) {
+    const response = safeAIErrorResponse(err);
+    return res.status(502).json({
+      ...response,
+      message: 'The audio service is temporarily unavailable. Please try again in a moment.',
+    });
+  }
+
+  return res.status(400).json({ error: 'The audio file could not be processed. Please try again.' });
+}
+
 function uploadImportErrorMessage(err) {
   const message = String(err?.message || '');
   const allowedMessages = [
@@ -322,7 +334,7 @@ router.post('/audio-import', upload.single('file'), async (req, res) => {
       transcript,
     });
   } catch (err) {
-    res.status(400).json({ error: 'The audio file could not be processed. Please try again.' });
+    sendAudioImportError(res, err);
   }
 });
 
@@ -425,9 +437,14 @@ router.post('/dictate-session', upload.single('audio'), async (req, res) => {
   req.socket.setTimeout(0);
   res.setTimeout(0);
   try {
-    if (!req.file) return res.status(400).json({ error: 'No audio file uploaded.' });
+    const providedTranscript = typeof req.body?.transcript === 'string' ? req.body.transcript : '';
+    if (!req.file && !providedTranscript.trim()) {
+      return res.status(400).json({ error: 'No audio or transcript received.' });
+    }
 
-    const rawTranscript = await transcribeAudioUpload(req.file);
+    const rawTranscript = req.file
+      ? await transcribeAudioUpload(req.file)
+      : providedTranscript;
     if (!rawTranscript.trim()) {
       return res.status(400).json({ error: 'Could not transcribe audio. Try speaking more clearly or in a quieter environment.' });
     }
