@@ -39,7 +39,14 @@ async function initAsyncDb() {
 
   const db = getAsyncDb();
   await db.get('SELECT 1 AS ok');
-  await applyPostgresSchema(db);
+  try {
+    await applyPostgresSchema(db);
+  } catch (err) {
+    console.error('[postgres-schema] startup schema sync failed; continuing with existing schema', {
+      message: err.message,
+      code: err.code || null,
+    });
+  }
   return db;
 }
 

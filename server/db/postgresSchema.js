@@ -130,7 +130,11 @@ async function getExistingColumns(db, table) {
 }
 
 async function applyTable(db, tableSpec) {
-  await db.run(buildCreateTableSql(tableSpec));
+  try {
+    await db.run(buildCreateTableSql(tableSpec));
+  } catch (err) {
+    console.warn(`[postgres-schema] skipped table ${tableSpec.table}: ${err.message}`);
+  }
 
   if (!(await tableExists(db, tableSpec.table))) return;
   const existing = await getExistingColumns(db, tableSpec.table);
@@ -171,10 +175,19 @@ async function applyPostgresSchema(db) {
 
   await applyIndexes(db, indexes);
 
-  await db.run("UPDATE patients SET client_type = 'individual' WHERE client_type IS NULL OR client_type = ''");
-  await db.run("UPDATE patients SET status = 'active' WHERE status IS NULL OR status = ''");
-  await db.run("UPDATE documents SET document_kind = 'record' WHERE document_kind IS NULL OR document_kind = ''");
-  await db.run("UPDATE therapists SET preferred_timezone = 'America/Los_Angeles' WHERE preferred_timezone IS NULL OR preferred_timezone = ''");
+  const backfills = [
+    "UPDATE patients SET client_type = 'individual' WHERE client_type IS NULL OR client_type = ''",
+    "UPDATE patients SET status = 'active' WHERE status IS NULL OR status = ''",
+    "UPDATE documents SET document_kind = 'record' WHERE document_kind IS NULL OR document_kind = ''",
+    "UPDATE therapists SET preferred_timezone = 'America/Los_Angeles' WHERE preferred_timezone IS NULL OR preferred_timezone = ''",
+  ];
+  for (const sql of backfills) {
+    try {
+      await db.run(sql);
+    } catch (err) {
+      console.warn(`[postgres-schema] skipped backfill: ${err.message}`);
+    }
+  }
 }
 
 module.exports = {
