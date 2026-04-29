@@ -522,7 +522,7 @@ export default function Dashboard() {
       {/* ── Recent Sessions ── */}
       <div>
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Recent Sessions</p>
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-widest">Latest Client Sessions</p>
           <Link to="/patients" className="text-xs font-semibold text-brand-600 hover:text-brand-700 transition-colors">
             View all →
           </Link>
@@ -550,7 +550,7 @@ export default function Dashboard() {
               ) : (
                 <>
                   <p className="text-sm text-gray-500 mb-4">
-                    No recent sessions found. {displayStats.totalSessions} session{displayStats.totalSessions === 1 ? '' : 's'} on record.
+                    No sessions in the last 14 days. {displayStats.totalSessions} session{displayStats.totalSessions === 1 ? '' : 's'} on record.
                   </p>
                   <Link to="/patients" className="btn-primary">View All Patients</Link>
                 </>

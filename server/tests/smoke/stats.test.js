@@ -7,6 +7,7 @@ test('dashboard stats endpoint', async (t) => {
   t.after(stopTestServer);
 
   const { cookie } = await bootstrapAdminAndLogin();
+  let statsPatientId;
 
   await t.test('GET /api/stats on fresh account returns 200 with zero counts', async () => {
     const r = await api('GET', '/api/stats', null, cookie);
@@ -28,6 +29,7 @@ test('dashboard stats endpoint', async (t) => {
       display_name: 'Stats Test',
     }, cookie);
     assert.equal(p.status, 201);
+    statsPatientId = p.body.id;
 
     await api('POST', `/api/patients/${p.body.id}/sessions`, {
       note_format: 'SOAP',
@@ -43,6 +45,36 @@ test('dashboard stats endpoint', async (t) => {
     assert.ok(r.body.sessionsThisWeek >= 1, 'sessionsThisWeek should count today as this week');
     assert.equal(r.body.recentSessions.length, 1);
     assert.equal(r.body.recentSessions[0].display_name, 'Stats Test');
+  });
+
+  await t.test('recent sessions are one latest session per client from the last 14 days', async () => {
+    const older = new Date();
+    older.setDate(older.getDate() - 20);
+
+    const second = await api('POST', '/api/patients', {
+      client_id: 'STATS-002',
+      display_name: 'Old Only',
+    }, cookie);
+    assert.equal(second.status, 201);
+
+    await api('POST', `/api/patients/${statsPatientId}/sessions`, {
+      note_format: 'DAP',
+      subjective: 'newer duplicate for same client',
+      assessment: 'latest client note',
+      session_date: new Date().toISOString().slice(0, 10),
+    }, cookie);
+    await api('POST', `/api/patients/${second.body.id}/sessions`, {
+      note_format: 'SOAP',
+      subjective: 'too old for dashboard',
+      assessment: 'old note',
+      session_date: older.toISOString().slice(0, 10),
+    }, cookie);
+
+    const r = await api('GET', '/api/stats', null, cookie);
+    assert.equal(r.status, 200);
+    assert.equal(r.body.recentSessions.length, 1);
+    assert.equal(r.body.recentSessions[0].display_name, 'Stats Test');
+    assert.equal(r.body.recentSessions.filter(s => s.patient_id === statsPatientId).length, 1);
   });
 
   await t.test('GET /api/sessions/unsigned returns count + sessions array', async () => {

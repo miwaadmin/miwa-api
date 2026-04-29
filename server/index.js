@@ -269,6 +269,9 @@ app.get('/api/stats', requireAuth, async (req, res) => {
     const sessionOrderExpr = isPostgres
       ? "COALESCE(NULLIF(s.session_date::text, '')::timestamp, s.created_at::timestamp)"
       : "COALESCE(s.session_date, s.created_at)";
+    const sessionDateExprForAlias = isPostgres
+      ? "COALESCE(NULLIF(s.session_date::text, '')::date, s.created_at::date)"
+      : "COALESCE(s.session_date, date(s.created_at))";
     const appointmentDateExpr = isPostgres
       ? "scheduled_start::timestamp::date"
       : "DATE(scheduled_start)";
@@ -318,17 +321,29 @@ app.get('/api/stats', requireAuth, async (req, res) => {
       tid
     )).count;
 
-    // Recent sessions — only the last 7 days. Past that gets bloated for
-    // therapists with multiple clients; the full archive lives on the
-    // patient detail page or via the Workspace history view.
-    const recentSessions = await db.all(`
+    // Recent sessions stay compact: last 14 local days, one latest session
+    // per client. The full archive lives on each patient chart.
+    const twoWeeksAgoUTC = new Date(todayUTC);
+    twoWeeksAgoUTC.setUTCDate(twoWeeksAgoUTC.getUTCDate() - 13);
+    const twoWeeksAgoStr = twoWeeksAgoUTC.toISOString().slice(0, 10);
+
+    const recentSessionRows = await db.all(`
       SELECT s.id, s.patient_id, s.session_date, s.assessment, s.created_at,
              p.client_id, p.display_name, s.note_format, s.signed_at
       FROM sessions s JOIN patients p ON s.patient_id = p.id
       WHERE s.therapist_id = ?
+        AND ${sessionDateExprForAlias} >= ?
       ORDER BY ${sessionOrderExpr} DESC
-      LIMIT 10
-    `, tid);
+      LIMIT 50
+    `, tid, twoWeeksAgoStr);
+    const seenRecentPatients = new Set();
+    const recentSessions = [];
+    for (const session of recentSessionRows) {
+      if (seenRecentPatients.has(session.patient_id)) continue;
+      seenRecentPatients.add(session.patient_id);
+      recentSessions.push(session);
+      if (recentSessions.length >= 6) break;
+    }
 
     res.json({
       totalPatients, totalSessions, sessionsThisWeek, sessionsThisMonth,
