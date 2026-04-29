@@ -868,11 +868,48 @@ router.post('/demo-patient', requireAuth, async (req, res) => {
         : clientType === 'child'  ? 'individual session'
         :                            'individual session';
 
+      // Build a "taken" set of (localDateStr, localHour) slots so this seed
+      // run never collides with a previously-seeded demo client. Without
+      // this, two demo seeds rolling the same random hour would stack two
+      // appointments on top of each other and trigger the new conflict
+      // guard. We query once up front, then add to the set as we insert
+      // so multiple inserts within this same call also stay disjoint.
+      const taken = new Set();
+      try {
+        const existing = await db.all(
+          `SELECT scheduled_start FROM appointments
+           WHERE therapist_id = ? AND status != 'cancelled' AND scheduled_start IS NOT NULL`,
+          therapistId,
+        );
+        for (const row of existing) {
+          // Convert UTC ISO back to the local (tz) date+hour key. Locale
+          // 'en-CA' gives YYYY-MM-DD which matches dateOffsetDays output.
+          const d = new Date(row.scheduled_start);
+          if (Number.isNaN(d.getTime())) continue;
+          const localDate = d.toLocaleDateString('en-CA', { timeZone: tz });
+          const localHour = parseInt(d.toLocaleTimeString('en-US', {
+            timeZone: tz, hour: '2-digit', hour12: false,
+          }), 10);
+          if (Number.isFinite(localHour)) taken.add(`${localDate}-${localHour}`);
+        }
+      } catch (_) { /* fall through with empty taken set */ }
+
+      // Pick a clinical hour that isn't already booked on this date. Returns
+      // null when every slot is full, in which case we skip the insert
+      // rather than create a guaranteed conflict.
+      const pickFreeHour = dateStr => {
+        const free = CLINICAL_HOURS.filter(h => !taken.has(`${dateStr}-${h}`));
+        if (free.length === 0) return null;
+        return pick(free);
+      };
+
       // Past appointments — same dates as the session notes, varied hours so
       // the schedule history doesn't look like every session was at 3 PM.
       for (let i = 0; i < numSessions; i++) {
         const dateStr = dateOffsetDays(today, -sessionDaysAgo[i]);
-        const hour    = pick(CLINICAL_HOURS);
+        const hour    = pickFreeHour(dateStr);
+        if (hour == null) continue;       // skip rather than double-book
+        taken.add(`${dateStr}-${hour}`);
         const startISO = localTimeToUtcIso(dateStr, hour, 0, tz);
         const endISO   = localTimeToUtcIso(dateStr, hour, 50, tz);
         await db.insert(
@@ -885,12 +922,13 @@ router.post('/demo-patient', requireAuth, async (req, res) => {
           'checked_in', startISO,
         );
       }
-      // Two future appointments — one 2 days out, one next week. Random hours
-      // from the clinical pool so a caseload of 10 demos doesn't pile every
-      // appointment onto the same hour.
+      // Two future appointments — one 2 days out, one next week. Hours are
+      // picked from clinical slots not already booked by another demo client.
       for (const offset of [2, 9]) {
         const dateStr  = dateOffsetDays(today, offset);
-        const hour     = pick(CLINICAL_HOURS);
+        const hour     = pickFreeHour(dateStr);
+        if (hour == null) continue;
+        taken.add(`${dateStr}-${hour}`);
         const startISO = localTimeToUtcIso(dateStr, hour, 0, tz);
         const endISO   = localTimeToUtcIso(dateStr, hour, 50, tz);
         await db.insert(
