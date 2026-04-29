@@ -650,7 +650,7 @@ async function fetchTherapists(db, whereSql = '', params = []) {
      ${whereSql}
      ORDER BY t.created_at DESC`,
     params,
-  )
+  );
   return rows.map(summarizeTherapist)
 }
 
@@ -674,13 +674,14 @@ router.get('/overview', async (req, res) => {
     `);
 
     const recentAccounts = (await fetchTherapists(db, 'WHERE 1=1')).slice(0, 8);
-    const recentEvents = await db.all(
+    const recentEventRows = await db.all(
       `SELECT e.*, t.email, t.full_name
        FROM event_logs e
        LEFT JOIN therapists t ON t.id = e.therapist_id
        ORDER BY e.created_at DESC
        LIMIT 12`
-    ).map(row => ({
+    );
+    const recentEvents = recentEventRows.map(row => ({
       ...row,
       meta: row.meta_json ? JSON.parse(row.meta_json) : null,
     }));
@@ -834,13 +835,14 @@ router.get('/support', async (req, res) => {
        ORDER BY n.created_at DESC
        LIMIT 50`
     );
-    const events = await db.all(
+    const eventRows = await db.all(
       `SELECT e.*, t.email, t.full_name
        FROM event_logs e
        LEFT JOIN therapists t ON t.id = e.therapist_id
        ORDER BY e.created_at DESC
        LIMIT 50`
-    ).map(row => ({ ...row, meta: row.meta_json ? JSON.parse(row.meta_json) : null }));
+    );
+    const events = eventRows.map(row => ({ ...row, meta: row.meta_json ? JSON.parse(row.meta_json) : null }));
 
     const flagged = await fetchTherapists(db, 'WHERE t.account_status = ? OR t.subscription_status IN (?, ?)', ['suspended', 'past_due', 'expired']);
 
@@ -1002,7 +1004,8 @@ router.delete('/therapists/:id', async (req, res) => {
 
     // Full cascade delete — remove ALL associated data
     // Get all patient IDs for this therapist first
-    const patientIds = await db.all('SELECT id FROM patients WHERE therapist_id = ?', therapistId).map(p => p.id);
+    const patientRows = await db.all('SELECT id FROM patients WHERE therapist_id = ?', therapistId);
+    const patientIds = patientRows.map(p => p.id);
 
     // Delete patient-level data for each patient
     for (const pid of patientIds) {
