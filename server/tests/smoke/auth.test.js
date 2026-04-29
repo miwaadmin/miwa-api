@@ -95,6 +95,28 @@ test('auth flow', async (t) => {
     }
   });
 
+  await t.test('create-admin upserts configured official admin account', async () => {
+    const create = await api('POST', '/api/auth/_diag/create-admin', {
+      email: 'admin@miwa.test',
+      password: 'official-admin-password-1234',
+      first_name: 'Official',
+      last_name: 'Admin',
+      diag_secret: process.env.JWT_SECRET,
+    });
+    assert.equal(create.status, 200);
+    assert.equal(create.body.ok, true);
+    assert.equal(create.body.created, false);
+    assert.equal(create.body.official_admin, true);
+    assert.equal(create.body.is_admin, true);
+
+    const login = await api('POST', '/api/auth/admin-login', {
+      email: 'admin@miwa.test',
+      password: 'official-admin-password-1234',
+    });
+    assert.equal(login.status, 200);
+    assert.equal(login.body.therapist.is_admin, true);
+  });
+
   await t.test('admin recovery accepts temporary ADMIN_RECOVERY_SECRET', async () => {
     const original = process.env.ADMIN_RECOVERY_SECRET;
     process.env.ADMIN_RECOVERY_SECRET = 'temporary-admin-recovery-secret-1234';

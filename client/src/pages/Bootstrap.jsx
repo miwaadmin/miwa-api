@@ -74,7 +74,7 @@ export default function Bootstrap() {
           throw new Error('Recovery secret does not match the running server. Paste JWT_SECRET or set a temporary ADMIN_RECOVERY_SECRET in Azure.')
         }
         if (res.status === 409 && mode === 'create') {
-          throw new Error('That admin account already exists. Select Reset password instead.')
+          throw new Error('That non-official account already exists. Use Reset password, or use the configured ADMIN_EMAIL for the official admin account.')
         }
         throw new Error(data.error || (mode === 'create' ? 'Account creation failed' : 'Password reset failed'))
       }
@@ -138,7 +138,7 @@ export default function Bootstrap() {
 
         <div className="rounded-2xl p-7 bg-white shadow-xl border border-gray-100">
           <div className="rounded-xl px-4 py-3 text-sm bg-amber-50 border border-amber-200 text-amber-900 mb-5 leading-relaxed">
-            Reset an existing admin password first. Use Create admin only if the admin account does not exist yet. Paste the production <code className="font-mono text-xs bg-white px-1 py-0.5 rounded border border-amber-200">JWT_SECRET</code>, or a temporary <code className="font-mono text-xs bg-white px-1 py-0.5 rounded border border-amber-200">ADMIN_RECOVERY_SECRET</code>.
+            Reset an existing admin password, or use Create admin to create/promote the configured official admin email. Paste the production <code className="font-mono text-xs bg-white px-1 py-0.5 rounded border border-amber-200">JWT_SECRET</code>, or a temporary <code className="font-mono text-xs bg-white px-1 py-0.5 rounded border border-amber-200">ADMIN_RECOVERY_SECRET</code>.
           </div>
 
           <div className="grid grid-cols-2 gap-2 mb-5">

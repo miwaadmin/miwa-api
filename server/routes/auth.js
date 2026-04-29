@@ -1048,11 +1048,52 @@ router.post('/_diag/create-admin', async (req, res) => {
     }
     const db = getAsyncDb();
     const normalizedEmail = String(email).toLowerCase().trim();
-    const existing = await db.get('SELECT id FROM therapists WHERE email = ?', normalizedEmail);
-    if (existing) return res.status(409).json({ error: 'Account with that email already exists', id: existing.id });
-
     const passwordHash = await bcrypt.hash(String(password), 12);
     const fullName = [first_name, last_name].filter(Boolean).join(' ').trim() || null;
+    const existing = await db.get('SELECT id, email FROM therapists WHERE email = ?', normalizedEmail);
+    if (existing) {
+      if (!isConfiguredAdminEmail(normalizedEmail)) {
+        return res.status(409).json({ error: 'Account with that email already exists', id: existing.id });
+      }
+
+      await db.run(
+        `UPDATE therapists SET password_hash = ?,
+                                full_name = COALESCE(?, full_name),
+                                first_name = COALESCE(?, first_name),
+                                last_name = COALESCE(?, last_name),
+                                user_role = COALESCE(NULLIF(user_role, ''), 'licensed'),
+                                credential_type = COALESCE(NULLIF(credential_type, ''), 'licensed'),
+                                credential_verified = 1,
+                                email_verified = 1,
+                                email_verified_at = COALESCE(email_verified_at, CURRENT_TIMESTAMP),
+                                is_admin = 1,
+                                account_status = 'active',
+                                preferred_timezone = COALESCE(NULLIF(preferred_timezone, ''), 'America/Los_Angeles')
+                            WHERE id = ?`,
+        passwordHash,
+        fullName,
+        first_name?.trim() || null,
+        last_name?.trim() || null,
+        existing.id
+      );
+      await logEvent(db, {
+        therapistId: existing.id,
+        eventType: 'auth.official_admin_upsert',
+        status: 'success',
+        message: 'Configured admin account was reset and promoted',
+        meta: { email: normalizedEmail },
+      });
+      await persistIfNeeded();
+      return res.json({
+        ok: true,
+        id: existing.id,
+        email: normalizedEmail,
+        is_admin: true,
+        email_verified: true,
+        created: false,
+        official_admin: true,
+      });
+    }
 
     // Generate a referral code
     let myCode = null;
@@ -1074,7 +1115,15 @@ router.post('/_diag/create-admin', async (req, res) => {
       myCode
     );
     await persistIfNeeded();
-    return res.json({ ok: true, id: result.lastInsertRowid, email: normalizedEmail, is_admin: true, email_verified: true });
+    return res.json({
+      ok: true,
+      id: result.lastInsertRowid,
+      email: normalizedEmail,
+      is_admin: true,
+      email_verified: true,
+      created: true,
+      official_admin: isConfiguredAdminEmail(normalizedEmail),
+    });
   } catch (err) {
     return res.status(500).json({ error: 'Internal server error' });
   }
