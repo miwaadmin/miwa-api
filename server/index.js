@@ -153,6 +153,7 @@ app.use('/api/research',                      apiLimiter, require('./routes/rese
 app.use('/api/feedback',                      apiLimiter, requireAuth, require('./routes/feedback'));
 app.use('/api/activity',                      apiLimiter, require('./routes/activity'));
 app.use('/api/onboarding',                    apiLimiter, require('./routes/onboarding'));
+app.use('/api/hours',                         apiLimiter, requireAuth, require('./routes/hours'));
 // /api/automations removed — replaced by Proactive Outreach (/api/ai/outreach-rules)
 // /api/practice removed — group practice is a separate product
 

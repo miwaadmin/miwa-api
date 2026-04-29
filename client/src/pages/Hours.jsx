@@ -1,0 +1,522 @@
+/**
+ * Hours — practice hour tracking for trainees and associates.
+ *
+ * v1 mirrors the CSUN MFT practicum bucket structure (matches the layout
+ * shown in csun.tevera.app's Track view). Direct service hours auto-tally
+ * from completed appointments; supervision/training/advocacy hours are
+ * logged manually.
+ *
+ * UNOFFICIAL — not BBS-approved, not a substitute for the supervisor's
+ * signature on the official 32A. The disclaimer banner makes that clear.
+ */
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { useAuth } from '../context/AuthContext'
+import { apiFetch } from '../lib/api'
+
+// Today as YYYY-MM-DD in the user's local time (matches how the server
+// stores dates — see practice_hours.date column).
+const todayLocalISO = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
+
+const fmtDate = iso => {
+  try {
+    const [y,m,d] = String(iso).split('-').map(Number)
+    return new Date(y, m-1, d).toLocaleDateString('en-US', {
+      weekday: 'short', month: 'short', day: 'numeric',
+    })
+  } catch { return iso }
+}
+
+export default function Hours() {
+  const { therapist } = useAuth()
+  const navigate = useNavigate()
+  const [tab, setTab] = useState('progress')          // 'progress' | 'log'
+  const [state, setState] = useState(null)            // bucket totals from server
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [entries, setEntries] = useState([])         // recent manual entries
+  const [showEntryModal, setShowEntryModal] = useState(false)
+  const [editingEntry, setEditingEntry] = useState(null)
+
+  // Plan gate. If the user isn't a trainee/associate, redirect — server also
+  // enforces this but we want graceful UX, not a 403.
+  const cred = therapist?.credential_type || 'licensed'
+  const eligible = cred === 'trainee' || cred === 'associate'
+
+  const loadAll = useCallback(async () => {
+    setLoading(true); setError('')
+    try {
+      const [hoursRes, entriesRes] = await Promise.all([
+        apiFetch('/hours').then(r => r.json()),
+        apiFetch('/hours/entries').then(r => r.json()),
+      ])
+      setState(hoursRes)
+      setEntries(Array.isArray(entriesRes?.entries) ? entriesRes.entries : [])
+    } catch (e) {
+      setError(e.message || 'Failed to load hours')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { if (eligible) loadAll() }, [loadAll, eligible])
+
+  // Render an "ineligible" landing instead of an empty page when a licensed
+  // clinician somehow lands here — same as the server's 403, but friendlier.
+  if (!eligible) {
+    return (
+      <div className="p-8 max-w-2xl mx-auto">
+        <div className="rounded-2xl bg-white border border-gray-200 p-8 text-center">
+          <h1 className="text-xl font-bold text-gray-900 mb-2">Hours tracking</h1>
+          <p className="text-sm text-gray-600">
+            Hour tracking is built for trainees and associates working toward
+            licensure. Already licensed? You don't need to log hours anymore.
+          </p>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="mt-6 px-4 py-2 rounded-xl bg-brand-600 text-white text-sm font-semibold"
+          >
+            Back to dashboard
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  const buckets = state?.buckets || []
+  const rollups = buckets.filter(b => b.kind === 'rollup' && b.parent === 'total')
+  const total   = buckets.find(b => b.id === 'total')
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto space-y-5">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">Hours</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {state?.programLabel || 'CSUN MFT (Practicum)'} · auto-tallied from your completed appointments.
+          </p>
+        </div>
+        <button
+          onClick={() => { setEditingEntry(null); setShowEntryModal(true) }}
+          className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors flex items-center gap-2"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          Log hours
+        </button>
+      </div>
+
+      {/* Unofficial disclaimer */}
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
+        <svg className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <p className="text-xs text-amber-800 leading-relaxed">
+          <span className="font-semibold">Unofficial — for your reference only.</span>
+          {' '}Use these totals to fill out your CSUN/BBS form. Your supervisor's
+          signature on the official 32A is still required.
+        </p>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-gray-200">
+        {[
+          { id: 'progress', label: 'Progress' },
+          { id: 'log',      label: `Log${entries.length ? ` (${entries.length})` : ''}` },
+        ].map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+              tab === t.id
+                ? 'border-brand-600 text-brand-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      {loading ? (
+        <div className="card p-12 flex justify-center text-sm text-gray-400">Loading hours…</div>
+      ) : error ? (
+        <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">{error}</div>
+      ) : tab === 'progress' ? (
+        <ProgressView buckets={buckets} total={total} rollups={rollups} sessions={state?.totalSessions || 0} />
+      ) : (
+        <LogView
+          entries={entries}
+          onEdit={entry => { setEditingEntry(entry); setShowEntryModal(true) }}
+          onDelete={async id => {
+            if (!window.confirm('Delete this entry? This can\'t be undone.')) return
+            const res = await apiFetch(`/hours/entries/${id}`, { method: 'DELETE' })
+            if (res.ok) loadAll()
+            else alert('Failed to delete entry')
+          }}
+        />
+      )}
+
+      {/* Manual entry modal */}
+      {showEntryModal && (
+        <EntryModal
+          entry={editingEntry}
+          onClose={() => { setShowEntryModal(false); setEditingEntry(null) }}
+          onSaved={() => { setShowEntryModal(false); setEditingEntry(null); loadAll() }}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Progress view — top-level rollups with progress bars + leaf-bucket detail.
+// ─────────────────────────────────────────────────────────────────────────────
+function ProgressView({ buckets, total, rollups, sessions }) {
+  return (
+    <div className="space-y-5">
+      {/* Big total card */}
+      {total && (
+        <div className="card p-6">
+          <div className="flex items-baseline justify-between mb-2">
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">{total.label}</h2>
+            <span className="text-xs text-gray-400">From {sessions} completed session{sessions === 1 ? '' : 's'} + manual entries</span>
+          </div>
+          <div className="flex items-baseline gap-3 mb-3">
+            <span className="text-4xl font-extrabold text-gray-900">{total.hours.toLocaleString()}</span>
+            {total.minHours && (
+              <span className="text-sm text-gray-500">/ {total.minHours} hrs · {total.percentOfMin}%</span>
+            )}
+          </div>
+          {total.minHours && <ProgressBar pct={total.percentOfMin} accent="#5746ed" tall />}
+        </div>
+      )}
+
+      {/* Each top-level rollup */}
+      {rollups.map(rollup => {
+        const children = buckets.filter(b => b.parent === rollup.id)
+        return (
+          <div key={rollup.id} className="card p-5">
+            <div className="flex items-start justify-between gap-3 mb-3">
+              <div>
+                <h3 className="text-sm font-bold text-gray-900">{rollup.label}</h3>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  {rollup.minHours
+                    ? `Minimum ${rollup.minHours} hrs`
+                    : rollup.maxHours
+                      ? `Cap of ${rollup.maxHours} hrs`
+                      : 'No minimum'}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-2xl font-extrabold text-gray-900">{rollup.hours}</p>
+                {rollup.minHours && <p className="text-[11px] font-semibold" style={{ color: rollup.percentOfMin >= 100 ? '#059669' : '#6366f1' }}>{rollup.percentOfMin}% there</p>}
+              </div>
+            </div>
+            {rollup.minHours && <ProgressBar pct={rollup.percentOfMin} accent={rollup.percentOfMin >= 100 ? '#059669' : '#6366f1'} />}
+            {rollup.maxHours && (
+              <div className="mt-2">
+                <ProgressBar
+                  pct={Math.min(100, Math.round((rollup.hours / rollup.maxHours) * 100))}
+                  accent={rollup.hours >= rollup.maxHours ? '#dc2626' : '#f59e0b'}
+                />
+              </div>
+            )}
+            {/* Children */}
+            <div className="mt-3 pt-3 border-t border-gray-100 space-y-1.5">
+              {children.map(c => (
+                <div key={c.id} className="flex items-center justify-between text-xs">
+                  <span className="text-gray-700 leading-tight">{c.label}</span>
+                  <span className="text-gray-500 tabular-nums flex items-center gap-2 flex-shrink-0">
+                    {c.fromAppointments > 0 && (
+                      <span className="text-[10px] uppercase tracking-wide text-emerald-600 font-semibold" title="Auto from appointments">auto</span>
+                    )}
+                    {c.fromManual > 0 && (
+                      <span className="text-[10px] uppercase tracking-wide text-violet-600 font-semibold" title="From manual entries">log</span>
+                    )}
+                    <span className="font-semibold text-gray-900 w-12 text-right">{c.hours}</span>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Log view — recent manual entries with edit/delete affordances.
+// ─────────────────────────────────────────────────────────────────────────────
+function LogView({ entries, onEdit, onDelete }) {
+  if (entries.length === 0) {
+    return (
+      <div className="card p-10 text-center">
+        <p className="text-sm font-semibold text-gray-700 mb-1">No manual entries yet</p>
+        <p className="text-xs text-gray-500">
+          Use <span className="font-semibold">Log hours</span> to add supervision, workshops, advocacy calls, and other non-appointment time.
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="card overflow-hidden">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 border-b border-gray-200">
+          <tr>
+            <th className="px-4 py-2 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide">Date</th>
+            <th className="px-4 py-2 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide">Category</th>
+            <th className="px-4 py-2 text-right text-[11px] font-bold text-gray-500 uppercase tracking-wide">Hours</th>
+            <th className="px-4 py-2 text-left text-[11px] font-bold text-gray-500 uppercase tracking-wide">Supervisor</th>
+            <th className="px-4 py-2"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {entries.map(e => (
+            <tr key={e.id} className="border-b border-gray-100 hover:bg-gray-50">
+              <td className="px-4 py-3 text-gray-700 text-xs">{fmtDate(e.date)}</td>
+              <td className="px-4 py-3 text-gray-900 text-xs font-medium">{prettyBucket(e.bucket_id)}</td>
+              <td className="px-4 py-3 text-right tabular-nums font-semibold">{e.hours}</td>
+              <td className="px-4 py-3 text-gray-600 text-xs">{e.supervisor || '—'}</td>
+              <td className="px-4 py-3 text-right">
+                <button onClick={() => onEdit(e)} className="text-xs text-brand-600 hover:underline mr-3">Edit</button>
+                <button onClick={() => onDelete(e.id)} className="text-xs text-red-600 hover:underline">Delete</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Entry modal — add/edit a manual hour entry.
+// ─────────────────────────────────────────────────────────────────────────────
+function EntryModal({ entry, onClose, onSaved }) {
+  const isEdit = !!entry?.id
+  const [bucketOptions, setBucketOptions] = useState([])
+  const [form, setForm] = useState({
+    bucket_id:  entry?.bucket_id  || '',
+    date:       entry?.date       || todayLocalISO(),
+    hours:      entry?.hours != null ? String(entry.hours) : '',
+    supervisor: entry?.supervisor || '',
+    site:       entry?.site       || '',
+    notes:      entry?.notes      || '',
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError]   = useState('')
+
+  useEffect(() => {
+    apiFetch('/hours/buckets').then(r => r.json()).then(d => {
+      const opts = Array.isArray(d?.buckets) ? d.buckets : []
+      setBucketOptions(opts)
+      if (!form.bucket_id && opts.length > 0) setForm(f => ({ ...f, bucket_id: opts[0].id }))
+    }).catch(() => {})
+    // eslint-disable-next-line
+  }, [])
+
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const save = async () => {
+    setError('')
+    if (!form.bucket_id)              { setError('Pick a category.'); return }
+    if (!form.date)                   { setError('Pick a date.'); return }
+    const hrs = parseFloat(form.hours)
+    if (!Number.isFinite(hrs) || hrs <= 0) { setError('Enter a valid hours amount.'); return }
+    setSaving(true)
+    try {
+      const url = isEdit ? `/hours/entries/${entry.id}` : '/hours/entries'
+      const res = await apiFetch(url, {
+        method: isEdit ? 'PUT' : 'POST',
+        body: JSON.stringify({
+          bucket_id:  form.bucket_id,
+          date:       form.date,
+          hours:      hrs,
+          supervisor: form.supervisor || null,
+          site:       form.site       || null,
+          notes:      form.notes      || null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data?.error || 'Save failed')
+      onSaved()
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  // Group bucket options by parent for a clearer dropdown.
+  const grouped = useMemo(() => {
+    const out = {}
+    for (const b of bucketOptions) {
+      const key = b.parent || 'other'
+      if (!out[key]) out[key] = []
+      out[key].push(b)
+    }
+    return out
+  }, [bucketOptions])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(6px)' }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+          <h2 className="text-base font-bold text-gray-900">{isEdit ? 'Edit hour entry' : 'Log hours'}</h2>
+          <button onClick={onClose} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          {error && <div className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">{error}</div>}
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Category</label>
+            <select
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm bg-white"
+              value={form.bucket_id}
+              onChange={e => set('bucket_id', e.target.value)}
+            >
+              {Object.entries(grouped).map(([parent, opts]) => (
+                <optgroup key={parent} label={parentLabel(parent)}>
+                  {opts.map(o => <option key={o.id} value={o.id}>{o.label}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Date</label>
+              <input
+                type="date"
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+                value={form.date}
+                onChange={e => set('date', e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Hours</label>
+              <input
+                type="number"
+                step="0.25"
+                min="0.25"
+                max="24"
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+                placeholder="1.5"
+                value={form.hours}
+                onChange={e => set('hours', e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Supervisor (optional)</label>
+            <input
+              type="text"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+              placeholder="e.g. Pamela Georgette"
+              value={form.supervisor}
+              onChange={e => set('supervisor', e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Site (optional)</label>
+            <input
+              type="text"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm"
+              placeholder="e.g. CSUN Strength United"
+              value={form.site}
+              onChange={e => set('site', e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Notes (optional)</label>
+            <textarea
+              rows={2}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm resize-none"
+              placeholder="Anything to remember"
+              value={form.notes}
+              onChange={e => set('notes', e.target.value)}
+            />
+          </div>
+        </div>
+
+        <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
+          <button onClick={onClose} className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-200 transition-colors">
+            Cancel
+          </button>
+          <button
+            onClick={save}
+            disabled={saving}
+            className="px-5 py-2 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 disabled:opacity-60 transition-colors"
+          >
+            {saving ? 'Saving…' : (isEdit ? 'Save changes' : 'Log entry')}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function ProgressBar({ pct, accent, tall }) {
+  return (
+    <div className={`w-full ${tall ? 'h-3' : 'h-2'} bg-gray-100 rounded-full overflow-hidden`}>
+      <div
+        className="h-full rounded-full transition-all"
+        style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: accent }}
+      />
+    </div>
+  )
+}
+
+const PARENT_LABELS = {
+  direct_service:        'Direct Service',
+  relational:            'Relational',
+  advocacy_interactive:  'Interactive Advocacy',
+  supervision:           'Supervision',
+  live_supervision:      'Live Supervision',
+  other:                 'Other Hours',
+  total:                 'Other',
+}
+function parentLabel(parent) { return PARENT_LABELS[parent] || 'Other' }
+
+// Quick label lookup for the log table — keeps each row readable without
+// fetching the full bucket structure twice.
+const BUCKET_LABELS = {
+  individual_adult:                 'Individual Adult Client',
+  individual_child:                 'Individual Child Client',
+  process_group_individuals:        'Process Group · Individuals',
+  couples_therapy:                  'Couples Therapy',
+  family_therapy:                   'Family Therapy',
+  process_group_couples_families:   'Process Group · Couples/Families',
+  advocacy_live_telephonic:         'Advocacy (live/telephonic)',
+  sup_case_report:                  'Case Report Supervision',
+  sup_field_individual:             'Field Site · Individual Supervision',
+  sup_field_group:                  'Field Site · Group Supervision',
+  sup_csun_class_group:             'CSUN Fieldwork Class · Group',
+  live_sup_field_individual:        'Live · Field Site Individual',
+  live_sup_field_group:             'Live · Field Site Group',
+  live_sup_csun_class_group:        'Live · CSUN Fieldwork Class',
+  other_progress_notes:             'Progress Notes / Reports',
+  other_trainings:                  'Trainings & Workshops',
+  other_advocacy_research:          'Advocacy (research)',
+}
+function prettyBucket(id) { return BUCKET_LABELS[id] || id }

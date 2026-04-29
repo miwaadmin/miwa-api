@@ -28,6 +28,7 @@ import AdminSupport from './pages/admin/AdminSupport'
 import AdminBilling from './pages/admin/AdminBilling'
 import Outcomes from './pages/Outcomes'
 import Schedule from './pages/Schedule'
+import Hours from './pages/Hours'
 import Pricing from './pages/Pricing'
 import About from './pages/About'
 import Templates from './pages/Templates'
@@ -222,6 +223,7 @@ export default function App() {
                 <Route path="/outcomes" element={<Outcomes />} />
                 <Route path="/calendar" element={<Navigate to="/schedule" replace />} />
                 <Route path="/schedule" element={<Schedule />} />
+                <Route path="/hours" element={<Hours />} />
                 <Route path="/unsigned" element={<UnsignedSessions />} />
                 <Route path="/tasks/:id" element={<TaskDetail />} />
                 {/* Practice routes removed — separate product */}

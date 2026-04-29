@@ -187,8 +187,31 @@ export default function Sidebar() {
     return () => window.removeEventListener('miwa:alert_dismissed', handler)
   }, [])
 
-  // Practice nav removed — group practice is a separate product
-  const visibleNavItems = navItems
+  // Practice nav removed — group practice is a separate product.
+  // Hours nav is gated to trainees/associates (licensed clinicians don't
+  // log practicum hours, so it'd just be clutter for them). Inserted right
+  // after Schedule so it sits next to the data it draws from.
+  const cred = therapist?.credential_type || 'licensed'
+  const showHours = cred === 'trainee' || cred === 'associate'
+  const HOURS_ITEM = {
+    to: '/hours',
+    label: 'Hours',
+    activeColor: 'text-fuchsia-300',
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  }
+  const visibleNavItems = showHours
+    ? (() => {
+        const idx = navItems.findIndex(i => i.to === '/schedule')
+        if (idx < 0) return [...navItems, HOURS_ITEM]
+        const out = [...navItems]
+        out.splice(idx + 1, 0, HOURS_ITEM)
+        return out
+      })()
+    : navItems
 
   return (
     <aside
