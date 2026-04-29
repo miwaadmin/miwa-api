@@ -3384,12 +3384,59 @@ router.post('/confirm', async (req, res) => {
 router.post('/appointments', async (req, res) => {
   try {
     const db = getAsyncDb();
-    const { patientId, clientCode, appointmentType, scheduledStart, scheduledEnd, durationMinutes, location, notes, syncToGoogle, status, force } = req.body || {};
-    const patient = patientId
+    const { patientId, clientCode, appointmentType, scheduledStart, scheduledEnd, durationMinutes, location, notes, syncToGoogle, status, force, newPatient } = req.body || {};
+
+    // Resolve the patient: existing by id/code, OR create a new one inline
+    // when the modal sends a newPatient payload (lets the user book an
+    // appointment for someone who isn't in their roster yet).
+    let patient = patientId
       ? await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', patientId, req.therapist.id)
       : clientCode
         ? await findPatientByCode(db, req.therapist.id, clientCode)
         : null;
+
+    if (!patient && newPatient && typeof newPatient === 'object') {
+      const np = newPatient;
+      const firstName = String(np.first_name || '').trim();
+      const lastName  = String(np.last_name  || '').trim();
+      if (!firstName && !lastName && !np.display_name) {
+        return res.status(400).json({ error: 'New client needs at least a first or last name.' });
+      }
+      const phoneVal = np.phone ? String(np.phone).trim() : null;
+      const emailVal = np.email ? String(np.email).trim() : null;
+      // Light email format check — optional field, but block obvious typos.
+      if (emailVal && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailVal)) {
+        return res.status(400).json({ error: 'That email doesn\'t look right.' });
+      }
+      const newClientId = await generateClientId(db, req.therapist.id);
+      const displayName = String(np.display_name || `${firstName} ${lastName}`).trim() || newClientId;
+      const sessionModality = ['in-person', 'telehealth', 'hybrid'].includes(np.session_modality)
+        ? np.session_modality
+        : 'in-person';
+
+      const insertedPatient = await db.insert(
+        `INSERT INTO patients (
+          client_id, first_name, last_name, display_name,
+          phone, email, sms_consent, sms_consent_at,
+          session_modality, session_duration, client_type, status,
+          therapist_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        newClientId,
+        firstName || null,
+        lastName  || null,
+        displayName,
+        phoneVal,
+        emailVal,
+        0,           // sms_consent — therapist must attest separately on the patient profile
+        null,
+        sessionModality,
+        np.session_duration || 50,
+        'individual',
+        'active',
+        req.therapist.id,
+      );
+      patient = await db.get('SELECT * FROM patients WHERE id = ?', insertedPatient.lastInsertRowid);
+    }
 
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
     if (!scheduledStart && !scheduledEnd) return res.status(400).json({ error: 'scheduledStart or scheduledEnd is required' });

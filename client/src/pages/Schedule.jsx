@@ -343,6 +343,12 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
       time: defaultTime || '09:00',
       duration_minutes:'50', location:'', notes:'',
       practicum_bucket_override: '',
+      // New-client fields, only populated when patient_id === '__new__'.
+      // The server creates the patient on the fly when these come in.
+      new_first_name: '',
+      new_last_name:  '',
+      new_phone:      '',
+      new_email:      '',
     }
   })
   const [saving, setSaving] = useState(false)
@@ -388,15 +394,37 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
     const forceFlag = force === true
     if (!form.patient_id)           { setError('Please select a client.'); return }
     if (!form.date || !form.time)   { setError('Date and time required.'); return }
+
+    const isNewClient = form.patient_id === '__new__'
+    if (isNewClient) {
+      const fn = (form.new_first_name || '').trim()
+      const ln = (form.new_last_name  || '').trim()
+      if (!fn && !ln) { setError('Add at least a first or last name for the new client.'); return }
+      const em = (form.new_email || '').trim()
+      if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
+        setError('That email doesn\'t look right. Double-check and try again.'); return
+      }
+    }
+
     setSaving(true); setError('')
     try {
       const scheduledStart = new Date(`${form.date}T${form.time}:00`).toISOString()
       let res
       if (isNew) {
+        // For an existing client we send patientId; for a new one we send
+        // newPatient and let the server create the patient inline before
+        // booking the appointment.
+        const newPatientPayload = isNewClient ? {
+          first_name: (form.new_first_name || '').trim() || null,
+          last_name:  (form.new_last_name  || '').trim() || null,
+          phone:      (form.new_phone      || '').trim() || null,
+          email:      (form.new_email      || '').trim() || null,
+        } : undefined
         res = await apiFetch('/agent/appointments', {
           method: 'POST',
           body: JSON.stringify({
-            patientId:       parseInt(form.patient_id),
+            patientId:       isNewClient ? undefined : parseInt(form.patient_id),
+            newPatient:      newPatientPayload,
             appointmentType: form.appointment_type,
             scheduledStart,
             durationMinutes: parseInt(form.duration_minutes) || 50,
@@ -516,14 +544,69 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
         {/* Form */}
         <div className="px-6 pb-2 space-y-4 max-h-[60vh] overflow-y-auto">
 
-          {/* Client */}
+          {/* Client — supports inline "create new client" via the special
+              __new__ value. When chosen, we render a small block of name +
+              contact fields below, and the server creates the patient row
+              before booking the appointment. */}
           <div>
             <label className="label">Client <span style={{ color:'#ef4444' }}>*</span></label>
-            <select className="input" value={form.patient_id} onChange={e => set('patient_id', e.target.value)}>
+            <select
+              className="input"
+              value={form.patient_id}
+              onChange={e => set('patient_id', e.target.value)}
+              disabled={!isNew}
+              title={!isNew ? 'Reassigning a saved appointment to a different client isn\'t supported here — delete and recreate.' : ''}
+            >
               <option value="">Select a client…</option>
+              {isNew && <option value="__new__">＋ Add new client…</option>}
               {patients.map(pt => <option key={pt.id} value={pt.id}>{pt.display_name || pt.client_id}{pt.display_name ? ` (${pt.client_id})` : ''}</option>)}
             </select>
           </div>
+
+          {/* Inline new-client fields. Only shown when the user picked
+              "+ Add new client…" — and only on a fresh appointment. */}
+          {isNew && form.patient_id === '__new__' && (
+            <div className="rounded-xl border p-3 space-y-2.5"
+              style={{ borderColor: T.borderIndigo, background: isDark ? 'rgba(109,87,255,0.08)' : '#f5f3ff' }}>
+              <p className="text-[11px] font-bold uppercase tracking-wider" style={{ color: '#6d28d9' }}>
+                New client details
+              </p>
+              <p className="text-[11px]" style={{ color: T.textSub }}>
+                We'll create the profile when you save. You can fill in the rest later from Patients.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <input
+                  type="text"
+                  autoFocus
+                  className="input !py-2"
+                  placeholder="First name *"
+                  value={form.new_first_name}
+                  onChange={e => set('new_first_name', e.target.value)}
+                />
+                <input
+                  type="text"
+                  className="input !py-2"
+                  placeholder="Last name"
+                  value={form.new_last_name}
+                  onChange={e => set('new_last_name', e.target.value)}
+                />
+              </div>
+              <input
+                type="tel"
+                className="input !py-2"
+                placeholder="Phone (optional)"
+                value={form.new_phone}
+                onChange={e => set('new_phone', e.target.value)}
+              />
+              <input
+                type="email"
+                className="input !py-2"
+                placeholder="Email (optional)"
+                value={form.new_email}
+                onChange={e => set('new_email', e.target.value)}
+              />
+            </div>
+          )}
 
           {/* Session type */}
           <div>
@@ -1200,6 +1283,15 @@ export default function Schedule() {
       return [...prev, savedAppt]
     })
     setModal(null)
+    // If the appointment was for a brand-new client, that patient row didn't
+    // exist when we last fetched /patients — refresh so the dropdown picks
+    // them up next time the modal opens.
+    const knownPatient = patients.some(p => p.id === savedAppt?.patient_id)
+    if (!knownPatient) {
+      apiFetch('/patients').then(r => r.json()).then(pts => {
+        if (Array.isArray(pts)) setPatients(pts)
+      }).catch(() => {})
+    }
   }
   const handleDelete = id => {
     setAppointments(prev => prev.filter(a => a.id !== id))
