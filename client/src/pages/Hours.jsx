@@ -13,6 +13,11 @@ import { useState, useEffect, useCallback, useMemo, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { apiFetch } from '../lib/api'
+import {
+  getManualBuckets,
+  getProgramLabel,
+  mergeBucketTotals,
+} from '../lib/hourBuckets'
 
 // Today as YYYY-MM-DD in the user's local time (matches how the server
 // stores dates — see practice_hours.date column).
@@ -61,7 +66,14 @@ export default function Hours() {
     setLoading(true); setError('')
     try {
       const [hoursRes, entriesRes] = await Promise.all([
-        apiFetch(`/hours?program=${encodeURIComponent(program)}`).then(r => r.json()),
+        apiFetch(`/hours?program=${encodeURIComponent(program)}`)
+          .then(async r => {
+            const data = await r.json().catch(() => ({}))
+            // Surface server-side errors visibly instead of silently
+            // collapsing into an empty state.
+            if (!r.ok) throw new Error(data?.error || `Hours API returned HTTP ${r.status}`)
+            return data
+          }),
         apiFetch('/hours/entries').then(r => r.json()),
       ])
       setState(hoursRes)
@@ -125,7 +137,14 @@ export default function Hours() {
     )
   }
 
-  const buckets = state?.buckets || []
+  // Merge whatever the API returned onto the client bucket skeleton so the
+  // page always renders the full structure, even when the API errors out
+  // or returns an empty buckets array (e.g. before the schema migration
+  // has run, or for accounts where credential_type isn't set).
+  const buckets = useMemo(
+    () => mergeBucketTotals(program, state?.buckets || []),
+    [program, state?.buckets],
+  )
   const rollups = buckets.filter(b => b.kind === 'rollup' && b.parent === 'total')
   const total   = buckets.find(b => b.id === 'total')
 
@@ -235,11 +254,25 @@ export default function Hours() {
         ))}
       </div>
 
+      {/* Server error chip — surfaced inline so the page still renders the
+          bucket skeleton underneath. Useful for diagnosing a 500 from the
+          /api/hours endpoint without making the page go blank. */}
+      {error && (
+        <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-2.5 text-xs text-red-700 flex items-start gap-2">
+          <svg className="w-4 h-4 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <div>
+            <span className="font-semibold">Couldn't load latest hour totals.</span>{' '}
+            Showing the program structure with zero values until we can reach the server.
+            <span className="block text-[11px] text-red-600 mt-0.5 font-mono">{error}</span>
+          </div>
+        </div>
+      )}
+
       {/* Content */}
       {loading ? (
         <div className="card p-12 flex justify-center text-sm text-gray-400">Loading hours…</div>
-      ) : error ? (
-        <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">{error}</div>
       ) : tab === 'progress' ? (
         <ProgressView buckets={buckets} total={total} rollups={rollups} sessions={state?.totalSessions || 0} />
       ) : tab === 'track' ? (
@@ -587,23 +620,35 @@ function LogView({ entries, onEdit, onDelete }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function EntryModal({ entry, program = 'csun_mft', onClose, onSaved }) {
   const isEdit = !!entry?.id
-  const [bucketOptions, setBucketOptions] = useState([])
-  const [form, setForm] = useState({
-    bucket_id:  entry?.bucket_id  || '',
-    date:       entry?.date       || todayLocalISO(),
-    hours:      entry?.hours != null ? String(entry.hours) : '',
-    supervisor: entry?.supervisor || '',
-    site:       entry?.site       || '',
-    notes:      entry?.notes      || '',
+  // Default bucket options come from the client-side mirror so the dropdown
+  // is never empty even if the /hours/buckets API call fails. The server is
+  // still authoritative — submission gets validated server-side.
+  const [bucketOptions, setBucketOptions] = useState(() => getManualBuckets(program))
+  const [form, setForm] = useState(() => {
+    const initialOpts = getManualBuckets(program)
+    return {
+      bucket_id:  entry?.bucket_id  || initialOpts[0]?.id || '',
+      date:       entry?.date       || todayLocalISO(),
+      hours:      entry?.hours != null ? String(entry.hours) : '',
+      supervisor: entry?.supervisor || '',
+      site:       entry?.site       || '',
+      notes:      entry?.notes      || '',
+    }
   })
   const [saving, setSaving] = useState(false)
   const [error, setError]   = useState('')
 
+  // Refresh bucket options from the server in case the program structure
+  // ever drifts. Falls through silently to the hardcoded defaults on error.
   useEffect(() => {
+    const fallback = getManualBuckets(program)
+    setBucketOptions(fallback)
+    if (!form.bucket_id && fallback.length > 0) {
+      setForm(f => ({ ...f, bucket_id: fallback[0].id }))
+    }
     apiFetch(`/hours/buckets?program=${encodeURIComponent(program)}`).then(r => r.json()).then(d => {
-      const opts = Array.isArray(d?.buckets) ? d.buckets : []
-      setBucketOptions(opts)
-      if (!form.bucket_id && opts.length > 0) setForm(f => ({ ...f, bucket_id: opts[0].id }))
+      const serverOpts = Array.isArray(d?.buckets) ? d.buckets : []
+      if (serverOpts.length > 0) setBucketOptions(serverOpts)
     }).catch(() => {})
     // eslint-disable-next-line
   }, [program])

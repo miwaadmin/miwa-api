@@ -7,40 +7,48 @@
  * service progress in a single horizontal card. Click-through goes to
  * the full Hours page.
  */
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { apiFetch } from '../lib/api'
+import { mergeBucketTotals, getProgramLabel } from '../lib/hourBuckets'
 
 export default function HoursWidget() {
   const { therapist } = useAuth()
   const cred = therapist?.credential_type || 'licensed'
   const eligible = cred === 'trainee' || cred === 'associate'
 
-  const [state, setState] = useState(null)
+  // Pick up the same program the user last selected on the Hours page.
+  const program = useMemo(() => {
+    try { return localStorage.getItem('miwa.hours.program') || 'csun_mft' }
+    catch { return 'csun_mft' }
+  }, [])
+
+  const [apiBuckets, setApiBuckets] = useState([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     if (!eligible) return
     let cancelled = false
-    let program = 'csun_mft'
-    try { program = localStorage.getItem('miwa.hours.program') || 'csun_mft' } catch {}
     apiFetch(`/hours?program=${encodeURIComponent(program)}`)
       .then(r => r.json())
-      .then(data => { if (!cancelled) setState(data) })
-      .catch(() => { if (!cancelled) setState(null) })
+      .then(data => {
+        if (cancelled) return
+        const arr = Array.isArray(data?.buckets) ? data.buckets : []
+        setApiBuckets(arr)
+      })
+      .catch(() => { /* swallow — widget will render zeroes from skeleton */ })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [eligible])
+  }, [eligible, program])
 
   if (!eligible) return null
 
-  // Suppress entirely while loading the first paint to avoid layout flash.
-  if (loading) return null
-
-  const buckets = state?.buckets || []
+  // Always render once the auth gate passes — even with zeroes. Suppressing
+  // on "no data" makes the widget invisible the first time a trainee opens
+  // their account, which defeats its purpose as a wayfinding signpost.
+  const buckets = mergeBucketTotals(program, apiBuckets)
   const total   = buckets.find(b => b.id === 'total')
-  // Direct service: the top-level rollup whose label includes "Direct".
   const direct  = buckets.find(b => b.kind === 'rollup' && b.parent === 'total' && /direct/i.test(b.label || ''))
   if (!total) return null
 
@@ -61,7 +69,7 @@ export default function HoursWidget() {
           </div>
           <div>
             <p className="text-sm font-bold text-gray-900">Practicum hours</p>
-            <p className="text-[11px] text-gray-500">{state?.programLabel || 'CSUN MFT (Practicum)'}</p>
+            <p className="text-[11px] text-gray-500">{getProgramLabel(program)}{loading ? ' · loading…' : ''}</p>
           </div>
         </div>
         <span className="text-xs text-brand-600 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">View →</span>
