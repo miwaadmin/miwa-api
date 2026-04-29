@@ -1,4 +1,4 @@
-import { NavLink, Outlet, Link } from 'react-router-dom'
+import { NavLink, Outlet } from 'react-router-dom'
 import { useAdminAuth } from '../context/AdminAuthContext'
 import { MiwaLogo } from './Sidebar'
 
@@ -137,18 +137,8 @@ export default function AdminLayout() {
           ))}
         </nav>
 
-        {/* Bottom links */}
         <div className="px-4 pb-5">
-          <div className="h-px mb-3" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent)' }} />
-          <Link
-            to="/dashboard"
-            className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-white/30 hover:text-white/55 transition-colors group"
-          >
-            <svg className="w-3.5 h-3.5 flex-shrink-0 text-white/20 group-hover:text-white/40 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
-            </svg>
-            <span>Switch to Clinician</span>
-          </Link>
+          <div className="h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent)' }} />
         </div>
       </aside>
 
