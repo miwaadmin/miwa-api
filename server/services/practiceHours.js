@@ -223,6 +223,18 @@ function listManualEntryBuckets(programId = 'csun_mft') {
     .map(b => ({ id: b.id, label: b.label, parent: b.parent }));
 }
 
+// Every leaf bucket — used by the per-appointment override picker so the
+// therapist can recategorize a session into any practicum bucket (auto OR
+// manual; e.g. an "Individual" session that was actually a supervision
+// observation hour).
+function listLeafBuckets(programId = 'csun_mft') {
+  const program = PROGRAMS[programId];
+  if (!program) return [];
+  return program.buckets
+    .filter(b => b.kind !== 'rollup')
+    .map(b => ({ id: b.id, label: b.label, parent: b.parent, source: b.source || null }));
+}
+
 /**
  * Build a per-bucket per-day grid of hours for the given local-date range
  * (inclusive). Returns the data the Track grid view needs to render the
@@ -339,4 +351,5 @@ module.exports = {
   mapAppointmentToBucket,
   isManualEntryBucket,
   listManualEntryBuckets,
+  listLeafBuckets,
 };

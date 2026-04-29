@@ -3181,6 +3181,7 @@ router.patch('/appointments/:id', async (req, res) => {
       status,
       sync_to_google,
       force,
+      practicum_bucket_override,
     } = req.body || {};
 
     const patient = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', existing.patient_id, req.therapist.id);
@@ -3219,6 +3220,13 @@ router.patch('/appointments/:id', async (req, res) => {
     const nextStatus = status || existing.status || 'scheduled';
     const nextAppointmentType = appointment_type || existing.appointment_type || inferAppointmentType(patient, '');
 
+    // Practicum bucket override: explicit `null` clears, undefined leaves
+    // existing value, anything else replaces. Empty string also clears.
+    let nextOverride = existing.practicum_bucket_override ?? null;
+    if (practicum_bucket_override !== undefined) {
+      nextOverride = practicum_bucket_override === '' || practicum_bucket_override === null ? null : String(practicum_bucket_override);
+    }
+
     await db.run(
       `UPDATE appointments SET
         appointment_type = ?,
@@ -3234,6 +3242,7 @@ router.patch('/appointments/:id', async (req, res) => {
         sync_error = ?,
         last_synced_at = ?,
         status = ?,
+        practicum_bucket_override = ?,
         updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND therapist_id = ?`,
       nextAppointmentType,
@@ -3249,6 +3258,7 @@ router.patch('/appointments/:id', async (req, res) => {
       syncMeta.sync_error,
       syncMeta.last_synced_at,
       nextStatus,
+      nextOverride,
       existing.id,
       req.therapist.id,
     );

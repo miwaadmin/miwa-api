@@ -20,6 +20,7 @@ const {
   computeHourGrid,
   isManualEntryBucket,
   listManualEntryBuckets,
+  listLeafBuckets,
 } = require('../services/practiceHours');
 
 // Middleware: only trainees + associates have hour-tracking access. Licensed
@@ -68,6 +69,14 @@ router.get('/grid', async (req, res) => {
 router.get('/buckets', async (req, res) => {
   const programId = (req.query.program || 'csun_mft').toString();
   return res.json({ program: programId, buckets: listManualEntryBuckets(programId) });
+});
+
+// ─── GET /api/hours/buckets/all ──────────────────────────────────────────────
+// Every leaf bucket. Used by the per-appointment override picker so the
+// therapist can re-categorize a session into any bucket (auto OR manual).
+router.get('/buckets/all', async (req, res) => {
+  const programId = (req.query.program || 'csun_mft').toString();
+  return res.json({ program: programId, buckets: listLeafBuckets(programId) });
 });
 
 // ─── GET /api/hours/entries ──────────────────────────────────────────────────

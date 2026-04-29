@@ -315,8 +315,14 @@ function NowLine() {
 function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, onSave, onCancel, onDelete }) {
   const isDark = useIsDark()
   const T = mkTheme(isDark)
+  const { therapist } = useAuth()
   const isNew = !appt?.id
   const navigate = useNavigate()
+  // Trainees/associates see a per-appointment "counts as" picker for the
+  // practicum hour tracker. Hidden for licensed clinicians who don't log
+  // hours.
+  const cred = therapist?.credential_type || 'licensed'
+  const isTrainingAccount = cred === 'trainee' || cred === 'associate'
   const [form, setForm] = useState(() => {
     if (appt) {
       const s = parseTime(appt)
@@ -328,6 +334,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
         duration_minutes: String(appt.duration_minutes || 50),
         location:         appt.location  || '',
         notes:            appt.notes     || '',
+        practicum_bucket_override: appt.practicum_bucket_override || '',
       }
     }
     return {
@@ -335,6 +342,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
       date: defaultDate || isoDate(new Date()),
       time: defaultTime || '09:00',
       duration_minutes:'50', location:'', notes:'',
+      practicum_bucket_override: '',
     }
   })
   const [saving, setSaving] = useState(false)
@@ -343,6 +351,17 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
   const [liveAppt, setLiveAppt] = useState(appt || null)
   const [meetBusy, setMeetBusy] = useState(false)
   const [meetCopied, setMeetCopied] = useState(false)
+  const [practicumBuckets, setPracticumBuckets] = useState([])
+
+  // Load the leaf bucket list for the override picker. Server gates this
+  // endpoint to trainees/associates so the fetch silently 403s for licensed
+  // accounts — we just don't render the picker in that case.
+  useEffect(() => {
+    if (!isTrainingAccount) return
+    apiFetch('/hours/buckets/all').then(r => r.json()).then(d => {
+      if (Array.isArray(d?.buckets)) setPracticumBuckets(d.buckets)
+    }).catch(() => {})
+  }, [isTrainingAccount])
 
   useEffect(() => { setLiveAppt(appt || null) }, [appt])
 
@@ -390,6 +409,9 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
             duration_minutes: parseInt(form.duration_minutes) || 50,
             location:         form.location || null,
             notes:            form.notes    || null,
+            // Empty string is the explicit "clear override / use auto-mapping"
+            // signal; the PATCH handler treats it as null.
+            practicum_bucket_override: isTrainingAccount ? (form.practicum_bucket_override || '') : undefined,
             force,
           }),
         })
@@ -647,6 +669,32 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
               placeholder="Pre-session notes, reminders…"
             />
           </div>
+
+          {/* Practicum hour override — only visible to trainees and associates.
+              Lets the user fix Miwa's auto-mapping (e.g. "Individual" was actually
+              with a 14-year-old → Individual Child Client) without changing the
+              session's appointment_type, which other parts of the app care about. */}
+          {isTrainingAccount && !isNew && (
+            <div>
+              <label className="label">
+                Counts as <span className="font-normal text-gray-400 text-xs">(hour tracking)</span>
+              </label>
+              <select
+                className="textarea !py-2.5"
+                value={form.practicum_bucket_override}
+                onChange={e => set('practicum_bucket_override', e.target.value)}
+              >
+                <option value="">Auto (based on type + client age)</option>
+                {practicumBuckets.map(b => (
+                  <option key={b.id} value={b.id}>{b.label}</option>
+                ))}
+              </select>
+              <p className="mt-1 text-[11px] text-gray-400 leading-relaxed">
+                Override the automatic categorization for your hour log.
+                Doesn't affect the session itself.
+              </p>
+            </div>
+          )}
 
           {/* Attendance Actions */}
           {appt?.id && appt?.status === 'scheduled' && (
