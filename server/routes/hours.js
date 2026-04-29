@@ -17,6 +17,7 @@ const router = express.Router();
 const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const {
   computeHourTotals,
+  computeHourGrid,
   isManualEntryBucket,
   listManualEntryBuckets,
 } = require('../services/practiceHours');
@@ -42,6 +43,24 @@ router.get('/', async (req, res) => {
     return res.json(state);
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Failed to compute hours' });
+  }
+});
+
+// ─── GET /api/hours/grid ─────────────────────────────────────────────────────
+// Per-bucket per-day hours for a date range — powers the Tevera-style
+// Track grid view. Pass ?from=YYYY-MM-DD&to=YYYY-MM-DD (max 90 days).
+router.get('/grid', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const programId = (req.query.program || 'csun_mft').toString();
+    const tz = req.therapist?.preferred_timezone || 'America/Los_Angeles';
+    const from = req.query.from;
+    const to   = req.query.to;
+    if (!from || !to) return res.status(400).json({ error: 'from and to are required (YYYY-MM-DD)' });
+    const grid = await computeHourGrid(db, req.therapist.id, from, to, programId, tz);
+    return res.json(grid);
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Failed to compute grid' });
   }
 });
 

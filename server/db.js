@@ -1212,6 +1212,11 @@ function runMigrations() {
     ['meet_url',       'TEXT'],   // https://meet.google.com/xxx-yyyy-zzz, generated when appointment_type='telehealth'
     ['meet_event_id',  'TEXT'],   // Calendar event ID (lets us delete the calendar entry)
     ['meet_space_name','TEXT'],   // Meet API v2 space name like "spaces/abc123" (for endActiveConference on regen/cancel)
+    // Practicum hour tracking — manual override of the auto-mapped bucket
+    // (e.g. when a session that looks like an "Individual Adult" was actually
+    // with a 17-year-old, or a couple session got typed as 'individual').
+    // NULL = use the default mapping. See services/practiceHours.js.
+    ['practicum_bucket_override', 'TEXT'],
   ];
   for (const [col, def] of appointmentAdditions) {
     if (!appointmentCols.includes(col)) {

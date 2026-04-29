@@ -9,7 +9,7 @@
  * UNOFFICIAL — not BBS-approved, not a substitute for the supervisor's
  * signature on the official 32A. The disclaimer banner makes that clear.
  */
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, Fragment } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { apiFetch } from '../lib/api'
@@ -169,6 +169,7 @@ export default function Hours() {
       <div className="flex gap-2 border-b border-gray-200">
         {[
           { id: 'progress', label: 'Progress' },
+          { id: 'track',    label: 'Track grid' },
           { id: 'log',      label: `Log${entries.length ? ` (${entries.length})` : ''}` },
         ].map(t => (
           <button
@@ -192,6 +193,8 @@ export default function Hours() {
         <div className="rounded-xl bg-red-50 border border-red-200 p-4 text-sm text-red-700">{error}</div>
       ) : tab === 'progress' ? (
         <ProgressView buckets={buckets} total={total} rollups={rollups} sessions={state?.totalSessions || 0} />
+      ) : tab === 'track' ? (
+        <TrackGridView />
       ) : (
         <LogView
           entries={entries}
@@ -293,6 +296,196 @@ function ProgressView({ buckets, total, rollups, sessions }) {
     </div>
   )
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Track grid view — Tevera-style spreadsheet: leaf buckets as rows, days
+// of the selected week as columns. Each cell shows the hours logged on
+// that day for that category (auto from appointments + manual entries
+// summed). Header lets the user navigate by week.
+// ─────────────────────────────────────────────────────────────────────────────
+function TrackGridView() {
+  const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()))
+  const [grid, setGrid] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+
+  const days = useMemo(() => {
+    const out = []
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(weekStart)
+      d.setDate(weekStart.getDate() + i)
+      out.push(d)
+    }
+    return out
+  }, [weekStart])
+
+  const fromDate = useMemo(() => isoFromDate(days[0]), [days])
+  const toDate   = useMemo(() => isoFromDate(days[6]), [days])
+
+  useEffect(() => {
+    setLoading(true); setError('')
+    apiFetch(`/hours/grid?from=${fromDate}&to=${toDate}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data?.error) { setError(data.error); setGrid(null); return }
+        setGrid(data)
+      })
+      .catch(e => setError(e.message || 'Failed to load grid'))
+      .finally(() => setLoading(false))
+  }, [fromDate, toDate])
+
+  const goPrev = () => setWeekStart(d => { const n = new Date(d); n.setDate(d.getDate() - 7); return n })
+  const goNext = () => setWeekStart(d => { const n = new Date(d); n.setDate(d.getDate() + 7); return n })
+  const goToday = () => setWeekStart(sundayOf(new Date()))
+
+  const buckets = grid?.buckets || []
+  const leafBuckets = buckets.filter(b => b.kind !== 'rollup')
+  const rollups     = buckets.filter(b => b.kind === 'rollup' && b.parent === 'total')
+
+  // Per-day totals across all leaf buckets, for the column footer.
+  const dayTotals = useMemo(() => {
+    const out = {}
+    if (!grid) return out
+    for (const day of grid.days) {
+      let sum = 0
+      for (const b of leafBuckets) {
+        sum += (grid.grid?.[b.id]?.[day]) || 0
+      }
+      out[day] = round2(sum)
+    }
+    return out
+  }, [grid, leafBuckets])
+
+  const weekTotal = useMemo(() => {
+    if (!grid) return 0
+    return round2(Object.values(dayTotals).reduce((s, v) => s + v, 0))
+  }, [grid, dayTotals])
+
+  const fmtDayHeader = d => {
+    const w = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase()
+    const md = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    return { w, md, iso: isoFromDate(d) }
+  }
+
+  const fmtRange = () => {
+    const a = days[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+    const b = days[6].toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+    return `${a} – ${b}`
+  }
+
+  return (
+    <div className="space-y-3">
+      {/* Toolbar */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1 mr-2">
+          <button onClick={goPrev} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-500" aria-label="Previous week">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
+          </button>
+          <button onClick={goNext} className="w-8 h-8 rounded-lg flex items-center justify-center hover:bg-gray-100 text-gray-500" aria-label="Next week">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+          </button>
+        </div>
+        <h3 className="text-sm font-bold text-gray-900">{fmtRange()}</h3>
+        <button onClick={goToday} className="ml-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50">This week</button>
+        <div className="flex-1" />
+        <p className="text-xs text-gray-500">Week total: <span className="font-bold text-gray-900">{weekTotal} hrs</span></p>
+      </div>
+
+      {error && <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
+      {loading ? (
+        <div className="card p-12 flex justify-center text-sm text-gray-400">Loading grid…</div>
+      ) : (
+        <div className="card overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="text-left px-4 py-3 font-bold text-gray-500 uppercase tracking-wide sticky left-0 bg-gray-50 z-10 min-w-[240px]">Category</th>
+                {days.map(d => {
+                  const h = fmtDayHeader(d)
+                  return (
+                    <th key={h.iso} className="px-2 py-2 font-semibold text-gray-700 text-center min-w-[64px]">
+                      <div className="text-[10px] text-gray-400">{h.w}</div>
+                      <div className="text-[11px]">{h.md}</div>
+                    </th>
+                  )
+                })}
+                <th className="px-3 py-2 font-bold text-gray-700 text-right min-w-[60px] bg-gray-100">Row</th>
+              </tr>
+            </thead>
+            <tbody>
+              {/* One section per top-level rollup, with its leaf buckets indented */}
+              {rollups.map(rollup => {
+                const children = leafBuckets.filter(b => {
+                  // Walk parent chain to see if this leaf eventually rolls up to `rollup`.
+                  let pid = b.parent
+                  while (pid && pid !== rollup.id) {
+                    const parentNode = buckets.find(x => x.id === pid)
+                    if (!parentNode) return false
+                    pid = parentNode.parent
+                  }
+                  return pid === rollup.id
+                })
+                return (
+                  <Fragment key={rollup.id}>
+                    <tr className="bg-indigo-50/40 border-b border-indigo-100">
+                      <td colSpan={days.length + 2} className="px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-indigo-700 sticky left-0 bg-indigo-50/40 z-10">
+                        {rollup.label}
+                        {rollup.minHours ? <span className="ml-2 text-gray-400 normal-case font-normal">min {rollup.minHours}</span> : null}
+                        {rollup.maxHours ? <span className="ml-2 text-gray-400 normal-case font-normal">cap {rollup.maxHours}</span> : null}
+                      </td>
+                    </tr>
+                    {children.map(b => {
+                      const cells = days.map(d => grid.grid?.[b.id]?.[isoFromDate(d)] || 0)
+                      const rowTotal = round2(cells.reduce((s, v) => s + v, 0))
+                      return (
+                        <tr key={b.id} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="text-left px-4 py-2 text-gray-800 sticky left-0 bg-white z-10">
+                            <span className="pl-3">{b.label}</span>
+                          </td>
+                          {cells.map((v, i) => (
+                            <td key={i} className={`px-2 py-2 text-center tabular-nums ${v > 0 ? 'text-gray-900 font-medium' : 'text-gray-300'}`}>
+                              {v > 0 ? v : '·'}
+                            </td>
+                          ))}
+                          <td className={`px-3 py-2 text-right tabular-nums font-semibold ${rowTotal > 0 ? 'text-indigo-700 bg-indigo-50/60' : 'text-gray-300 bg-gray-50'}`}>{rowTotal > 0 ? rowTotal : '·'}</td>
+                        </tr>
+                      )
+                    })}
+                  </Fragment>
+                )
+              })}
+              {/* Day totals footer */}
+              <tr className="bg-gray-100 border-t-2 border-gray-300">
+                <td className="px-4 py-2 text-left font-bold text-gray-700 uppercase text-[10px] tracking-wider sticky left-0 bg-gray-100 z-10">Day total</td>
+                {days.map(d => {
+                  const v = dayTotals[isoFromDate(d)] || 0
+                  return (
+                    <td key={isoFromDate(d)} className={`px-2 py-2 text-center tabular-nums font-bold ${v > 0 ? 'text-indigo-700' : 'text-gray-300'}`}>
+                      {v > 0 ? v : '·'}
+                    </td>
+                  )
+                })}
+                <td className="px-3 py-2 text-right tabular-nums font-extrabold text-indigo-700 bg-indigo-100">{weekTotal > 0 ? weekTotal : '·'}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// Sunday of the week containing `d`, normalized to local 00:00:00.
+function sundayOf(d) {
+  const r = new Date(d)
+  r.setDate(r.getDate() - r.getDay())
+  r.setHours(0, 0, 0, 0)
+  return r
+}
+function isoFromDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
+}
+function round2(n) { return Math.round((Number(n) || 0) * 100) / 100 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Log view — recent manual entries with edit/delete affordances.

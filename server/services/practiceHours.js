@@ -120,6 +120,7 @@ async function computeHourTotals(db, therapistId, programId = 'csun_mft') {
   // duration, and not in the future.
   const apptRows = await db.all(
     `SELECT a.id, a.appointment_type, a.duration_minutes, a.scheduled_start, a.status,
+            a.practicum_bucket_override,
             p.age, p.age_range
      FROM appointments a
      LEFT JOIN patients p ON p.id = a.patient_id
@@ -138,10 +139,12 @@ async function computeHourTotals(db, therapistId, programId = 'csun_mft') {
   const manualByBucket = {};
   for (const r of manualRows) manualByBucket[r.bucket_id] = Number(r.total) || 0;
 
-  // Sum appointment hours into leaf buckets.
+  // Sum appointment hours into leaf buckets. The therapist can override the
+  // automatic categorization on a per-appointment basis (e.g. fix when an
+  // "Individual" was actually with a minor) — we honor that override here.
   const apptByBucket = {};
   for (const a of apptRows) {
-    const bucketId = mapAppointmentToBucket(a, { age: a.age, age_range: a.age_range });
+    const bucketId = a.practicum_bucket_override || mapAppointmentToBucket(a, { age: a.age, age_range: a.age_range });
     if (!bucketId) continue;
     const hrs = (Number(a.duration_minutes) || 0) / 60;
     apptByBucket[bucketId] = (apptByBucket[bucketId] || 0) + hrs;
@@ -220,10 +223,119 @@ function listManualEntryBuckets(programId = 'csun_mft') {
     .map(b => ({ id: b.id, label: b.label, parent: b.parent }));
 }
 
+/**
+ * Build a per-bucket per-day grid of hours for the given local-date range
+ * (inclusive). Returns the data the Track grid view needs to render the
+ * Tevera-style spreadsheet (categories × days).
+ *
+ * Returned shape:
+ * {
+ *   program, programLabel,
+ *   buckets: [...],  // same bucket nodes computeHourTotals returns
+ *   days: ['YYYY-MM-DD', ...],
+ *   grid: { [bucketId]: { [date]: hours } }  // only buckets with non-zero days
+ * }
+ *
+ * Direct-service buckets pull from completed appointments scheduled in the
+ * range; manual buckets pull from practice_hours.date. Boundary semantics:
+ * the date is the local calendar date the appointment started on (in the
+ * therapist's preferred timezone), matching how the existing Schedule
+ * computes day grouping.
+ */
+async function computeHourGrid(db, therapistId, fromDate, toDate, programId = 'csun_mft', tz = 'America/Los_Angeles') {
+  const program = PROGRAMS[programId];
+  if (!program) throw new Error(`Unknown hour program: ${programId}`);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
+    throw new Error('fromDate and toDate must be YYYY-MM-DD');
+  }
+
+  // Build the inclusive list of days.
+  const days = [];
+  {
+    const [fy, fm, fd] = fromDate.split('-').map(Number);
+    const [ty, tm, td] = toDate.split('-').map(Number);
+    const cur = new Date(fy, fm - 1, fd);
+    const end = new Date(ty, tm - 1, td);
+    while (cur <= end) {
+      days.push(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`);
+      cur.setDate(cur.getDate() + 1);
+    }
+  }
+  if (days.length > 90) throw new Error('Range too large (max 90 days)');
+
+  // Pull completed appointments overlapping this date range. We compare
+  // scheduled_start as a string — ISO 8601 sorts chronologically — and pad
+  // the from/to with day boundaries so timezone offsets don't drop edge
+  // appointments.
+  const fromIso = `${fromDate}T00:00:00.000Z`;
+  const toIso   = `${toDate}T23:59:59.999Z`;
+  const apptRows = await db.all(
+    `SELECT a.id, a.appointment_type, a.duration_minutes, a.scheduled_start,
+            a.practicum_bucket_override,
+            p.age, p.age_range
+     FROM appointments a
+     LEFT JOIN patients p ON p.id = a.patient_id
+     WHERE a.therapist_id = ?
+       AND a.status = 'completed'
+       AND a.duration_minutes IS NOT NULL
+       AND a.duration_minutes > 0
+       AND a.scheduled_start IS NOT NULL
+       AND a.scheduled_start BETWEEN ? AND ?`,
+    therapistId, fromIso, toIso,
+  );
+
+  const manualRows = await db.all(
+    'SELECT bucket_id, date, hours FROM practice_hours WHERE therapist_id = ? AND date BETWEEN ? AND ?',
+    therapistId, fromDate, toDate,
+  );
+
+  // Local-date keying. Use Intl with the therapist's tz to compute the
+  // calendar date — this matches what Schedule.jsx does and avoids the
+  // "appointment shows on the wrong day for users east of UTC" class of
+  // bugs.
+  const localDate = (iso) => {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return null;
+    return d.toLocaleDateString('en-CA', { timeZone: tz });
+  };
+
+  const grid = {};
+  const addToCell = (bucketId, date, hours) => {
+    if (!bucketId || !date) return;
+    if (!grid[bucketId]) grid[bucketId] = {};
+    grid[bucketId][date] = round2((grid[bucketId][date] || 0) + hours);
+  };
+
+  for (const a of apptRows) {
+    const bucketId = a.practicum_bucket_override || mapAppointmentToBucket(a, { age: a.age, age_range: a.age_range });
+    if (!bucketId) continue;
+    const date = localDate(a.scheduled_start);
+    if (!date) continue;
+    addToCell(bucketId, date, (Number(a.duration_minutes) || 0) / 60);
+  }
+  for (const r of manualRows) {
+    addToCell(r.bucket_id, r.date, Number(r.hours) || 0);
+  }
+
+  // Reuse computeHourTotals to get the bucket metadata + program totals.
+  // It does its own DB queries; the duplication is fine for now and keeps
+  // grid-only callers from re-implementing the rollup logic.
+  const totals = await computeHourTotals(db, therapistId, programId);
+
+  return {
+    program: program.id,
+    programLabel: program.label,
+    buckets: totals.buckets,
+    days,
+    grid,
+  };
+}
+
 module.exports = {
   PROGRAMS,
   CSUN_MFT_BUCKETS,
   computeHourTotals,
+  computeHourGrid,
   mapAppointmentToBucket,
   isManualEntryBucket,
   listManualEntryBuckets,
