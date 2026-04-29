@@ -381,6 +381,11 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
   }, [form.patient_id]) // eslint-disable-line
 
   const handleSave = async (force = false) => {
+    // Defensive coerce — if a caller wires onClick={handleSave} without an
+    // arrow wrapper, React passes the synthetic event in here. We only ever
+    // want a strict boolean so the JSON.stringify below can't choke on a
+    // DOM element's circular React fiber refs.
+    const forceFlag = force === true
     if (!form.patient_id)           { setError('Please select a client.'); return }
     if (!form.date || !form.time)   { setError('Date and time required.'); return }
     setSaving(true); setError('')
@@ -397,7 +402,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
             durationMinutes: parseInt(form.duration_minutes) || 50,
             location:        form.location || null,
             notes:            form.notes    || null,
-            force,
+            force: forceFlag,
           }),
         })
       } else {
@@ -412,7 +417,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
             // Empty string is the explicit "clear override / use auto-mapping"
             // signal; the PATCH handler treats it as null.
             practicum_bucket_override: isTrainingAccount ? (form.practicum_bucket_override || '') : undefined,
-            force,
+            force: forceFlag,
           }),
         })
       }
@@ -815,7 +820,10 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
           </button>
           <button
             type="button"
-            onClick={handleSave}
+            // Wrap so React's synthetic click event isn't passed as the
+            // `force` argument — the event has circular fiber refs that
+            // blow up JSON.stringify on the request body.
+            onClick={() => handleSave()}
             disabled={saving}
             className="text-sm font-semibold text-white px-5 py-2 rounded-xl transition-all disabled:opacity-50"
             style={{ background: p.border }}
