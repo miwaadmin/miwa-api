@@ -1069,6 +1069,8 @@ export default function Schedule() {
   const [patients,     setPatients]     = useState([])
   const [loading,      setLoading]      = useState(true)
   const [modal,        setModal]        = useState(null)
+  const [conflicts,    setConflicts]    = useState([])      // groups of overlapping appointments
+  const [showConflicts, setShowConflicts] = useState(false)  // cleanup modal toggle
   const scrollRef = useRef(null)
   const today = isoDate(new Date())
   const [searchParams, setSearchParams] = useSearchParams()
@@ -1097,6 +1099,16 @@ export default function Schedule() {
     }
   }, [view])
 
+  const loadConflicts = useCallback(async () => {
+    try {
+      const res = await apiFetch('/agent/appointments/conflicts')
+      const data = await res.json()
+      setConflicts(Array.isArray(data?.conflicts) ? data.conflicts : [])
+    } catch (_) {
+      setConflicts([])
+    }
+  }, [])
+
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
@@ -1108,7 +1120,10 @@ export default function Schedule() {
       setPatients(Array.isArray(pts) ? pts : [])
     } catch (_) {}
     setLoading(false)
-  }, [])
+    // Refresh conflicts whenever appointments reload — picks up dupes the
+    // user might have created via the agent before the guard existed.
+    loadConflicts()
+  }, [loadConflicts])
 
   useEffect(() => { loadData() }, [loadData])
 
@@ -1133,7 +1148,25 @@ export default function Schedule() {
   const handleDelete = id => {
     setAppointments(prev => prev.filter(a => a.id !== id))
     setModal(null)
+    // A deletion may resolve a conflict — refresh so the pill disappears.
+    loadConflicts()
   }
+
+  // Used by the cleanup modal: deletes one appointment from a conflict group
+  // and refreshes the list. Returns true on success.
+  const deleteAppointmentInline = useCallback(async (id) => {
+    try {
+      const res = await apiFetch(`/agent/appointments/${id}`, { method: 'DELETE' })
+      if (!res.ok) throw new Error('Delete failed')
+      setAppointments(prev => prev.filter(a => a.id !== id))
+      await loadConflicts()
+      return true
+    } catch (_) {
+      return false
+    }
+  }, [loadConflicts])
+
+  const conflictTotal = conflicts.reduce((n, g) => n + g.length, 0)
 
   // Navigate while keeping week/month in sync
   const goBack = () => {
@@ -1315,6 +1348,21 @@ export default function Schedule() {
 
           <div className="flex-1" />
 
+          {/* Conflicts pill — only renders when there's actually something to clean up */}
+          {conflicts.length > 0 && (
+            <button
+              onClick={() => setShowConflicts(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors"
+              style={{ borderColor: '#fecaca', color: '#b91c1c', background: '#fef2f2' }}
+              title="Two or more appointments overlap. Click to review and clean up."
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M5.07 19h13.86c1.54 0 2.5-1.67 1.73-3L13.73 4a2 2 0 00-3.46 0L3.34 16c-.77 1.33.19 3 1.73 3z" />
+              </svg>
+              {conflictTotal} overlapping
+            </button>
+          )}
+
           {/* View switcher */}
           <div className="flex rounded-xl overflow-hidden border" style={{ borderColor: T.border }}>
             {['week', 'month'].map(v => (
@@ -1375,6 +1423,132 @@ export default function Schedule() {
           onDelete={handleDelete}
         />
       )}
+
+      {/* ── Conflicts cleanup modal ─────────────────────────────── */}
+      {showConflicts && (
+        <ConflictsModal
+          conflicts={conflicts}
+          onDelete={deleteAppointmentInline}
+          onClose={() => setShowConflicts(false)}
+        />
+      )}
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Conflicts cleanup modal — review and resolve appointments that overlap
+// each other. Each group lists every overlapping appointment with a delete
+// button so the therapist can keep the right one and remove duplicates.
+// ─────────────────────────────────────────────────────────────────────────────
+function ConflictsModal({ conflicts, onDelete, onClose }) {
+  const isDark = useIsDark()
+  const T = mkTheme(isDark)
+  const [busyId, setBusyId] = useState(null)
+
+  const handleDelete = async (id) => {
+    if (!window.confirm('Delete this appointment? This can\'t be undone.')) return
+    setBusyId(id)
+    await onDelete(id)
+    setBusyId(null)
+  }
+
+  const fmt = iso => {
+    try {
+      return new Date(iso).toLocaleString('en-US', {
+        weekday: 'short', month: 'short', day: 'numeric',
+        hour: 'numeric', minute: '2-digit', hour12: true,
+      })
+    } catch { return iso }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: 'rgba(15,23,42,0.45)', backdropFilter: 'blur(6px)' }}
+      onMouseDown={e => { if (e.target === e.currentTarget) onClose() }}
+    >
+      <div
+        className="w-full max-w-[560px] max-h-[85vh] flex flex-col rounded-2xl shadow-2xl overflow-hidden"
+        style={{ background: T.surface }}
+      >
+        {/* Header */}
+        <div className="px-6 py-4 border-b flex items-center justify-between" style={{ borderColor: T.border }}>
+          <div>
+            <h2 className="text-base font-bold" style={{ color: T.text }}>Review overlapping appointments</h2>
+            <p className="text-xs mt-0.5" style={{ color: T.textSub }}>
+              Each group below shares a time slot. Keep what's right, delete the duplicates.
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="p-2 rounded-xl hover:bg-gray-100 transition-colors"
+            style={{ color: T.textFaint }}
+            aria-label="Close"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4">
+          {conflicts.length === 0 ? (
+            <div className="text-center py-10">
+              <p className="text-sm font-semibold" style={{ color: T.text }}>All clear.</p>
+              <p className="text-xs mt-1" style={{ color: T.textSub }}>No overlapping appointments left.</p>
+            </div>
+          ) : conflicts.map((group, gi) => (
+            <div key={gi} className="rounded-xl border p-3" style={{ borderColor: T.border, background: T.surfaceFaint }}>
+              <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: T.textFaint }}>
+                Group {gi + 1} · {group.length} overlapping
+              </p>
+              <div className="space-y-2">
+                {group.map(appt => (
+                  <div
+                    key={appt.id}
+                    className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg"
+                    style={{ background: T.surface, border: `1px solid ${T.border}` }}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold truncate" style={{ color: T.text }}>
+                        {appt.display_name}
+                      </p>
+                      <p className="text-xs mt-0.5" style={{ color: T.textSub }}>
+                        {fmt(appt.scheduled_start)}
+                        {appt.appointment_type ? ` · ${appt.appointment_type}` : ''}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleDelete(appt.id)}
+                      disabled={busyId === appt.id}
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors disabled:opacity-50"
+                      style={{ borderColor: '#fecaca', color: '#b91c1c', background: '#fef2f2' }}
+                    >
+                      {busyId === appt.id ? 'Deleting…' : 'Delete'}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="px-6 py-3 border-t flex items-center justify-between" style={{ borderColor: T.border, background: T.surfaceFaint }}>
+          <p className="text-[11px]" style={{ color: T.textFaint }}>
+            Going forward, the schedule will block overlaps automatically.
+          </p>
+          <button
+            onClick={onClose}
+            className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+            style={{ background: '#4f46e5', color: 'white' }}
+          >
+            Done
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

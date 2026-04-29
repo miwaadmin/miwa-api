@@ -3076,6 +3076,56 @@ router.post('/portal-message', async (req, res) => {
   }
 });
 
+// One-time cleanup helper. Scans the therapist's non-cancelled appointments
+// and returns clusters of mutually overlapping ones so they can be reviewed
+// and resolved in the UI. Pre-existing dupes don't get caught by the
+// create/edit guard — they were saved before the guard existed — so this is
+// the path to clean them up.
+router.get('/appointments/conflicts', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const rows = await db.all(
+      `SELECT a.id, a.scheduled_start, a.scheduled_end, a.duration_minutes,
+              a.appointment_type, a.status, a.location, a.notes, a.patient_id,
+              p.client_id, p.display_name
+       FROM appointments a
+       LEFT JOIN patients p ON p.id = a.patient_id
+       WHERE a.therapist_id = ?
+         AND a.status != 'cancelled'
+         AND a.scheduled_start IS NOT NULL
+         AND a.scheduled_end   IS NOT NULL
+       ORDER BY a.scheduled_start ASC`,
+      req.therapist.id,
+    );
+
+    // Classic merge-overlapping-intervals sweep. Boundary-touching is NOT a
+    // conflict (a 9:00–10:00 and a 10:00–11:00 are fine), matching the same
+    // semantics findAppointmentConflicts uses for the create/edit guard.
+    const clusters = [];
+    let current = [];
+    let currentEnd = null;
+    for (const a of rows) {
+      if (current.length === 0 || a.scheduled_start < currentEnd) {
+        current.push(a);
+        if (!currentEnd || a.scheduled_end > currentEnd) currentEnd = a.scheduled_end;
+      } else {
+        if (current.length > 1) clusters.push(current);
+        current = [a];
+        currentEnd = a.scheduled_end;
+      }
+    }
+    if (current.length > 1) clusters.push(current);
+
+    const conflicts = clusters.map(group => group.map(r => ({
+      ...r,
+      display_name: r.display_name || r.client_id || 'Client',
+    })));
+    return res.json({ conflicts, total: conflicts.reduce((n, g) => n + g.length, 0) });
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
 router.get('/appointments', async (req, res) => {
   try {
     const db = getAsyncDb();
