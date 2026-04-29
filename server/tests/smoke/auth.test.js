@@ -61,7 +61,7 @@ test('auth flow', async (t) => {
     const reset = await api('POST', '/api/auth/_diag/reset-password', {
       email: 'admin@miwa.test',
       new_password: 'new-admin-password-1234',
-      diag_secret: process.env.JWT_SECRET,
+      diag_secret: ` ${process.env.JWT_SECRET}\n`,
     });
     assert.equal(reset.status, 200);
     assert.equal(reset.body.ok, true);
@@ -74,6 +74,25 @@ test('auth flow', async (t) => {
     });
     assert.equal(login.status, 200);
     assert.equal(login.body.therapist.is_admin, true);
+  });
+
+  await t.test('admin recovery create works without enabling broad diagnostics', async () => {
+    const original = process.env.ENABLE_DIAG;
+    process.env.ENABLE_DIAG = 'false';
+    try {
+      const create = await api('POST', '/api/auth/_diag/create-admin', {
+        email: 'second-admin@miwa.test',
+        password: 'second-admin-password-1234',
+        first_name: 'Second',
+        last_name: 'Admin',
+        diag_secret: `\n${process.env.JWT_SECRET} `,
+      });
+      assert.equal(create.status, 200);
+      assert.equal(create.body.ok, true);
+      assert.equal(create.body.is_admin, true);
+    } finally {
+      process.env.ENABLE_DIAG = original;
+    }
   });
 
   await t.test('forgot-password returns ok regardless of email existence', async () => {

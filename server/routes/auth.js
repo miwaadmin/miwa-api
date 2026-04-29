@@ -845,14 +845,13 @@ router.post('/reset-password', async (req, res) => {
 // ─────────────────────────────────────────────────────────────────────────────
 // Diagnostic + recovery endpoints. Two layers of protection:
 //   1. Each endpoint requires the JWT_SECRET in X-Miwa-Diag-Secret.
-//   2. The whole family is gated behind ENABLE_DIAG=true. By default these
-//      return 404 so they don't appear in scans or accidental probes.
-// To use during recovery: set ENABLE_DIAG=true in Azure App Service, save (triggers
-// redeploy), do recovery work, then unset / set to false to hide them again.
+//   2. Broad diagnostics are gated behind ENABLE_DIAG=true. Narrow account
+//      recovery endpoints only require JWT_SECRET so an operator can recover
+//      admin access without enabling the wider diagnostic surface.
 // ─────────────────────────────────────────────────────────────────────────────
 function diagSecretMatches(req) {
-  const provided = String(req.get('x-miwa-diag-secret') || req.body?.diag_secret || '');
-  const expected = String(JWT_SECRET || '');
+  const provided = String(req.get('x-miwa-diag-secret') || req.body?.diag_secret || '').trim();
+  const expected = String(JWT_SECRET || '').trim();
   return provided.length === expected.length
     && crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
 }
@@ -1007,7 +1006,7 @@ router.get('/_diag/download-backup', async (req, res) => {
 //   POST /api/auth/_diag/create-admin
 //   Body: { email, password, first_name, last_name }
 router.post('/_diag/create-admin', async (req, res) => {
-  if (!diagAuthorized(req, res)) return;
+  if (!recoveryAuthorized(req, res)) return;
   try {
     const { email, password, first_name, last_name } = req.body || {};
     if (!email || !password || String(password).length < 8) {

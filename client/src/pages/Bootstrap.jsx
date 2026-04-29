@@ -33,7 +33,8 @@ export default function Bootstrap() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     setError('')
-    if (!form.jwt_secret) { setError('JWT_SECRET is required'); return }
+    const jwtSecret = form.jwt_secret.trim()
+    if (!jwtSecret) { setError('JWT_SECRET is required'); return }
     if (!form.email || !form.password) { setError('Email and password are required'); return }
     if (form.password.length < 8) { setError('Password must be at least 8 characters'); return }
     setBusy(true)
@@ -42,7 +43,7 @@ export default function Bootstrap() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Miwa-Diag-Secret': form.jwt_secret,
+          'X-Miwa-Diag-Secret': jwtSecret,
         },
         body: JSON.stringify(mode === 'create'
           ? {
@@ -59,7 +60,10 @@ export default function Bootstrap() {
       const data = await res.json()
       if (!res.ok) {
         if (res.status === 404) {
-          throw new Error('JWT_SECRET does not match, or diagnostic recovery is disabled in Azure.')
+          throw new Error('JWT_SECRET does not match the running server. Paste the value from the production App Service JWT_SECRET setting.')
+        }
+        if (res.status === 409 && mode === 'create') {
+          throw new Error('That admin account already exists. Select Reset password instead.')
         }
         throw new Error(data.error || (mode === 'create' ? 'Account creation failed' : 'Password reset failed'))
       }
@@ -123,7 +127,7 @@ export default function Bootstrap() {
 
         <div className="rounded-2xl p-7 bg-white shadow-xl border border-gray-100">
           <div className="rounded-xl px-4 py-3 text-sm bg-amber-50 border border-amber-200 text-amber-900 mb-5 leading-relaxed">
-            This page only works when diagnostic recovery is enabled and your <code className="font-mono text-xs bg-white px-1 py-0.5 rounded border border-amber-200">JWT_SECRET</code> matches the server.
+            Reset an existing admin password first. Use Create admin only if the admin account does not exist yet. Both actions require the production <code className="font-mono text-xs bg-white px-1 py-0.5 rounded border border-amber-200">JWT_SECRET</code>.
           </div>
 
           <div className="grid grid-cols-2 gap-2 mb-5">
