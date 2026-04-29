@@ -215,10 +215,20 @@ export default function AdminOverview() {
         <div className="flex items-center gap-2">
           <button
             onClick={async () => {
-              if (!confirm('This will DELETE all test data (patients, sessions, assessments, other accounts) and reset your Stripe customer ID. Your admin account is preserved. Continue?')) return
+              const confirmation = window.prompt('This deletes test data and clinical records. Type RESET DATABASE to continue.')
+              if (confirmation !== 'RESET DATABASE') return
+              const reason = window.prompt('Reason for resetting the database:')
+              if (!reason || reason.trim().length < 12) {
+                alert('Reset cancelled. A specific reason is required.')
+                return
+              }
               try {
-                const r = await adminApiFetch('/admin/reset-database', { method: 'POST' })
+                const r = await adminApiFetch('/admin/reset-database', {
+                  method: 'POST',
+                  body: JSON.stringify({ confirmation, reason }),
+                })
                 const d = await r.json()
+                if (!r.ok) throw new Error(d.error || 'Reset failed')
                 alert(d.message || 'Database reset complete')
                 load()
               } catch (err) { alert('Reset failed: ' + err.message) }

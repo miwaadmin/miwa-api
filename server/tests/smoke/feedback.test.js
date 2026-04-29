@@ -23,7 +23,10 @@ test('admin reset-data wipes one therapist without touching the account', async 
   assert.equal(stats.body.totalSessions, 1);
 
   // Wipe data for THIS therapist via the new per-account endpoint
-  const wipe = await api('POST', `/api/admin/therapists/${therapist.id}/reset-data`, null, adminCookie);
+  const wipe = await api('POST', `/api/admin/therapists/${therapist.id}/reset-data`, {
+    confirmation: `WIPE ${therapist.email}`,
+    reason: 'Smoke test verifies admin wipe confirmation guard',
+  }, adminCookie);
   assert.equal(wipe.status, 200, `wipe failed: ${JSON.stringify(wipe.body)}`);
   assert.equal(wipe.body.ok, true);
   assert.equal(wipe.body.patients_deleted, 1);

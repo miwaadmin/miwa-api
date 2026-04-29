@@ -26,6 +26,7 @@ import AdminAccounts from './pages/admin/AdminAccounts'
 import AdminUsage from './pages/admin/AdminUsage'
 import AdminSupport from './pages/admin/AdminSupport'
 import AdminBilling from './pages/admin/AdminBilling'
+import AdminSecurity from './pages/admin/AdminSecurity'
 import Outcomes from './pages/Outcomes'
 import Schedule from './pages/Schedule'
 import Hours from './pages/Hours'
@@ -237,6 +238,7 @@ export default function App() {
                 <Route path="accounts" element={<AdminAccounts />} />
                 <Route path="usage" element={<AdminUsage />} />
                 <Route path="support" element={<AdminSupport />} />
+                <Route path="security" element={<AdminSecurity />} />
                 <Route path="billing" element={<AdminBilling />} />
               </Route>
 

@@ -59,11 +59,14 @@ export async function handleAddNote(therapistId, note, { setNotice, setError, on
   }
 }
 
-export async function handleDeleteAccount(therapistId, email, { setNotice, setError, onDone }) {
+export async function handleDeleteAccount(therapistId, email, { setNotice, setError, onDone, reason, confirmation } = {}) {
   setNotice?.('')
   setError?.('')
   try {
-    const res = await adminApiFetch(`/admin/therapists/${therapistId}`, { method: 'DELETE' })
+    const res = await adminApiFetch(`/admin/therapists/${therapistId}`, {
+      method: 'DELETE',
+      body: JSON.stringify({ reason, confirmation }),
+    })
     const data = await res.json()
     if (!res.ok) throw new Error(data.error || data.reason || 'Failed to delete account')
     setNotice?.(`Account ${email} deleted successfully.`)

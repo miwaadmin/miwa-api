@@ -41,6 +41,16 @@ const adminNav = [
     ),
   },
   {
+    to: '/admin/security',
+    label: 'Security',
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 3l7 4v5c0 4.5-2.9 7.9-7 9-4.1-1.1-7-4.5-7-9V7l7-4z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.5 12.5l1.6 1.6 3.4-4.2" />
+      </svg>
+    ),
+  },
+  {
     to: '/admin/billing',
     label: 'Billing',
     icon: (

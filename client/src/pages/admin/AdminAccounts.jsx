@@ -49,11 +49,26 @@ export default function AdminAccounts() {
   // Wipe one therapist's patients/sessions/etc. without touching their account.
   // Confirmation gate is two-step (button → confirm) since the action is destructive.
   const doResetData = async (id, email) => {
+    const confirmation = window.prompt(`Type WIPE ${email} to confirm the clinical data wipe.`)
+    if (confirmation !== `WIPE ${email}`) {
+      setError(`Data wipe cancelled. Confirmation must match: WIPE ${email}`)
+      setResetDataConfirmId(null)
+      return
+    }
+    const reason = window.prompt('Reason for wiping this account data:')
+    if (!reason || reason.trim().length < 12) {
+      setError('Data wipe cancelled. A specific reason is required.')
+      setResetDataConfirmId(null)
+      return
+    }
     setResetDataId(id)
     setError('')
     setNotice('')
     try {
-      const res = await adminApiFetch(`/admin/therapists/${id}/reset-data`, { method: 'POST' })
+      const res = await adminApiFetch(`/admin/therapists/${id}/reset-data`, {
+        method: 'POST',
+        body: JSON.stringify({ confirmation, reason }),
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to reset data')
       setNotice(data.message || `Cleared all clinical data for ${email}.`)
@@ -86,10 +101,24 @@ export default function AdminAccounts() {
   }
 
   const doDelete = async (id, email) => {
+    const confirmation = window.prompt(`Type DELETE ${email} to permanently delete this account.`)
+    if (confirmation !== `DELETE ${email}`) {
+      setError(`Account deletion cancelled. Confirmation must match: DELETE ${email}`)
+      setDeleteConfirmId(null)
+      return
+    }
+    const reason = window.prompt('Reason for deleting this account:')
+    if (!reason || reason.trim().length < 12) {
+      setError('Account deletion cancelled. A specific reason is required.')
+      setDeleteConfirmId(null)
+      return
+    }
     setDeletingId(id)
     await handleDeleteAccount(id, email, {
       setNotice,
       setError,
+      reason,
+      confirmation,
       onDone: () => {
         setDeleteConfirmId(null)
         load()
@@ -103,6 +132,9 @@ export default function AdminAccounts() {
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-4">
       <h2 className="text-lg font-bold text-gray-900">Accounts</h2>
+      <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+        Account administration is metadata-only by default. Client charts, notes, transcripts, diagnoses, and uploaded clinical files are not shown here.
+      </div>
 
       <AdminBanners notice={notice} error={error} />
 

@@ -86,6 +86,26 @@ function sanitizeStripeAdminError(err) {
   };
 }
 
+function adminReason(req) {
+  return String(req.body?.reason || req.body?.admin_reason || '').trim();
+}
+
+function requireTypedConfirmation(req, expected) {
+  const actual = String(req.body?.confirmation || req.body?.confirm || '').trim();
+  if (actual !== expected) {
+    return { ok: false, error: `Type ${expected} to confirm this admin action.` };
+  }
+  return { ok: true };
+}
+
+function requireReason(req, label = 'admin action') {
+  const reason = adminReason(req);
+  if (reason.length < 12) {
+    return { ok: false, error: `A specific reason is required before this ${label}.` };
+  }
+  return { ok: true, reason };
+}
+
 async function verifyStripeCatalogItem(stripe, name, envName, value) {
   const type = classifyStripeId(value);
   const item = {
@@ -322,6 +342,56 @@ router.get('/readiness', async (req, res) => {
     summary,
     checks,
   });
+});
+
+router.get('/access-policy', async (req, res) => {
+  res.json({
+    stance: 'minimum-necessary',
+    default_admin_access: 'Account, billing, support, usage, and operational metadata only.',
+    prohibited_default_access: [
+      'Client names and contact details',
+      'Diagnoses, assessments, session notes, transcripts, and uploaded clinical files',
+      'Raw prompts, raw model inputs, and clinician-client clinical content',
+    ],
+    permitted_default_access: [
+      'Clinician account identity and status',
+      'Subscription, billing, Stripe connection state, and trial usage',
+      'Aggregate patient, session, upload, and workspace counts',
+      'Support tickets and internal admin notes, treated as sensitive because users may include PHI',
+      'Security, readiness, backup, and deployment diagnostics without secrets',
+    ],
+    break_glass: {
+      enabled: false,
+      status: 'policy-placeholder',
+      requirement: 'Any future PHI access must require a reason, be time-limited, and write an audit trail before access.',
+    },
+  });
+});
+
+router.post('/break-glass/request', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const reasonCheck = requireReason(req, 'break-glass request');
+    const targetTherapistId = Number(req.body?.therapist_id || req.body?.therapistId || 0) || null;
+    await logEvent(db, {
+      therapistId: targetTherapistId,
+      eventType: 'admin.break_glass_request',
+      status: 'denied',
+      message: 'Break-glass PHI access is not enabled in the admin portal',
+      meta: {
+        actorId: req.therapist.id,
+        reasonProvided: !!reasonCheck.reason,
+        reasonLength: reasonCheck.reason?.length || 0,
+      },
+    });
+    await persistIfNeeded();
+    return res.status(403).json({
+      error: 'Break-glass PHI access is not enabled.',
+      policy: 'Admin portal access is limited to account, billing, support, usage, and operational metadata by default.',
+    });
+  } catch (err) {
+    return res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 router.get('/stripe/status', async (req, res) => {
@@ -925,6 +995,10 @@ router.delete('/therapists/:id', async (req, res) => {
     if (!therapist) return res.status(404).json({ error: 'Therapist not found.' });
 
     const therapistId = Number(req.params.id);
+    const confirmCheck = requireTypedConfirmation(req, `DELETE ${therapist.email}`);
+    if (!confirmCheck.ok) return res.status(400).json(confirmCheck);
+    const reasonCheck = requireReason(req, 'account deletion');
+    if (!reasonCheck.ok) return res.status(400).json(reasonCheck);
 
     // Full cascade delete — remove ALL associated data
     // Get all patient IDs for this therapist first
@@ -977,7 +1051,7 @@ router.delete('/therapists/:id', async (req, res) => {
       eventType: 'admin.account_deleted',
       status: 'success',
       message: `Deleted account: ${therapist.email}`,
-      meta: { deleted_id: therapistId, deleted_email: therapist.email, actorId: req.therapist.id },
+      meta: { deleted_id: therapistId, deleted_email: therapist.email, actorId: req.therapist.id, reason: reasonCheck.reason },
     });
 
     res.json({ ok: true, message: `Account ${therapist.email} deleted successfully.` });
@@ -990,6 +1064,10 @@ router.delete('/therapists/:id', async (req, res) => {
 router.post('/backfill-names', async (req, res) => {
   try {
     const db = getAsyncDb();
+    const confirmCheck = requireTypedConfirmation(req, 'BACKFILL DEMO NAMES');
+    if (!confirmCheck.ok) return res.status(400).json(confirmCheck);
+    const reasonCheck = requireReason(req, 'demo backfill');
+    if (!reasonCheck.ok) return res.status(400).json(reasonCheck);
     const FIRST = ['Sarah','Michael','Alex','Jordan','Taylor','Chris','Maria','Marcus','Jessica','David','Emily','James','Olivia','Daniel','Ashley','Ryan','Priya','Sofia','Ethan','Liam'];
     const LAST = ['Martinez','Chen','Thompson','Nguyen','Patel','Williams','Garcia','Johnson','Brown','Davis','Kim','Wilson','Anderson','Thomas','Jackson','Robinson','Lee','Clark','Hall','Ramirez'];
     const pick = arr => arr[Math.floor(Math.random() * arr.length)];
@@ -1002,6 +1080,14 @@ router.post('/backfill-names', async (req, res) => {
       await db.run('UPDATE patients SET display_name = ?, email = COALESCE(NULLIF(email, \'\'), ?) WHERE id = ?', name, email, p.id);
       updated++;
     }
+    await persistIfNeeded();
+    await logEvent(db, {
+      therapistId: null,
+      eventType: 'admin.demo_name_backfill',
+      status: 'success',
+      message: `Backfilled demo names for ${updated} client records`,
+      meta: { actorId: req.therapist.id, updated, reason: reasonCheck.reason },
+    });
     await persistIfNeeded();
     res.json({ ok: true, updated, message: `Gave real names to ${updated} client(s)` });
   } catch (err) {
@@ -1172,8 +1258,20 @@ router.post('/therapists/:id/reset-data', async (req, res) => {
     if (!tid) return res.status(400).json({ error: 'Invalid therapist id' });
     const therapist = await db.get('SELECT id, email, full_name FROM therapists WHERE id = ?', tid);
     if (!therapist) return res.status(404).json({ error: 'Therapist not found' });
+    const confirmCheck = requireTypedConfirmation(req, `WIPE ${therapist.email}`);
+    if (!confirmCheck.ok) return res.status(400).json(confirmCheck);
+    const reasonCheck = requireReason(req, 'data wipe');
+    if (!reasonCheck.ok) return res.status(400).json(reasonCheck);
 
     const patientCount = await wipeTherapistData(db, tid);
+    await persistIfNeeded({ allowShrink: true });
+    await logEvent(db, {
+      therapistId: tid,
+      eventType: 'admin.therapist_data_wiped',
+      status: 'success',
+      message: 'Admin wiped clinician clinical data while preserving account',
+      meta: { actorId: req.therapist.id, patientsDeleted: patientCount, reason: reasonCheck.reason },
+    });
     await persistIfNeeded({ allowShrink: true });
 
     res.json({
@@ -1193,6 +1291,10 @@ router.post('/reset-database', async (req, res) => {
   try {
     const db = getAsyncDb();
     const adminId = req.therapist.id;
+    const confirmCheck = requireTypedConfirmation(req, 'RESET DATABASE');
+    if (!confirmCheck.ok) return res.status(400).json(confirmCheck);
+    const reasonCheck = requireReason(req, 'database reset');
+    if (!reasonCheck.ok) return res.status(400).json(reasonCheck);
 
     // Delete ALL non-admin therapist accounts and their data
     const otherTherapists = await db.all('SELECT id FROM therapists WHERE id != ?', adminId);
@@ -1217,6 +1319,14 @@ router.post('/reset-database', async (req, res) => {
     try { await db.run('DELETE FROM note_enrichments'); } catch {}
 
     await persistIfNeeded({ allowShrink: true });
+    await logEvent(db, {
+      therapistId: adminId,
+      eventType: 'admin.database_reset',
+      status: 'success',
+      message: 'Admin reset database through admin portal',
+      meta: { actorId: req.therapist.id, deletedTherapists: otherTherapists.length, reason: reasonCheck.reason },
+    });
+    await persistIfNeeded({ allowShrink: true });
 
     res.json({
       ok: true,
@@ -1233,10 +1343,23 @@ router.post('/reset-stripe/:therapistId', async (req, res) => {
   try {
     const db = getAsyncDb();
     const tid = parseInt(req.params.therapistId);
+    const therapist = await db.get('SELECT id, email FROM therapists WHERE id = ?', tid);
+    if (!therapist) return res.status(404).json({ error: 'Therapist not found.' });
+    const confirmCheck = requireTypedConfirmation(req, `RESET STRIPE ${therapist.email}`);
+    if (!confirmCheck.ok) return res.status(400).json(confirmCheck);
+    const reasonCheck = requireReason(req, 'Stripe reset');
+    if (!reasonCheck.ok) return res.status(400).json(reasonCheck);
     await db.run(
       'UPDATE therapists SET stripe_customer_id = NULL, stripe_subscription_id = NULL WHERE id = ?',
       tid
     );
+    await logEvent(db, {
+      therapistId: tid,
+      eventType: 'admin.stripe_reset',
+      status: 'success',
+      message: 'Admin cleared Stripe customer and subscription IDs',
+      meta: { actorId: req.therapist.id, reason: reasonCheck.reason },
+    });
     await persistIfNeeded();
     res.json({ ok: true, message: `Cleared Stripe data for therapist ${tid}. Next checkout will create a fresh customer.` });
   } catch (err) {
@@ -1251,6 +1374,10 @@ router.post('/reset-stripe/:therapistId', async (req, res) => {
 router.post('/reset-stripe-all', async (req, res) => {
   try {
     const db = getAsyncDb();
+    const confirmCheck = requireTypedConfirmation(req, 'RESET STRIPE ALL');
+    if (!confirmCheck.ok) return res.status(400).json(confirmCheck);
+    const reasonCheck = requireReason(req, 'bulk Stripe reset');
+    if (!reasonCheck.ok) return res.status(400).json(reasonCheck);
     const before = await db.get(
       `SELECT
          COUNT(CASE WHEN stripe_customer_id IS NOT NULL THEN 1 END) AS customers,
@@ -1278,7 +1405,9 @@ router.post('/reset-stripe-all', async (req, res) => {
       eventType: 'stripe_migration',
       status: 'test_to_live',
       message: `Cleared ${before?.customers || 0} stale customer IDs; reset ${before?.active_subs || 0} active subs to trial.`,
+      meta: { actorId: req.therapist.id, reason: reasonCheck.reason },
     });
+    await persistIfNeeded();
 
     res.json({
       ok: true,
@@ -1297,10 +1426,19 @@ router.post('/fix-subscription/:therapistId', async (req, res) => {
     const db = getAsyncDb();
     const tid = parseInt(req.params.therapistId);
     const { status, tier } = req.body;
+    const reasonCheck = requireReason(req, 'subscription override');
+    if (!reasonCheck.ok) return res.status(400).json(reasonCheck);
     await db.run(
       'UPDATE therapists SET subscription_status = ?, subscription_tier = ? WHERE id = ?',
       status || 'active', tier || 'solo', tid
     );
+    await logEvent(db, {
+      therapistId: tid,
+      eventType: 'admin.subscription_override',
+      status: 'success',
+      message: `Admin set subscription to ${status || 'active'} (${tier || 'solo'})`,
+      meta: { actorId: req.therapist.id, reason: reasonCheck.reason },
+    });
     await persistIfNeeded();
     res.json({ ok: true, message: `Set subscription to ${status || 'active'} (${tier || 'solo'}) for therapist ${tid}` });
   } catch (err) {

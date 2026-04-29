@@ -80,6 +80,10 @@ export default function AdminSupport() {
 
       <AdminBanners error={error} />
 
+      <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        Support feedback may contain PHI if a clinician typed it into a ticket. Keep replies minimum-necessary and do not copy clinical details into admin notes.
+      </div>
+
       {/* ── User Feedback ────────────────────────────────────────────────── */}
       <div className="card p-5">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-3">

@@ -34,10 +34,10 @@ export default function AdminBilling() {
   const loadAllAccounts = async () => {
     setLoadingAccounts(true)
     try {
-      const res = await adminApiFetch('/admin/accounts?limit=999')
+      const res = await adminApiFetch('/admin/therapists')
       const data = await res.json()
       if (res.ok) {
-        setAllAccounts(data.accounts || [])
+        setAllAccounts(Array.isArray(data) ? data : [])
       }
     } catch (err) {
       console.error('Failed to load accounts:', err)
