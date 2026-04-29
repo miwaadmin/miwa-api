@@ -60,21 +60,6 @@ const PLANS = [
       'Export to PDF',
     ],
   },
-  {
-    id: 'group',
-    name: 'Group Practice',
-    price: '$399',
-    period: '/mo',
-    color: '#0f766e',
-    desc: 'Min. 3 clinicians included. +$39/mo each. 10+? Contact us.',
-    perSeat: true,
-    features: [
-      'Everything in Licensed',
-      '3 clinicians included',
-      'Practice-level dashboard',
-      'Dedicated onboarding call',
-    ],
-  },
 ]
 
 const STATUS_TONES = {
@@ -283,14 +268,6 @@ export default function MobileBilling() {
                     style={{ background: `${p.color}15`, color: p.color }}>
                     ✓ Current plan
                   </div>
-                ) : p.id === 'group' ? (
-                  <a
-                    href="mailto:hello@miwa.care?subject=Miwa%20for%20Teams"
-                    className="block w-full rounded-xl py-3 text-sm font-bold text-center active:opacity-90"
-                    style={{ background: `${p.color}15`, color: p.color, border: `1px solid ${p.color}30` }}
-                  >
-                    Contact for waitlist
-                  </a>
                 ) : (
                   <button
                     onClick={() => handleCheckout(p.id)}

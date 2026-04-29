@@ -81,28 +81,6 @@ const PLANS = [
     ],
     notIncluded: [],
   },
-  {
-    id: 'practice',
-    name: 'Group Practice',
-    badge: 'Coming soon',
-    monthlyPrice: 399,
-    annualPrice: 319,
-    desc: 'Miwa for Teams — separate product. Base includes 3 clinicians.',
-    cta: 'Join waitlist',
-    ctaHref: '/for-practices',
-    highlight: false,
-    perSeat: true,
-    includesFrom: 'Licensed Therapist',
-    features: [
-      'Per-clinician Miwa AI copilot',
-      '3 clinicians included in base',
-      '+$39/mo per additional clinician',
-      'Practice-level caseload dashboard',
-      'Supervisor review workflow',
-      'Dedicated onboarding call',
-    ],
-    notIncluded: [],
-  },
 ]
 
 const COMPETITORS = [
@@ -173,7 +151,7 @@ export default function Pricing() {
 
       {/* Plan cards */}
       <div className="max-w-[1400px] mx-auto px-6 pb-16">
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-5">
+        <div className="grid md:grid-cols-3 gap-5">
           {PLANS.map(plan => {
             const price = plan.monthlyPrice
             return (

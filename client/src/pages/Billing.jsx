@@ -51,23 +51,6 @@ const PLANS = [
       'Export to PDF',
     ],
   },
-  {
-    id: 'group',
-    name: 'Group Practice',
-    price: '$399',
-    period: '/mo',
-    badge: null,
-    color: '#0f766e',
-    desc: 'Min. 3 clinicians included. +$39/mo per additional clinician. 10+ clinicians? Contact us.',
-    perSeat: true,
-    features: [
-      'Everything in Licensed Therapist',
-      '3 clinicians included in base price',
-      '+$39/mo per additional clinician',
-      'Practice-level caseload dashboard',
-      'Dedicated onboarding call',
-    ],
-  },
 ]
 
 const STATUS_LABELS = {
