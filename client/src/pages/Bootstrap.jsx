@@ -47,20 +47,31 @@ export default function Bootstrap() {
         },
         body: JSON.stringify(mode === 'create'
           ? {
+              diag_secret: jwtSecret,
               email: form.email.trim(),
               password: form.password,
               first_name: form.first_name.trim() || null,
               last_name: form.last_name.trim() || null,
             }
           : {
+              diag_secret: jwtSecret,
               email: form.email.trim(),
               new_password: form.password,
             }),
       })
       const data = await res.json()
       if (!res.ok) {
+        if (data.code === 'RECOVERY_SECRET_MISMATCH') {
+          const expected = Array.isArray(data.expected_lengths) && data.expected_lengths.length
+            ? data.expected_lengths.join(' or ')
+            : 'unknown'
+          const recoveryStatus = data.admin_recovery_secret_configured
+            ? 'ADMIN_RECOVERY_SECRET is configured.'
+            : 'ADMIN_RECOVERY_SECRET is not configured.'
+          throw new Error(`Recovery secret mismatch. Pasted length: ${data.provided_length}; server expects length: ${expected}. ${recoveryStatus}`)
+        }
         if (res.status === 404) {
-          throw new Error('JWT_SECRET does not match the running server. Paste the value from the production App Service JWT_SECRET setting.')
+          throw new Error('Recovery secret does not match the running server. Paste JWT_SECRET or set a temporary ADMIN_RECOVERY_SECRET in Azure.')
         }
         if (res.status === 409 && mode === 'create') {
           throw new Error('That admin account already exists. Select Reset password instead.')
@@ -127,7 +138,7 @@ export default function Bootstrap() {
 
         <div className="rounded-2xl p-7 bg-white shadow-xl border border-gray-100">
           <div className="rounded-xl px-4 py-3 text-sm bg-amber-50 border border-amber-200 text-amber-900 mb-5 leading-relaxed">
-            Reset an existing admin password first. Use Create admin only if the admin account does not exist yet. Both actions require the production <code className="font-mono text-xs bg-white px-1 py-0.5 rounded border border-amber-200">JWT_SECRET</code>.
+            Reset an existing admin password first. Use Create admin only if the admin account does not exist yet. Paste the production <code className="font-mono text-xs bg-white px-1 py-0.5 rounded border border-amber-200">JWT_SECRET</code>, or a temporary <code className="font-mono text-xs bg-white px-1 py-0.5 rounded border border-amber-200">ADMIN_RECOVERY_SECRET</code>.
           </div>
 
           <div className="grid grid-cols-2 gap-2 mb-5">
@@ -149,7 +160,7 @@ export default function Bootstrap() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className={labelCls}>JWT_SECRET</label>
+              <label className={labelCls}>Recovery secret</label>
               <input
                 type="password"
                 required

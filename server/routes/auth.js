@@ -844,16 +844,50 @@ router.post('/reset-password', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Diagnostic + recovery endpoints. Two layers of protection:
-//   1. Each endpoint requires the JWT_SECRET in X-Miwa-Diag-Secret.
+//   1. Each endpoint requires JWT_SECRET or a temporary ADMIN_RECOVERY_SECRET
+//      in X-Miwa-Diag-Secret / diag_secret.
 //   2. Broad diagnostics are gated behind ENABLE_DIAG=true. Narrow account
-//      recovery endpoints only require JWT_SECRET so an operator can recover
+//      recovery endpoints only require one recovery secret so an operator can recover
 //      admin access without enabling the wider diagnostic surface.
 // ─────────────────────────────────────────────────────────────────────────────
+function normalizeRecoverySecret(value) {
+  let normalized = String(value || '').replace(/^\uFEFF/, '').trim();
+  if ((normalized.startsWith('"') && normalized.endsWith('"')) ||
+      (normalized.startsWith("'") && normalized.endsWith("'"))) {
+    normalized = normalized.slice(1, -1).trim();
+  }
+  return normalized;
+}
+
+function getProvidedRecoverySecret(req) {
+  return normalizeRecoverySecret(req.get('x-miwa-diag-secret') || req.body?.diag_secret || '');
+}
+
+function getRecoverySecrets() {
+  return [JWT_SECRET, process.env.ADMIN_RECOVERY_SECRET]
+    .map(normalizeRecoverySecret)
+    .filter(Boolean);
+}
+
+function safeEqualSecret(a, b) {
+  return a.length === b.length
+    && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
+}
+
 function diagSecretMatches(req) {
-  const provided = String(req.get('x-miwa-diag-secret') || req.body?.diag_secret || '').trim();
-  const expected = String(JWT_SECRET || '').trim();
-  return provided.length === expected.length
-    && crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+  const provided = getProvidedRecoverySecret(req);
+  return getRecoverySecrets().some(expected => safeEqualSecret(provided, expected));
+}
+
+function recoverySecretDebug(req) {
+  const provided = getProvidedRecoverySecret(req);
+  const configuredLengths = getRecoverySecrets().map(secret => secret.length);
+  return {
+    code: 'RECOVERY_SECRET_MISMATCH',
+    provided_length: provided.length,
+    expected_lengths: configuredLengths,
+    admin_recovery_secret_configured: !!normalizeRecoverySecret(process.env.ADMIN_RECOVERY_SECRET),
+  };
 }
 
 function diagAuthorized(req, res) {
@@ -863,7 +897,7 @@ function diagAuthorized(req, res) {
   }
   const ok = diagSecretMatches(req);
   if (!ok) {
-    res.status(404).json({ error: 'Not found' });
+    res.status(404).json({ error: 'Not found', ...recoverySecretDebug(req) });
     return false;
   }
   return true;
@@ -871,7 +905,7 @@ function diagAuthorized(req, res) {
 
 function recoveryAuthorized(req, res) {
   if (!diagSecretMatches(req)) {
-    res.status(404).json({ error: 'Not found' });
+    res.status(404).json({ error: 'Not found', ...recoverySecretDebug(req) });
     return false;
   }
   return true;

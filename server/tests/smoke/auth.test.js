@@ -95,6 +95,42 @@ test('auth flow', async (t) => {
     }
   });
 
+  await t.test('admin recovery accepts temporary ADMIN_RECOVERY_SECRET', async () => {
+    const original = process.env.ADMIN_RECOVERY_SECRET;
+    process.env.ADMIN_RECOVERY_SECRET = 'temporary-admin-recovery-secret-1234';
+    try {
+      const reset = await api('POST', '/api/auth/_diag/reset-password', {
+        email: 'admin@miwa.test',
+        new_password: 'second-new-admin-password-1234',
+        diag_secret: `"${process.env.ADMIN_RECOVERY_SECRET}"`,
+      });
+      assert.equal(reset.status, 200);
+      assert.equal(reset.body.ok, true);
+
+      const login = await api('POST', '/api/auth/admin-login', {
+        email: 'admin@miwa.test',
+        password: 'second-new-admin-password-1234',
+      });
+      assert.equal(login.status, 200);
+      assert.equal(login.body.therapist.is_admin, true);
+    } finally {
+      if (original === undefined) delete process.env.ADMIN_RECOVERY_SECRET;
+      else process.env.ADMIN_RECOVERY_SECRET = original;
+    }
+  });
+
+  await t.test('admin recovery mismatch returns safe length diagnostics', async () => {
+    const reset = await api('POST', '/api/auth/_diag/reset-password', {
+      email: 'admin@miwa.test',
+      new_password: 'will-not-apply-1234',
+      diag_secret: 'wrong-secret',
+    });
+    assert.equal(reset.status, 404);
+    assert.equal(reset.body.code, 'RECOVERY_SECRET_MISMATCH');
+    assert.equal(reset.body.provided_length, 'wrong-secret'.length);
+    assert.ok(reset.body.expected_lengths.includes(process.env.JWT_SECRET.length));
+  });
+
   await t.test('forgot-password returns ok regardless of email existence', async () => {
     const known = await api('POST', '/api/auth/forgot-password', { email: 'admin@miwa.test' });
     const unknown = await api('POST', '/api/auth/forgot-password', { email: 'noone@nowhere.com' });
