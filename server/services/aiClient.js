@@ -16,6 +16,18 @@ const TTS_DEPLOYMENT_ENV_NAMES = [
   'AZURE_OPENAI_AUDIO_SPEECH_DEPLOYMENT',
   'AZURE_OPENAI_VOICE_DEPLOYMENT',
 ];
+const TTS_ENDPOINT_ENV_NAMES = [
+  'AZURE_OPENAI_TTS_ENDPOINT',
+  'AZURE_OPENAI_SPEECH_ENDPOINT',
+  'AZURE_OPENAI_AUDIO_SPEECH_ENDPOINT',
+  'AZURE_OPENAI_VOICE_ENDPOINT',
+];
+const TTS_KEY_ENV_NAMES = [
+  'AZURE_OPENAI_TTS_KEY',
+  'AZURE_OPENAI_SPEECH_KEY',
+  'AZURE_OPENAI_AUDIO_SPEECH_KEY',
+  'AZURE_OPENAI_VOICE_KEY',
+];
 
 class AIServiceError extends Error {
   constructor(metadata = {}) {
@@ -70,6 +82,7 @@ function requireAzureConfig() {
 
 let aiClientInstance = null;
 let audioClientInstance = null;
+let ttsClientInstance = null;
 let testClient = null;
 let testAudioClient = null;
 
@@ -95,6 +108,44 @@ function getAudioAIClient() {
     apiVersion,
   });
   return audioClientInstance;
+}
+
+function requireTTSAzureConfig() {
+  const base = requireAzureConfig();
+  const endpointMatch = getFirstEnvMatch(TTS_ENDPOINT_ENV_NAMES);
+  const keyMatch = getFirstEnvMatch(TTS_KEY_ENV_NAMES);
+  const hasDedicatedEndpoint = Boolean(endpointMatch.value);
+  const hasDedicatedKey = Boolean(keyMatch.value);
+
+  if (hasDedicatedEndpoint !== hasDedicatedKey) {
+    throw sanitizeAIError({
+      status: 500,
+      code: 'azure_tts_config_incomplete',
+      type: 'configuration_error',
+    });
+  }
+
+  return {
+    endpoint: hasDedicatedEndpoint ? normalizeEndpoint(endpointMatch.value) : base.endpoint,
+    apiKey: hasDedicatedKey ? keyMatch.value : base.apiKey,
+    apiVersion: base.apiVersion,
+    endpointEnvVar: endpointMatch.name,
+    keyEnvVar: keyMatch.name,
+    usesDedicatedResource: hasDedicatedEndpoint && hasDedicatedKey,
+  };
+}
+
+function getTTSAIClient() {
+  if (testAudioClient) return testAudioClient;
+  if (testClient) return testClient;
+  if (ttsClientInstance) return ttsClientInstance;
+  const { endpoint, apiKey, apiVersion } = requireTTSAzureConfig();
+  ttsClientInstance = new AzureOpenAI({
+    endpoint,
+    apiKey,
+    apiVersion,
+  });
+  return ttsClientInstance;
 }
 
 // IMPORTANT: ALL PHI MUST GO THROUGH AZURE ONLY
@@ -181,6 +232,9 @@ function getAIConfigStatus() {
   const endpoint = normalizeEndpoint(process.env.AZURE_OPENAI_ENDPOINT);
   const transcription = getFirstEnvMatch(TRANSCRIPTION_DEPLOYMENT_ENV_NAMES);
   const tts = getFirstEnvMatch(TTS_DEPLOYMENT_ENV_NAMES);
+  const ttsEndpoint = getFirstEnvMatch(TTS_ENDPOINT_ENV_NAMES);
+  const ttsKey = getFirstEnvMatch(TTS_KEY_ENV_NAMES);
+  const ttsUsesDedicatedResource = Boolean(ttsEndpoint.value && ttsKey.value);
 
   return {
     provider: AI_PROVIDER,
@@ -191,6 +245,11 @@ function getAIConfigStatus() {
     transcriptionEnvVar: transcription.name,
     ttsDeployment: tts.value || null,
     ttsEnvVar: tts.name,
+    ttsEndpointHost: ttsUsesDedicatedResource ? getEndpointHost(ttsEndpoint.value) : getEndpointHost(endpoint),
+    ttsEndpointEnvVar: ttsEndpoint.name,
+    ttsHasApiKey: ttsUsesDedicatedResource ? true : Boolean(String(process.env.AZURE_OPENAI_KEY || '').trim()),
+    ttsKeyEnvVar: ttsKey.name,
+    ttsUsesDedicatedResource,
     apiVersion: getAzureApiVersion(),
   };
 }
@@ -345,7 +404,7 @@ async function transcribeAudioBuffer(buffer, filename, mimeType) {
 
 async function generateSpeechBuffer(text, options = {}) {
   const deployment = requireAudioDeployment('tts', TTS_DEPLOYMENT_ENV_NAMES);
-  const audio = await runAzureRequest(() => getAudioAIClient().audio.speech.create({
+  const audio = await runAzureRequest(() => getTTSAIClient().audio.speech.create({
     model: deployment,
     voice: options.voice || 'nova',
     input: text,
@@ -378,9 +437,11 @@ module.exports = {
       testAudioClient = null;
       aiClientInstance = null;
       audioClientInstance = null;
+      ttsClientInstance = null;
     },
     sanitizeAIError,
     normalizeEndpoint,
+    requireTTSAzureConfig,
     getAzureApiVersion,
   },
 };

@@ -17,6 +17,8 @@ const ORIGINAL_ENV = {
   AZURE_OPENAI_AUDIO_TRANSCRIBE_DEPLOYMENT: process.env.AZURE_OPENAI_AUDIO_TRANSCRIBE_DEPLOYMENT,
   AZURE_OPENAI_WHISPER_DEPLOYMENT: process.env.AZURE_OPENAI_WHISPER_DEPLOYMENT,
   AZURE_OPENAI_TTS_DEPLOYMENT: process.env.AZURE_OPENAI_TTS_DEPLOYMENT,
+  AZURE_OPENAI_TTS_ENDPOINT: process.env.AZURE_OPENAI_TTS_ENDPOINT,
+  AZURE_OPENAI_TTS_KEY: process.env.AZURE_OPENAI_TTS_KEY,
   AZURE_OPENAI_SPEECH_DEPLOYMENT: process.env.AZURE_OPENAI_SPEECH_DEPLOYMENT,
   AZURE_OPENAI_AUDIO_SPEECH_DEPLOYMENT: process.env.AZURE_OPENAI_AUDIO_SPEECH_DEPLOYMENT,
   AZURE_OPENAI_VOICE_DEPLOYMENT: process.env.AZURE_OPENAI_VOICE_DEPLOYMENT,
@@ -280,11 +282,60 @@ describe('Azure OpenAI client error handling', () => {
     assert.equal(status.transcriptionEnvVar, 'AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT');
     assert.equal(status.ttsDeployment, 'voice-main');
     assert.equal(status.ttsEnvVar, 'AZURE_OPENAI_TTS_DEPLOYMENT');
+    assert.equal(status.ttsEndpointHost, 'example-resource.openai.azure.com');
+    assert.equal(status.ttsUsesDedicatedResource, false);
     assert.equal(status.apiVersion, '2025-04-01-preview');
 
     const serialized = JSON.stringify(status);
     assert.ok(!serialized.includes('super-secret-key'));
     assert.ok(!serialized.includes('/openai/deployments'));
+  });
+
+  test('TTS can use a dedicated Azure OpenAI endpoint and key without exposing secrets', () => {
+    process.env.AZURE_OPENAI_ENDPOINT = 'https://chat-resource.openai.azure.com';
+    process.env.AZURE_OPENAI_KEY = 'main-secret-key';
+    process.env.AZURE_OPENAI_DEPLOYMENT = 'gpt-main';
+    process.env.AZURE_OPENAI_TTS_DEPLOYMENT = 'voice-main';
+    process.env.AZURE_OPENAI_TTS_ENDPOINT = 'https://voice-resource.cognitiveservices.azure.com/openai/deployments/voice-main/audio/speech';
+    process.env.AZURE_OPENAI_TTS_KEY = 'tts-secret-key';
+
+    const config = aiClient._test.requireTTSAzureConfig();
+    const status = aiClient.getAIConfigStatus();
+
+    assert.equal(config.endpoint, 'https://voice-resource.cognitiveservices.azure.com');
+    assert.equal(config.apiKey, 'tts-secret-key');
+    assert.equal(config.usesDedicatedResource, true);
+    assert.equal(status.endpointHost, 'chat-resource.openai.azure.com');
+    assert.equal(status.ttsEndpointHost, 'voice-resource.cognitiveservices.azure.com');
+    assert.equal(status.ttsEndpointEnvVar, 'AZURE_OPENAI_TTS_ENDPOINT');
+    assert.equal(status.ttsKeyEnvVar, 'AZURE_OPENAI_TTS_KEY');
+    assert.equal(status.ttsUsesDedicatedResource, true);
+    assert.equal(status.ttsHasApiKey, true);
+    assert.ok(!JSON.stringify(status).includes('main-secret-key'));
+    assert.ok(!JSON.stringify(status).includes('tts-secret-key'));
+    assert.ok(!JSON.stringify(status).includes('/openai/deployments'));
+  });
+
+  test('TTS dedicated resource requires endpoint and key together', async () => {
+    process.env.AZURE_OPENAI_ENDPOINT = 'https://chat-resource.openai.azure.com';
+    process.env.AZURE_OPENAI_KEY = 'main-secret-key';
+    process.env.AZURE_OPENAI_DEPLOYMENT = 'gpt-main';
+    process.env.AZURE_OPENAI_TTS_DEPLOYMENT = 'voice-main';
+    process.env.AZURE_OPENAI_TTS_ENDPOINT = 'https://voice-resource.cognitiveservices.azure.com';
+    delete process.env.AZURE_OPENAI_TTS_KEY;
+
+    let thrown;
+    const logs = await captureConsoleError(async () => {
+      try {
+        aiClient._test.requireTTSAzureConfig();
+      } catch (err) {
+        thrown = err;
+      }
+    });
+
+    assert.ok(aiClient.isAIServiceError(thrown));
+    assert.equal(thrown.ai.error_code, 'azure_tts_config_incomplete');
+    assert.ok(!JSON.stringify(logs).includes('main-secret-key'));
   });
 
   test('AI config status reports the default Azure API version when unset', () => {
