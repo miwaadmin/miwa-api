@@ -944,6 +944,59 @@ router.post('/demo-patient', requireAuth, async (req, res) => {
       console.warn('[demo] appointment insert skipped:', err.message);
     }
 
+    // ── Practicum hour entries — seeded once per account ───────────────────
+    // Trainees + associates land on a Hours page that needs realistic data
+    // to feel useful. Seed about a month of supervision, workshops, and
+    // advocacy so the totals + grid + CSV export demonstrate properly.
+    // Idempotent: skips entirely if the account already has any entries.
+    try {
+      const cred = req.therapist?.credential_type;
+      if (cred === 'trainee' || cred === 'associate') {
+        const existing = await db.get(
+          'SELECT COUNT(*) AS n FROM practice_hours WHERE therapist_id = ?',
+          therapistId,
+        );
+        if (!existing || Number(existing.n) === 0) {
+          // Match the bucket layout used by services/practiceHours.js. Picking
+          // a credible weekly rhythm: 1h individual supervision + 2h group
+          // each week, a workshop here and there, advocacy as it comes up.
+          const supervisorName = 'Pamela Georgette';
+          const siteName       = 'CSUN Strength United';
+          const weeklyEntries = [
+            // 4 weeks back → today, in 7-day steps
+            { offset: 28, bucket: 'sup_field_individual', hours: 1.0,  notes: 'Weekly supervision' },
+            { offset: 28, bucket: 'sup_csun_class_group', hours: 2.0,  notes: 'Fieldwork class' },
+            { offset: 26, bucket: 'other_trainings',      hours: 3.0,  notes: 'Couples therapy intensive (Gottman)' },
+            { offset: 21, bucket: 'sup_field_individual', hours: 1.0,  notes: 'Weekly supervision' },
+            { offset: 21, bucket: 'sup_csun_class_group', hours: 2.0,  notes: 'Fieldwork class' },
+            { offset: 18, bucket: 'advocacy_live_telephonic', hours: 0.5, notes: 'School coordination call' },
+            { offset: 14, bucket: 'sup_field_individual', hours: 1.0,  notes: 'Weekly supervision' },
+            { offset: 14, bucket: 'sup_csun_class_group', hours: 2.0,  notes: 'Fieldwork class' },
+            { offset: 12, bucket: 'live_sup_field_individual', hours: 1.0, notes: 'Live observation supervision' },
+            { offset: 9,  bucket: 'other_advocacy_research', hours: 0.75, notes: 'Researching IOP options' },
+            { offset: 7,  bucket: 'sup_field_individual', hours: 1.0,  notes: 'Weekly supervision' },
+            { offset: 7,  bucket: 'sup_csun_class_group', hours: 2.0,  notes: 'Fieldwork class' },
+            { offset: 5,  bucket: 'other_progress_notes', hours: 1.5,  notes: 'Treatment plan write-up' },
+            { offset: 3,  bucket: 'sup_field_individual', hours: 1.0,  notes: 'Weekly supervision' },
+          ];
+          for (const e of weeklyEntries) {
+            const dateStr = dateOffsetDays(today, -e.offset);
+            try {
+              await db.insert(
+                `INSERT INTO practice_hours (therapist_id, bucket_id, date, hours, supervisor, site, notes)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
+                therapistId, e.bucket, dateStr, e.hours, supervisorName, siteName, e.notes,
+              );
+            } catch (insErr) {
+              console.warn('[demo] hour entry skipped:', insErr.message);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[demo] practice_hours seed skipped:', err.message);
+    }
+
     await persistIfNeeded();
 
     res.json({
