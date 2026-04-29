@@ -14,7 +14,11 @@ on:
 
 concurrency:
   group: miwa-api-prod-main
-  cancel-in-progress: true
+  # Queue runs instead of cancelling — each push gets its own independent
+  # deploy so a failing newer push can never block an older successful one
+  # from reaching production. Azure App Service serializes deploys to the
+  # same slot anyway, so this just makes the queue explicit and visible.
+  cancel-in-progress: false
 
 jobs:
   build:
