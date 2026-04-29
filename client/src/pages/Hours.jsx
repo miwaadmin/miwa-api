@@ -181,6 +181,26 @@ export default function Hours() {
         </div>
       </div>
 
+      {/* Uncounted-scheduled hint — visible only when there's something to fix.
+          Most common reason hours stay at 0 is past appointments still in
+          'scheduled' status; this nudges the user to mark them complete. */}
+      {state?.uncountedScheduled > 0 && (
+        <div className="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 flex items-start gap-3">
+          <svg className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-xs text-blue-800 leading-relaxed">
+            <span className="font-semibold">
+              {state.uncountedScheduled} past {state.uncountedScheduled === 1 ? 'session is' : 'sessions are'} not counted yet.
+            </span>{' '}
+            Hours only count once an appointment is marked
+            <span className="font-semibold"> completed</span>. Open the
+            {' '}<button onClick={() => navigate('/schedule')} className="underline font-semibold hover:text-blue-900">Schedule</button>{' '}
+            and mark each session attended to add them here.
+          </p>
+        </div>
+      )}
+
       {/* Unofficial disclaimer */}
       <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex items-start gap-3">
         <svg className="w-4 h-4 text-amber-600 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

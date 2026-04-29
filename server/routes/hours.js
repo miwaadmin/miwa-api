@@ -41,7 +41,25 @@ router.get('/', async (req, res) => {
     const db = getAsyncDb();
     const programId = (req.query.program || 'csun_mft').toString();
     const state = await computeHourTotals(db, req.therapist.id, programId);
-    return res.json(state);
+
+    // Diagnostic: count past appointments that aren't counted because they
+    // haven't been marked completed yet. This is the #1 reason a trainee's
+    // hours stay at 0 despite having sessions on the calendar — surface it
+    // so they can fix it instead of wondering.
+    const nowIso = new Date().toISOString();
+    const stuckRow = await db.get(
+      `SELECT COUNT(*) AS n
+       FROM appointments
+       WHERE therapist_id = ?
+         AND status = 'scheduled'
+         AND scheduled_start IS NOT NULL
+         AND scheduled_start < ?
+         AND duration_minutes IS NOT NULL`,
+      req.therapist.id, nowIso,
+    );
+    const uncountedScheduled = Number(stuckRow?.n) || 0;
+
+    return res.json({ ...state, uncountedScheduled });
   } catch (err) {
     return res.status(500).json({ error: err.message || 'Failed to compute hours' });
   }
