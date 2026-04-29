@@ -7,7 +7,7 @@
  */
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
+import { useAdminAuth } from '../context/AdminAuthContext'
 import { MiwaLogo } from '../components/Sidebar'
 import { API_BASE } from '../lib/api'
 
@@ -15,7 +15,7 @@ const API = API_BASE
 
 export default function Bootstrap() {
   const navigate = useNavigate()
-  const { login } = useAuth()
+  const { adminLogin } = useAdminAuth()
   const [mode, setMode] = useState('reset')
   const [form, setForm] = useState({
     jwt_secret: '',
@@ -80,7 +80,7 @@ export default function Bootstrap() {
       }
       setCreated(data)
 
-      const loginRes = await fetch(`${API}/auth/login`, {
+      const loginRes = await fetch(`${API}/auth/admin-login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
@@ -88,8 +88,8 @@ export default function Bootstrap() {
       })
       const loginData = await loginRes.json()
       if (loginRes.ok) {
-        login(loginData.token, loginData.therapist)
-        setTimeout(() => navigate('/dashboard', { replace: true }), 800)
+        adminLogin(loginData.token, loginData.therapist)
+        setTimeout(() => navigate('/admin', { replace: true }), 800)
       }
     } catch (err) {
       setError(err.message)
@@ -115,7 +115,7 @@ export default function Bootstrap() {
             <p className="text-gray-600 text-base mb-1">
               <span className="font-medium text-indigo-600">{created.email}</span> &middot; admin &middot; verified
             </p>
-            <p className="text-gray-500 text-sm mt-4">Signing you in...</p>
+            <p className="text-gray-500 text-sm mt-4">Signing you into the admin portal...</p>
           </div>
         </div>
       </div>
