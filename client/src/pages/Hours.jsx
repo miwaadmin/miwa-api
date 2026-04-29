@@ -40,6 +40,7 @@ export default function Hours() {
   const [entries, setEntries] = useState([])         // recent manual entries
   const [showEntryModal, setShowEntryModal] = useState(false)
   const [editingEntry, setEditingEntry] = useState(null)
+  const [exporting, setExporting] = useState(false)
 
   // Plan gate. If the user isn't a trainee/associate, redirect — server also
   // enforces this but we want graceful UX, not a 403.
@@ -63,6 +64,34 @@ export default function Hours() {
   }, [])
 
   useEffect(() => { if (eligible) loadAll() }, [loadAll, eligible])
+
+  // CSV download. apiFetch is used so credentials/auth-bearer headers go
+  // along; the response body is converted to a Blob and an <a download>
+  // is synthesized to trigger the save dialog. This works the same on
+  // desktop and mobile-web; native Capacitor would need different handling
+  // but the Hours page is desktop-first for now.
+  const handleExportCsv = useCallback(async () => {
+    setExporting(true)
+    try {
+      const res = await apiFetch('/hours/export.csv')
+      if (!res.ok) throw new Error('Export failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const stamp = todayLocalISO()
+      a.download = `miwa-hours-${stamp}.csv`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      // Revoke after a tick so Safari has time to start the download.
+      setTimeout(() => URL.revokeObjectURL(url), 1000)
+    } catch (e) {
+      alert(e.message || 'Could not download the CSV.')
+    } finally {
+      setExporting(false)
+    }
+  }, [])
 
   // Render an "ineligible" landing instead of an empty page when a licensed
   // clinician somehow lands here — same as the server's 403, but friendlier.
@@ -100,15 +129,28 @@ export default function Hours() {
             {state?.programLabel || 'CSUN MFT (Practicum)'} · auto-tallied from your completed appointments.
           </p>
         </div>
-        <button
-          onClick={() => { setEditingEntry(null); setShowEntryModal(true) }}
-          className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors flex items-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          Log hours
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCsv}
+            disabled={exporting}
+            className="px-3.5 py-2 rounded-xl text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-60"
+            title="Download a CSV with bucket totals + every manual entry. Hand it to your supervisor or paste into Tevera/the BBS form."
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+            </svg>
+            {exporting ? 'Preparing…' : 'Export CSV'}
+          </button>
+          <button
+            onClick={() => { setEditingEntry(null); setShowEntryModal(true) }}
+            className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors flex items-center gap-2"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            Log hours
+          </button>
+        </div>
       </div>
 
       {/* Unofficial disclaimer */}

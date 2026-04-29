@@ -142,6 +142,69 @@ router.put('/entries/:id', async (req, res) => {
   }
 });
 
+// ─── GET /api/hours/export.csv ───────────────────────────────────────────────
+// CSV with two sections: bucket totals (one row per bucket) and the full
+// list of manual entries. Suitable for handing to a supervisor or pasting
+// into a BBS form. Uses CRLF line endings + RFC 4180 quoting so Excel,
+// Numbers, and Sheets all open it cleanly.
+router.get('/export.csv', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const programId = (req.query.program || 'csun_mft').toString();
+    const state = await computeHourTotals(db, req.therapist.id, programId);
+    const entries = await db.all(
+      'SELECT date, bucket_id, hours, supervisor, site, notes FROM practice_hours WHERE therapist_id = ? ORDER BY date ASC, id ASC',
+      req.therapist.id,
+    );
+
+    const lines = [];
+    const esc = v => {
+      if (v == null) return '';
+      const s = String(v);
+      // Quote if it contains a comma, quote, or newline; double internal quotes.
+      return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const row = arr => lines.push(arr.map(esc).join(','));
+
+    // Header banner
+    row([`Miwa unofficial hour tracking · ${state.programLabel}`]);
+    row([`Generated ${new Date().toISOString()} · ${state.totalSessions} completed sessions counted`]);
+    row(['NOT a substitute for the official BBS 32A. For your reference only.']);
+    row([]);
+
+    // Section A: bucket totals (matches Progress view)
+    row(['Section', 'Category', 'Hours', 'Min', 'Max', 'Percent of min', 'From appointments', 'From manual entries']);
+    for (const b of state.buckets) {
+      row([
+        b.kind === 'rollup' ? 'rollup' : 'leaf',
+        b.label,
+        b.hours,
+        b.minHours || '',
+        b.maxHours || '',
+        b.percentOfMin == null ? '' : `${b.percentOfMin}%`,
+        b.fromAppointments,
+        b.fromManual,
+      ]);
+    }
+    row([]);
+
+    // Section B: manual log entries
+    row(['Manual log entries']);
+    row(['Date', 'Category', 'Hours', 'Supervisor', 'Site', 'Notes']);
+    for (const e of entries) {
+      row([e.date, e.bucket_id, e.hours, e.supervisor || '', e.site || '', e.notes || '']);
+    }
+
+    const csv = lines.join('\r\n') + '\r\n';
+    const stamp = new Date().toISOString().slice(0, 10);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="miwa-hours-${programId}-${stamp}.csv"`);
+    return res.send(csv);
+  } catch (err) {
+    return res.status(500).json({ error: err.message || 'Failed to export hours' });
+  }
+});
+
 // ─── DELETE /api/hours/entries/:id ───────────────────────────────────────────
 router.delete('/entries/:id', async (req, res) => {
   try {
