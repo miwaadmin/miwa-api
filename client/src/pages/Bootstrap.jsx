@@ -1,11 +1,9 @@
 /**
- * Bootstrap — one-shot admin account creation when the database has no
- * therapist rows (post-data-loss recovery, or fresh-environment setup).
+ * Admin recovery.
  *
- * Hits the JWT_SECRET-gated /api/auth/_diag/create-admin endpoint so a
- * locked-out operator can re-create their account without touching a
- * terminal. The page is public but every submission requires the
- * JWT_SECRET — non-operators can't do anything useful with it.
+ * Public page, but every action requires the server JWT_SECRET through the
+ * diagnostic auth gate. Operators can reset an existing admin password or
+ * create the first admin account without terminal/database access.
  */
 import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
@@ -18,6 +16,7 @@ const API = API_BASE
 export default function Bootstrap() {
   const navigate = useNavigate()
   const { login } = useAuth()
+  const [mode, setMode] = useState('reset')
   const [form, setForm] = useState({
     jwt_secret: '',
     email: '',
@@ -39,33 +38,37 @@ export default function Bootstrap() {
     if (form.password.length < 8) { setError('Password must be at least 8 characters'); return }
     setBusy(true)
     try {
-      const res = await fetch(`${API}/auth/_diag/create-admin`, {
+      const res = await fetch(`${API}/auth/_diag/${mode === 'create' ? 'create-admin' : 'reset-password'}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-Miwa-Diag-Secret': form.jwt_secret,
         },
-        body: JSON.stringify({
-          email: form.email.trim(),
-          password: form.password,
-          first_name: form.first_name.trim() || null,
-          last_name: form.last_name.trim() || null,
-        }),
+        body: JSON.stringify(mode === 'create'
+          ? {
+              email: form.email.trim(),
+              password: form.password,
+              first_name: form.first_name.trim() || null,
+              last_name: form.last_name.trim() || null,
+            }
+          : {
+              email: form.email.trim(),
+              new_password: form.password,
+            }),
       })
       const data = await res.json()
       if (!res.ok) {
-        // 404 = JWT_SECRET wrong (endpoint hidden); show a helpful message
         if (res.status === 404) {
-          throw new Error('JWT_SECRET does not match - copy it exactly from your Azure App Service environment variables.')
+          throw new Error('JWT_SECRET does not match, or diagnostic recovery is disabled in Azure.')
         }
-        throw new Error(data.error || 'Account creation failed')
+        throw new Error(data.error || (mode === 'create' ? 'Account creation failed' : 'Password reset failed'))
       }
       setCreated(data)
 
-      // Auto-log in by hitting /login with the same creds
       const loginRes = await fetch(`${API}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
         body: JSON.stringify({ email: form.email.trim(), password: form.password }),
       })
       const loginData = await loginRes.json()
@@ -91,11 +94,13 @@ export default function Bootstrap() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">Admin account created</h2>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              {mode === 'create' ? 'Admin account created' : 'Admin password reset'}
+            </h2>
             <p className="text-gray-600 text-base mb-1">
               <span className="font-medium text-indigo-600">{created.email}</span> &middot; admin &middot; verified
             </p>
-            <p className="text-gray-500 text-sm mt-4">Signing you in&hellip;</p>
+            <p className="text-gray-500 text-sm mt-4">Signing you in...</p>
           </div>
         </div>
       </div>
@@ -110,16 +115,32 @@ export default function Bootstrap() {
       <div className="relative w-full max-w-lg">
         <div className="flex flex-col items-center mb-8">
           <Link to="/"><MiwaLogo size={56} /></Link>
-          <h1 className="text-3xl font-extrabold text-gray-900 mt-4 tracking-tight">Bootstrap admin</h1>
+          <h1 className="text-3xl font-extrabold text-gray-900 mt-4 tracking-tight">Admin recovery</h1>
           <p className="text-gray-500 text-base mt-2 text-center">
-            One-shot recovery: create the first admin account when the database has no users.
+            Reset your admin password or create the first admin account.
           </p>
         </div>
 
         <div className="rounded-2xl p-7 bg-white shadow-xl border border-gray-100">
           <div className="rounded-xl px-4 py-3 text-sm bg-amber-50 border border-amber-200 text-amber-900 mb-5 leading-relaxed">
-            This page only works if your <code className="font-mono text-xs bg-white px-1 py-0.5 rounded border border-amber-200">JWT_SECRET</code> matches the one set on the server.
-            Copy it exactly from your Azure App Service environment variables.
+            This page only works when diagnostic recovery is enabled and your <code className="font-mono text-xs bg-white px-1 py-0.5 rounded border border-amber-200">JWT_SECRET</code> matches the server.
+          </div>
+
+          <div className="grid grid-cols-2 gap-2 mb-5">
+            <button
+              type="button"
+              onClick={() => setMode('reset')}
+              className={`rounded-xl px-3 py-2 text-sm font-bold border transition-colors ${mode === 'reset' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-200'}`}
+            >
+              Reset password
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('create')}
+              className={`rounded-xl px-3 py-2 text-sm font-bold border transition-colors ${mode === 'create' ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-200'}`}
+            >
+              Create admin
+            </button>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -136,21 +157,24 @@ export default function Bootstrap() {
               />
             </div>
 
-            <hr className="border-gray-100 my-2" />
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className={labelCls}>First name</label>
-                <input className={inputCls} value={form.first_name} onChange={e => set('first_name', e.target.value)} />
-              </div>
-              <div>
-                <label className={labelCls}>Last name</label>
-                <input className={inputCls} value={form.last_name} onChange={e => set('last_name', e.target.value)} />
-              </div>
-            </div>
+            {mode === 'create' && (
+              <>
+                <hr className="border-gray-100 my-2" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className={labelCls}>First name</label>
+                    <input className={inputCls} value={form.first_name} onChange={e => set('first_name', e.target.value)} />
+                  </div>
+                  <div>
+                    <label className={labelCls}>Last name</label>
+                    <input className={inputCls} value={form.last_name} onChange={e => set('last_name', e.target.value)} />
+                  </div>
+                </div>
+              </>
+            )}
 
             <div>
-              <label className={labelCls}>Email</label>
+              <label className={labelCls}>Admin email</label>
               <input
                 type="email"
                 required
@@ -162,7 +186,7 @@ export default function Bootstrap() {
             </div>
 
             <div>
-              <label className={labelCls}>Password</label>
+              <label className={labelCls}>{mode === 'create' ? 'Password' : 'New password'}</label>
               <input
                 type="password"
                 required
@@ -186,13 +210,13 @@ export default function Bootstrap() {
               className="w-full py-3.5 rounded-xl text-base font-bold text-white transition-all hover:opacity-90 disabled:opacity-50 mt-2"
               style={{ background: 'linear-gradient(135deg, #5746ed, #0ac5a2)' }}
             >
-              {busy ? 'Creating&hellip;' : 'Create admin account'}
+              {busy ? 'Working...' : (mode === 'create' ? 'Create admin account' : 'Reset admin password')}
             </button>
           </form>
         </div>
 
         <p className="text-center text-base text-gray-500 mt-6">
-          <Link to="/login" className="text-indigo-600 font-semibold hover:text-indigo-700">Back to sign in</Link>
+          <Link to="/admin/login" className="text-indigo-600 font-semibold hover:text-indigo-700">Back to admin sign in</Link>
         </p>
       </div>
     </div>

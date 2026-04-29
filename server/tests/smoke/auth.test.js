@@ -57,6 +57,25 @@ test('auth flow', async (t) => {
     assert.equal(me.body.is_admin, true);
   });
 
+  await t.test('diag reset-password can recover admin by email', async () => {
+    const reset = await api('POST', '/api/auth/_diag/reset-password', {
+      email: 'admin@miwa.test',
+      new_password: 'new-admin-password-1234',
+      diag_secret: process.env.JWT_SECRET,
+    });
+    assert.equal(reset.status, 200);
+    assert.equal(reset.body.ok, true);
+    assert.equal(reset.body.email, 'admin@miwa.test');
+    assert.equal(reset.body.is_admin, true);
+
+    const login = await api('POST', '/api/auth/admin-login', {
+      email: 'admin@miwa.test',
+      password: 'new-admin-password-1234',
+    });
+    assert.equal(login.status, 200);
+    assert.equal(login.body.therapist.is_admin, true);
+  });
+
   await t.test('forgot-password returns ok regardless of email existence', async () => {
     const known = await api('POST', '/api/auth/forgot-password', { email: 'admin@miwa.test' });
     const unknown = await api('POST', '/api/auth/forgot-password', { email: 'noone@nowhere.com' });

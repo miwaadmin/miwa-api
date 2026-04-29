@@ -850,16 +850,28 @@ router.post('/reset-password', async (req, res) => {
 // To use during recovery: set ENABLE_DIAG=true in Azure App Service, save (triggers
 // redeploy), do recovery work, then unset / set to false to hide them again.
 // ─────────────────────────────────────────────────────────────────────────────
+function diagSecretMatches(req) {
+  const provided = String(req.get('x-miwa-diag-secret') || req.body?.diag_secret || '');
+  const expected = String(JWT_SECRET || '');
+  return provided.length === expected.length
+    && crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+}
+
 function diagAuthorized(req, res) {
   if (String(process.env.ENABLE_DIAG || '').toLowerCase() !== 'true') {
     res.status(404).json({ error: 'Not found' });
     return false;
   }
-  const provided = String(req.get('x-miwa-diag-secret') || req.body?.diag_secret || '');
-  const expected = String(JWT_SECRET || '');
-  const ok = provided.length === expected.length
-    && crypto.timingSafeEqual(Buffer.from(provided), Buffer.from(expected));
+  const ok = diagSecretMatches(req);
   if (!ok) {
+    res.status(404).json({ error: 'Not found' });
+    return false;
+  }
+  return true;
+}
+
+function recoveryAuthorized(req, res) {
+  if (!diagSecretMatches(req)) {
     res.status(404).json({ error: 'Not found' });
     return false;
   }
@@ -1037,27 +1049,41 @@ router.post('/_diag/create-admin', async (req, res) => {
 
 // Reset a specific therapist's password using the JWT_SECRET as authorization.
 // Recovery escape hatch when email delivery is broken or the email on file is
-// not what the operator expected. Body: { id, new_password }, query: ?secret=
+// not what the operator expected. Body: { id | email, new_password }, query: ?secret=
 router.post('/_diag/reset-password', async (req, res) => {
-  if (!diagAuthorized(req, res)) return;
+  if (!recoveryAuthorized(req, res)) return;
   try {
-    const { id, new_password } = req.body || {};
-    if (!id || !new_password || String(new_password).length < 8) {
-      return res.status(400).json({ error: 'id and new_password (>=8 chars) required' });
+    const { id, email, new_password } = req.body || {};
+    if ((!id && !email) || !new_password || String(new_password).length < 8) {
+      return res.status(400).json({ error: 'id or email, plus new_password (>=8 chars), required' });
     }
     const db = getAsyncDb();
-    const row = await db.get('SELECT id, email FROM therapists WHERE id = ?', Number(id));
+    const row = id
+      ? await db.get('SELECT id, email, is_admin FROM therapists WHERE id = ?', Number(id))
+      : await db.get('SELECT id, email, is_admin FROM therapists WHERE lower(email) = ?', String(email).toLowerCase().trim());
     if (!row) return res.status(404).json({ error: 'Therapist not found' });
 
     const hash = await bcrypt.hash(String(new_password), 12);
     await db.run(
-      `UPDATE therapists SET password_hash = ?, email_verified = 1,
-                              email_verified_at = COALESCE(email_verified_at, CURRENT_TIMESTAMP)
+      `UPDATE therapists SET password_hash = ?,
+                              email_verified = 1,
+                              email_verified_at = COALESCE(email_verified_at, CURRENT_TIMESTAMP),
+                              account_status = COALESCE(NULLIF(account_status, ''), 'active'),
+                              is_admin = CASE WHEN lower(email) = ? THEN 1 ELSE is_admin END
                           WHERE id = ?`,
-      hash, row.id
+      hash,
+      (process.env.ADMIN_EMAIL || '').trim().toLowerCase(),
+      row.id
     );
+    await logEvent(db, {
+      therapistId: row.id,
+      eventType: 'auth.diag_password_reset',
+      status: 'success',
+      message: 'Diagnostic password reset completed',
+      meta: { email: row.email, byEmail: !!email },
+    });
     await persistIfNeeded();
-    return res.json({ ok: true, id: row.id, email: row.email });
+    return res.json({ ok: true, id: row.id, email: row.email, is_admin: !!row.is_admin || isConfiguredAdminEmail(row.email) });
   } catch (err) {
     return res.status(500).json({ error: 'Internal server error' });
   }

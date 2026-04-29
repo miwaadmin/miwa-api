@@ -111,6 +111,10 @@ export default function AdminLogin() {
           <Link to="/" className="text-white/50 hover:text-white/70 transition-colors">
             ← Back to Miwa
           </Link>
+          <span className="mx-2 text-white/20">/</span>
+          <Link to="/bootstrap" className="text-white/50 hover:text-white/70 transition-colors">
+            Admin recovery
+          </Link>
         </p>
       </div>
     </div>
