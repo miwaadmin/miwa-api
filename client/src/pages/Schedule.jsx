@@ -361,7 +361,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
     else                                                        set('appointment_type', 'individual')
   }, [form.patient_id]) // eslint-disable-line
 
-  const handleSave = async () => {
+  const handleSave = async (force = false) => {
     if (!form.patient_id)           { setError('Please select a client.'); return }
     if (!form.date || !form.time)   { setError('Date and time required.'); return }
     setSaving(true); setError('')
@@ -377,7 +377,8 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
             scheduledStart,
             durationMinutes: parseInt(form.duration_minutes) || 50,
             location:        form.location || null,
-            notes:           form.notes    || null,
+            notes:            form.notes    || null,
+            force,
           }),
         })
       } else {
@@ -389,10 +390,39 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
             duration_minutes: parseInt(form.duration_minutes) || 50,
             location:         form.location || null,
             notes:            form.notes    || null,
+            force,
           }),
         })
       }
       const data = await res.json()
+
+      // 409 = overlap with another appointment. Show the conflicts so the
+      // therapist can decide: typo? legit double-booking (e.g. couple
+      // session)? If they confirm, retry with force=true to bypass the guard.
+      if (res.status === 409 && data.code === 'APPOINTMENT_CONFLICT' && Array.isArray(data.conflicts)) {
+        const fmt = iso => {
+          try {
+            return new Date(iso).toLocaleString('en-US', {
+              weekday: 'short', month: 'short', day: 'numeric',
+              hour: 'numeric', minute: '2-digit', hour12: true,
+            })
+          } catch { return iso }
+        }
+        const lines = data.conflicts.map(c => `• ${fmt(c.scheduled_start)} — ${c.display_name}`).join('\n')
+        const ok = window.confirm(
+          `This time overlaps with:\n\n${lines}\n\n` +
+          `Book anyway? (Use this for couple/family sessions where each ` +
+          `partner has their own appointment.)`
+        )
+        if (ok) {
+          // Retry with override; the inner call manages its own saving state.
+          setSaving(false)
+          return handleSave(true)
+        }
+        setError('Pick a different time, or confirm to book anyway.')
+        return
+      }
+
       if (!res.ok) throw new Error(data.error || 'Save failed')
       onSave(data.appointment)
     } catch (err) {

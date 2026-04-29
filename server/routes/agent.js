@@ -1162,6 +1162,45 @@ async function getAppointmentById(db, therapistId, appointmentId) {
   );
 }
 
+/**
+ * Find any non-cancelled appointments that overlap the proposed time window
+ * for this therapist. Used to prevent accidental double-booking — the user
+ * can still override via `force: true` for legitimate cases (e.g. a couple
+ * session where each partner has their own appointment row).
+ *
+ * Boundary-touching is allowed: an appointment ending at 10:00 does not
+ * conflict with one starting at 10:00. Pass excludeId when editing so an
+ * appointment can't conflict with itself.
+ *
+ * Note: scheduled_start / scheduled_end are stored as ISO 8601 strings,
+ * which sort lexicographically in chronological order — so SQL string
+ * comparison gives correct interval overlap semantics.
+ */
+async function findAppointmentConflicts(db, therapistId, scheduledStart, scheduledEnd, excludeId = null) {
+  if (!scheduledStart || !scheduledEnd) return [];
+  const params = [therapistId, scheduledEnd, scheduledStart];
+  let sql = `SELECT a.id, a.scheduled_start, a.scheduled_end, a.appointment_type, a.status,
+                    p.client_id, p.display_name
+             FROM appointments a
+             LEFT JOIN patients p ON p.id = a.patient_id
+             WHERE a.therapist_id = ?
+               AND a.status != 'cancelled'
+               AND a.scheduled_start IS NOT NULL
+               AND a.scheduled_end   IS NOT NULL
+               AND a.scheduled_start < ?
+               AND a.scheduled_end   > ?`;
+  if (excludeId) {
+    sql += ' AND a.id != ?';
+    params.push(excludeId);
+  }
+  sql += ' ORDER BY a.scheduled_start ASC';
+  const rows = await db.all(sql, ...params);
+  return rows.map(r => ({
+    ...r,
+    display_name: r.display_name || r.client_id || 'Client',
+  }));
+}
+
 async function generateClientId(db, therapistId) {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
   let id, attempts = 0;
@@ -3091,6 +3130,7 @@ router.patch('/appointments/:id', async (req, res) => {
       notes,
       status,
       sync_to_google,
+      force,
     } = req.body || {};
 
     const patient = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', existing.patient_id, req.therapist.id);
@@ -3101,6 +3141,30 @@ router.patch('/appointments/:id', async (req, res) => {
       duration_minutes ?? existing.duration_minutes,
       scheduled_end ?? existing.scheduled_end,
     );
+
+    // Conflict check on edit too — unless the time fields are unchanged
+    // (no point re-checking a time that already lived in the DB) or the
+    // caller forces through. Excludes the current appointment so it can't
+    // conflict with itself.
+    const timeChanged = (scheduled_start !== undefined && scheduled_start !== existing.scheduled_start)
+      || (scheduled_end !== undefined && scheduled_end !== existing.scheduled_end)
+      || (duration_minutes !== undefined && duration_minutes !== existing.duration_minutes);
+    if (timeChanged && !force) {
+      const conflicts = await findAppointmentConflicts(
+        db,
+        req.therapist.id,
+        scheduled_start ?? existing.scheduled_start,
+        dateFields.scheduledEnd,
+        existing.id,
+      );
+      if (conflicts.length > 0) {
+        return res.status(409).json({
+          error: 'Time slot overlaps an existing appointment',
+          code: 'APPOINTMENT_CONFLICT',
+          conflicts,
+        });
+      }
+    }
     const syncMeta = buildAppointmentSyncMeta(sync_to_google ?? existing.calendar_provider === 'google');
     const nextStatus = status || existing.status || 'scheduled';
     const nextAppointmentType = appointment_type || existing.appointment_type || inferAppointmentType(patient, '');
@@ -3260,7 +3324,7 @@ router.post('/confirm', async (req, res) => {
 router.post('/appointments', async (req, res) => {
   try {
     const db = getAsyncDb();
-    const { patientId, clientCode, appointmentType, scheduledStart, scheduledEnd, durationMinutes, location, notes, syncToGoogle, status } = req.body || {};
+    const { patientId, clientCode, appointmentType, scheduledStart, scheduledEnd, durationMinutes, location, notes, syncToGoogle, status, force } = req.body || {};
     const patient = patientId
       ? await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', patientId, req.therapist.id)
       : clientCode
@@ -3269,6 +3333,26 @@ router.post('/appointments', async (req, res) => {
 
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
     if (!scheduledStart && !scheduledEnd) return res.status(400).json({ error: 'scheduledStart or scheduledEnd is required' });
+
+    // Block accidental double-booking unless the caller explicitly opts in
+    // via `force: true` (e.g. a couple/family session legitimately needs two
+    // rows at the same time).
+    if (!force) {
+      const probe = buildAppointmentDateFields(scheduledStart || null, durationMinutes, scheduledEnd || null);
+      const conflicts = await findAppointmentConflicts(
+        db,
+        req.therapist.id,
+        scheduledStart || null,
+        probe.scheduledEnd,
+      );
+      if (conflicts.length > 0) {
+        return res.status(409).json({
+          error: 'Time slot overlaps an existing appointment',
+          code: 'APPOINTMENT_CONFLICT',
+          conflicts,
+        });
+      }
+    }
 
     const { insert, syncMeta } = await createAppointmentRecord(db, req.therapist.id, patient, {
       appointmentType,
