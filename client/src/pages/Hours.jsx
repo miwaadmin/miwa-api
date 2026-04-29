@@ -33,7 +33,17 @@ const fmtDate = iso => {
 export default function Hours() {
   const { therapist } = useAuth()
   const navigate = useNavigate()
-  const [tab, setTab] = useState('progress')          // 'progress' | 'log'
+  const [tab, setTab] = useState('progress')          // 'progress' | 'track' | 'log'
+  // Program persistence: trainees usually start with CSUN practicum, then
+  // switch to the BBS post-grad form once they graduate. We remember the
+  // last choice in localStorage so navigating away and back doesn't reset.
+  const [program, setProgram] = useState(() => {
+    try { return localStorage.getItem('miwa.hours.program') || 'csun_mft' }
+    catch { return 'csun_mft' }
+  })
+  useEffect(() => {
+    try { localStorage.setItem('miwa.hours.program', program) } catch {}
+  }, [program])
   const [state, setState] = useState(null)            // bucket totals from server
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -51,7 +61,7 @@ export default function Hours() {
     setLoading(true); setError('')
     try {
       const [hoursRes, entriesRes] = await Promise.all([
-        apiFetch('/hours').then(r => r.json()),
+        apiFetch(`/hours?program=${encodeURIComponent(program)}`).then(r => r.json()),
         apiFetch('/hours/entries').then(r => r.json()),
       ])
       setState(hoursRes)
@@ -61,7 +71,7 @@ export default function Hours() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [program])
 
   useEffect(() => { if (eligible) loadAll() }, [loadAll, eligible])
 
@@ -73,14 +83,14 @@ export default function Hours() {
   const handleExportCsv = useCallback(async () => {
     setExporting(true)
     try {
-      const res = await apiFetch('/hours/export.csv')
+      const res = await apiFetch(`/hours/export.csv?program=${encodeURIComponent(program)}`)
       if (!res.ok) throw new Error('Export failed')
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
       const stamp = todayLocalISO()
-      a.download = `miwa-hours-${stamp}.csv`
+      a.download = `miwa-hours-${program}-${stamp}.csv`
       document.body.appendChild(a)
       a.click()
       a.remove()
@@ -126,8 +136,25 @@ export default function Hours() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Hours</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {state?.programLabel || 'CSUN MFT (Practicum)'} · auto-tallied from your completed appointments.
+            Auto-tallied from your completed appointments. Manual entries fill in supervision, training, and advocacy.
           </p>
+          {/* Program switcher — small, inline, persisted in localStorage. */}
+          <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-0.5">
+            {[
+              { id: 'csun_mft',    label: 'CSUN Practicum' },
+              { id: 'ca_bbs_lmft', label: 'CA BBS LMFT' },
+            ].map(p => (
+              <button
+                key={p.id}
+                onClick={() => setProgram(p.id)}
+                className={`px-3 py-1 rounded-md text-xs font-semibold transition-colors ${
+                  program === p.id ? 'bg-white text-brand-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -160,8 +187,9 @@ export default function Hours() {
         </svg>
         <p className="text-xs text-amber-800 leading-relaxed">
           <span className="font-semibold">Unofficial — for your reference only.</span>
-          {' '}Use these totals to fill out your CSUN/BBS form. Your supervisor's
-          signature on the official 32A is still required.
+          {program === 'ca_bbs_lmft'
+            ? ' Verify minimums and caps against your current BBS handbook before submitting your 4600 application. Bucket structure mirrors Title 16 §1833.1 but the official numbers can change.'
+            : ' Use these totals to fill out your CSUN/BBS form. Your supervisor\'s signature on the official 32A is still required.'}
         </p>
       </div>
 
@@ -194,7 +222,7 @@ export default function Hours() {
       ) : tab === 'progress' ? (
         <ProgressView buckets={buckets} total={total} rollups={rollups} sessions={state?.totalSessions || 0} />
       ) : tab === 'track' ? (
-        <TrackGridView />
+        <TrackGridView program={program} />
       ) : (
         <LogView
           entries={entries}
@@ -212,6 +240,7 @@ export default function Hours() {
       {showEntryModal && (
         <EntryModal
           entry={editingEntry}
+          program={program}
           onClose={() => { setShowEntryModal(false); setEditingEntry(null) }}
           onSaved={() => { setShowEntryModal(false); setEditingEntry(null); loadAll() }}
         />
@@ -303,7 +332,7 @@ function ProgressView({ buckets, total, rollups, sessions }) {
 // that day for that category (auto from appointments + manual entries
 // summed). Header lets the user navigate by week.
 // ─────────────────────────────────────────────────────────────────────────────
-function TrackGridView() {
+function TrackGridView({ program = 'csun_mft' }) {
   const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()))
   const [grid, setGrid] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -324,7 +353,7 @@ function TrackGridView() {
 
   useEffect(() => {
     setLoading(true); setError('')
-    apiFetch(`/hours/grid?from=${fromDate}&to=${toDate}`)
+    apiFetch(`/hours/grid?from=${fromDate}&to=${toDate}&program=${encodeURIComponent(program)}`)
       .then(r => r.json())
       .then(data => {
         if (data?.error) { setError(data.error); setGrid(null); return }
@@ -332,7 +361,7 @@ function TrackGridView() {
       })
       .catch(e => setError(e.message || 'Failed to load grid'))
       .finally(() => setLoading(false))
-  }, [fromDate, toDate])
+  }, [fromDate, toDate, program])
 
   const goPrev = () => setWeekStart(d => { const n = new Date(d); n.setDate(d.getDate() - 7); return n })
   const goNext = () => setWeekStart(d => { const n = new Date(d); n.setDate(d.getDate() + 7); return n })
@@ -535,7 +564,7 @@ function LogView({ entries, onEdit, onDelete }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // Entry modal — add/edit a manual hour entry.
 // ─────────────────────────────────────────────────────────────────────────────
-function EntryModal({ entry, onClose, onSaved }) {
+function EntryModal({ entry, program = 'csun_mft', onClose, onSaved }) {
   const isEdit = !!entry?.id
   const [bucketOptions, setBucketOptions] = useState([])
   const [form, setForm] = useState({
@@ -550,13 +579,13 @@ function EntryModal({ entry, onClose, onSaved }) {
   const [error, setError]   = useState('')
 
   useEffect(() => {
-    apiFetch('/hours/buckets').then(r => r.json()).then(d => {
+    apiFetch(`/hours/buckets?program=${encodeURIComponent(program)}`).then(r => r.json()).then(d => {
       const opts = Array.isArray(d?.buckets) ? d.buckets : []
       setBucketOptions(opts)
       if (!form.bucket_id && opts.length > 0) setForm(f => ({ ...f, bucket_id: opts[0].id }))
     }).catch(() => {})
     // eslint-disable-next-line
-  }, [])
+  }, [program])
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -572,6 +601,7 @@ function EntryModal({ entry, onClose, onSaved }) {
       const res = await apiFetch(url, {
         method: isEdit ? 'PUT' : 'POST',
         body: JSON.stringify({
+          program,
           bucket_id:  form.bucket_id,
           date:       form.date,
           hours:      hrs,
@@ -723,19 +753,27 @@ function ProgressBar({ pct, accent, tall }) {
 }
 
 const PARENT_LABELS = {
+  // CSUN MFT
   direct_service:        'Direct Service',
   relational:            'Relational',
   advocacy_interactive:  'Interactive Advocacy',
   supervision:           'Supervision',
   live_supervision:      'Live Supervision',
   other:                 'Other Hours',
+  // CA BBS LMFT
+  direct_counseling:     'Direct Counseling',
+  lmft_supervision:      'Supervision',
+  lmft_non_clinical:     'Non-clinical',
+  // Catch-all
   total:                 'Other',
 }
 function parentLabel(parent) { return PARENT_LABELS[parent] || 'Other' }
 
 // Quick label lookup for the log table — keeps each row readable without
-// fetching the full bucket structure twice.
+// fetching the full bucket structure twice. Includes both CSUN MFT and
+// CA BBS LMFT bucket ids so a single log row works across programs.
 const BUCKET_LABELS = {
+  // CSUN MFT
   individual_adult:                 'Individual Adult Client',
   individual_child:                 'Individual Child Client',
   process_group_individuals:        'Process Group · Individuals',
@@ -753,5 +791,16 @@ const BUCKET_LABELS = {
   other_progress_notes:             'Progress Notes / Reports',
   other_trainings:                  'Trainings & Workshops',
   other_advocacy_research:          'Advocacy (research)',
+  // CA BBS LMFT
+  lmft_individual:                  'Individual therapy (adult)',
+  lmft_child:                       'Therapy with a minor',
+  lmft_relational:                  'Couples / family therapy',
+  lmft_group:                       'Group therapy',
+  lmft_sup_individual:              'Individual / Triadic supervision',
+  lmft_sup_group:                   'Group supervision',
+  lmft_workshops:                   'Workshops & training',
+  lmft_advocacy:                    'Client-centered advocacy',
+  lmft_progress_notes:              'Progress notes & reports',
+  lmft_admin:                       'Other administrative',
 }
 function prettyBucket(id) { return BUCKET_LABELS[id] || id }

@@ -61,35 +61,72 @@ const CSUN_MFT_BUCKETS = [
   { id: 'other_advocacy_research',  label: 'Non-interactive Client-centered advocacy (researching resources)', parent: 'other', source: 'manual' },
 ];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CA BBS LMFT — post-graduation supervised experience (3,000 hours).
+//
+// Numbers below mirror the structure of CA BBS regulations (Title 16 §1833.1)
+// for LMFT licensure as commonly cited. These are the *minimums and caps* that
+// matter most for tracking — they are NOT a substitute for the official BBS
+// handbook. Verify against your supervisor's records and the latest BBS
+// publication before submitting your 4600 application.
+// ─────────────────────────────────────────────────────────────────────────────
+const CA_BBS_LMFT_BUCKETS = [
+  { id: 'total', label: 'Total Hours', minHours: 3000, kind: 'rollup', parent: null },
+
+  // ─── Direct Counseling ───────────────────────────────────────────────────
+  { id: 'direct_counseling', label: 'Direct Counseling (face-to-face)', minHours: 1750, kind: 'rollup', parent: 'total' },
+  { id: 'lmft_individual',   label: 'Individual therapy (adult)',  parent: 'direct_counseling', source: 'appointment' },
+  { id: 'lmft_child',        label: 'Therapy with a minor (under 18)', parent: 'direct_counseling', source: 'appointment' },
+  { id: 'lmft_relational',   label: 'Couples / family therapy',    parent: 'direct_counseling', source: 'appointment', minHours: 500 },
+  { id: 'lmft_group',        label: 'Group therapy',               parent: 'direct_counseling', source: 'appointment' },
+
+  // ─── Supervision ─────────────────────────────────────────────────────────
+  { id: 'lmft_supervision',          label: 'Supervision',                          minHours: 104, kind: 'rollup', parent: 'total' },
+  { id: 'lmft_sup_individual',       label: 'Individual / Triadic supervision',    parent: 'lmft_supervision', source: 'manual', minHours: 52 },
+  { id: 'lmft_sup_group',            label: 'Group supervision (≤8 supervisees)',  parent: 'lmft_supervision', source: 'manual' },
+
+  // ─── Non-clinical ────────────────────────────────────────────────────────
+  // Cap is 1,250 hrs total (3,000 minus 1,750 direct minimum).
+  { id: 'lmft_non_clinical',         label: 'Non-clinical experience',              maxHours: 1250, kind: 'rollup', parent: 'total' },
+  { id: 'lmft_workshops',            label: 'Workshops, training, conferences',    parent: 'lmft_non_clinical', source: 'manual', maxHours: 250 },
+  { id: 'lmft_advocacy',             label: 'Client-centered advocacy',            parent: 'lmft_non_clinical', source: 'manual', maxHours: 500 },
+  { id: 'lmft_progress_notes',       label: 'Progress notes, reports, testing',    parent: 'lmft_non_clinical', source: 'manual' },
+  { id: 'lmft_admin',                label: 'Other administrative & training',     parent: 'lmft_non_clinical', source: 'manual' },
+];
+
 const PROGRAMS = {
-  csun_mft: { id: 'csun_mft', label: 'CSUN MFT (Practicum)', buckets: CSUN_MFT_BUCKETS },
+  csun_mft:     { id: 'csun_mft',     label: 'CSUN MFT (Practicum)',          buckets: CSUN_MFT_BUCKETS },
+  ca_bbs_lmft:  { id: 'ca_bbs_lmft',  label: 'CA BBS — LMFT (post-degree)',   buckets: CA_BBS_LMFT_BUCKETS },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Map a completed appointment to a bucket id. Returns null if the
-// appointment doesn't fit any auto-tallied bucket.
+// Map a completed appointment to a bucket id for the given program.
+// Returns null if the appointment doesn't fit any auto-tallied bucket.
+//
+// CSUN MFT and CA BBS use slightly different bucket vocabularies — keep the
+// mapping next to the bucket definitions so it's obvious when a program
+// adds/removes a category.
 // ─────────────────────────────────────────────────────────────────────────────
-function mapAppointmentToBucket(appt, patient) {
+function mapAppointmentToBucket(appt, patient, programId = 'csun_mft') {
   const type = (appt.appointment_type || '').toLowerCase();
+  const ageNum = Number(patient?.age);
+  const range = (patient?.age_range || '').trim();
+  const isMinor = (Number.isFinite(ageNum) && ageNum > 0 && ageNum < 18)
+    || /^[0-9]+\s*-\s*1[0-7]\b/.test(range);
 
-  if (type.includes('couple'))                              return 'couples_therapy';
-  if (type.includes('family'))                              return 'family_therapy';
-
-  // Group: classify by participant type. Default to "with individuals" since
-  // that's the more common case; relational groups are rare and the user
-  // can correct via manual override later if needed.
-  if (type.includes('group'))                               return 'process_group_individuals';
-
-  // Anything individual-flavored: split on patient age.
-  if (type.includes('individual') || !type) {
-    const ageNum = Number(patient?.age);
-    if (Number.isFinite(ageNum) && ageNum > 0 && ageNum < 18) return 'individual_child';
-    // age_range can be "0-17", "5-12", etc. for child; default = adult.
-    const range = (patient?.age_range || '').trim();
-    if (/^[0-9]+\s*-\s*1[0-7]\b/.test(range))               return 'individual_child';
-    return 'individual_adult';
+  if (programId === 'ca_bbs_lmft') {
+    if (type.includes('couple') || type.includes('family')) return 'lmft_relational';
+    if (type.includes('group'))                              return 'lmft_group';
+    // Default to individual; minor split.
+    if (type.includes('individual') || !type) return isMinor ? 'lmft_child' : 'lmft_individual';
+    return null;
   }
 
+  // csun_mft (default)
+  if (type.includes('couple'))                              return 'couples_therapy';
+  if (type.includes('family'))                              return 'family_therapy';
+  if (type.includes('group'))                               return 'process_group_individuals';
+  if (type.includes('individual') || !type) return isMinor ? 'individual_child' : 'individual_adult';
   return null;
 }
 
@@ -141,10 +178,16 @@ async function computeHourTotals(db, therapistId, programId = 'csun_mft') {
 
   // Sum appointment hours into leaf buckets. The therapist can override the
   // automatic categorization on a per-appointment basis (e.g. fix when an
-  // "Individual" was actually with a minor) — we honor that override here.
+  // "Individual" was actually with a minor) — we honor that override here,
+  // but only if the override is a valid bucket in this program (otherwise
+  // a CSUN-program override wouldn't apply when viewing the BBS program).
+  const validBucketIds = new Set(program.buckets.map(b => b.id));
   const apptByBucket = {};
   for (const a of apptRows) {
-    const bucketId = a.practicum_bucket_override || mapAppointmentToBucket(a, { age: a.age, age_range: a.age_range });
+    let bucketId = a.practicum_bucket_override;
+    if (!bucketId || !validBucketIds.has(bucketId)) {
+      bucketId = mapAppointmentToBucket(a, { age: a.age, age_range: a.age_range }, programId);
+    }
     if (!bucketId) continue;
     const hrs = (Number(a.duration_minutes) || 0) / 60;
     apptByBucket[bucketId] = (apptByBucket[bucketId] || 0) + hrs;
@@ -311,6 +354,7 @@ async function computeHourGrid(db, therapistId, fromDate, toDate, programId = 'c
     return d.toLocaleDateString('en-CA', { timeZone: tz });
   };
 
+  const validBucketIds = new Set(program.buckets.map(b => b.id));
   const grid = {};
   const addToCell = (bucketId, date, hours) => {
     if (!bucketId || !date) return;
@@ -319,7 +363,10 @@ async function computeHourGrid(db, therapistId, fromDate, toDate, programId = 'c
   };
 
   for (const a of apptRows) {
-    const bucketId = a.practicum_bucket_override || mapAppointmentToBucket(a, { age: a.age, age_range: a.age_range });
+    let bucketId = a.practicum_bucket_override;
+    if (!bucketId || !validBucketIds.has(bucketId)) {
+      bucketId = mapAppointmentToBucket(a, { age: a.age, age_range: a.age_range }, programId);
+    }
     if (!bucketId) continue;
     const date = localDate(a.scheduled_start);
     if (!date) continue;
