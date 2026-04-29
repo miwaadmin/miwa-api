@@ -1141,20 +1141,26 @@ function runMigrations() {
   // Manual log entries only. Direct-service hours are computed on the fly
   // from completed appointments — we deliberately don't materialize them
   // here so edits to an appointment automatically reflect in the totals.
+  //
+  // NOTE: trailing `;` inside the template literal is intentional. The
+  // postgres schema parser uses `\)\s*;` to find the end of CREATE TABLE
+  // statements, and without this semicolon it walks past the SQL `)` and
+  // greedily captures the JS backtick + outer `)` as part of the body —
+  // generating malformed SQL and silently skipping the CREATE in Postgres.
   db.run(`CREATE TABLE IF NOT EXISTS practice_hours (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     therapist_id INTEGER NOT NULL REFERENCES therapists(id),
-    bucket_id    TEXT    NOT NULL,                -- e.g. 'supervision_individual'
-    date         TEXT    NOT NULL,                -- YYYY-MM-DD (therapist local)
-    hours        REAL    NOT NULL,                -- decimal hours, 0.25 step
-    supervisor   TEXT,                            -- supervisor name (BBS audit-trail)
-    site         TEXT,                            -- field site label
+    bucket_id    TEXT    NOT NULL,
+    date         TEXT    NOT NULL,
+    hours        REAL    NOT NULL,
+    supervisor   TEXT,
+    site         TEXT,
     notes        TEXT,
     created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
-  )`);
-  db.run('CREATE INDEX IF NOT EXISTS idx_practice_hours_therapist_date ON practice_hours(therapist_id, date)');
-  db.run('CREATE INDEX IF NOT EXISTS idx_practice_hours_bucket         ON practice_hours(therapist_id, bucket_id)');
+  );`);
+  db.run('CREATE INDEX IF NOT EXISTS idx_practice_hours_therapist_date ON practice_hours(therapist_id, date);');
+  db.run('CREATE INDEX IF NOT EXISTS idx_practice_hours_bucket         ON practice_hours(therapist_id, bucket_id);');
 
   // ── scheduled_sends — queued SMS assessment deliveries ────────────────────
   db.run(`CREATE TABLE IF NOT EXISTS scheduled_sends (

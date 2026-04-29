@@ -87,7 +87,14 @@ function parseCreateTables(source) {
 
   while ((match = regex.exec(clean)) !== null) {
     const [, table, body] = match;
-    const definitions = splitTopLevelComma(body);
+    // Strip trailing template-literal residue. When a CREATE TABLE statement
+    // is wrapped in a JS template literal that closes immediately after the
+    // SQL, the lazy regex above can capture past the SQL's own `)` and
+    // include the closing backtick + outer `)` of the JS expression. Those
+    // characters never legitimately appear in column definitions, so we
+    // strip any trailing `)`s, backticks, or the corresponding whitespace.
+    const trimmedBody = body.replace(/[\s`)]+$/g, '');
+    const definitions = splitTopLevelComma(trimmedBody);
     tables.push({ table, definitions });
   }
 
