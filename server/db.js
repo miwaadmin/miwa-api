@@ -233,6 +233,7 @@ function createSchema() {
       sync_error TEXT,
       last_synced_at DATETIME,
       status TEXT NOT NULL DEFAULT 'scheduled',
+      practicum_bucket_override TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
