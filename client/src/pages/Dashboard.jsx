@@ -2,9 +2,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
-import OvernightUpdates from '../components/OvernightUpdates'
-import TodaysSchedule from '../components/TodaysSchedule'
-import { renderClinical } from '../lib/renderClinical'
 import { patientInitials } from '../lib/avatar'
 
 function formatDate(dateStr) {
@@ -68,47 +65,6 @@ function getGreeting(name) {
   if (hour < 12) return `Good morning${who}`
   if (hour < 17) return `Good afternoon${who}`
   return `Good evening${who}`
-}
-
-// The daily briefing markdown starts with "# Good morning, {name}\n{date}" —
-// that duplicates the hero banner above it. Slice off everything before the
-// first "## " header so the body starts with "Today at a Glance".
-function stripBriefingGreeting(md) {
-  if (!md) return md
-  const firstH2 = md.indexOf('\n## ')
-  if (firstH2 === -1) return md
-  return md.slice(firstH2 + 1).trim()
-}
-
-// Remove the "## Overnight Updates" section from the AI-generated markdown —
-// that section is now rendered by the <OvernightUpdates /> React component
-// with structured data (per-patient cards, trend indicators). Leaving it in
-// the markdown would duplicate the content in a less-readable list form.
-function stripOvernightSection(md) {
-  if (!md) return md
-  const start = md.search(/^##\s+Overnight Updates/mi)
-  if (start === -1) return md
-  // Find the next "## " heading or end of document.
-  const rest = md.slice(start + 2)
-  const nextIdx = rest.search(/\n##\s+/)
-  const endOfSection = nextIdx === -1 ? md.length : start + 2 + nextIdx + 1
-  return (md.slice(0, start) + md.slice(endOfSection)).trim()
-}
-
-// Split the briefing at the SECOND "## " heading. The first section is
-// "Today's Schedule"; everything after that (Needs Attention, Good News,
-// the generated-at footer) goes in the "after" chunk. Used to nest the
-// <OvernightUpdates /> cards between the two halves so the Your Day card
-// reads as one coherent morning brief instead of two disjoint cards.
-function splitBriefingAtSecondHeading(md) {
-  if (!md) return { before: '', after: '' }
-  const headings = [...md.matchAll(/^##\s+/gm)]
-  if (headings.length < 2) return { before: md, after: '' }
-  const secondIdx = headings[1].index
-  return {
-    before: md.slice(0, secondIdx).trim(),
-    after: md.slice(secondIdx).trim(),
-  }
 }
 
 async function readJsonOrThrow(response, label) {
@@ -244,9 +200,8 @@ export default function Dashboard() {
         </div>
       ) : null}
 
-      {/* Pre-Session Briefs + Research Brief removed from the dashboard —
-          the brief narrative now lives inline inside each appointment card
-          in the Your Day section below (click an appointment to expand). */}
+      {/* Pre-session and research briefs live in their dedicated screens so
+          the dashboard stays focused on the immediate clinical pulse. */}
 
       {/* ── Hero Banner with embedded daily briefing (all purple) ── */}
       <div
@@ -349,125 +304,63 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Your Day — unified morning brief card, now 100% card-based.
-          Today's Schedule and Overnight Updates are both structured React
-          components that read from dedicated endpoints. The AI-generated
-          markdown briefing is intentionally no longer rendered here — every
-          section it used to contain (schedule, overnight updates, needs
-          attention, good news) has been replaced by a proper component or
-          surfaced elsewhere (alert badges, dedicated alerts card below). */}
-      <div className="rounded-2xl bg-white border border-gray-200 shadow-sm p-5">
-        {/* Header */}
-        <div className="flex items-center gap-2 mb-4 flex-wrap">
-          <span className="text-base">☀️</span>
-          <span className="text-[11px] font-bold text-brand-600 uppercase tracking-widest">
-            Your Day
-          </span>
-          <div className="ml-auto flex items-center gap-2">
-            {dailyBriefing?.stats?.session_count > 0 && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-brand-50 text-brand-700 border border-brand-100">
-                {dailyBriefing.stats.session_count} session{dailyBriefing.stats.session_count === 1 ? '' : 's'}
-              </span>
-            )}
-            {dailyBriefing?.stats?.critical_alerts > 0 && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-red-50 text-red-700 border border-red-100">
-                🚨 {dailyBriefing.stats.critical_alerts}
-              </span>
-            )}
-            {dailyBriefing?.stats?.warning_alerts > 0 && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-50 text-amber-700 border border-amber-100">
-                ⚠️ {dailyBriefing.stats.warning_alerts}
-              </span>
-            )}
+      {/* ── Caseload Pulse ── */}
+      {Array.isArray(dailyBriefing?.caseload) && dailyBriefing.caseload.length > 0 && (
+        <div className="rounded-2xl bg-white border border-gray-200 shadow-sm p-5">
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-[11px] font-bold text-brand-600 uppercase tracking-widest">
+              Caseload pulse
+            </span>
+            <span className="text-[10px] text-gray-400">
+              {dailyBriefing.caseload.length} active client{dailyBriefing.caseload.length === 1 ? '' : 's'}
+            </span>
           </div>
-        </div>
-
-        {/* Morning narrative — AI-written caseload synthesis */}
-        {dailyBriefing?.narrative && (
-          <div className="mb-5 rounded-xl bg-gradient-to-br from-indigo-50 to-emerald-50/50 border border-indigo-100 px-4 py-3">
-            <p className="text-[13px] leading-relaxed text-gray-800 whitespace-pre-line">
-              {dailyBriefing.narrative}
-            </p>
-          </div>
-        )}
-
-        {/* Caseload status — per-client pulse */}
-        {Array.isArray(dailyBriefing?.caseload) && dailyBriefing.caseload.length > 0 && (
-          <div className="mb-5">
-            <div className="flex items-center gap-2 mb-3">
-              <span className="text-[11px] font-bold text-brand-600 uppercase tracking-widest">
-                Caseload pulse
-              </span>
-              <span className="text-[10px] text-gray-400">
-                {dailyBriefing.caseload.length} active client{dailyBriefing.caseload.length === 1 ? '' : 's'}
-              </span>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {dailyBriefing.caseload.slice(0, 6).map(c => {
-                const tone = c.status === 'needs_attention'
-                  ? { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-900', label: 'text-red-700', icon: '⚠' }
-                  : c.status === 'improving'
-                  ? { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-900', label: 'text-emerald-700', icon: '↓' }
-                  : c.status === 'new_referral'
-                  ? { bg: 'bg-sky-50', border: 'border-sky-200', text: 'text-sky-900', label: 'text-sky-700', icon: '✦' }
-                  : c.status === 'overdue'
-                  ? { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-900', label: 'text-amber-700', icon: '⏰' }
-                  : { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-800', label: 'text-gray-500', icon: '·' }
-                return (
-                  <button
-                    key={c.patient_id}
-                    onClick={() => window.location.href = `/patients/${c.patient_id}`}
-                    className={`rounded-lg border px-3 py-2.5 text-left transition-all hover:scale-[1.01] ${tone.bg} ${tone.border}`}
-                  >
-                    <div className="flex items-start gap-2">
-                      <span className={`text-xs ${tone.label}`}>{tone.icon}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-xs font-semibold truncate ${tone.text}`}>{c.name}</p>
-                        <p className={`text-[10px] uppercase tracking-wider font-bold mt-0.5 ${tone.label}`}>
-                          {c.status.replace('_', ' ')}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            {dailyBriefing.caseload.slice(0, 6).map(c => {
+              const tone = c.status === 'needs_attention'
+                ? { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-900', label: 'text-red-700', icon: '!' }
+                : c.status === 'improving'
+                ? { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-900', label: 'text-emerald-700', icon: '↓' }
+                : c.status === 'new_referral'
+                ? { bg: 'bg-sky-50', border: 'border-sky-200', text: 'text-sky-900', label: 'text-sky-700', icon: '+' }
+                : c.status === 'overdue'
+                ? { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-900', label: 'text-amber-700', icon: '•' }
+                : { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-800', label: 'text-gray-500', icon: '·' }
+              return (
+                <button
+                  key={c.patient_id}
+                  onClick={() => navigate(`/patients/${c.patient_id}`)}
+                  className={`rounded-lg border px-3 py-2.5 text-left transition-all hover:scale-[1.01] ${tone.bg} ${tone.border}`}
+                >
+                  <div className="flex items-start gap-2">
+                    <span className={`text-xs ${tone.label}`}>{tone.icon}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-xs font-semibold truncate ${tone.text}`}>{c.name}</p>
+                      <p className={`text-[10px] uppercase tracking-wider font-bold mt-0.5 ${tone.label}`}>
+                        {c.status.replace('_', ' ')}
+                      </p>
+                      {c.signals?.length > 0 && (
+                        <p className="text-[11px] text-gray-600 mt-0.5 truncate">
+                          {c.signals.join(' · ')}
                         </p>
-                        {c.signals?.length > 0 && (
-                          <p className="text-[11px] text-gray-600 mt-0.5 truncate">
-                            {c.signals.join(' · ')}
-                          </p>
-                        )}
-                      </div>
+                      )}
                     </div>
-                  </button>
-                )
-              })}
-            </div>
-            {dailyBriefing.caseload.length > 6 && (
-              <p className="text-[11px] text-gray-400 text-center mt-2 italic">
-                +{dailyBriefing.caseload.length - 6} more — view full caseload
-              </p>
-            )}
+                  </div>
+                </button>
+              )
+            })}
           </div>
-        )}
-
-        {/* Today's Schedule — per-appointment cards */}
-        <div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-[11px] font-bold text-brand-600 uppercase tracking-widest">
-              Today's Schedule
-            </span>
-          </div>
-          <TodaysSchedule />
+          {dailyBriefing.caseload.length > 6 && (
+            <button
+              type="button"
+              onClick={() => navigate('/patients')}
+              className="block mx-auto text-[11px] text-gray-400 hover:text-brand-600 text-center mt-2 italic"
+            >
+              +{dailyBriefing.caseload.length - 6} more - view full caseload
+            </button>
+          )}
         </div>
-
-        {/* Overnight Updates — per-patient cards */}
-        <div className="mt-5 pt-5 border-t border-gray-100">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-[11px] font-bold text-brand-600 uppercase tracking-widest">
-              Overnight Updates
-            </span>
-            <span className="text-[10px] text-gray-400">last 14 hours</span>
-          </div>
-          <OvernightUpdates onEmpty={() => (
-            <p className="text-xs text-gray-400 italic">No new assessments submitted overnight.</p>
-          )} />
-        </div>
-      </div>
+      )}
 
       {/* ── Alerts ── */}
       {alerts.length > 0 && (
