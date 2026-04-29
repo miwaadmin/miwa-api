@@ -28,7 +28,14 @@ async function requireAuth(req, res, next) {
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     const db = getAsyncDb();
-    const row = await db.get('SELECT id, email, user_role, is_admin, account_status FROM therapists WHERE id = ?', decoded.sub);
+    // credential_type is needed by feature gates (e.g. /api/hours which is
+    // trainee/associate only) and preferred_timezone is used by anything that
+    // formats dates in the user's local time. Reading them here once keeps
+    // each handler from having to re-fetch the therapist row.
+    const row = await db.get(
+      'SELECT id, email, user_role, is_admin, account_status, credential_type, preferred_timezone FROM therapists WHERE id = ?',
+      decoded.sub,
+    );
     if (!row) return res.status(401).json({ error: 'Account not found.' });
     if (row.account_status === 'suspended') {
       return res.status(403).json({ error: 'This account has been suspended. Contact support.' });
@@ -47,6 +54,8 @@ async function requireAuth(req, res, next) {
       user_role: row.user_role,
       is_admin: shouldBeAdmin,
       account_status: row.account_status,
+      credential_type: row.credential_type || 'licensed',
+      preferred_timezone: row.preferred_timezone || 'America/Los_Angeles',
     };
     await db.run('UPDATE therapists SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?', decoded.sub);
     await persistIfNeeded();
