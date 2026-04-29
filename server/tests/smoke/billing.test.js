@@ -43,6 +43,8 @@ test('admin Stripe status does not expose secrets when Stripe cannot be verified
   assert.equal(res.body.provider, 'stripe');
   assert.equal(res.body.mode, 'test');
   assert.equal(res.body.configured, true);
+  assert.ok(res.body.prices.every((price) => typeof price.status === 'string'));
+  assert.ok(res.body.prices.every((price) => typeof price.review_reason === 'string'));
   assert.equal(JSON.stringify(res.body).includes(process.env.STRIPE_SECRET_KEY), false);
   assert.equal(JSON.stringify(res.body).includes(process.env.STRIPE_WEBHOOK_SECRET), false);
 });

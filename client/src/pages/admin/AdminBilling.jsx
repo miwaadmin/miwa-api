@@ -105,6 +105,7 @@ export default function AdminBilling() {
                 <th className="py-2 pr-3 font-semibold">Type</th>
                 <th className="py-2 pr-3 font-semibold">Status</th>
                 <th className="py-2 pr-3 font-semibold">Currency</th>
+                <th className="py-2 pr-3 font-semibold">Review reason</th>
               </tr>
             </thead>
             <tbody>
@@ -114,13 +115,14 @@ export default function AdminBilling() {
                   <td className="py-2 pr-3 text-gray-500">{price.env}</td>
                   <td className="py-2 pr-3 text-gray-600">{price.type}</td>
                   <td className="py-2 pr-3">
-                    {price.configured && price.exists !== false && price.active !== false && price.recurring !== false ? (
+                    {price.status === 'ready' || (price.configured && price.exists !== false && price.active !== false && price.recurring !== false) ? (
                       <span className="text-green-700">ready</span>
                     ) : (
                       <span className="text-amber-700">{price.configured ? 'review' : 'missing'}</span>
                     )}
                   </td>
                   <td className="py-2 pr-3 text-gray-500">{price.currency || '-'}</td>
+                  <td className="py-2 pr-3 text-gray-500 max-w-xs">{price.review_reason || '-'}</td>
                 </tr>
               ))}
             </tbody>

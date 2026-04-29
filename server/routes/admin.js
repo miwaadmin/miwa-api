@@ -152,6 +152,15 @@ async function verifyStripeCatalogItem(stripe, name, envName, value) {
   }
 }
 
+function stripePriceReviewReason(price) {
+  if (!price.configured) return price.type === 'placeholder' ? 'Replace placeholder value' : 'Missing environment value';
+  if (price.type !== 'price' && price.type !== 'product') return 'Use a Stripe price_ ID for this plan';
+  if (price.exists === false) return 'Not found by the configured Stripe API key. Check live/test mode, account, and ID.';
+  if (price.active === false) return 'Stripe item is inactive';
+  if (price.recurring === false) return 'Stripe item is not a recurring subscription price';
+  return 'Ready';
+}
+
 function configuredSmsProvider() {
   const twilioHasAuth = hasEnv('TWILIO_AUTH_TOKEN')
     || (hasEnv('TWILIO_API_KEY_SID') && hasEnv('TWILIO_API_KEY_SECRET'));
@@ -440,6 +449,11 @@ router.get('/stripe/status', async (req, res) => {
   };
 
   if (!result.configured) {
+    result.prices = result.prices.map((price) => ({
+      ...price,
+      status: 'review',
+      review_reason: stripePriceReviewReason(price),
+    }));
     result.ok = false;
     return res.json(result);
   }
@@ -463,10 +477,18 @@ router.get('/stripe/status', async (req, res) => {
     result.account.error = sanitizeStripeAdminError(err);
   }
 
+  result.prices = result.prices.map((price) => ({
+    ...price,
+    status: price.configured && price.exists !== false && price.active !== false && price.recurring !== false
+      ? 'ready'
+      : 'review',
+    review_reason: stripePriceReviewReason(price),
+  }));
+
   result.ok = result.account.reachable
     && result.webhook.configured
     && result.app_url.canonical
-    && result.prices.every((price) => price.configured && price.exists !== false && price.active !== false && price.recurring !== false);
+    && result.prices.every((price) => price.status === 'ready');
 
   return res.json(result);
 });

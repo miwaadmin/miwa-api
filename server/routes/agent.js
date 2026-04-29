@@ -4031,6 +4031,12 @@ router.post('/tts', async (req, res) => {
     res.setHeader('Content-Length', buffer.length);
     res.send(buffer);
   } catch (err) {
+    if (isAIServiceError(err) && err.ai?.error_code === 'azure_tts_deployment_missing') {
+      return res.status(503).json({
+        error: 'VOICE_UNAVAILABLE',
+        message: 'Miwa voice playback is not configured yet. Text chat still works.',
+      });
+    }
     sendRouteError(res, err);
   }
 });

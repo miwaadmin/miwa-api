@@ -789,7 +789,12 @@ When you're done, I'll save this as your profile and refer back to it in every c
       audioRef.current = source
     } catch (err) {
       console.error('[Miwa TTS]', err)
-      setError(err.message || 'Could not play Miwa voice response')
+      const message = String(err.message || '')
+      setError(
+        message.includes('VOICE_UNAVAILABLE') || message.includes('voice playback')
+          ? 'Voice playback is not configured yet. I kept the text response here.'
+          : 'Voice playback is temporarily unavailable. I kept the text response here.'
+      )
       setLoadingAudio(false)
       setSpeaking(false)
     }
