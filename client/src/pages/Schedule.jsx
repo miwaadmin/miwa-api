@@ -765,7 +765,12 @@ function MonthView({ monthStart, appointments, today, onDayClick, onEventClick }
 
   const byDate = useMemo(() => {
     const m = {}
+    const seen = new Set()                      // dedupe by appointment id (mirrors WeekView)
     appointments.forEach(a => {
+      if (a?.id != null) {
+        if (seen.has(a.id)) return
+        seen.add(a.id)
+      }
       const t = parseTime(a); if (!t) return
       const d = isoDate(t)
       if (!m[d]) m[d] = []
@@ -852,7 +857,12 @@ function WeekView({ weekStart, appointments, today, selectedDate, onCellClick, o
 
   const byDate = useMemo(() => {
     const m = {}
-    appointments.forEach(a => {
+    const seen = new Set()                      // dedupe by appointment id so a stale
+    appointments.forEach(a => {                 // optimistic update or future sync echo
+      if (a?.id != null) {                      // can never double a day's count
+        if (seen.has(a.id)) return
+        seen.add(a.id)
+      }
       const t = parseTime(a); if (!t) return
       const d = isoDate(t)
       if (!m[d]) m[d] = []
@@ -882,7 +892,20 @@ function WeekView({ weekStart, appointments, today, selectedDate, onCellClick, o
           const ds      = isoDate(d)
           const isT     = ds === today
           const isSel   = ds === selectedDate && !isT
-          const count   = byDate[ds]?.filter(a => a.status !== 'cancelled').length || 0
+          const dayActive = (byDate[ds] || []).filter(a => a.status !== 'cancelled')
+          const count   = dayActive.length
+          // Tooltip lists each appointment so the therapist can spot any duplicates
+          // or unexpected entries at a glance — answers "why does this say 2?"
+          const countTitle = count > 0
+            ? dayActive
+                .slice()
+                .sort((a, b) => (parseTime(a)?.getTime() ?? 0) - (parseTime(b)?.getTime() ?? 0))
+                .map(a => {
+                  const t = parseTime(a)
+                  return `${t ? fmtTime(t) : '—'} · ${a.display_name || a.client_id || 'Client'}`
+                })
+                .join('\n')
+            : ''
           const isWeekend = d.getDay() === 0 || d.getDay() === 6
           return (
             <div
@@ -907,7 +930,8 @@ function WeekView({ weekStart, appointments, today, selectedDate, onCellClick, o
               </span>
               {count > 0 && (
                 <span
-                  className="mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full"
+                  title={countTitle}
+                  className="mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full cursor-help"
                   style={isT
                     ? { background: '#5746ed', color: 'white' }
                     : { background: isDark ? '#312e81' : '#ede9fe', color: isDark ? '#a5b4fc' : '#7c3aed' }

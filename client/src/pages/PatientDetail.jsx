@@ -1818,6 +1818,7 @@ export default function PatientDetail() {
       first_name: patient.first_name || parts[0] || '',
       last_name: patient.last_name || parts.slice(1).join(' ') || '',
       phone: patient.phone || '',
+      email: patient.email || '',
       sms_consent: !!patient.sms_consent,
       age_range: patient.age_range || '',
       gender: patient.gender || '',
@@ -1834,7 +1835,13 @@ export default function PatientDetail() {
     try {
       const first_name = (profileForm.first_name || '').trim()
       const last_name = (profileForm.last_name || '').trim()
+      const email = (profileForm.email || '').trim()
       const display_name = [first_name, last_name].filter(Boolean).join(' ') || null
+      // Lightweight format check — only when something was entered. The server
+      // accepts it either way, but blocking obvious typos here saves a round trip.
+      if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        throw new Error('That email doesn\'t look right. Double-check and try again.')
+      }
       const res = await apiFetch(`/patients/${id}`, {
         method: 'PUT',
         body: JSON.stringify({
@@ -1843,6 +1850,7 @@ export default function PatientDetail() {
           last_name: last_name || null,
           display_name,
           phone: profileForm.phone || null,
+          email: email || null,
           sms_consent: profileForm.phone && profileForm.sms_consent ? 1 : 0,
           age_range: profileForm.age_range || null,
           gender: profileForm.gender || null,
@@ -2688,6 +2696,21 @@ export default function PatientDetail() {
                   </span>
                 </label>
               )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Email</label>
+              <input
+                type="email"
+                autoComplete="off"
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/20 transition-colors"
+                placeholder="client@example.com"
+                value={profileForm.email || ''}
+                onChange={e => setProfileForm(f => ({ ...f, email: e.target.value }))}
+              />
+              <p className="mt-1.5 text-[11px] text-gray-400">
+                Used for assessment links, intake forms, and email-based check-ins.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-3">

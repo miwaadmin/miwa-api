@@ -263,7 +263,7 @@ router.put('/:id', async (req, res) => {
       mental_health_history, substance_use, risk_screening, family_social_history,
       mental_status_observations, treatment_goals, medical_history, medications,
       trauma_history, strengths_protective_factors, functional_impairments,
-      display_name, phone, sms_consent, date_of_birth, legal_hold, legal_hold_reason,
+      display_name, phone, email, sms_consent, date_of_birth, legal_hold, legal_hold_reason,
       session_modality, session_duration,
     } = req.body;
     const existing = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
@@ -311,7 +311,7 @@ router.put('/:id', async (req, res) => {
          presenting_concerns=?, diagnoses=?, notes=?, client_overview=?, client_overview_signature=?, mental_health_history=?, substance_use=?,
          risk_screening=?, family_social_history=?, mental_status_observations=?, treatment_goals=?,
          medical_history=?, medications=?, trauma_history=?, strengths_protective_factors=?, functional_impairments=?,
-         display_name=?, phone=?, sms_consent=?, sms_consent_at=?, date_of_birth=?, legal_hold=?, legal_hold_reason=?,
+         display_name=?, phone=?, email=?, sms_consent=?, sms_consent_at=?, date_of_birth=?, legal_hold=?, legal_hold_reason=?,
          session_modality=?,
          session_duration=?,
          updated_at=CURRENT_TIMESTAMP
@@ -345,6 +345,7 @@ router.put('/:id', async (req, res) => {
       functional_impairments !== undefined ? functional_impairments : existing.functional_impairments,
       nextDisplayName,
       newPhone,
+      email !== undefined ? (email || null) : existing.email,
       nextConsent,
       nextConsentAt,
       date_of_birth !== undefined ? normalizeDateOnly(date_of_birth) : existing.date_of_birth,
