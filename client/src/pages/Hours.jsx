@@ -130,10 +130,10 @@ export default function Hours() {
   const total   = buckets.find(b => b.id === 'total')
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-5">
-      {/* Header */}
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
+    <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-4 sm:space-y-5">
+      {/* Header — stacks on phone, side-by-side on tablet+ */}
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold text-gray-900">Hours</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Auto-tallied from your completed appointments. Manual entries fill in supervision, training, and advocacy.
@@ -156,21 +156,22 @@ export default function Hours() {
             ))}
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
             onClick={handleExportCsv}
             disabled={exporting}
-            className="px-3.5 py-2 rounded-xl text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors flex items-center gap-2 disabled:opacity-60"
+            className="flex-1 sm:flex-initial px-3.5 py-2 rounded-xl text-sm font-semibold text-gray-700 bg-white border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
             title="Download a CSV with bucket totals + every manual entry. Hand it to your supervisor or paste into Tevera/the BBS form."
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
             </svg>
-            {exporting ? 'Preparing…' : 'Export CSV'}
+            <span className="hidden xs:inline">{exporting ? 'Preparing…' : 'Export CSV'}</span>
+            <span className="xs:hidden">{exporting ? 'Preparing…' : 'Export'}</span>
           </button>
           <button
             onClick={() => { setEditingEntry(null); setShowEntryModal(true) }}
-            className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors flex items-center gap-2"
+            className="flex-1 sm:flex-initial px-4 py-2 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors flex items-center justify-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
@@ -193,8 +194,8 @@ export default function Hours() {
         </p>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-2 border-b border-gray-200">
+      {/* Tabs — horizontal scroll on phone if labels overflow */}
+      <div className="flex gap-2 border-b border-gray-200 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         {[
           { id: 'progress', label: 'Progress' },
           { id: 'track',    label: 'Track grid' },
@@ -203,7 +204,7 @@ export default function Hours() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors ${
+            className={`px-4 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors whitespace-nowrap ${
               tab === t.id
                 ? 'border-brand-600 text-brand-600'
                 : 'border-transparent text-gray-500 hover:text-gray-700'

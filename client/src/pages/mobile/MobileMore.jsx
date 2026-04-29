@@ -6,6 +6,9 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { therapistInitials } from '../../lib/avatar'
 
+// `hoursOnly: true` items are filtered to trainees + associates only —
+// licensed clinicians don't log practicum hours, so the link is hidden
+// for them.
 const menuSections = [
   {
     label: 'Clinical',
@@ -19,6 +22,7 @@ const menuSections = [
   {
     label: 'Practice',
     items: [
+      { to: '/hours',       label: 'Hours',     desc: 'Practicum & BBS hour tracking', icon: ClockIcon, hoursOnly: true },
       { to: '/m/billing',   label: 'Billing',   desc: 'Plan & payments', icon: BillingIcon },
       { to: '/m/library',   label: 'Resources', desc: 'Clinical tools & worksheets', icon: ResourceIcon },
       { to: '/m/contacts',  label: 'Contacts',  desc: 'Trusted referral network', icon: ContactsIcon },
@@ -38,6 +42,8 @@ export default function MobileMore() {
   const navigate = useNavigate()
   const { therapist } = useAuth()
   const initials = therapistInitials(therapist)
+  const cred = therapist?.credential_type || 'licensed'
+  const showHours = cred === 'trainee' || cred === 'associate'
 
   return (
     <div className="pb-6">
@@ -70,7 +76,7 @@ export default function MobileMore() {
             {section.label}
           </h3>
           <div className="mx-4 rounded-2xl border border-gray-200 bg-white overflow-hidden divide-y divide-gray-100">
-            {section.items.map((item) => (
+            {section.items.filter(item => !item.hoursOnly || showHours).map((item) => (
               <button
                 key={item.to}
                 onClick={() => navigate(item.to)}
@@ -186,6 +192,14 @@ function UnsignedIcon() {
   return (
     <svg className="w-5 h-5 text-rose-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  )
+}
+
+function ClockIcon() {
+  return (
+    <svg className="w-5 h-5 text-fuchsia-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
     </svg>
   )
 }
