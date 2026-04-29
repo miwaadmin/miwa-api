@@ -93,6 +93,21 @@ function StatCard({ label, value, sub, accent = 'violet' }) {
   )
 }
 
+function formatBriefDate(brief, timezone) {
+  if (!brief) return null
+  if (brief.local_date) {
+    const [year, month, day] = String(brief.local_date).split('-').map(Number)
+    if (year && month && day) {
+      return new Date(year, month - 1, day).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    }
+  }
+  return formatDateOnlyInTimezone(brief.created_at, timezone)
+}
+
 // ── Research Synthesis Tab ────────────────────────────────────────────────────
 
 function ResearchTab() {
@@ -166,9 +181,7 @@ function ResearchTab() {
   const typeLabel = { weekly: 'Daily', daily: 'Daily', crisis: 'Crisis' }
   const latestBrief = briefs[0]
   const timezone = therapist?.preferred_timezone || 'America/Los_Angeles'
-  const latestDate = latestBrief
-    ? formatDateOnlyInTimezone(latestBrief.created_at, timezone)
-    : null
+  const latestDate = latestBrief ? formatBriefDate(latestBrief, timezone) : null
 
   if (loading) return (
     <div className="flex items-center justify-center py-32">
@@ -283,7 +296,7 @@ function ResearchTab() {
                       </span>
                       {/* Date */}
                       <span className="text-xs text-gray-400 font-medium">
-                        {formatDateOnlyInTimezone(brief.created_at, timezone)}
+                        {formatBriefDate(brief, timezone)}
                       </span>
                       {/* Saved badge */}
                       {brief.saved && (

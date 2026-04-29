@@ -1,8 +1,9 @@
 /**
  * Miwa Research Service
  *
- * Searches PubMed and Brave Search for clinical articles and uses GPT-4o to
- * synthesize them into a personalized weekly brief for each clinician.
+ * Searches PubMed and Brave Search for clinical articles and uses the
+ * configured Azure OpenAI deployment to synthesize them into a personalized
+ * daily brief for each clinician.
  *
  * Two modes:
  *   1. Weekly brief — broad mental health research (runs Monday 8am)
@@ -23,6 +24,36 @@ const { sendMail } = require('./mailer');
 
 const PUBMED_BASE = 'https://eutils.ncbi.nlm.nih.gov/entrez/eutils';
 const PUBMED_HEADERS = { 'User-Agent': 'MiwaResearch/1.0 (research@miwa.care)' };
+
+function getLocalDateParts(date = new Date(), timezone = 'America/Los_Angeles') {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timezone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(date).reduce((acc, part) => {
+    if (part.type !== 'literal') acc[part.type] = part.value;
+    return acc;
+  }, {});
+
+  return {
+    localDate: `${parts.year}-${parts.month}-${parts.day}`,
+    longDate: date.toLocaleDateString('en-US', {
+      timeZone: timezone,
+      weekday: 'long',
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    }),
+    titleDate: date.toLocaleDateString('en-US', {
+      timeZone: timezone,
+      month: 'long',
+      day: 'numeric',
+      year: 'numeric',
+    }),
+    timezone,
+  };
+}
 
 async function searchPubMed(query, maxResults = 5) {
   try {
@@ -276,7 +307,7 @@ async function buildCaseloadTopics(db, therapistId) {
 
 // ── AI synthesis ──────────────────────────────────────────────────────────────
 
-async function synthesizeBrief(articles, topics, briefType, therapistName, therapistId = null) {
+async function synthesizeBrief(articles, topics, briefType, therapistName, therapistId = null, dateInfo = getLocalDateParts()) {
   const articleList = articles
     .map((a, i) => {
       const meta = [a.authors, a.journal, a.date].filter(Boolean).join(', ');
@@ -284,10 +315,6 @@ async function synthesizeBrief(articles, topics, briefType, therapistName, thera
       return `${i + 1}. ${sourceTag} "${a.title}"${meta ? ` — ${meta}` : ''}\n   URL: ${a.url}`;
     })
     .join('\n\n');
-
-  const dateStr = new Date().toLocaleDateString('en-US', {
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric',
-  });
 
   const isDaily = briefType !== 'crisis';
   const introInstruction = isDaily
@@ -308,7 +335,7 @@ async function synthesizeBrief(articles, topics, briefType, therapistName, thera
     `- IMPORTANT: This is a DAILY brief. Never use the word "Weekly" anywhere in your response.`;
 
   const userPrompt =
-    `Date: ${dateStr}\n` +
+    `Date: ${dateInfo.longDate}\n` +
     `Clinician: ${therapistName || 'Clinician'}\n` +
     `Caseload topics: ${topics.join(', ')}\n\n` +
     `Articles found:\n${articleList}\n\n` +
@@ -475,7 +502,7 @@ async function generateBriefForTherapist(therapistId, briefType = 'daily') {
   const db = getAsyncDb();
 
   const therapist = await db.get(
-    'SELECT id, email, full_name, first_name FROM therapists WHERE id = ?',
+    'SELECT id, email, full_name, first_name, preferred_timezone FROM therapists WHERE id = ?',
     therapistId
   );
   if (!therapist) {
@@ -484,6 +511,8 @@ async function generateBriefForTherapist(therapistId, briefType = 'daily') {
   }
 
   const therapistName = therapist.first_name || therapist.full_name || 'Clinician';
+  const timezone = therapist.preferred_timezone || 'America/Los_Angeles';
+  const dateInfo = getLocalDateParts(new Date(), timezone);
   console.log(`[researcher] Therapist: ${therapistName} (${therapist.email})`);
 
   // Detect caseload-relevant topics
@@ -575,19 +604,20 @@ async function generateBriefForTherapist(therapistId, briefType = 'daily') {
   }
 
   // AI synthesis — cost tracked against this therapist
-  const content = await synthesizeBrief(uniqueArticles, topics, briefType, therapistName, therapistId);
+  const content = await synthesizeBrief(uniqueArticles, topics, briefType, therapistName, therapistId, dateInfo);
 
-  const dateStr = new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+  const dateStr = dateInfo.titleDate;
   const title = briefType === 'crisis'
     ? `Clinical Research Alert — ${dateStr}`
     : `Daily Research Brief — ${dateStr}`;
 
   // Store in DB
   await db.insert(
-    `INSERT INTO research_briefs (therapist_id, brief_type, title, content, articles_json, topics_json)
-     VALUES (?, ?, ?, ?, ?, ?)`,
+    `INSERT INTO research_briefs (therapist_id, brief_type, title, content, articles_json, topics_json, local_date, timezone)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     therapistId, briefType, title, content,
-    JSON.stringify(uniqueArticles), JSON.stringify(topics)
+    JSON.stringify(uniqueArticles), JSON.stringify(topics),
+    dateInfo.localDate, timezone
   );
 
   // Send email
@@ -647,4 +677,4 @@ async function triggerCrisisBrief(therapistId) {
   }
 }
 
-module.exports = { runDailyBriefs, triggerCrisisBrief, generateBriefForTherapist };
+module.exports = { runDailyBriefs, triggerCrisisBrief, generateBriefForTherapist, getLocalDateParts };

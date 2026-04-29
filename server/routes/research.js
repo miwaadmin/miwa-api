@@ -2,11 +2,16 @@ const express = require('express');
 const router = express.Router();
 const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const requireAuth = require('../middleware/auth');
-const { generateBriefForTherapist } = require('../services/researcher');
+const { generateBriefForTherapist, getLocalDateParts } = require('../services/researcher');
 const { getLatestNews, fetchAndStoreNews } = require('../services/newsService');
 const { generateDailyBriefing } = require('../services/dailyBriefing');
 
 router.use(requireAuth);
+
+async function getTherapistTimezone(db, therapistId) {
+  const therapist = await db.get('SELECT preferred_timezone FROM therapists WHERE id = ?', therapistId);
+  return therapist?.preferred_timezone || 'America/Los_Angeles';
+}
 
 // GET /api/research/daily-briefing — today's "Your Day" summary
 // Auto-generates if one doesn't exist yet for today.
@@ -108,7 +113,7 @@ router.get('/briefs', async (req, res) => {
   try {
     const db = getAsyncDb();
     const briefs = await db.all(
-      `SELECT id, brief_type, title, content, articles_json, topics_json, sent_email, saved, opened_at, created_at
+      `SELECT id, brief_type, title, content, articles_json, topics_json, local_date, timezone, sent_email, saved, opened_at, created_at
        FROM research_briefs
        WHERE therapist_id = ?
          AND (
@@ -125,9 +130,14 @@ router.get('/briefs', async (req, res) => {
     // Guard: skip if one was already kicked off today (prevents double-fire on rapid page loads)
     if (briefs.length === 0) {
       const hasPatients = await db.get('SELECT COUNT(*) as c FROM patients WHERE therapist_id = ?', req.therapist.id);
+      const tz = await getTherapistTimezone(db, req.therapist.id);
+      const todayLocal = getLocalDateParts(new Date(), tz).localDate;
       const alreadyToday = await db.get(
-        `SELECT id FROM research_briefs WHERE therapist_id = ? AND date(created_at) = date('now')`,
-        req.therapist.id
+        `SELECT id FROM research_briefs
+         WHERE therapist_id = ?
+           AND brief_type != 'crisis'
+           AND (local_date = ? OR (local_date IS NULL AND date(created_at) = ?))`,
+        req.therapist.id, todayLocal, todayLocal
       );
       if (hasPatients?.c > 0 && !alreadyToday) {
         generateBriefForTherapist(req.therapist.id, 'daily').catch(e =>
@@ -152,7 +162,7 @@ router.get('/latest', async (req, res) => {
   try {
     const db = getAsyncDb();
     const brief = await db.get(
-      `SELECT id, brief_type, title, content, articles_json, topics_json, created_at
+      `SELECT id, brief_type, title, content, articles_json, topics_json, local_date, timezone, created_at
        FROM research_briefs
        WHERE therapist_id = ?
        ORDER BY created_at DESC
@@ -176,15 +186,32 @@ router.post('/generate', async (req, res) => {
     const { type = 'daily' } = req.body;
     const db = getAsyncDb();
 
-    // Block any non-crisis brief within the last 24 hours (type-agnostic so 'weekly' old records also count)
+    const tz = await getTherapistTimezone(db, req.therapist.id);
+    const today = getLocalDateParts(new Date(), tz);
+
+    // Block duplicate same-day briefs in the clinician's timezone. If an older
+    // UTC-labeled brief was generated late at night and its title points at the
+    // wrong local date, delete that stale row so the manual button can repair it.
     const briefCheckSql = type === 'crisis'
-      ? `SELECT id FROM research_briefs WHERE therapist_id = ? AND brief_type = 'crisis' AND created_at > datetime('now', '-24 hours')`
-      : `SELECT id FROM research_briefs WHERE therapist_id = ? AND brief_type != 'crisis' AND created_at > datetime('now', '-24 hours')`;
-    const alreadyToday = await db.get(briefCheckSql, req.therapist.id);
+      ? `SELECT id, title, local_date FROM research_briefs WHERE therapist_id = ? AND brief_type = 'crisis' AND created_at > datetime('now', '-24 hours') ORDER BY created_at DESC LIMIT 1`
+      : `SELECT id, title, local_date FROM research_briefs
+          WHERE therapist_id = ?
+            AND brief_type != 'crisis'
+            AND (local_date = ? OR (local_date IS NULL AND created_at > datetime('now', '-24 hours')))
+          ORDER BY created_at DESC LIMIT 1`;
+    const alreadyToday = type === 'crisis'
+      ? await db.get(briefCheckSql, req.therapist.id)
+      : await db.get(briefCheckSql, req.therapist.id, today.localDate);
     if (alreadyToday) {
-      return res.status(429).json({
-        error: `A ${type === 'crisis' ? 'crisis' : 'daily'} brief was already generated today. Come back tomorrow or delete today's brief first.`,
-      });
+      const titleMatchesLocalDate = String(alreadyToday.title || '').includes(today.titleDate);
+      if (type !== 'crisis' && !titleMatchesLocalDate) {
+        await db.run('DELETE FROM research_briefs WHERE id = ? AND therapist_id = ?', alreadyToday.id, req.therapist.id);
+        await persistIfNeeded();
+      } else {
+        return res.status(429).json({
+          error: `A ${type === 'crisis' ? 'crisis' : 'daily'} brief was already generated today. Come back tomorrow or delete today's brief first.`,
+        });
+      }
     }
 
     console.log(`[research] Manual generate started for therapist_id=${req.therapist.id} type=${type}`);

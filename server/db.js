@@ -348,6 +348,8 @@ function createSchema() {
       content TEXT NOT NULL,
       articles_json TEXT,
       topics_json TEXT,
+      local_date TEXT,
+      timezone TEXT,
       sent_email INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -1269,6 +1271,12 @@ function runMigrations() {
   }
   if (briefCols.length && !briefCols.includes('opened_at')) {
     try { db.run('ALTER TABLE research_briefs ADD COLUMN opened_at DATETIME'); } catch {}
+  }
+  if (briefCols.length && !briefCols.includes('local_date')) {
+    try { db.run('ALTER TABLE research_briefs ADD COLUMN local_date TEXT'); } catch {}
+  }
+  if (briefCols.length && !briefCols.includes('timezone')) {
+    try { db.run('ALTER TABLE research_briefs ADD COLUMN timezone TEXT'); } catch {}
   }
 
   // Auto-backfill: keep missing names boring and deterministic. Never invent
