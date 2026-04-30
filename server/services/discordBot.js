@@ -77,6 +77,11 @@ const REQUIRED_ROLES = [
   { name: 'Trainee',      color: 0x818cf8 },  // Indigo light
   { name: 'Associate',    color: 0xf59e0b },  // Amber
   { name: 'Licensed',     color: 0x10b981 },  // Emerald
+  // Aspiring covers pre-grad explorers — undergrads, career changers,
+  // psych-curious folks weighing MFT/MSW programs. They're not in
+  // training yet but they're paying attention, and growing them into
+  // the funnel is a long-term win.
+  { name: 'Aspiring',     color: 0x38bdf8 },  // Sky blue — fresh-start tone
 ];
 
 const WELCOME_MESSAGE = [
@@ -95,7 +100,7 @@ const WELCOME_MESSAGE = [
   '`#feedback` — bugs and feature requests (react with 👍 to upvote, or use `/feedback` to send privately)',
   '`#show-n-tell` — share workflows, templates, wins',
   '',
-  'If you\'re a trainee or associate working toward CA BBS hours, say hi 👋 — there\'s a lot of you here.',
+  'If you\'re a trainee or associate working toward CA BBS hours, say hi 👋 — there\'s a lot of you here. If you\'re still figuring out whether the field is for you, you\'re in the right place too.',
   '',
   '— **Valdrex Philippe, MFT Trainee**',
   'Founder, Miwa',
