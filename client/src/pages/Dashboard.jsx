@@ -4,6 +4,7 @@ import { apiFetch } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { patientInitials } from '../lib/avatar'
 import HoursWidget from '../components/HoursWidget'
+import CommunityBanner from '../components/CommunityBanner'
 
 function formatDate(dateStr) {
   if (!dateStr) return '—'
@@ -365,6 +366,9 @@ export default function Dashboard() {
 
       {/* ── Practicum hours widget — only renders for trainees/associates ── */}
       <HoursWidget />
+
+      {/* ── Community invite — only renders if VITE_COMMUNITY_URL is set ── */}
+      <CommunityBanner />
 
       {/* ── Alerts ── */}
       {alerts.length > 0 && (
