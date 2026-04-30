@@ -75,6 +75,39 @@ jobs:
           tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_A466E37A18AC4463BA56937C3C2C34AA }}
           subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_C9AAE82CD9324A1798CD5A6D63E4EDA2 }}
 
+      - name: Sync runtime secrets to Azure App Service
+        # Some env vars (DISCORD_BOT_TOKEN) are runtime-only — they need to
+        # live in Azure App Service application settings, NOT baked into the
+        # build artifact. This step pushes the GitHub secret value into
+        # App Service config on each deploy so the running Node process
+        # can read it from process.env. The az login above is reused.
+        # Resource group is discovered from the webapp name to avoid
+        # hard-coding it. If a secret is unset in GitHub, the corresponding
+        # App Service setting is left alone (we never clear it from here).
+        run: |
+          set -e
+          RG=$(az webapp list --query "[?name=='miwa-api-prod'].resourceGroup | [0]" -o tsv)
+          if [ -z "$RG" ]; then
+            echo "::warning::Could not resolve resource group for miwa-api-prod — skipping app settings sync"
+            exit 0
+          fi
+          UPDATES=()
+          if [ -n "$DISCORD_BOT_TOKEN_VALUE" ]; then
+            UPDATES+=("DISCORD_BOT_TOKEN=$DISCORD_BOT_TOKEN_VALUE")
+          fi
+          if [ ${#UPDATES[@]} -eq 0 ]; then
+            echo "No runtime secrets to sync — skipping."
+            exit 0
+          fi
+          az webapp config appsettings set \
+            --name miwa-api-prod \
+            --resource-group "$RG" \
+            --settings "${UPDATES[@]}" \
+            --output none
+          echo "Synced ${#UPDATES[@]} runtime secret(s) to Azure App Service."
+        env:
+          DISCORD_BOT_TOKEN_VALUE: ${{ secrets.DISCORD_BOT_TOKEN }}
+
       - name: 'Deploy to Azure Web App'
         id: deploy-to-webapp
         uses: azure/webapps-deploy@v3

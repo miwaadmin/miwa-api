@@ -430,6 +430,13 @@ if (require.main === module) {
     } catch (err) {
       console.error('Task worker failed to start:', err.message);
     }
+    // Discord bot — opt-in via DISCORD_BOT_TOKEN. Won't start without it.
+    try {
+      const { startDiscordBot } = require('./services/discordBot');
+      startDiscordBot().catch(err => console.error('[discord] startup error:', err.message));
+    } catch (err) {
+      console.error('Discord bot module failed to load:', err.message);
+    }
     app.listen(PORT, () => console.log(`Miwa server running on http://localhost:${PORT}`));
   }).catch(err => {
     console.error('Failed to initialise database:', err);
