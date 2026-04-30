@@ -498,7 +498,13 @@ router.get('/alerts', async (req, res) => {
     )
     res.json(alerts)
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' })
+    // Operational logging — generic 500s with no detail are how production
+    // bugs survive for weeks. Log the real error to Azure App Service logs
+    // and surface a short hint to the client so we can diagnose without
+    // SSH'ing in. The hint never includes user data, just the SQL/JS error
+    // string, which is fine to expose for an authenticated endpoint.
+    console.error('[patients/alerts GET] failed:', err)
+    res.status(500).json({ error: 'Internal server error', detail: err?.message || String(err) })
   }
 })
 
@@ -514,7 +520,8 @@ router.post('/alerts/:id/dismiss', async (req, res) => {
     try { await persistIfNeeded() } catch {}
     res.json({ ok: true })
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' })
+    console.error('[patients/alerts dismiss] failed:', err)
+    res.status(500).json({ error: 'Internal server error', detail: err?.message || String(err) })
   }
 })
 
@@ -529,7 +536,8 @@ router.post('/alerts/:id/read', async (req, res) => {
     )
     res.json({ ok: true })
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' })
+    console.error('[patients/alerts read] failed:', err)
+    res.status(500).json({ error: 'Internal server error', detail: err?.message || String(err) })
   }
 })
 
