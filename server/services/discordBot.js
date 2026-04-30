@@ -142,6 +142,11 @@ async function startDiscordBot() {
       GatewayIntentBits.Guilds,
       GatewayIntentBits.GuildMembers,
       GatewayIntentBits.GuildMessages,
+      // MessageContent is privileged — requires the matching toggle in the
+      // Discord Developer Portal (Bot tab → "Message Content Intent" → ON).
+      // Without it, message.content is empty even when we have GuildMessages.
+      // Used by the PHI guard to scan and delete leaked PII.
+      GatewayIntentBits.MessageContent,
     ],
   });
 
@@ -211,6 +216,54 @@ async function startDiscordBot() {
     }
   });
 
+  // ─── PHI sanity net ────────────────────────────────────────────────────────
+  // Defense in depth on top of the pinned "no PHI ever" rule. Scans every
+  // member message for the patterns that most often slip through (SSN,
+  // phone, email), deletes the message, and DMs the author a friendly
+  // heads-up. Won't catch a client's first name in prose — that's
+  // unsolvable from a single line — but it kills the obvious accidental
+  // leaks and signals the server takes privacy seriously.
+  client.on(Events.MessageCreate, async (message) => {
+    try {
+      if (message.author?.bot) return;
+      if (!message.guild) return; // Ignore DMs to the bot
+      if (!message.content) return;
+
+      const flagged = detectLikelyPhi(message.content);
+      if (flagged.length === 0) return;
+
+      // Delete first so other members never see the leak.
+      try { await message.delete(); } catch {}
+
+      const reasons = flagged.map(f => `• \`${f}\``).join('\n');
+      const note = [
+        `Hey ${message.author.username} — your message in **${message.channel.name}** looked like it might contain personally identifying info, so I removed it as a precaution:`,
+        '',
+        reasons,
+        '',
+        'Repost without the identifying detail (or use an anonymized vignette). If this was a false alarm, just rephrase and resend — I won\'t mind.',
+        '',
+        '— Miwa Bot, on behalf of Valdrex',
+      ].join('\n');
+
+      try {
+        await message.author.send(note);
+      } catch (err) {
+        // 50007 = DMs disabled. Post a generic note in the channel as a
+        // last resort so the author sees something.
+        if (err?.code === 50007) {
+          try {
+            await message.channel.send({
+              content: `${message.author} — I removed your last message because it may have contained personally identifying info (DMs are off so I can\'t explain privately; please enable DMs from server members for next time).`,
+            });
+          } catch {}
+        }
+      }
+    } catch (err) {
+      console.warn('[discord] PHI guard error:', err.message);
+    }
+  });
+
   try {
     status.loginAttempted = true;
     await client.login(TOKEN);
@@ -220,6 +273,35 @@ async function startDiscordBot() {
     console.error('[discord] login failed:', err.message);
     noteEvent('login-failed', err);
   }
+}
+
+// ─── PHI detection ──────────────────────────────────────────────────────────
+// Conservative regexes — only patterns that almost always indicate
+// personal identifying info. False positives are tolerable (member can
+// rephrase) but false NEGATIVES on obvious PHI are the real risk, so we
+// err toward triggering. Returns an array of human-readable labels for
+// each pattern that matched, used in the warning DM.
+const PHI_PATTERNS = [
+  // SSN — 9 digits with optional dashes/spaces. Excludes obvious phone-style.
+  { label: 'a Social Security Number', re: /\b\d{3}[-.\s]?\d{2}[-.\s]?\d{4}\b/ },
+  // US phone — 10 digits in common formats. (555) 555-5555, 555-555-5555,
+  // +1 555 555 5555, 5555555555.
+  { label: 'a phone number', re: /(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b/ },
+  // Email address — standard pattern. The "no PHI" rule covers this even
+  // for non-clinical addresses; therapists shouldn't be sharing personal
+  // emails of anyone in the server here.
+  { label: 'an email address', re: /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i },
+  // Date of birth phrasing — "DOB: ...", "born on ..." — usually only
+  // appears in clinical context. Lightweight heuristic.
+  { label: 'a date of birth', re: /\b(?:dob|d\.o\.b\.|date of birth|born on)\b\s*[:.]?\s*(?:\d{1,2}[/-]\d{1,2}[/-]\d{2,4}|\w+ \d{1,2},? \d{4})/i },
+];
+
+function detectLikelyPhi(text) {
+  const matches = [];
+  for (const { label, re } of PHI_PATTERNS) {
+    if (re.test(text)) matches.push(label);
+  }
+  return matches;
 }
 
 // ─── Guild configuration ────────────────────────────────────────────────────
@@ -248,6 +330,47 @@ async function configureGuild(guild, ChannelType) {
         // Common cause: bot lacks Manage Channels on this channel; not fatal.
       }
     }
+  }
+
+  // Channel hardening — applied per-channel after we know they all exist.
+  //
+  // #announcements: read-only for @everyone. Members can SEE updates but
+  // not post. Only the bot and elevated roles can write here.
+  //
+  // #general: 5-second slow mode. Reduces accidental flooding without
+  // hampering real conversation.
+  try {
+    const announce = guild.channels.cache.find(
+      c => c.name === 'announcements' && c.type === ChannelType.GuildText,
+    );
+    if (announce) {
+      const everyone = guild.roles.everyone;
+      const current = announce.permissionOverwrites.cache.get(everyone.id);
+      const alreadyLocked = current && current.deny?.has?.(djs.PermissionFlagsBits.SendMessages);
+      if (!alreadyLocked) {
+        await announce.permissionOverwrites.edit(everyone, {
+          SendMessages: false,
+          AddReactions: true,    // reactions still allowed — feedback signal
+          ReadMessageHistory: true,
+          ViewChannel: true,
+        });
+        console.log(`[discord] locked #announcements (read-only) in ${guild.name}`);
+      }
+    }
+  } catch (err) {
+    console.warn('[discord] lock #announcements failed:', err.message);
+  }
+
+  try {
+    const general = guild.channels.cache.find(
+      c => c.name === 'general' && c.type === ChannelType.GuildText,
+    );
+    if (general && general.rateLimitPerUser !== 5) {
+      await general.setRateLimitPerUser(5);
+      console.log(`[discord] set 5s slowmode on #general in ${guild.name}`);
+    }
+  } catch (err) {
+    console.warn('[discord] slowmode #general failed:', err.message);
   }
 
   // Roles — only create missing ones, never modify or delete existing.
