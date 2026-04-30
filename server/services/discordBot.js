@@ -97,7 +97,8 @@ const WELCOME_MESSAGE = [
   '',
   'If you\'re a trainee or associate working toward CA BBS hours, say hi 👋 — there\'s a lot of you here.',
   '',
-  '— Valdrex',
+  '— **Valdrex Philippe, MFT Trainee**',
+  'Founder, Miwa',
 ].join('\n');
 
 // ─── Slash command spec ─────────────────────────────────────────────────────
@@ -190,7 +191,8 @@ async function startDiscordBot() {
       '',
       'If you\'re working toward CA BBS hours and haven\'t tried the Hours feature yet, give it a look — auto-tallies your supervised hours from your appointments.',
       '',
-      '— Valdrex',
+      '— **Valdrex Philippe, MFT Trainee**',
+      'Founder, Miwa',
     ].join('\n');
     try {
       await member.send(dm);
@@ -260,8 +262,13 @@ async function configureGuild(guild, ChannelType) {
     }
   }
 
-  // Pinned welcome message — post and pin only if no message from us is
-  // already pinned in #welcome. Avoids duplicating on every redeploy.
+  // Pinned welcome message. Three states:
+  //   - No pin from us → post + pin a fresh message.
+  //   - Pin exists, content matches → no-op (idempotent on redeploy).
+  //   - Pin exists, content stale → edit the existing message in place so
+  //     copy updates (e.g. signature changes) actually land without us
+  //     leaving a stale pin around. We never delete + repost; that would
+  //     spam member notifications and lose any reactions.
   const welcomeCh = guild.channels.cache.find(
     c => c.name === 'welcome' && c.type === ChannelType.GuildText,
   );
@@ -273,6 +280,9 @@ async function configureGuild(guild, ChannelType) {
         const sent = await welcomeCh.send({ content: WELCOME_MESSAGE });
         await sent.pin();
         console.log(`[discord] pinned welcome message in ${guild.name}`);
+      } else if (ourPin.content !== WELCOME_MESSAGE) {
+        await ourPin.edit({ content: WELCOME_MESSAGE });
+        console.log(`[discord] updated stale pinned welcome message in ${guild.name}`);
       }
     } catch (err) {
       console.warn('[discord] pin welcome failed:', err.message);

@@ -1,5 +1,18 @@
 # Miwa API — Project Notes for Claude
 
+## User identity
+
+When generating content that signs as the user or refers to them by
+title (welcome messages, marketing copy, signatures, founder bios,
+about pages, anywhere a name + role appears), use:
+
+> **Valdrex Philippe, MFT Trainee**
+> Founder, Miwa
+
+Never just "Valdrex" alone in product copy — always include the full
+name + role. Casual chat references in the conversation are fine to
+use the first name.
+
 ## Workflow preferences
 
 ### Auto-push code changes
