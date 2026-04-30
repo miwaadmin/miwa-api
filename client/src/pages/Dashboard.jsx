@@ -306,6 +306,11 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* ── Practicum hours widget — only renders for trainees/associates.
+          Lives above Caseload Pulse so trainees see their progress first
+          when they open the dashboard, before triaging clients. ── */}
+      <HoursWidget />
+
       {/* ── Caseload Pulse ── */}
       {Array.isArray(dailyBriefing?.caseload) && dailyBriefing.caseload.length > 0 && (
         <div className="rounded-2xl bg-white border border-gray-200 shadow-sm p-5">
@@ -363,9 +368,6 @@ export default function Dashboard() {
           )}
         </div>
       )}
-
-      {/* ── Practicum hours widget — only renders for trainees/associates ── */}
-      <HoursWidget />
 
       {/* ── Community invite — only renders if VITE_COMMUNITY_URL is set ── */}
       <CommunityBanner />
