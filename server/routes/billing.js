@@ -70,8 +70,8 @@ function isBillingCredentialEligible(therapist) {
   }
   if (credential === 'associate') {
     return {
-      eligible: true,
-      reason: 'Associate billing should be used only under an appropriate supervisor or practice arrangement.',
+      eligible: false,
+      reason: 'Associate accounts cannot connect their own Stripe account or collect client payments directly. Use employer/practice-owned billing once that workflow is enabled.',
       requires_supervision: true,
     };
   }

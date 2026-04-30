@@ -124,7 +124,7 @@ test('Stripe webhook rejects unsigned payloads without leaking payload content',
   assert.equal(text.includes('cus_secret_payload'), false);
 });
 
-test('client payment status blocks trainee direct billing but allows licensed clinicians', async () => {
+test('client payment status blocks trainee and associate direct billing but allows licensed clinicians', async () => {
   await startTestServer();
   const { cookie, therapist } = await bootstrapAdminAndLogin({
     email: 'client-billing-licensed@miwa.test',
@@ -144,6 +144,13 @@ test('client payment status blocks trainee direct billing but allows licensed cl
   }, cookie);
   assert.equal(res.status, 403);
   assert.match(res.body.error, /Trainee accounts cannot collect client payments directly/);
+
+  await db.run("UPDATE therapists SET credential_type = 'associate' WHERE id = ?", therapist.id);
+  res = await api('POST', '/api/billing/client-payments/settings', {
+    default_rate_dollars: 125,
+  }, cookie);
+  assert.equal(res.status, 403);
+  assert.match(res.body.error, /Associate accounts cannot connect their own Stripe account/);
 });
 
 test('client invoice creation stores generic Stripe-visible billing data', async () => {
