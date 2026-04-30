@@ -755,11 +755,23 @@ function startAlertsScheduler() {
   console.log('[scheduler] Started — AI budget unpause runs at the start of each month')
 
   // ── Encrypted off-site DB backup ─────────────────────────────────────────
-  // Runs daily at 03:11 UTC (20:11 PT previous day). Reads /data/mftbrain.db,
-  // encrypts with AES-256-GCM using BACKUP_PASSPHRASE, emails the blob to
-  // admin@miwa.care via Gmail API (Workspace BAA-covered). This is the
-  // primary safety net against local SQLite volume loss / corruption.
-  if (process.env.BACKUP_PASSPHRASE) {
+  // Originally a safety net for the SQLite era: read /data/mftbrain.db,
+  // encrypt with AES-256-GCM, email the blob to admin@miwa.care via
+  // Gmail API. Production now runs on Azure PostgreSQL Flexible Server,
+  // which has automated point-in-time backups built in (7–35 day retention,
+  // managed by Azure). The SQLite file at /data/mftbrain.db on production
+  // is at best an empty stub and at worst missing entirely, so this job
+  // either emails an empty file or sends a "BACKUP FAILED" alert every
+  // single night — pure noise.
+  //
+  // Skip the scheduler entirely when DB_PROVIDER=postgres so production
+  // stops generating these emails. Local dev (SQLite) still gets backups
+  // if BACKUP_PASSPHRASE is set, since the SQLite file is the real DB
+  // there.
+  const isPostgres = ['postgres', 'postgresql'].includes(String(process.env.DB_PROVIDER || '').toLowerCase())
+  if (isPostgres) {
+    console.log('[scheduler] DB_PROVIDER=postgres detected — skipping SQLite email backup. Azure Postgres handles backups automatically.')
+  } else if (process.env.BACKUP_PASSPHRASE) {
     cron.schedule('11 3 * * *', async () => {
       try {
         const { runNightlyBackup } = require('./backup')
