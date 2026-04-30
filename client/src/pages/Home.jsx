@@ -102,7 +102,7 @@ function HeroMockup() {
             <div className="flex justify-end">
               <div className="text-xs text-white rounded-xl rounded-tr-sm px-3 py-2 max-w-[160px]"
                 style={{background:'rgba(96,71,238,0.3)'}}>
-                Send them a check-in SMS today
+                Create a secure check-in link today
               </div>
             </div>
             <div className="flex gap-2">
@@ -112,7 +112,7 @@ function HeroMockup() {
               </div>
               <div className="text-xs text-white/55 rounded-xl rounded-tl-sm px-3 py-2 max-w-[200px]"
                 style={{background:'rgba(255,255,255,0.04)'}}>
-                Done. SMS sent with mood check-in link.
+                Done. Secure mood check-in link created.
               </div>
             </div>
           </div>
@@ -305,7 +305,7 @@ function Hero() {
         <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-sm text-gray-600">
           <span>Trusted by licensed MFTs, LCSWs &amp; LPCCs</span>
           <span>·</span>
-          <span>HIPAA-conscious design</span>
+          <span>HIPAA-aligned infrastructure</span>
           <span>·</span>
           <span>Pre-licensed pricing for interns &amp; associates</span>
         </div>
@@ -360,7 +360,7 @@ function FeatureRow({ tag, title, gradWord, desc, items, accent, reversed, mocku
 /* ── Pricing Preview ──────────────────────────────────────────────── */
 function PricingPreview() {
   const tiers = [
-    { name: 'Pre-Licensed', price: '$39', per: '/mo', desc: 'Trainees & associates. The full AI copilot at $39/mo — no competitor offers pre-licensed pricing.', cta: 'Start free trial', href: '/register', highlight: false },
+    { name: 'Pre-Licensed', price: '$39', per: '/mo', desc: 'Trainees & associates. The full AI copilot at a trainee-friendly price.', cta: 'Start free trial', href: '/register', highlight: false },
     { name: 'Licensed Therapist', price: '$129', per: '/mo', desc: 'The full AI copilot: pre-session briefs, treatment plan tracking, risk monitoring, letter generation, and morning caseload briefings.', cta: 'Start free trial', href: '/register', highlight: true },
     { name: 'Group Practice', price: '$399', per: '/mo', desc: 'Coming soon. 3 clinicians included. +$39/mo each. Join the waitlist.', cta: 'Join waitlist', href: '/for-practices', highlight: false },
   ]
@@ -405,10 +405,10 @@ function PricingPreview() {
 /* ── FAQ ──────────────────────────────────────────────────────────── */
 function FAQ() {
   const faqs = [
-    { q: 'Is Miwa HIPAA compliant?', a: 'Miwa is built with HIPAA-conscious design: PHI scrubbing before AI calls, HttpOnly cookie auth, encrypted transport, and audit logging.' },
-    { q: 'Does Miwa replace my EHR?', a: 'No. Miwa is a clinical AI assistant, not an EHR. It does not include insurance billing or a client portal. It sits alongside your existing workflow as your documentation, outcome tracking, and clinical intelligence layer. Telehealth (Google Meet) is included.' },
-    { q: 'Who qualifies for Pre-Licensed pricing?', a: 'Anyone who isn\'t fully licensed yet: practicum interns, MFT trainees, and licensed associates (AMFT, ACSW, APCC). Full copilot access at $39/mo or $31/mo annual — no competitor offers pre-licensed pricing. When you get your full license, you can upgrade to Licensed Therapist.' },
-    { q: 'What assessments are supported?', a: 'PHQ-9, GAD-7, PCL-5, and C-SSRS — delivered via SMS and email, completed on mobile, scored automatically with trend tracking.' },
+    { q: 'Is Miwa HIPAA compliant?', a: 'Miwa is built on HIPAA-aligned infrastructure with Azure hosting, Azure OpenAI for PHI-capable AI workflows, encrypted transport, HttpOnly cookie auth, and minimum-necessary prompting. Covered entities still need their own policies, BAAs, and configuration review.' },
+    { q: 'Does Miwa replace my EHR?', a: 'No. Miwa is a clinical AI assistant, not a full EHR or insurance billing system. It sits alongside your workflow as your documentation, outcome tracking, scheduling, client portal, and clinical intelligence layer.' },
+    { q: 'Who qualifies for Pre-Licensed pricing?', a: 'Anyone who isn\'t fully licensed yet: practicum interns, MFT trainees, and licensed associates (AMFT, ACSW, APCC). When you get your full license, you can upgrade to Licensed Therapist.' },
+    { q: 'What assessments are supported?', a: 'PHQ-9, GAD-7, PCL-5, and C-SSRS can be completed through secure links, scored automatically, and tracked over time. SMS delivery is disabled until the messaging BAA and consent workflow are complete.' },
     { q: 'Can I use Miwa on mobile?', a: 'Yes. Miwa is a PWA installable on iOS and Android. Voice dictation works on mobile.' },
   ]
   return (
@@ -561,7 +561,7 @@ export default function Home() {
         items={[
           ['Proactive alerts',    'PHQ-9 spikes, overdue assessments, risk flags'],
           ['Outcome tracking',    'Score trajectories across your full panel'],
-          ['Assessment delivery', 'PHQ-9, GAD-7, PCL-5 sent via SMS automatically'],
+          ['Assessment delivery', 'PHQ-9, GAD-7, PCL-5 shared through secure links'],
           ['Research briefs',     'Weekly peer-reviewed synthesis for your specialty'],
         ]}
         mockup={<CaseloadMockup />}
@@ -577,7 +577,7 @@ export default function Home() {
           ['Natural conversation',      'Tell Miwa what to do in plain language'],
           ['Batch operations',          'Send assessments to your whole caseload at once'],
           ['Court & insurance reports', 'Professional documents generated in seconds'],
-          ['Between-session check-ins', 'Mood check-ins via SMS with auto-alerts'],
+          ['Between-session check-ins', 'Mood check-ins through secure links with alerts'],
         ]}
         mockup={<BatchMockup />}
       />
@@ -615,7 +615,7 @@ export default function Home() {
                 icon: '📝',
               },
               {
-                prompt: 'Morning briefing at 7am',
+                prompt: 'Morning caseload briefing',
                 action: 'An email every morning: who needs attention, who\'s improving, who\'s overdue for a check-in. A suggested prep order for the day. Your coffee-sip ritual.',
                 icon: '☀',
               },
@@ -631,7 +631,7 @@ export default function Home() {
               },
               {
                 prompt: 'Assessment delivery',
-                action: 'Send PHQ-9, GAD-7, PCL-5, C-SSRS to clients between sessions via SMS or email. Scores appear instantly with trend tracking.',
+                action: 'Share PHQ-9, GAD-7, PCL-5, and C-SSRS links between sessions. Scores appear instantly with trend tracking. SMS is coming after BAA and consent controls are complete.',
                 icon: '📤',
               },
               {

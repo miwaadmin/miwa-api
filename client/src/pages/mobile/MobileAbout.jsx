@@ -8,7 +8,7 @@
 import { Link, useNavigate } from 'react-router-dom'
 
 const VALUES = [
-  { icon: '🔒', title: 'Privacy-first', desc: 'HIPAA-conscious from the ground up. Clinical data is encrypted, never used to train AI models, always under your control.' },
+  { icon: '🔒', title: 'Privacy-first', desc: 'HIPAA-aligned infrastructure, Azure-hosted clinical data, and no clinical data used to train AI models.' },
   { icon: '🧠', title: 'Clinician judgment stays central', desc: 'AI does not practice therapy. Miwa helps you document faster and think more clearly — every output is a starting point, not a final answer.' },
   { icon: '🌱', title: 'Built for where you are', desc: 'Whether you\'re a first-year trainee or a decade-in licensed clinician, Miwa adapts to your role and experience.' },
   { icon: '⚕️', title: 'Clinical reality, not corporate software', desc: 'Shaped by actual therapist workflows: shorthand notes, documentation backlogs, supervision prep the night before.' },
@@ -63,7 +63,7 @@ export default function MobileAbout() {
             Mental health clinicians carry enormous documentation burdens. Session notes, case conceptualizations, treatment plans, supervision prep. The paperwork can eclipse the clinical work itself.
           </p>
           <p>
-            Existing AI tools came with a problem: they expected you to enter real client information. That creates risk for clients, and real legal exposure for clinicians.
+            Clinical AI tools have to handle real client information carefully. That creates responsibility for the product, the clinician, and every vendor in the workflow.
           </p>
           <p>
             Miwa threads this needle. The AI helps you think and write faster. The clinician stays responsible for everything that happens. Your data stays private and is never used to train models.
@@ -101,7 +101,7 @@ export default function MobileAbout() {
         <ul className="space-y-2 text-[14px] text-gray-700 leading-relaxed">
           {[
             'Miwa is a clinical support tool, not an EHR.',
-            'We do not store identifiable client records on our servers longer than needed.',
+            'Miwa stores clinical records needed to provide the service and protects them in HIPAA-aligned Azure infrastructure.',
             'All AI output must be reviewed by a licensed or supervised clinician.',
             'Miwa does not replace supervision, consultation, or professional judgment.',
             'You own your clinical data. You can export or delete it at any time.',

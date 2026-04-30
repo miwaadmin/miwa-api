@@ -1238,8 +1238,8 @@ function CheckinSendModal({ patient, onClose }) {
             <>
               <div className={`rounded-xl p-3 text-xs ${hasPhone ? 'bg-teal-50 text-teal-800 border border-teal-100' : 'bg-amber-50 text-amber-800 border border-amber-100'}`}>
                 {hasPhone
-                  ? `An SMS with a mood check-in link will be sent to ${patient.phone}.`
-                  : 'This client has no phone number on file. A check-in link will be generated — copy and share it manually.'}
+                  ? `Miwa will create a secure mood check-in link for ${patient.phone}. SMS sending is disabled until BAA and consent controls are complete.`
+                  : 'A check-in link will be generated. Copy and share it through your approved client communication process.'}
               </div>
 
               <div>
@@ -1265,7 +1265,7 @@ function CheckinSendModal({ patient, onClose }) {
                 <button onClick={handleSend} disabled={sending}
                   className="flex-1 py-2.5 rounded-xl text-sm font-bold text-white transition-all hover:opacity-90 disabled:opacity-50"
                   style={{ background: 'linear-gradient(135deg, #0ac5a2, #5746ed)' }}>
-                  {sending ? 'Sending…' : hasPhone ? 'Send SMS' : 'Generate Link'}
+                  {sending ? 'Creating...' : 'Generate Link'}
                 </button>
               </div>
             </>
@@ -1273,16 +1273,14 @@ function CheckinSendModal({ patient, onClose }) {
             <div className="space-y-4">
               <div className="rounded-xl p-4 text-center" style={{ background: 'rgba(10,197,162,0.08)', border: '1px solid rgba(10,197,162,0.2)' }}>
                 <p className="text-sm font-bold text-teal-700 mb-1">
-                  {done.sms_sent ? '✓ SMS sent!' : '✓ Check-in link created'}
+                  Check-in link created
                 </p>
                 <p className="text-xs text-teal-600">
-                  {done.sms_sent
-                    ? 'The client will receive an SMS with a mood check-in link.'
-                    : 'Copy the link below to share with your client.'}
+                  Copy the link below to share with your client through your approved channel.
                 </p>
               </div>
 
-              {!done.sms_sent && done.url && (
+              {done.url && (
                 <div>
                   <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Check-in Link</label>
                   <div className="flex gap-2">
@@ -1390,7 +1388,7 @@ function OutcomeProgressCard({ patientId, patient }) {
           </button>
           <button onClick={() => setShowCheckinModal(true)}
             className="text-xs px-3 py-1.5 bg-white text-teal-700 border border-teal-200 rounded-lg font-semibold hover:bg-teal-50 transition-colors">
-            + Check-in SMS
+            + Check-in Link
           </button>
         </div>
       </div>
@@ -2108,7 +2106,7 @@ export default function PatientDetail() {
             </svg>
             Export Notes
           </button>
-          <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 text-brand-700 border border-brand-100 px-3 py-1 text-xs font-semibold">HIPAA-conscious</span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 text-brand-700 border border-brand-100 px-3 py-1 text-xs font-semibold">HIPAA-aligned</span>
         </div>
       </div>
 
@@ -2690,8 +2688,8 @@ export default function PatientDetail() {
                     onChange={e => setProfileForm(f => ({ ...f, sms_consent: e.target.checked }))}
                   />
                   <span className="text-xs text-gray-700 leading-relaxed">
-                    I have obtained this client's consent to receive SMS messages from Miwa on my behalf for assessments,
-                    check-ins, and appointment-related communication. SMS will be blocked until this is confirmed.
+                    I have obtained this client's consent to receive SMS messages from Miwa in the future for assessments,
+                    check-ins, and appointment-related communication. SMS remains disabled until Miwa completes BAA and operational review.
                     {' '}<a href="/sms-policy" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-600 hover:underline">Learn more</a>
                   </span>
                 </label>

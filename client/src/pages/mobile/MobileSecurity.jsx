@@ -2,7 +2,7 @@
  * MobileSecurity — native security/compliance page.
  *
  * Mobile version of Security.jsx. Keeps the same factual/legal language
- * (HIPAA posture, PHI scrubbing, no-training contracts) but presents it
+ * (HIPAA posture, minimum-necessary prompting, no-training contracts) but presents it
  * in a phone-friendly stack with collapsible sections so the reader can
  * navigate by topic without infinite scroll.
  */
@@ -10,12 +10,12 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 const PROTECTIONS = [
-  { icon: '📋', title: 'HIPAA-conscious design', desc: 'No ePHI in URLs, request logs scrubbed, clinical retention controls built in.' },
+  { icon: '📋', title: 'HIPAA-aligned controls', desc: 'Designed to avoid PHI in URLs, reduce sensitive logging, and support clinical retention workflows.' },
   { icon: '🔒', title: 'Encryption in transit + at rest', desc: 'TLS 1.3 everywhere; sensitive fields encrypted before storage.' },
   { icon: '🔑', title: 'HttpOnly cookie auth', desc: 'Session tokens never exposed to JavaScript — protects against XSS exfiltration.' },
   { icon: '🛡️', title: 'Helmet + CSP + rate limits', desc: 'Hardened HTTP headers, Content-Security-Policy, per-route rate limiting.' },
   { icon: '🔐', title: 'Role-based access', desc: 'Clinicians see only their own clients. Admin dashboard is separately gated.' },
-  { icon: '📊', title: 'PHI access audit log', desc: 'Every read of protected data is logged for review and export.' },
+  { icon: '📊', title: 'Operational audit trail', desc: 'Security and administrative events are logged for review as the product matures.' },
 ]
 
 function Section({ title, children, defaultOpen = false }) {
@@ -66,7 +66,7 @@ export default function MobileSecurity() {
       <div className="px-6 pt-8 pb-6" style={{ background: 'linear-gradient(180deg, #0b0a20, #161245)' }}>
         <p className="text-xs font-bold uppercase tracking-widest text-teal-300 mb-2">Security & Compliance</p>
         <h2 className="text-2xl font-extrabold text-white leading-tight">
-          HIPAA-conscious architecture,{' '}
+          HIPAA-aligned architecture,{' '}
           <span style={{ background: 'linear-gradient(135deg, #6047EE 0%, #2dd4bf 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
             honestly described.
           </span>
@@ -81,9 +81,9 @@ export default function MobileSecurity() {
         <p className="text-xs font-bold uppercase tracking-widest text-indigo-600 mb-3">Two independent layers</p>
         <div className="space-y-3">
           <div className="rounded-2xl p-4 border border-gray-100 bg-white shadow-sm">
-            <p className="text-sm font-bold text-gray-900 mb-1">Before the model: PHI scrubbing</p>
+            <p className="text-sm font-bold text-gray-900 mb-1">Before the model: minimum-necessary prompting</p>
             <p className="text-[13px] text-gray-600 leading-relaxed">
-              Every prompt passes through a scrubber that replaces names, dates of birth, addresses, phone numbers, and other identifiers with placeholders before reaching any AI model. Even if the provider retained the prompt, they would not have the client's identity.
+              Miwa minimizes identifiers before AI processing when the exact identifier is not needed. Some clinical workflows may still require PHI, so PHI-capable AI work is routed through the approved Azure OpenAI path.
             </p>
           </div>
           <div className="rounded-2xl p-4 border border-gray-100 bg-white shadow-sm">
@@ -118,7 +118,7 @@ export default function MobileSecurity() {
             <strong>Miwa is built for HIPAA-covered workflows.</strong> Therapists and practices remain responsible for their own HIPAA obligations as covered entities. Miwa is designed to operate as their business associate when a BAA and covered infrastructure are in place.
           </p>
           <p>
-            The architecture is designed to make HIPAA-compliant use realistic: PHI scrubbing, vendor BAAs, audit logs, encryption, role-based access, Azure PostgreSQL, and Azure Blob Storage are all part of the protected production path.
+            The architecture is designed to make HIPAA-aligned use realistic: vendor BAAs, minimum-necessary prompting, logging, encryption, role-based access, Azure PostgreSQL, and Azure Blob Storage are all part of the protected production path.
           </p>
         </Section>
 

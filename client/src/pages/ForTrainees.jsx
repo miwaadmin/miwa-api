@@ -56,7 +56,7 @@ export default function ForTrainees() {
           Whether you're a practicum intern, MFT trainee, AMFT, ACSW, or APCC — Miwa gives you the same AI assistant as fully licensed practitioners. Not a limited version. The full thing.
         </p>
         <p className="text-gray-500 text-base max-w-xl mx-auto mb-8">
-          $39/mo — the only pre-licensed plan in the industry. SimplePractice starts at $49 (without AI). TherapyNotes starts at $69 (without AI).
+          $39/mo for trainees and associates, with the clinical AI workspace priced for people still accruing hours.
         </p>
         <Link to="/register"
           className="inline-flex px-10 py-4 rounded-xl text-base font-bold text-white transition-all hover:opacity-90"
@@ -98,7 +98,7 @@ export default function ForTrainees() {
             { title: 'Voice → clinical notes', desc: 'Dictate a recap. Miwa drafts SOAP, BIRP, DAP simultaneously with ICD-10 suggestions. You review and sign.' },
             { title: 'Learns your voice', desc: 'Every edit you make teaches Miwa your style. By the time you\'re licensed, drafts already sound like you.' },
             { title: 'Letter generator', desc: 'ESA letters, 504 accommodation requests, return-to-work — drafted from the chart. Review and sign.' },
-            { title: 'Assessment delivery', desc: 'PHQ-9, GAD-7, PCL-5, C-SSRS via SMS or email. Scores appear instantly with trend tracking.' },
+            { title: 'Assessment delivery', desc: 'PHQ-9, GAD-7, PCL-5, and C-SSRS through secure links. Scores appear instantly with trend tracking. SMS is coming after BAA and consent controls are complete.' },
             { title: 'Living treatment plans', desc: 'Plans that update as sessions progress — goals, objectives, and auto-progress tracking.' },
             { title: 'Proactive alerts', desc: 'Deterioration detection, risk review flags, overdue assessment alerts between sessions.' },
             { title: 'Supervision documentation', desc: 'Structured case presentations, supervision notes, and progress summaries tailored for your supervisor.' },

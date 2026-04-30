@@ -1,11 +1,16 @@
 /**
  * Twilio SMS service for Miwa.
- * Sends assessment links to clients via SMS.
+ * Sends assessment links to clients by text message only when SMS_ENABLED=true.
  * PHI note: only client phone numbers are used — no names or clinical data in messages.
  */
 const twilio = require('twilio')
 
+function isSmsEnabled() {
+  return String(process.env.SMS_ENABLED || '').toLowerCase() === 'true'
+}
+
 function getClient() {
+  if (!isSmsEnabled()) return null
   const accountSid = process.env.TWILIO_ACCOUNT_SID
   if (!accountSid) return null   // Gracefully return null — callers must check
 
@@ -39,7 +44,7 @@ function getAppBaseUrl() {
 }
 
 /**
- * Send an assessment link via SMS.
+ * Send an assessment link by text message when SMS_ENABLED=true.
  * @param {string} toPhone   - E.164 format phone number, e.g. +15551234567
  * @param {string} token     - Assessment token (the URL-safe token from assessment_links table)
  * @param {string} type      - e.g. 'PHQ-9', 'GAD-7', 'PCL-5'
@@ -83,7 +88,7 @@ function normalisePhone(raw) {
 }
 
 /**
- * Send the therapist's telehealth link to a client via SMS.
+ * Send the therapist's telehealth link by text message when SMS_ENABLED=true.
  * @param {string} toPhone    - E.164 format phone number
  * @param {string} url        - Therapist's video URL (Zoom, Doxy, etc.)
  * @param {string} [apptTime] - Human-readable appointment time, e.g. "Friday at 2:00 PM"

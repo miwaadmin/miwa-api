@@ -24,16 +24,16 @@ const PLANS = [
       'Voice → clinical notes (SOAP/BIRP/DAP/GIRP)',
       'Pre-session briefs — 60-second narrative 30 min before each session',
       'Active risk monitor — SI/HI/self-harm flags as you type',
-      'Morning briefing — 7am email with caseload triage',
+      'Morning dashboard briefing with caseload triage',
       'Letter generator — ESA, school 504, return-to-work',
       'Learns your voice (style adapts after ~10 edits)',
-      'Assessment delivery via SMS & email',
+      'Assessment delivery through secure links',
       'Living treatment plans with goal tracking',
       'Proactive alerts (deterioration, risk, overdue)',
       'Session attendance tracking',
       'Voice-first mobile app',
     ],
-    notIncluded: ['Autonomous outreach', 'Multi-step workflows', 'Court & insurance reports', 'Priority support'],
+    notIncluded: ['Automated SMS outreach', 'Multi-step workflows', 'Court & insurance reports', 'Priority support'],
   },
   {
     id: 'associate',
@@ -48,7 +48,7 @@ const PLANS = [
     credType: 'associate',
     includesFrom: 'Trainee',
     features: [
-      'Autonomous client outreach',
+      'Drafted outreach workflows',
       'Multi-step workflows (onboard, close, court prep)',
       'Batch assessment sender',
       'Attorney summaries & insurance pre-auth letters',
@@ -90,17 +90,17 @@ const COMPETITORS = [
   { feature: 'Pre-session narrative briefs', miwa: true, upheal: false, sp: false, tn: false },
   { feature: 'Active risk monitor (SI/HI flags as you type)', miwa: true, upheal: false, sp: false, tn: false },
   { feature: 'Clinical letter generator (ESA, 504, etc.)', miwa: true, upheal: false, sp: false, tn: false },
-  { feature: 'Morning caseload briefing (7am email)', miwa: true, upheal: false, sp: false, tn: false },
+  { feature: 'Morning caseload briefing', miwa: true, upheal: false, sp: false, tn: false },
   { feature: 'Learns your documentation voice', miwa: true, upheal: false, sp: false, tn: false },
   { feature: 'Living treatment plan tracking', miwa: true, upheal: false, sp: false, tn: false },
   { feature: 'Proactive deterioration alerts', miwa: true, upheal: false, sp: false, tn: false },
-  { feature: 'Autonomous client outreach', miwa: true, upheal: false, sp: false, tn: false },
-  { feature: 'Assessment delivery (SMS/email)', miwa: true, upheal: false, sp: false, tn: false },
+  { feature: 'Drafted outreach workflows', miwa: true, upheal: false, sp: false, tn: false },
+  { feature: 'Assessment delivery through secure links', miwa: true, upheal: false, sp: false, tn: false },
   { feature: 'Pre-licensed pricing', miwa: '$39/mo', upheal: false, sp: false, tn: false },
   { feature: 'Voice-first mobile app', miwa: true, upheal: true, sp: true, tn: true },
-  { feature: 'Client portal', miwa: false, upheal: true, sp: true, tn: true },
+  { feature: 'Client portal', miwa: true, upheal: true, sp: true, tn: true },
   { feature: 'Insurance billing', miwa: false, upheal: false, sp: true, tn: true },
-  { feature: 'Telehealth', miwa: false, upheal: true, sp: true, tn: '$15/mo' },
+  { feature: 'Telehealth scheduling support', miwa: true, upheal: true, sp: true, tn: '$15/mo' },
 ]
 
 function Check() {
@@ -287,10 +287,10 @@ export default function Pricing() {
         </div>
 
         <p className="text-center text-gray-400 text-sm mt-4">
-          *Upheal: $1/session, capped at $69/mo. $45/mo estimated at 45 sessions. **SimplePractice: $49 Starter + $35 AI Note Taker add-on. ***TherapyNotes: $69 Solo + $40 TherapyFuel AI add-on. Prices as of April 2026.
+          Competitor pricing and feature availability can change. Verify current plan details before making a purchasing decision.
         </p>
         <p className="text-center text-gray-400 text-sm mt-2">
-          Miwa is purpose-built for therapists' actual workflows. Pre-session briefs, real-time risk monitoring, letter generation, morning caseload briefings, and learned voice don't exist in any competitor.
+          Miwa is purpose-built for therapists' actual workflows: pre-session briefs, risk monitoring, letter generation, morning caseload briefings, and learned documentation voice in one workspace.
         </p>
       </div>
 

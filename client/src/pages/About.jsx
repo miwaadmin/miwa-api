@@ -12,7 +12,7 @@ const values = [
   {
     icon: '🔒',
     title: 'Privacy-first architecture',
-    desc: 'Miwa is built with HIPAA-conscious design from the ground up. Your clinical data is encrypted, never used to train AI models, and always under your control. Security is not an afterthought — it is the foundation.',
+    desc: 'Miwa is built on HIPAA-aligned infrastructure with Azure-hosted clinical data, Azure OpenAI for PHI-capable AI workflows, and no clinical data used to train AI models. Security is not an afterthought — it is the foundation.',
   },
   {
     icon: '🧠',
@@ -84,7 +84,7 @@ export default function About() {
             <p className="text-sm font-bold uppercase tracking-widest" style={{ color: '#6047EE' }}>Our position</p>
             {[
               'Miwa is a clinical support tool, not an EHR.',
-              'We do not store identifiable client records.',
+              'Miwa stores the clinical records needed to provide the service, protected in HIPAA-aligned Azure infrastructure.',
               'All AI output must be reviewed by a licensed or supervised clinician.',
               'We are not a crisis service or a replacement for supervision.',
               'Your data is yours — never used to train AI models.',
@@ -134,12 +134,12 @@ export default function About() {
         </div>
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {[
-            { q: 'What data do you store?', a: 'Miwa stores client records including clinical codes, assessment scores, and session notes. All data is encrypted in transit and at rest. Your data is never shared or used to train AI models.' },
-            { q: 'What is NOT stored?', a: 'Real client names, contact information, insurance details, billing records, and any HIPAA-covered identifiers. These never enter the system.' },
+            { q: 'What data do you store?', a: 'Miwa stores the clinical data therapists choose to enter or generate in the app, including client identifiers, contact details, session notes, assessments, intake uploads, appointments, and related clinical metadata. Data is protected in transit and at rest and is not used to train AI models.' },
+            { q: 'What is NOT stored?', a: 'Miwa does not store payment card numbers, sell client data, use clinical data for advertising, or use patient information to train AI models. SMS delivery is not active until a messaging BAA and consent workflow are in place.' },
             { q: 'Is client data used to train AI?', a: 'No. Your clinical data is never used to train models, shared with third parties, or sold. It belongs to you and your practice.' },
             { q: 'How is data encrypted?', a: 'All data is encrypted in transit (TLS 1.3) and at rest. Authentication uses HttpOnly cookies and JWTs. API keys are masked and never exposed in responses.' },
-            { q: 'Do you offer a BAA?', a: 'Business Associate Agreements are available on Practice and Enterprise plans. Contact us at hello@miwa.care to request one before you start.' },
-            { q: 'How long is data retained?', a: 'Your data is retained as long as your account is active. You can export or delete your data at any time. Inactive accounts are purged after 12 months.' },
+            { q: 'Do you offer a BAA?', a: 'Miwa is designed for covered clinical workflows when the required vendor BAAs and operational policies are in place. Contact hello@miwa.care before using Miwa for PHI if your organization needs a direct BAA.' },
+            { q: 'How long is data retained?', a: 'Clinical records are retained according to the therapist or practice record-retention obligations unless deletion is legally permitted and requested. Account data can be exported or deleted through Miwa support workflows.' },
           ].map(({ q, a }) => (
             <div key={q} className="rounded-2xl p-6 bg-white"
               style={{ border: '1px solid rgba(0,0,0,0.08)', boxShadow: '0 1px 3px rgba(0,0,0,0.06)' }}>

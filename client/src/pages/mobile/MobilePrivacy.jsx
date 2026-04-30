@@ -76,7 +76,7 @@ export default function MobilePrivacy() {
             {[
               'We do not sell your data. Ever.',
               'Your clinical data is not used to train AI models.',
-              'Client identifiers are scrubbed from AI prompts before they leave Miwa.',
+              'Identifiers are minimized before AI processing when the task does not require them.',
               'You can export or delete your data at any time.',
               'Encrypted in transit (TLS 1.3) and at rest.',
             ].map((p, i) => (
@@ -105,10 +105,10 @@ export default function MobilePrivacy() {
 
         <Section title="How we use AI models">
           <p>
-            Miwa uses its Azure OpenAI deployment for note drafting, assessment scoring analysis, and clinical reasoning. We use their enterprise endpoints under contracts that prohibit training on submitted content.
+            Miwa uses Azure OpenAI for note drafting, assessment analysis, transcription-related workflows, and clinical reasoning. PHI-capable AI work is routed through the approved Azure path, and clinical data is not used to train models.
           </p>
           <p>
-            Before any prompt reaches a model, it passes through a PHI scrubber that removes names, DOB, addresses, phone numbers, and other identifiers. The scrubbed prompt is what the AI sees.
+            When exact identifiers are not needed, Miwa minimizes names, dates of birth, addresses, phone numbers, and other identifiers before AI processing. Some clinical workflows may still require PHI, so minimum-necessary prompting matters.
           </p>
           <p>
             We log the fact that a request was made (for billing + rate limiting) but do not persistently store model prompt content.
@@ -120,7 +120,7 @@ export default function MobilePrivacy() {
             Miwa does not sell, rent, or share your clinical data with third parties for marketing purposes.
           </p>
           <p>
-            We share only with service vendors necessary to operate the product: hosting and database services on Microsoft Azure, AI model hosting through Azure OpenAI, email through Google Workspace under BAA, SMS delivery through your configured messaging provider, and payments through Stripe. Each vendor is limited to the specific data they need.
+            We share only with service vendors necessary to operate the product: hosting and database services on Microsoft Azure, AI model hosting through Azure OpenAI, email through Google Workspace under BAA, and payments through Stripe. SMS delivery is not active for PHI until a messaging BAA and consent workflow are complete.
           </p>
           <p>
             We will disclose information if legally required (subpoena, court order). When legally permitted, we will notify you first.

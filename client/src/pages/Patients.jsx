@@ -155,11 +155,11 @@ function PatientModal({ patient, onClose, onSave }) {
               <p className="text-xs text-gray-400 mt-1">{clientType === 'individual' ? 'Used in Miwa screens when different from legal name.' : 'How this couple or family appears in your caseload.'}</p>
             </div>
 
-            {/* Phone for SMS assessment delivery */}
+            {/* Phone for future SMS assessment delivery */}
             <div>
               <label className="label">
                 Mobile number
-                <span className="ml-1 text-xs font-normal text-gray-400">(SMS assessments)</span>
+                <span className="ml-1 text-xs font-normal text-gray-400">(future SMS)</span>
               </label>
               <input
                 className="input"
@@ -168,7 +168,7 @@ function PatientModal({ patient, onClose, onSave }) {
                 onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                 placeholder="(555) 123-4567"
               />
-              <p className="text-xs text-gray-400 mt-1">Used only to send assessment links.</p>
+              <p className="text-xs text-gray-400 mt-1">Used for contact records and future SMS only after BAA and consent controls are complete.</p>
             </div>
             {clientType === 'individual' && (
               <>

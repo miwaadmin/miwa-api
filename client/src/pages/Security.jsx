@@ -123,7 +123,7 @@ export default function Security() {
             <span style={GRAD_TEXT}>your clients' data</span>
           </h1>
           <p className="text-lg md:text-xl text-white/55 max-w-2xl mx-auto leading-relaxed">
-            Miwa is built on a simple promise: no patient name, no date of birth, no phone number — nothing that could identify your client — ever reaches an AI model unprotected. Here's exactly how that works.
+            Miwa is built around minimum-necessary clinical data use: protect records in Azure, route PHI-capable AI through Azure OpenAI, and avoid sending more identifying detail than the task requires.
           </p>
         </div>
       </section>
@@ -138,13 +138,13 @@ export default function Security() {
                 Layer 1 — PHI Scrubbing
               </span>
               <h2 className="text-3xl font-extrabold text-white mb-5 leading-tight">
-                Names, dates, and identifiers are replaced — before anything leaves your browser
+                Names, dates, and identifiers are minimized before AI processing
               </h2>
               <p className="text-white/50 leading-relaxed mb-5">
-                Every time you ask Miwa a question, our PHI scrubber runs on your device first. It detects patient names, dates of birth, phone numbers, addresses, and other identifiers, replaces them with anonymous tokens like <code className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ background: 'rgba(96,71,238,0.15)', color: PURPLE }}>[CLIENT_A]</code>, and only then sends the anonymized text to the AI model.
+                Miwa's privacy layer detects common identifiers such as patient names, dates of birth, phone numbers, addresses, and case numbers. When a task does not need the exact identifier, Miwa replaces it with clinical placeholders like <code className="text-xs px-1.5 py-0.5 rounded font-mono" style={{ background: 'rgba(96,71,238,0.15)', color: PURPLE }}>[CLIENT_A]</code> before AI processing.
               </p>
               <p className="text-white/50 leading-relaxed mb-6">
-                The original names are held locally and re-inserted into the AI's response on the way back — so you see a natural answer, but the model never saw a real name.
+                Some clinical workflows may still require PHI, such as summarizing a named chart or transcribing a session. Those PHI-capable workflows are routed through Miwa's Azure OpenAI path rather than consumer AI products.
               </p>
               <div className="space-y-3">
                 {[
@@ -183,7 +183,7 @@ export default function Security() {
           <div className="grid lg:grid-cols-2 gap-12 items-start">
             <div>
               <h2 className="text-3xl font-extrabold text-white mb-5 leading-tight">
-                We only use the absolute latest frontier models — because that's where the privacy guarantees are
+                AI is routed through approved Azure OpenAI deployments
               </h2>
               <p className="text-white/50 leading-relaxed mb-5">
                 Miwa routes AI through <strong className="text-white/80">Azure OpenAI</strong> using Miwa's approved Azure deployment. This is not just about quality. It is a deliberate privacy choice.
@@ -192,7 +192,7 @@ export default function Security() {
                 PHI-bearing AI calls go through a controlled Azure endpoint, with vendor access governed by the applicable business associate and cloud service terms. This protection applies to configured business services, not consumer chat apps.
               </p>
               <p className="text-white/50 leading-relaxed">
-                Some AI tools for therapists cut costs by using older open-source models, self-hosted models, or consumer API tiers that don't carry the same data protections. Miwa doesn't. We pay for frontier API access specifically because that's what the contractual guarantees attach to.
+                Miwa avoids direct consumer model APIs for PHI. The privacy posture comes from the configured Azure service path, vendor terms, access controls, and minimum-necessary prompting, not from a public chatbot or a model name.
               </p>
             </div>
             <div className="space-y-4">
@@ -203,7 +203,7 @@ export default function Security() {
                     style={{ background: 'linear-gradient(135deg, #cc785c, #d4956a)' }}>A</div>
                   <div>
                     <p className="text-sm font-bold text-white">Azure OpenAI</p>
-                    <p className="text-xs text-white/40">gpt-main deployment</p>
+                    <p className="text-xs text-white/40">approved production deployment</p>
                   </div>
                 </div>
                 <blockquote className="text-xs text-white/55 leading-relaxed border-l-2 pl-3 italic"
@@ -256,7 +256,7 @@ export default function Security() {
                 example: 'e.g. consumer chat apps',
                 points: [
                   'Free or low-cost tiers',
-                  'Data may be used to improve models',
+                  'May not be covered by healthcare business terms',
                   'No enterprise data agreements',
                   'Not designed for clinical workflows',
                 ],
@@ -264,8 +264,8 @@ export default function Security() {
               },
               {
                 icon: '🟡',
-                label: 'Older / open-source models',
-                example: 'e.g. self-hosted LLMs, fine-tuned models',
+                label: 'Unapproved model paths',
+                example: 'e.g. ad hoc APIs or unmanaged tools',
                 points: [
                   'Often trained on uploaded user data',
                   'No contractual privacy guarantee',
@@ -276,13 +276,13 @@ export default function Security() {
               },
               {
                 icon: '🟢',
-                label: 'Frontier API (Miwa)',
+                label: 'Approved Azure path (Miwa)',
                 example: 'Azure OpenAI business endpoint',
                 points: [
                   'Contractual no-training guarantee',
                   'State-of-the-art clinical reasoning',
                   'Enterprise-grade data agreements',
-                  'Plus Miwa\'s own PHI scrubber on top',
+                  'Minimum-necessary prompting on top',
                 ],
                 bad: false,
               },
@@ -322,7 +322,7 @@ export default function Security() {
               </div>
               <h3 className="text-lg font-bold text-white mb-3">Before the model: PHI scrubbing</h3>
               <p className="text-white/50 text-sm leading-relaxed">
-                Miwa's built-in scrubber runs on every message before it's sent. Patient names, identifiers, and sensitive details are tokenized. The AI model receives only anonymized clinical language — never a real name or identifying detail.
+                Miwa minimizes identifiers before AI processing when the exact identifier is not needed. The scrubber is a safeguard, not a promise that every clinical prompt is fully anonymized.
               </p>
             </div>
             <div className="rounded-2xl p-7" style={{ background: 'rgba(45,212,191,0.05)', border: '1px solid rgba(45,212,191,0.18)' }}>
@@ -333,7 +333,7 @@ export default function Security() {
               </div>
               <h3 className="text-lg font-bold text-white mb-3">At the model: contractual no-training</h3>
               <p className="text-white/50 text-sm leading-relaxed">
-                Even the anonymized data that reaches Azure OpenAI is protected by their enterprise API terms: it is never used to train or improve their models. You get the benefit of frontier AI without contributing your clinical data to model development.
+                PHI-capable AI workflows are routed through Azure OpenAI under the applicable Microsoft cloud and business associate terms. Miwa does not use clinical data to train models.
               </p>
             </div>
           </div>
@@ -342,10 +342,10 @@ export default function Security() {
           <h3 className="text-xl font-bold text-white text-center mb-8">Additional protections built in</h3>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
-              { icon: '🔐', title: 'Encrypted at rest', desc: 'All clinical data is AES-256 encrypted in the database.' },
+              { icon: '🔐', title: 'Encrypted at rest', desc: 'Production clinical data is protected by Azure-managed database and storage encryption.' },
               { icon: '🌐', title: 'HTTPS only', desc: 'All traffic between your browser and our servers is TLS-encrypted.' },
               { icon: '🗑️', title: 'You control your data', desc: 'Export or delete your account data at any time from Settings.' },
-              { icon: '📋', title: 'HIPAA-conscious design', desc: 'No ePHI in URLs, logs scrubbed, clinical retention controls built in.' },
+              { icon: '📋', title: 'HIPAA-aligned controls', desc: 'Designed to avoid PHI in URLs, reduce sensitive logging, and support clinical retention workflows.' },
             ].map(item => (
               <div key={item.title} className="rounded-xl p-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
                 <span className="text-2xl mb-3 block">{item.icon}</span>
@@ -370,7 +370,7 @@ export default function Security() {
                 <strong className="text-white/70">PHI scrubbing is pattern-based.</strong> Our scrubber catches common identifiers (names, DOBs, phone numbers, addresses) but is not infallible. Unusual name formats or highly specific local identifiers may occasionally slip through. Treat AI outputs as a drafting assistant, not a compliance guarantee.
               </p>
               <p>
-                <strong className="text-white/70">Provider API policies can change.</strong> We monitor Azure OpenAI policy updates and will notify users of any material changes to their data use terms. The quotes above reflect their current published policies as of April 2026.
+                <strong className="text-white/70">Provider terms can change.</strong> We monitor Azure OpenAI and Microsoft cloud service terms and update Miwa's production configuration if a material data-use change affects PHI workflows.
               </p>
             </div>
           </div>

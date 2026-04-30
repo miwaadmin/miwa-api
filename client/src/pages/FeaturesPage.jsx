@@ -84,7 +84,7 @@ const SHOWCASE = [
           </div>
           <div className="flex justify-end">
             <div className="text-[8px] text-white rounded-lg rounded-tr-sm px-2 py-1.5" style={{ background: 'rgba(96,71,238,0.3)' }}>
-              Send them a check-in SMS today
+              Create a secure check-in link today
             </div>
           </div>
           <div className="flex gap-1.5">
@@ -92,7 +92,7 @@ const SHOWCASE = [
               <MiwaLogo size={8} />
             </div>
             <div className="text-[8px] text-white/50 rounded-lg rounded-tl-sm px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.04)' }}>
-              Done ✓ SMS sent with mood check-in link. I also scheduled a follow-up for Thursday 2pm.
+              Done ✓ Secure mood check-in link created. I also scheduled a follow-up for Thursday 2pm.
             </div>
           </div>
         </div>
@@ -101,7 +101,7 @@ const SHOWCASE = [
   },
   {
     title: 'Outcome Tracking',
-    desc: 'PHQ-9, GAD-7, PCL-5 sent via SMS. Clients complete on mobile. Scores appear instantly with trend tracking.',
+    desc: 'PHQ-9, GAD-7, PCL-5, and C-SSRS shared through secure links. Clients complete on mobile. Scores appear instantly with trend tracking. SMS is coming after BAA and consent controls are complete.',
     color: '#4dc4ff',
     mockup: (
       <Mock url="miwa.care/outcomes">
@@ -196,7 +196,7 @@ const SHOWCASE = [
   },
   {
     title: 'Morning Briefing',
-    desc: 'Every morning at 7am — email + dashboard. Who needs attention, who\'s improving, who\'s overdue. Suggested prep order for the day. Your coffee-sip ritual.',
+    desc: 'A dashboard briefing for the start of the day: who needs attention, who\'s improving, who\'s overdue, and what to prep first.',
     color: '#14b8a6',
     mockup: (
       <Mock url="admin@miwa.care inbox">
@@ -303,7 +303,7 @@ const FEATURES = [
     { title: 'Review, edit, finalize', desc: 'Every letter is a draft. You edit inline, save, finalize, copy, or download — sign before sending.' },
   ]},
   { category: 'Morning Briefing', color: '#14b8a6', items: [
-    { title: '7am email + dashboard', desc: 'The single thing every clinician opens to start the day. Email lands before your first coffee; same view on the dashboard.' },
+    { title: 'Morning dashboard brief', desc: 'The single thing every clinician opens to start the day: caseload pulse, prep priorities, and recent changes.' },
     { title: 'Per-client status', desc: 'Every active client labeled: stable, improving, needs attention, overdue, or new referral — sorted by clinical urgency, not schedule order.' },
     { title: 'Suggested prep order', desc: 'Miwa recommends which client to prep first if you only have 20 minutes before your first session.' },
     { title: 'Overnight assessment completions', desc: 'Any scores that came in overnight are surfaced with trend context — improving or concerning.' },
@@ -329,11 +329,11 @@ const FEATURES = [
   { category: 'Proactive Alerts & Outreach', color: '#f59e0b', items: [
     { title: 'Deterioration detection', desc: 'Miwa monitors score trajectories and alerts you when a client is worsening — before the next session.' },
     { title: 'Risk review flags', desc: 'Safety concerns from session notes and assessment scores are surfaced proactively for clinical review.' },
-    { title: 'Autonomous outreach', desc: 'Appointment reminders, missed session check-ins, and mood check-ins sent automatically via SMS.' },
+    { title: 'Drafted outreach workflows', desc: 'Miwa can help prepare appointment reminders, missed-session follow-ups, and mood check-ins. SMS sending stays disabled until BAA and consent controls are complete.' },
     { title: 'Overdue assessment alerts', desc: 'Miwa tracks assessment cadences and flags when clients are overdue for PHQ-9, GAD-7, or PCL-5.' },
   ]},
   { category: 'Assessment Delivery', color: '#4dc4ff', items: [
-    { title: 'PHQ-9, GAD-7, PCL-5, C-SSRS via SMS & email', desc: 'Send validated screening tools directly to clients. Scores appear instantly with trend tracking.' },
+    { title: 'PHQ-9, GAD-7, PCL-5, C-SSRS secure links', desc: 'Share validated screening tools directly with clients. Scores appear instantly with trend tracking.' },
     { title: 'Batch assessment sender', desc: 'Send assessments to your entire caseload or filtered subsets at once. Miwa handles delivery and timing.' },
     { title: 'Trend tracking', desc: 'Score history charts show trajectory: improving, stable, or deteriorating — at a glance.' },
     { title: 'Automated cadences', desc: 'Set recurring assessment schedules per client. Miwa handles delivery, reminders, and follow-up.' },
@@ -364,7 +364,7 @@ export default function FeaturesPage() {
           <span style={GRAD_TEXT}>Nothing it doesn't.</span>
         </h1>
         <p className="text-gray-700 text-lg max-w-2xl mx-auto">
-          The only AI assistant built specifically for therapists. Pre-session briefs, real-time safety flags, letter drafting, morning caseload briefings, living treatment plans — features no competitor offers.
+          An AI assistant built specifically for therapists: pre-session briefs, safety flags, letter drafting, morning caseload briefings, and living treatment plans in one clinical workspace.
         </p>
       </div>
 

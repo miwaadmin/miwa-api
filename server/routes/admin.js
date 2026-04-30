@@ -162,6 +162,7 @@ function stripePriceReviewReason(price) {
 }
 
 function configuredSmsProvider() {
+  const enabled = String(process.env.SMS_ENABLED || '').toLowerCase() === 'true';
   const twilioHasAuth = hasEnv('TWILIO_AUTH_TOKEN')
     || (hasEnv('TWILIO_API_KEY_SID') && hasEnv('TWILIO_API_KEY_SECRET'));
   const twilioConfigured = hasEnv('TWILIO_ACCOUNT_SID')
@@ -173,7 +174,7 @@ function configuredSmsProvider() {
   const providers = [];
   if (twilioConfigured) providers.push('twilio');
   if (vonageConfigured) providers.push('vonage');
-  return { configured: providers.length > 0, providers };
+  return { enabled, configured: providers.length > 0, providers };
 }
 
 function buildReadinessChecks() {
@@ -303,10 +304,12 @@ function buildReadinessChecks() {
     check(
       'sms_provider',
       'SMS delivery provider',
-      sms.configured ? 'pass' : 'warn',
-      sms.configured
-        ? `Configured SMS provider: ${sms.providers.join(', ')}`
-        : 'Configure Twilio or Vonage before relying on SMS links/reminders'
+      !sms.enabled || sms.configured ? 'pass' : 'warn',
+      !sms.enabled
+        ? 'SMS is intentionally disabled until BAA and consent controls are complete'
+        : (sms.configured
+            ? `Configured SMS provider: ${sms.providers.join(', ')}`
+            : 'Configure Twilio or Vonage before relying on SMS links/reminders')
     ),
     check(
       'stripe_secret',

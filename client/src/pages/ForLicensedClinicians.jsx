@@ -189,13 +189,13 @@ export default function ForLicensedClinicians() {
               color: '#ec4899',
             },
             {
-              title: '7am morning briefing',
-              desc: 'Every morning: who needs attention, who\'s improving, who\'s overdue for a check-in. Sorted by clinical urgency. Delivered before your first coffee.',
+              title: 'Morning briefing',
+              desc: 'Start the day with who needs attention, who\'s improving, and who\'s overdue for a check-in. Sorted by clinical urgency on the dashboard.',
               color: '#f59e0b',
             },
             {
-              title: 'Assessment delivery (SMS & email)',
-              desc: 'Send PHQ-9, GAD-7, PCL-5, C-SSRS, and more to clients between sessions. Scores appear instantly with trend tracking.',
+              title: 'Assessment delivery',
+              desc: 'Share PHQ-9, GAD-7, PCL-5, C-SSRS, and more through secure links. Scores appear instantly with trend tracking. SMS is coming after BAA and consent controls are complete.',
               color: '#0ea5e9',
             },
             {
@@ -214,8 +214,8 @@ export default function ForLicensedClinicians() {
               color: '#14b8a6',
             },
             {
-              title: 'HIPAA-conscious design',
-              desc: 'Workspace BAA in place. No client data used to train AI models. Encrypted at rest. You control your chart.',
+              title: 'HIPAA-aligned infrastructure',
+              desc: 'Azure-hosted production path, Azure OpenAI for PHI-capable AI workflows, and no clinical data used to train AI models.',
               color: '#64748b',
             },
           ].map((f, i) => (

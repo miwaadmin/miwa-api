@@ -633,7 +633,7 @@ export default function Settings() {
           </div>
           <div>
             <h2 className="text-sm font-semibold text-gray-900">Telehealth</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Paste your video platform link (Zoom, Doxy.me, Google Meet, etc.). Miwa sends it to clients via SMS when you schedule an appointment, and shows a "Start Session" button on your calendar.</p>
+            <p className="text-xs text-gray-500 mt-0.5">Paste your video platform link (Zoom, Doxy.me, Google Meet, etc.). Miwa stores it for appointment workflows and shows a "Start Session" button on your calendar. SMS delivery is disabled until BAA and consent controls are complete.</p>
           </div>
         </div>
 
@@ -649,7 +649,7 @@ export default function Settings() {
             />
             {telehealthUrl && (
               <p className="text-xs text-gray-400 mt-1 truncate">
-                Clients will receive this link via SMS when appointments are booked.
+                This link will be available inside Miwa appointment workflows. Share it through your approved client communication process.
               </p>
             )}
           </div>
@@ -866,7 +866,7 @@ export default function Settings() {
             <div>
               <p className="text-sm font-semibold text-gray-900">Auto-send assessments before sessions</p>
               <p className="text-xs text-gray-500 mt-0.5">
-                PHQ-9 and GAD-7 are automatically sent via SMS 24 hours before each scheduled appointment. Scores appear in client charts before the session starts.
+                PHQ-9 and GAD-7 can be queued for secure-link delivery before scheduled appointments. SMS automation is disabled until the messaging BAA and consent workflow are complete.
               </p>
             </div>
           </div>

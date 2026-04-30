@@ -109,7 +109,7 @@ export default function ForPractices() {
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
             { title: 'Per-clinician AI copilot', desc: 'Every clinician gets their own Miwa — trained on their caseload, their tone, their documentation style. Learns their voice over time.', color: '#6366f1' },
-            { title: 'Director morning briefing', desc: 'A 7am email for practice directors: clinician status, who has risk flags, new referrals, overdue assessments. Spot issues before they escalate.', color: '#14b8a6' },
+            { title: 'Director morning briefing', desc: 'A morning dashboard for practice directors: clinician status, risk flags, new referrals, overdue assessments. Spot issues before they escalate.', color: '#14b8a6' },
             { title: 'Practice-wide letter generator', desc: 'Generate ESA letters, attorney summaries, insurance pre-auths, school 504 support across every clinician — all from the chart.', color: '#ec4899' },
             { title: 'Supervisor review workflow', desc: 'Trainees submit notes for supervisor review. Supervisors annotate, approve, or request revisions — all within Miwa.', color: '#f59e0b' },
             { title: 'Cross-team risk visibility', desc: 'Supervisors see when a trainee\'s session note contains risk language. Director dashboard surfaces practice-wide safety concerns.', color: '#ef4444' },
@@ -135,7 +135,7 @@ export default function ForPractices() {
           <h2 className="text-2xl font-bold text-gray-900 text-center mb-10">Designed for how practices actually work</h2>
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {[
-              { icon: '🔒', title: 'HIPAA-conscious design', desc: 'Built with privacy-first architecture. Your clinical data stays secure and is never used to train AI models.' },
+              { icon: '🔒', title: 'HIPAA-aligned infrastructure', desc: 'Built around Azure-hosted clinical data, Azure OpenAI PHI-capable AI workflows, and no clinical data used to train AI models.' },
               { icon: '👥', title: 'Role-based access', desc: 'Trainees see their caseload. Supervisors see their supervisees. Directors see the whole practice.' },
               { icon: '📋', title: 'Supervisor review workflow', desc: 'Trainees submit notes for approval. Supervisors annotate, approve, or request revisions inside Miwa.' },
               { icon: '🚀', title: 'Dedicated onboarding', desc: 'Every practice plan includes a live setup call. We configure Miwa to match your documentation standards.' },

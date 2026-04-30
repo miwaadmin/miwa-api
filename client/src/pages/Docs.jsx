@@ -32,8 +32,8 @@ Click into your client → "New Session". Choose your note format (SOAP, BIRP, o
 **Step 4: Review and sign**
 Miwa generates the note with AI-suggested diagnosis codes and a CPT code. Review, edit if needed, and click "Sign & Lock."
 
-**Step 5: Send an assessment**
-From the client's profile, click "Send Assessment" → choose PHQ-9, GAD-7, or PCL-5 → enter the client's phone number. They receive an SMS link, complete it on mobile, and scores appear instantly in their chart.`,
+**Step 5: Share an assessment**
+From the client's profile, click "Send Assessment" -> choose PHQ-9, GAD-7, or PCL-5 -> generate a secure link. The client completes it on mobile and scores appear instantly in their chart. SMS delivery is disabled until Miwa completes the messaging BAA and consent workflow.`,
       },
     ],
   },
@@ -88,17 +88,17 @@ Switch between formats instantly using the tabs at the top of the note. Each for
 All instruments are scored automatically using official scoring algorithms. Severity levels (minimal, mild, moderate, moderately severe, severe) are assigned based on published clinical cutoffs.`,
       },
       {
-        heading: 'SMS Delivery',
-        body: `Assessments are delivered via SMS text message. The client receives a link to a mobile-friendly form, completes it on their phone, and scores appear in their chart immediately.
+        heading: 'Assessment Delivery',
+        body: `Assessments are delivered through secure links. The client receives a link to a mobile-friendly form, completes it on their phone, and scores appear in their chart immediately.
 
 **To send an assessment:**
 1. Open a client's profile
 2. Click "Send Assessment"
 3. Select the assessment type (PHQ-9, GAD-7, or PCL-5)
-4. Confirm the client's phone number
-5. Click Send
+4. Generate the secure link
+5. Share it with the client through your approved communication workflow
 
-The SMS is sent through Twilio and includes a secure link. Assessment links expire after 30 days. No app download is required for the client.`,
+Assessment links expire after 30 days. No app download is required for the client. SMS delivery is planned but remains disabled until the messaging vendor BAA, consent attestation, and operational controls are complete.`,
       },
       {
         heading: 'Outcome Tracking',
@@ -166,9 +166,9 @@ Appointments show the client ID, time, and session type (telehealth or in-person
         heading: 'Telehealth Integration',
         body: `If you've added a telehealth URL in Settings (Zoom, Doxy.me, Google Meet, etc.), Miwa will:
 
-1. Automatically send the link to clients via SMS when appointments are booked
+1. Store the link for appointment workflows
 2. Show a "Start Session" button on scheduled appointments
-3. Clicking "Start Session" opens your telehealth platform directly
+3. Let you share the link through your approved client communication workflow
 
 Set up your telehealth link: Settings → Telehealth URL → paste your video platform link → Save.`,
       },
@@ -243,7 +243,7 @@ Miwa will pull the relevant data, generate the report, and give you options to c
       {
         heading: 'Telehealth URL',
         body: `Paste your video platform link (Zoom, Doxy.me, Google Meet, etc.). When appointments are scheduled, Miwa:
-- Sends the link to clients via SMS
+- Stores the link for appointment workflows
 - Shows a "Start Session" button on your calendar
 
 The same link is used for all telehealth sessions. If you use different links per client, you can update it before each session.`,
@@ -267,13 +267,13 @@ Change your theme in Settings → Appearance.`,
       {
         heading: 'Frequently Asked Questions',
         body: `**Is Miwa HIPAA compliant?**
-Miwa is built with HIPAA-conscious design: encrypted transport (TLS 1.3), HttpOnly cookie authentication, and your data is never used to train AI models. BAAs are available on Practice and Enterprise plans.
+Miwa is built on HIPAA-aligned infrastructure: Azure hosting, Azure OpenAI for PHI-capable AI workflows, encrypted transport, HttpOnly cookie authentication, and no clinical data used to train AI models. Covered entities still need their own policies, BAAs, and configuration review.
 
 **Does Miwa replace my EHR?**
 Miwa is a clinical copilot, not an EHR. It sits alongside your existing workflow. Many clinicians use it as their primary documentation tool and export notes to their EHR.
 
 **What AI models does Miwa use?**
-Miwa uses its Azure OpenAI deployment for clinical reasoning, note generation, consultation, and structured extraction tasks. All AI output is for clinical support only and must be reviewed.
+Miwa uses an approved Azure OpenAI production path for clinical reasoning, note generation, consultation, and structured extraction tasks. All AI output is for clinical support only and must be reviewed.
 
 **Can I use Miwa on mobile?**
 Yes. Miwa is a progressive web app (PWA) that works on iOS and Android. You can add it to your home screen for an app-like experience. Voice dictation works on mobile.

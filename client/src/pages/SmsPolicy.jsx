@@ -63,13 +63,13 @@ export default function SmsPolicy() {
             SMS messaging &amp; consent
           </h1>
           <p className="text-lg text-zinc-600 leading-relaxed">
-            How Miwa uses SMS, how clients opt in, what they receive, and how to stop receiving messages at any time.
-            This page applies to text messages sent from Miwa's toll-free number on behalf of licensed therapists who
-            use the platform.
+            Miwa SMS is not active for production PHI workflows yet. This page documents the consent and privacy rules
+            that will apply before text messaging is enabled, including the requirement for a messaging BAA, client
+            consent, and opt-out controls.
           </p>
           <p className="text-base text-zinc-500 mt-6">
             <span className="font-semibold">Effective date:</span> April 17, 2026 &nbsp;·&nbsp;
-            <span className="font-semibold">Last updated:</span> April 17, 2026
+            <span className="font-semibold">Last updated:</span> April 30, 2026
           </p>
         </div>
       </header>
@@ -78,9 +78,13 @@ export default function SmsPolicy() {
         <div className="max-w-3xl mx-auto">
 
           <Section title="1. Who sends Miwa SMS messages" id="who">
+            <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+              Launch status: SMS is disabled until Miwa completes the messaging vendor BAA, consent attestation, and
+              operational review. Current production workflows should use in-app actions and secure links instead.
+            </p>
             <p>
               Miwa is a clinical documentation platform used by licensed mental health therapists in the United States.
-              When a therapist sends an assessment, mood check-in, or appointment-related message to one of their
+              When SMS is enabled and a therapist sends an assessment, mood check-in, or appointment-related message to one of their
               clients, Miwa transmits that message via Twilio from a verified toll-free number on the therapist's behalf.
             </p>
             <p>

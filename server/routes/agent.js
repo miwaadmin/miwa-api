@@ -88,7 +88,7 @@ const AGENT_RESOURCES = [
 
 const APP_HELP_KB = [
   { id: 'getting-started', title: 'Getting Started', content: [
-    { heading: 'Your First 5 Minutes with Miwa', body: 'Step 1: Create your account at miwa.care/register. Step 2: Go to Patients and click "+ New Patient" to add a client. Step 3: Click into your client, then "New Session" to start a note. Choose SOAP, BIRP, or DAP. You can type bullet-point notes or dictate a recap using the mic button. Step 4: Review the AI-generated note with diagnosis codes, edit if needed, and click "Sign & Lock". Step 5: Send an assessment (PHQ-9, GAD-7, or PCL-5) via SMS from the client profile.' },
+    { heading: 'Your First 5 Minutes with Miwa', body: 'Step 1: Create your account at miwa.care/register. Step 2: Go to Patients and click "+ New Patient" to add a client. Step 3: Click into your client, then "New Session" to start a note. Choose SOAP, BIRP, or DAP. You can type bullet-point notes or dictate a recap using the mic button. Step 4: Review the AI-generated note with diagnosis codes, edit if needed, and click "Sign & Lock". Step 5: Share an assessment (PHQ-9, GAD-7, or PCL-5) through a secure link from the client profile. SMS remains disabled until the messaging BAA and consent workflow are complete.' },
   ]},
   { id: 'voice-notes', title: 'Voice Notes & Dictation', content: [
     { heading: 'Voice Dictation', body: 'Click the mic icon on any session note page. Speak naturally — describe the session as you would to a colleague. Miwa transcribes your audio and generates SOAP, BIRP, DAP, and GIRP notes simultaneously. Tips: speak in complete thoughts, include the client mood, what you worked on, their response, and your plan. Sessions under 5 minutes work best.' },
@@ -96,7 +96,7 @@ const APP_HELP_KB = [
   ]},
   { id: 'assessments', title: 'Assessments', content: [
     { heading: 'Supported Assessments', body: 'Miwa supports PHQ-9 (depression, 0-27), GAD-7 (anxiety, 0-21), and PCL-5 (PTSD, 0-80). All scored automatically with severity levels based on published clinical cutoffs.' },
-    { heading: 'SMS Delivery', body: 'Assessments are delivered via SMS. Open a client profile, click "Send Assessment", select type, confirm phone number, click Send. The client receives a secure link, completes the form on mobile, and scores appear instantly in their chart. Links expire after 30 days.' },
+    { heading: 'Assessment Delivery', body: 'Assessments are delivered through secure links. Open a client profile, click "Send Assessment", select type, generate the link, and share it through your approved communication workflow. The client completes the form on mobile and scores appear instantly in their chart. SMS remains disabled until the messaging BAA and consent workflow are complete.' },
     { heading: 'Outcome Tracking', body: 'Visit the Outcomes page to see score trends across your caseload. Each client shows a timeline with score values, severity changes, improvement/deterioration flags, and time since last assessment.' },
   ]},
   { id: 'copilot', title: 'Miwa Copilot Chat', content: [
@@ -105,7 +105,7 @@ const APP_HELP_KB = [
   ]},
   { id: 'scheduling', title: 'Scheduling', content: [
     { heading: 'Calendar', body: 'The Schedule page shows a full 24-hour week or month view. Click any time slot to create an appointment. Switch between Week and Month views. Today is highlighted. The mini calendar in the sidebar syncs with the main calendar.' },
-    { heading: 'Telehealth', body: 'Add your telehealth URL in Settings (Zoom, Doxy.me, Google Meet). Miwa sends the link to clients via SMS when appointments are booked and shows a "Start Session" button on your calendar.' },
+    { heading: 'Telehealth', body: 'Add your telehealth URL in Settings (Zoom, Doxy.me, Google Meet). Miwa stores the link for appointment workflows and shows a "Start Session" button on your calendar. Share links through your approved client communication workflow until SMS is enabled.' },
   ]},
   { id: 'reports', title: 'Reports', content: [
     { heading: 'Report Types', body: 'Ask Miwa to generate: Court/legal progress reports (formatted for attorneys, judges), Insurance summaries (for utilization review), Supervision reports (case presentations, trainee documentation). All reports pull from actual session data and assessment scores.' },
@@ -122,7 +122,7 @@ const APP_HELP_KB = [
     { heading: 'Plans', body: 'Free 14-day trial with full access. After trial: Trainee plan ($39/mo), Solo plan ($79/mo), Practice plan ($149/mo). Cancel anytime from Settings > Billing. Data remains accessible for 30 days after cancellation.' },
   ]},
   { id: 'faq', title: 'FAQ', content: [
-    { heading: 'Common Questions', body: 'HIPAA: Miwa uses encrypted transport (TLS 1.3), HttpOnly cookies, and never trains AI on your data. BAAs available on Practice/Enterprise plans. Mobile: Miwa is a PWA that works on iOS and Android — add to home screen. AI runs through Miwa’s Azure OpenAI deployment. Miwa is a clinical copilot, not an EHR replacement.' },
+    { heading: 'Common Questions', body: 'HIPAA: Miwa is built on HIPAA-aligned Azure infrastructure with encrypted transport, HttpOnly cookies, and no clinical data used to train AI models. Covered entities still need their own BAAs, policies, and configuration review. Mobile: Miwa is a PWA that works on iOS and Android — add to home screen. Miwa is a clinical copilot, not an EHR replacement.' },
   ]},
 ];
 if (!fs.existsSync(REPORTS_DIR)) fs.mkdirSync(REPORTS_DIR, { recursive: true });
@@ -929,7 +929,7 @@ Rules:
   * durationMinutes: use SCHEDULING DEFAULTS.duration_minutes (typically 50). Never ask.
   * location: use SCHEDULING DEFAULTS.location if set. If not set, omit it entirely — do NOT ask.
 - The ONLY thing you should clarify for scheduling is the date/time if it was not provided.
-- If the clinician asks to send an assessment, questionnaire, or screener to a client via text/SMS, use schedule_assessment_sms.
+- If the clinician asks to send an assessment, questionnaire, or screener to a client, create a secure assessment link. Do not claim SMS was sent; SMS remains disabled until BAA and consent controls are complete.
   Fill assessmentSms.assessmentType with the type name (PHQ-9, GAD-7, PCL-5, etc.).
   Fill assessmentSms.sendAt with an ISO datetime string — if the clinician says "the day before" an appointment, calculate it; if they say "now" use current time.
   If no assessment type is specified, default to "PHQ-9".
@@ -1067,7 +1067,7 @@ async function generateMeetForAppointment(db, appointmentId) {
 }
 
 /**
- * Fire-and-forget: sends a telehealth URL to the patient via SMS. Prefers a
+ * Fire-and-forget: sends a telehealth URL by text message only when SMS is enabled. Prefers a
  * just-generated Google Meet link (HIPAA-covered via Workspace BAA); falls
  * back to the therapist's saved telehealth_url (Zoom/Doxy/etc.) when the
  * Meet integration isn't configured or the appointment isn't telehealth.
@@ -1659,7 +1659,7 @@ const AGENT_TOOLS = [
     type: 'function',
     function: {
       name: 'send_assessment_sms',
-      description: 'Send a PHQ-9, GAD-7, or PCL-5 assessment link to a client via SMS.',
+      description: 'Create a PHQ-9, GAD-7, or PCL-5 secure assessment link for a client. SMS delivery is disabled until BAA and consent controls are complete.',
       parameters: {
         type: 'object',
         properties: {
@@ -2966,7 +2966,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       const baseUrl = process.env.APP_URL || 'https://miwa.care';
       const portalUrl = `${baseUrl}/portal/${token}`;
 
-      // Try to send via SMS if patient has a phone number
+      // Try text delivery only when SMS is explicitly enabled and configured
       const phone = patient.phone ? normalisePhone(patient.phone) : null;
       let deliveryMethod = 'link_only';
       if (phone) {
@@ -3717,7 +3717,7 @@ NEW USER ONBOARDING:
 This therapist just created their account and has no clients or sessions yet. Be warm and proactive:
 - Briefly welcome them and offer to show them around the app
 - Suggest creating their first client (you can do it for them with create_client)
-- Mention key features: voice dictation for session notes, SMS assessments (PHQ-9/GAD-7/PCL-5), the Outcomes dashboard, and the Schedule
+- Mention key features: voice dictation for session notes, secure-link assessments (PHQ-9/GAD-7/PCL-5), the Outcomes dashboard, and the Schedule
 - If they ask "how do I..." or seem lost, use get_app_help to find the answer
 - Keep it encouraging — this is their first experience with Miwa
 ` : ''}
@@ -3735,8 +3735,8 @@ SCHEDULING:
 - cancel_appointment: Cancel/delete an appointment by client name + date, or by appointment ID
 - get_schedule: View upcoming appointments for the next N days
 
-ASSESSMENTS & SMS:
-- send_assessment_sms: Send a PHQ-9, GAD-7, or PCL-5 link to a client via SMS (supports scheduled send)
+ASSESSMENTS:
+- send_assessment_sms: Create a PHQ-9, GAD-7, or PCL-5 secure assessment link. SMS delivery remains disabled until BAA and consent controls are complete.
 - batch_send_assessments: Send assessments to multiple clients at once (shows picker for clinician to confirm)
 
 CLIENT MANAGEMENT:
