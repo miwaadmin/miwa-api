@@ -123,3 +123,111 @@ test('Stripe webhook rejects unsigned payloads without leaking payload content',
   assert.match(text, /Webhook signature verification failed/);
   assert.equal(text.includes('cus_secret_payload'), false);
 });
+
+test('client payment status blocks trainee direct billing but allows licensed clinicians', async () => {
+  await startTestServer();
+  const { cookie, therapist } = await bootstrapAdminAndLogin({
+    email: 'client-billing-licensed@miwa.test',
+    password: 'test-password-1234',
+  });
+  const db = getAsyncDb();
+  await db.run("UPDATE therapists SET credential_type = 'licensed' WHERE id = ?", therapist.id);
+
+  let res = await api('GET', '/api/billing/client-payments/status', null, cookie);
+  assert.equal(res.status, 200);
+  assert.equal(res.body.eligibility.eligible, true);
+  assert.equal(res.body.connect.status, 'not_connected');
+
+  await db.run("UPDATE therapists SET credential_type = 'trainee' WHERE id = ?", therapist.id);
+  res = await api('POST', '/api/billing/client-payments/settings', {
+    default_rate_dollars: 125,
+  }, cookie);
+  assert.equal(res.status, 403);
+  assert.match(res.body.error, /Trainee accounts cannot collect client payments directly/);
+});
+
+test('client invoice creation stores generic Stripe-visible billing data', async () => {
+  await startTestServer();
+  const { cookie, therapist } = await bootstrapAdminAndLogin({
+    email: 'client-invoice@miwa.test',
+    password: 'test-password-1234',
+  });
+  const db = getAsyncDb();
+  await db.run("UPDATE therapists SET credential_type = 'licensed' WHERE id = ?", therapist.id);
+
+  const patientRes = await api('POST', '/api/patients', {
+    first_name: 'Billing',
+    last_name: 'Client',
+    display_name: 'Billing Client',
+    email: 'client@example.test',
+    presenting_concerns: 'panic symptoms',
+  }, cookie);
+  assert.equal(patientRes.status, 201);
+
+  const invoiceRes = await api('POST', '/api/billing/client-payments/invoices', {
+    patient_id: patientRes.body.id,
+    amount_dollars: 150,
+    service_date: '2026-04-30',
+    generic_description: 'Professional services',
+    internal_note: 'Internal note can reference the appointment context but is never sent to Stripe.',
+  }, cookie);
+  assert.equal(invoiceRes.status, 201);
+  assert.equal(invoiceRes.body.amount_cents, 15000);
+  assert.equal(invoiceRes.body.status, 'open');
+  assert.equal(invoiceRes.body.generic_description, 'Professional services');
+  assert.ok(invoiceRes.body.invoice_number.startsWith(`MIWA-${therapist.id}-`));
+});
+
+test('client payment webhook marks invoices paid', async () => {
+  await startTestServer();
+  const { therapist } = await bootstrapAdminAndLogin({
+    email: 'client-payment-webhook@miwa.test',
+    password: 'test-password-1234',
+  });
+  const db = getAsyncDb();
+  await db.run("UPDATE therapists SET credential_type = 'licensed' WHERE id = ?", therapist.id);
+  const patientInsert = await db.insert(
+    `INSERT INTO patients (client_id, display_name, therapist_id) VALUES (?, ?, ?)`,
+    'PAY-001',
+    'Payment Client',
+    therapist.id,
+  );
+  const invoiceInsert = await db.insert(
+    `INSERT INTO client_invoices
+      (therapist_id, patient_id, invoice_number, status, amount_cents, generic_description)
+     VALUES (?, ?, ?, 'open', 15000, 'Professional services')`,
+    therapist.id,
+    patientInsert.lastInsertRowid,
+    `MIWA-${therapist.id}-TEST`,
+  );
+
+  await billingRouter._test.handleStripeEvent(db, {
+    id: 'evt_client_payment_paid',
+    type: 'checkout.session.completed',
+    account: 'acct_connected_test',
+    data: {
+      object: {
+        id: 'cs_test_client',
+        mode: 'payment',
+        payment_intent: 'pi_client_paid',
+        amount_total: 15000,
+        currency: 'usd',
+        metadata: {
+          miwa_invoice_id: String(invoiceInsert.lastInsertRowid),
+          miwa_therapist_id: String(therapist.id),
+          miwa_patient_id: String(patientInsert.lastInsertRowid),
+        },
+      },
+    },
+  });
+
+  const invoice = await db.get('SELECT status, stripe_payment_intent_id, paid_at FROM client_invoices WHERE id = ?', invoiceInsert.lastInsertRowid);
+  assert.equal(invoice.status, 'paid');
+  assert.equal(invoice.stripe_payment_intent_id, 'pi_client_paid');
+  assert.ok(invoice.paid_at);
+
+  const payment = await db.get('SELECT status, stripe_account_id, amount_cents FROM client_payments WHERE invoice_id = ?', invoiceInsert.lastInsertRowid);
+  assert.equal(payment.status, 'succeeded');
+  assert.equal(payment.stripe_account_id, 'acct_connected_test');
+  assert.equal(payment.amount_cents, 15000);
+});

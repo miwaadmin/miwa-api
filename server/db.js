@@ -644,6 +644,87 @@ function createSchema() {
     CREATE INDEX IF NOT EXISTS idx_outreach_log_therapist ON outreach_log(therapist_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_outreach_log_patient ON outreach_log(patient_id, created_at DESC);
 
+    -- Client payments: Stripe Connect direct-charge foundation.
+    -- Clinical/service details stay in Miwa. Stripe receives generic invoice
+    -- descriptors plus non-PHI IDs only.
+    CREATE TABLE IF NOT EXISTS client_billing_profiles (
+      id                         INTEGER PRIMARY KEY AUTOINCREMENT,
+      therapist_id                INTEGER NOT NULL REFERENCES therapists(id),
+      patient_id                  INTEGER NOT NULL REFERENCES patients(id),
+      billing_email               TEXT,
+      stripe_customer_id          TEXT,
+      default_payment_method_id   TEXT,
+      card_on_file_authorized     INTEGER NOT NULL DEFAULT 0,
+      autopay_authorized          INTEGER NOT NULL DEFAULT 0,
+      autopay_authorized_at       DATETIME,
+      consent_text                TEXT,
+      created_at                  DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at                  DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(therapist_id, patient_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_billing_profiles_therapist ON client_billing_profiles(therapist_id, patient_id);
+
+    CREATE TABLE IF NOT EXISTS client_invoices (
+      id                         INTEGER PRIMARY KEY AUTOINCREMENT,
+      therapist_id                INTEGER NOT NULL REFERENCES therapists(id),
+      patient_id                  INTEGER REFERENCES patients(id),
+      session_id                  INTEGER REFERENCES sessions(id),
+      invoice_number              TEXT UNIQUE NOT NULL,
+      status                      TEXT NOT NULL DEFAULT 'draft',
+      amount_cents                INTEGER NOT NULL,
+      currency                    TEXT NOT NULL DEFAULT 'usd',
+      service_date                TEXT,
+      due_date                    TEXT,
+      generic_description         TEXT NOT NULL DEFAULT 'Professional services',
+      internal_note               TEXT,
+      stripe_checkout_session_id  TEXT,
+      stripe_payment_intent_id    TEXT,
+      paid_at                     DATETIME,
+      voided_at                   DATETIME,
+      refunded_at                 DATETIME,
+      created_at                  DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at                  DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_invoices_therapist ON client_invoices(therapist_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_client_invoices_patient ON client_invoices(patient_id, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_client_invoices_status ON client_invoices(therapist_id, status);
+
+    CREATE TABLE IF NOT EXISTS client_payments (
+      id                         INTEGER PRIMARY KEY AUTOINCREMENT,
+      therapist_id                INTEGER NOT NULL REFERENCES therapists(id),
+      patient_id                  INTEGER REFERENCES patients(id),
+      invoice_id                  INTEGER REFERENCES client_invoices(id),
+      stripe_account_id           TEXT,
+      stripe_payment_intent_id    TEXT,
+      stripe_charge_id            TEXT,
+      stripe_refund_id            TEXT,
+      stripe_dispute_id           TEXT,
+      amount_cents                INTEGER NOT NULL DEFAULT 0,
+      refunded_cents              INTEGER NOT NULL DEFAULT 0,
+      currency                    TEXT NOT NULL DEFAULT 'usd',
+      status                      TEXT NOT NULL DEFAULT 'pending',
+      failure_code                TEXT,
+      failure_message             TEXT,
+      created_at                  DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at                  DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_payments_invoice ON client_payments(invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_client_payments_therapist ON client_payments(therapist_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS client_billing_events (
+      id                         INTEGER PRIMARY KEY AUTOINCREMENT,
+      therapist_id                INTEGER REFERENCES therapists(id),
+      patient_id                  INTEGER REFERENCES patients(id),
+      invoice_id                  INTEGER REFERENCES client_invoices(id),
+      event_type                  TEXT NOT NULL,
+      stripe_event_id             TEXT,
+      status                      TEXT,
+      message                     TEXT,
+      meta_json                   TEXT,
+      created_at                  DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_billing_events_invoice ON client_billing_events(invoice_id, created_at DESC);
+
     -- ═══════════════════════════════════════════════════════════════════════
     -- GROUP PRACTICE MULTI-TENANCY
     -- ═══════════════════════════════════════════════════════════════════════
@@ -885,6 +966,20 @@ function runMigrations() {
     // Group practice membership
     ['practice_id',           'INTEGER'],  // FK to practices.id — cached for fast lookups
     ['practice_role',         'TEXT'],     // cached role from practice_members
+    // Client payment collection via Stripe Connect direct charges. These are
+    // clinician-owned payment rails, separate from Miwa subscription billing.
+    ['stripe_connect_account_id', 'TEXT'],
+    ['stripe_connect_status', "TEXT NOT NULL DEFAULT 'not_connected'"],
+    ['stripe_connect_charges_enabled', 'INTEGER NOT NULL DEFAULT 0'],
+    ['stripe_connect_payouts_enabled', 'INTEGER NOT NULL DEFAULT 0'],
+    ['stripe_connect_details_submitted', 'INTEGER NOT NULL DEFAULT 0'],
+    ['stripe_connect_last_checked_at', 'DATETIME'],
+    ['billing_enabled', 'INTEGER NOT NULL DEFAULT 0'],
+    ['billing_default_rate_cents', 'INTEGER'],
+    ['billing_autopay_enabled', 'INTEGER NOT NULL DEFAULT 0'],
+    ['billing_card_on_file_enabled', 'INTEGER NOT NULL DEFAULT 1'],
+    ['billing_no_show_fee_cents', 'INTEGER'],
+    ['billing_policy_json', "TEXT DEFAULT '{}'"],
   ];
   for (const [col, def] of subCols) {
     if (!therapistCols.includes(col)) {

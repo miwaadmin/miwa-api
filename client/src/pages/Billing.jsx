@@ -60,6 +60,11 @@ const STATUS_LABELS = {
   expired:  { label: 'Expired',     color: '#9ca3af', bg: '#f9fafb', border: '#e5e7eb' },
 }
 
+function formatMoney(cents) {
+  const amount = Number(cents || 0) / 100
+  return amount.toLocaleString(undefined, { style: 'currency', currency: 'USD' })
+}
+
 export default function Billing() {
   const { therapist } = useAuth()
 
@@ -68,6 +73,26 @@ export default function Billing() {
   const [checkoutLoading, setCheckoutLoading] = useState('')
   const [portalLoading, setPortalLoading]   = useState(false)
   const [error, setError]                   = useState('')
+  const [clientBilling, setClientBilling]   = useState(null)
+  const [clientBillingLoading, setClientBillingLoading] = useState(true)
+  const [patients, setPatients]             = useState([])
+  const [clientInvoices, setClientInvoices] = useState([])
+  const [clientAction, setClientAction]     = useState('')
+  const [clientBillingMessage, setClientBillingMessage] = useState('')
+  const [clientInvoiceForm, setClientInvoiceForm] = useState({
+    patient_id: '',
+    amount_dollars: '',
+    service_date: new Date().toISOString().slice(0, 10),
+    generic_description: 'Professional services',
+    internal_note: '',
+  })
+  const [clientSettingsForm, setClientSettingsForm] = useState({
+    default_rate_dollars: '',
+    no_show_fee_dollars: '',
+    cancellation_notice_hours: 24,
+    card_on_file_enabled: true,
+    autopay_enabled: false,
+  })
 
   // Detect Stripe redirect returns
   const params        = new URLSearchParams(window.location.search)
@@ -81,6 +106,38 @@ export default function Billing() {
       .then(data => { setBilling(data); setBillingLoading(false) })
       .catch(() => setBillingLoading(false))
   }, [justSubscribed])
+
+  const loadClientBilling = async () => {
+    setClientBillingLoading(true)
+    try {
+      const [statusRes, patientRes, invoiceRes] = await Promise.all([
+        apiFetch('/billing/client-payments/status'),
+        apiFetch('/patients'),
+        apiFetch('/billing/client-payments/invoices'),
+      ])
+      const statusData = await statusRes.json()
+      const patientData = await patientRes.json()
+      const invoiceData = await invoiceRes.json()
+      if (statusRes.ok) {
+        setClientBilling(statusData)
+        setClientSettingsForm({
+          default_rate_dollars: statusData.settings?.default_rate_dollars || '',
+          no_show_fee_dollars: statusData.settings?.no_show_fee_dollars || '',
+          cancellation_notice_hours: statusData.settings?.policy?.cancellation_notice_hours || 24,
+          card_on_file_enabled: statusData.settings?.card_on_file_enabled !== false,
+          autopay_enabled: !!statusData.settings?.autopay_enabled,
+        })
+      }
+      if (patientRes.ok) setPatients(Array.isArray(patientData) ? patientData : [])
+      if (invoiceRes.ok) setClientInvoices(Array.isArray(invoiceData) ? invoiceData : [])
+    } catch {
+      // Keep subscription billing usable if client-payment status is unavailable.
+    } finally {
+      setClientBillingLoading(false)
+    }
+  }
+
+  useEffect(() => { loadClientBilling() }, [])
 
   const handleSubscribe = async (planId) => {
     setCheckoutLoading(planId)
@@ -110,6 +167,92 @@ export default function Billing() {
     } catch (err) {
       setError(err.message)
       setPortalLoading(false)
+    }
+  }
+
+  const handleConnectStripe = async () => {
+    setClientAction('connect')
+    setClientBillingMessage('')
+    try {
+      const res = await apiFetch('/billing/client-payments/connect/start', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not start Stripe Connect')
+      window.location.href = data.url
+    } catch (err) {
+      setClientBillingMessage(err.message)
+      setClientAction('')
+    }
+  }
+
+  const handleRefreshConnect = async () => {
+    setClientAction('refresh-connect')
+    setClientBillingMessage('')
+    try {
+      const res = await apiFetch('/billing/client-payments/connect/refresh', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not refresh Stripe status')
+      setClientBillingMessage('Stripe payment status refreshed.')
+      await loadClientBilling()
+    } catch (err) {
+      setClientBillingMessage(err.message)
+    } finally {
+      setClientAction('')
+    }
+  }
+
+  const handleSaveClientBillingSettings = async () => {
+    setClientAction('save-settings')
+    setClientBillingMessage('')
+    try {
+      const res = await apiFetch('/billing/client-payments/settings', {
+        method: 'POST',
+        body: JSON.stringify(clientSettingsForm),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not save client billing settings')
+      setClientBillingMessage('Client billing settings saved.')
+      await loadClientBilling()
+    } catch (err) {
+      setClientBillingMessage(err.message)
+    } finally {
+      setClientAction('')
+    }
+  }
+
+  const handleCreateClientInvoice = async () => {
+    setClientAction('create-invoice')
+    setClientBillingMessage('')
+    try {
+      const res = await apiFetch('/billing/client-payments/invoices', {
+        method: 'POST',
+        body: JSON.stringify({
+          ...clientInvoiceForm,
+          patient_id: clientInvoiceForm.patient_id || null,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not create invoice')
+      setClientBillingMessage(`Payment request ${data.invoice_number} created.`)
+      setClientInvoiceForm(prev => ({ ...prev, amount_dollars: '', internal_note: '' }))
+      await loadClientBilling()
+    } catch (err) {
+      setClientBillingMessage(err.message)
+    } finally {
+      setClientAction('')
+    }
+  }
+
+  const handleSendPaymentLink = async (invoiceId) => {
+    setClientAction(`pay-${invoiceId}`)
+    setClientBillingMessage('')
+    try {
+      const res = await apiFetch(`/billing/client-payments/invoices/${invoiceId}/checkout`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not create payment link')
+      window.location.href = data.url
+    } catch (err) {
+      setClientBillingMessage(err.message)
+      setClientAction('')
     }
   }
 
@@ -256,6 +399,207 @@ export default function Billing() {
                   </p>
                 </div>
               </div>
+            )}
+          </div>
+
+          <div className="card p-6 space-y-5">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a5 5 0 00-10 0v2M5 9h14l-1 11H6L5 9z" />
+                </svg>
+              </div>
+              <div className="flex-1">
+                <h2 className="text-sm font-semibold text-gray-900">Client Payments</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Collect client payments through each clinician's own Stripe account. Keep clinical details in Miwa; Stripe receives generic invoice language only.
+                </p>
+              </div>
+              <button onClick={loadClientBilling} className="btn-secondary text-xs">Refresh</button>
+            </div>
+
+            {clientBillingMessage && (
+              <div className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                {clientBillingMessage}
+              </div>
+            )}
+
+            {clientBillingLoading ? (
+              <div className="text-sm text-gray-400">Loading client payment setup...</div>
+            ) : (
+              <>
+                {!clientBilling?.eligibility?.eligible ? (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                    {clientBilling?.eligibility?.reason || 'This account is not eligible for direct client billing.'}
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-3 gap-3">
+                    <div className="rounded-xl border border-gray-200 p-4">
+                      <p className="text-xs uppercase tracking-wide text-gray-400">Stripe Connect</p>
+                      <p className="mt-1 text-sm font-semibold text-gray-900 capitalize">
+                        {(clientBilling?.connect?.status || 'not_connected').replaceAll('_', ' ')}
+                      </p>
+                      <p className="mt-1 text-xs text-gray-500">
+                        Charges {clientBilling?.connect?.charges_enabled ? 'enabled' : 'not ready'} · payouts {clientBilling?.connect?.payouts_enabled ? 'enabled' : 'pending'}
+                      </p>
+                      <div className="mt-3 flex gap-2">
+                        <button onClick={handleConnectStripe} disabled={!!clientAction} className="btn-primary text-xs">
+                          {clientAction === 'connect' ? 'Opening...' : clientBilling?.connect?.account_id ? 'Resume' : 'Connect'}
+                        </button>
+                        {clientBilling?.connect?.account_id && (
+                          <button onClick={handleRefreshConnect} disabled={!!clientAction} className="btn-secondary text-xs">
+                            Check
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 p-4 md:col-span-2">
+                      <p className="text-xs uppercase tracking-wide text-gray-400">Policy defaults</p>
+                      <div className="mt-3 grid grid-cols-2 gap-3">
+                        <label className="text-xs text-gray-500">
+                          Session rate
+                          <input
+                            className="input mt-1 text-sm"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={clientSettingsForm.default_rate_dollars}
+                            onChange={e => setClientSettingsForm(prev => ({ ...prev, default_rate_dollars: e.target.value }))}
+                            placeholder="150"
+                          />
+                        </label>
+                        <label className="text-xs text-gray-500">
+                          No-show fee
+                          <input
+                            className="input mt-1 text-sm"
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={clientSettingsForm.no_show_fee_dollars}
+                            onChange={e => setClientSettingsForm(prev => ({ ...prev, no_show_fee_dollars: e.target.value }))}
+                            placeholder="75"
+                          />
+                        </label>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-4 text-xs text-gray-600">
+                        <label className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={clientSettingsForm.card_on_file_enabled}
+                            onChange={e => setClientSettingsForm(prev => ({ ...prev, card_on_file_enabled: e.target.checked }))}
+                          />
+                          Allow card on file
+                        </label>
+                        <label className="inline-flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={clientSettingsForm.autopay_enabled}
+                            onChange={e => setClientSettingsForm(prev => ({ ...prev, autopay_enabled: e.target.checked }))}
+                          />
+                          Enable opt-in autopay
+                        </label>
+                      </div>
+                      <button onClick={handleSaveClientBillingSettings} disabled={!!clientAction} className="btn-secondary text-xs mt-3">
+                        {clientAction === 'save-settings' ? 'Saving...' : 'Save defaults'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {clientBilling?.eligibility?.eligible && (
+                  <div className="rounded-xl border border-gray-200 p-4 space-y-3">
+                    <div>
+                      <p className="text-xs uppercase tracking-wide text-gray-400">Create payment request</p>
+                      <p className="text-xs text-gray-500 mt-1">Payment requests are invoice records. Link them to a client/session when appropriate.</p>
+                    </div>
+                    <div className="grid md:grid-cols-4 gap-3">
+                      <select
+                        className="input text-sm md:col-span-2"
+                        value={clientInvoiceForm.patient_id}
+                        onChange={e => setClientInvoiceForm(prev => ({ ...prev, patient_id: e.target.value }))}
+                      >
+                        <option value="">No linked client</option>
+                        {patients.map(patient => (
+                          <option key={patient.id} value={patient.id}>
+                            {patient.display_name || [patient.first_name, patient.last_name].filter(Boolean).join(' ') || patient.client_id}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        className="input text-sm"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="Amount"
+                        value={clientInvoiceForm.amount_dollars}
+                        onChange={e => setClientInvoiceForm(prev => ({ ...prev, amount_dollars: e.target.value }))}
+                      />
+                      <input
+                        className="input text-sm"
+                        type="date"
+                        value={clientInvoiceForm.service_date}
+                        onChange={e => setClientInvoiceForm(prev => ({ ...prev, service_date: e.target.value }))}
+                      />
+                    </div>
+                    <div className="grid md:grid-cols-3 gap-3">
+                      <input
+                        className="input text-sm"
+                        value={clientInvoiceForm.generic_description}
+                        onChange={e => setClientInvoiceForm(prev => ({ ...prev, generic_description: e.target.value }))}
+                        placeholder="Professional services"
+                      />
+                      <input
+                        className="input text-sm md:col-span-2"
+                        value={clientInvoiceForm.internal_note}
+                        onChange={e => setClientInvoiceForm(prev => ({ ...prev, internal_note: e.target.value }))}
+                        placeholder="Internal note, not sent to Stripe"
+                      />
+                    </div>
+                    <button onClick={handleCreateClientInvoice} disabled={!!clientAction} className="btn-primary text-sm">
+                      {clientAction === 'create-invoice' ? 'Creating...' : 'Create payment request'}
+                    </button>
+                  </div>
+                )}
+
+                <div className="rounded-xl border border-gray-200 overflow-hidden">
+                  <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                    <p className="text-xs uppercase tracking-wide text-gray-400">Recent client invoices</p>
+                    <span className="text-xs text-gray-400">{clientInvoices.length} shown</span>
+                  </div>
+                  {clientInvoices.length === 0 ? (
+                    <p className="p-4 text-sm text-gray-500">No client payment requests yet.</p>
+                  ) : (
+                    <div className="divide-y divide-gray-100">
+                      {clientInvoices.slice(0, 8).map(invoice => (
+                        <div key={invoice.id} className="p-4 flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-semibold text-gray-900">{invoice.invoice_number}</p>
+                            <p className="text-xs text-gray-500 truncate">
+                              {invoice.display_name || invoice.client_id || 'Unlinked client'} · {invoice.generic_description}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-3 flex-shrink-0">
+                            <div className="text-right">
+                              <p className="text-sm font-semibold text-gray-900">{formatMoney(invoice.amount_cents)}</p>
+                              <p className="text-xs text-gray-500 capitalize">{invoice.status}</p>
+                            </div>
+                            {['open', 'failed'].includes(invoice.status) && (
+                              <button
+                                onClick={() => handleSendPaymentLink(invoice.id)}
+                                disabled={!!clientAction}
+                                className="btn-secondary text-xs"
+                              >
+                                {clientAction === `pay-${invoice.id}` ? 'Opening...' : 'Pay link'}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
           </div>
 
