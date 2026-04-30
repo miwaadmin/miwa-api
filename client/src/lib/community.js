@@ -7,13 +7,41 @@
  * every consumer hides its community CTA, so the UI doesn't link to a
  * "join community" button that goes nowhere.
  */
-const RAW = (import.meta.env.VITE_COMMUNITY_URL || '').trim()
+// Be forgiving about how the secret was pasted: strip leading/trailing
+// whitespace, optional surrounding quotes, and auto-prepend https:// if
+// it looks like a bare host. The CTAs only render when we end up with
+// something that LOOKS like a URL, so a typo never produces a broken link.
+function normalizeUrl(raw) {
+  let v = String(raw || '').trim()
+  // Strip wrapping quotes (some env editors paste them verbatim).
+  v = v.replace(/^['"]+|['"]+$/g, '').trim()
+  if (!v) return ''
+  // Already a real URL → keep as-is.
+  if (/^https?:\/\//i.test(v)) return v
+  // Bare host like "discord.gg/abc123" — prepend https://
+  if (/^[a-z0-9.-]+\.[a-z]{2,}/i.test(v)) return `https://${v}`
+  return ''
+}
 
-// Basic sanity: must be http(s) so we don't accidentally render a typo URL.
-const VALID = /^https?:\/\//i.test(RAW)
-
-export const COMMUNITY_URL = VALID ? RAW : ''
+const RAW = import.meta.env.VITE_COMMUNITY_URL
+export const COMMUNITY_URL = normalizeUrl(RAW)
 export const HAS_COMMUNITY = !!COMMUNITY_URL
+
+// One-time console signal so it's obvious from devtools whether the URL
+// made it through the build. Only logs in dev mode (or when explicitly
+// asked via ?debug=community) to avoid noise for real users.
+if (typeof window !== 'undefined') {
+  const wantDebug = import.meta.env.DEV
+    || (typeof window.location !== 'undefined' && window.location.search.includes('debug=community'))
+  if (wantDebug) {
+    // eslint-disable-next-line no-console
+    console.info('[miwa.community]', {
+      raw: RAW,
+      normalized: COMMUNITY_URL,
+      enabled: HAS_COMMUNITY,
+    })
+  }
+}
 
 // Optional human-readable label override for the link target — useful if you
 // move from Discord to Slack or Circle later. Defaults based on the URL host.
