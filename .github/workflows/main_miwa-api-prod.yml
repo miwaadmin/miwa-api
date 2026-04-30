@@ -35,6 +35,13 @@ jobs:
           node-version: '22.x'
 
       - name: npm install, build, and test
+        # VITE_* env vars are baked into the client bundle at build time, so
+        # they're set here on the build step (not in Azure App Service, which
+        # only affects runtime). Discord invite is intentionally in plaintext
+        # — invite links aren't sensitive and putting them in a secret would
+        # just add ceremony.
+        env:
+          VITE_COMMUNITY_URL: https://discord.gg/S7FgvQ5Gy
         run: |
           npm install
           npm run build --if-present
