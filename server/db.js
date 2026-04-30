@@ -212,6 +212,7 @@ function createSchema() {
       risk_flags TEXT,
       status TEXT NOT NULL DEFAULT 'completed',
       notes TEXT,
+      member_label TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 

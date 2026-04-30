@@ -1109,7 +1109,16 @@ router.get('/progress/:patientId', async (req, res) => {
       byMember: memberProgress, // { "Soul-1": { "phq-9": {...}, "ras": {...} } }
     });
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    // Surface the actual error so the Outcomes page and the PatientDetail
+    // chart stop silently failing. Same diagnostic pattern we used for
+    // /patients/alerts — log to Azure App Service logs AND return the
+    // message in the body so we can read it from the browser network panel.
+    console.error('[assessments/progress] failed:', err);
+    res.status(500).json({
+      error: 'Failed to compute progress',
+      detail: err?.message || String(err),
+      code: err?.code || null,
+    });
   }
 });
 
@@ -1120,7 +1129,9 @@ router.get('/alerts', async (req, res) => {
     const tid = req.therapist.id;
 
     const alerts = await db.all(
-      `SELECT pa.*, p.client_id, p.display_name
+      `SELECT pa.id, pa.therapist_id, pa.patient_id, pa.alert_type, pa.severity,
+              pa.title, pa.description, pa.dismissed_at, pa.created_at,
+              p.client_id, p.display_name
        FROM progress_alerts pa
        JOIN patients p ON pa.patient_id = p.id
        WHERE pa.therapist_id = ? AND pa.dismissed_at IS NULL
@@ -1131,7 +1142,12 @@ router.get('/alerts', async (req, res) => {
 
     res.json(alerts);
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('[assessments/alerts] failed:', err);
+    res.status(500).json({
+      error: 'Failed to load alerts',
+      detail: err?.message || String(err),
+      code: err?.code || null,
+    });
   }
 });
 
