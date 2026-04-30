@@ -19,6 +19,30 @@ const TOKEN = process.env.DISCORD_BOT_TOKEN || '';
 let djs = null;
 let client = null;
 
+// Lifecycle status for the diagnostic endpoint. Mutable from inside the
+// startup flow so /api/_diag/discord can answer "is the bot actually
+// connected?" without log-stream access.
+const status = {
+  enabled: !!TOKEN,
+  djsLoaded: false,
+  loginAttempted: false,
+  loggedIn: false,
+  ready: false,
+  guildCount: 0,
+  username: null,
+  lastError: null,
+  lastEventAt: null,
+};
+
+function getDiscordBotStatus() {
+  return { ...status };
+}
+
+function noteEvent(name, err) {
+  status.lastEventAt = new Date().toISOString();
+  if (err) status.lastError = err?.message || String(err);
+}
+
 // ─── Server configuration spec — what we want every guild to look like ──────
 // Order matters: channels are created in this order so the sidebar lays
 // out the way we want for new joiners. Existing channels (including
@@ -103,8 +127,10 @@ async function startDiscordBot() {
   // to load for any reason (corrupt install, missing native deps, etc.).
   try {
     djs = require('discord.js');
+    status.djsLoaded = true;
   } catch (err) {
     console.error('[discord] failed to load discord.js — bot disabled:', err.message);
+    noteEvent('djs-load-failed', err);
     return;
   }
 
@@ -120,6 +146,10 @@ async function startDiscordBot() {
 
   client.once(Events.ClientReady, async (c) => {
     console.log(`[discord] connected as ${c.user.tag} — present in ${c.guilds.cache.size} guild(s)`);
+    status.ready = true;
+    status.username = c.user.tag;
+    status.guildCount = c.guilds.cache.size;
+    noteEvent('ready');
 
     try {
       c.user.setActivity('#feedback', { type: ActivityType.Watching });
@@ -180,9 +210,13 @@ async function startDiscordBot() {
   });
 
   try {
+    status.loginAttempted = true;
     await client.login(TOKEN);
+    status.loggedIn = true;
+    noteEvent('login-success');
   } catch (err) {
     console.error('[discord] login failed:', err.message);
+    noteEvent('login-failed', err);
   }
 }
 
@@ -304,4 +338,4 @@ async function handleFeedbackCommand(interaction) {
   });
 }
 
-module.exports = { startDiscordBot };
+module.exports = { startDiscordBot, getDiscordBotStatus };

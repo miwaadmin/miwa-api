@@ -134,6 +134,18 @@ function healthPayload() {
 app.get('/health', (req, res) => res.json(healthPayload()));
 app.get('/api/health', (req, res) => res.json(healthPayload()));
 
+// Discord bot diagnostic — public, no auth, no PHI. Reports lifecycle
+// state so we can verify the bot is connected without log-stream access.
+// Hit /api/_diag/discord in a browser.
+app.get('/api/_diag/discord', (req, res) => {
+  try {
+    const { getDiscordBotStatus } = require('./services/discordBot');
+    return res.json(getDiscordBotStatus());
+  } catch (err) {
+    return res.status(500).json({ error: 'discord module not loaded', detail: err?.message });
+  }
+});
+
 // ── Billing routes (JSON-parsed; requireAuth is applied inside the router) ───
 app.use('/api/billing', require('./routes/billing'));
 
