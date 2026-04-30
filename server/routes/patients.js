@@ -486,8 +486,24 @@ router.delete('/:id', async (req, res) => {
 router.get('/alerts', async (req, res) => {
   try {
     const db = getAsyncDb()
+    // Explicit column list instead of `pa.*` — postgres can complain about
+    // ambiguous column references when wildcards collide with explicitly-
+    // named ones from a JOIN'd table. Naming each column also makes it
+    // obvious to readers what shape the client receives.
     const alerts = await db.all(
-      `SELECT pa.*, p.display_name, p.client_id
+      `SELECT pa.id,
+              pa.therapist_id,
+              pa.patient_id,
+              pa.alert_type,
+              pa.severity,
+              pa.title,
+              pa.description,
+              pa.metric_value,
+              pa.is_read,
+              pa.dismissed_at,
+              pa.created_at,
+              p.display_name,
+              p.client_id
        FROM proactive_alerts pa
        LEFT JOIN patients p ON p.id = pa.patient_id
        WHERE pa.therapist_id = ? AND pa.dismissed_at IS NULL
