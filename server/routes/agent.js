@@ -981,7 +981,13 @@ function formatAppointmentPreview(patient, appointment) {
   const duration = appointment.durationMinutes || 50;
   const location = appointment.location ? ` · ${appointment.location}` : '';
   const notes = appointment.notes ? `\nNotes: ${appointment.notes}` : '';
-  return `Schedule ${type} for ${patient.client_id} at ${start} (${duration} min)${location}${notes}`;
+  // Prefer the human-readable display name over the auto-generated client
+  // code so confirmations read "Schedule individual for Alfonzo at..."
+  // instead of "Schedule individual for C4MUCXY at..." — the code is fine
+  // for internal references but useless when the agent talks back to the
+  // therapist about a person they just named.
+  const who = patient.display_name || patient.client_id;
+  return `Schedule ${type} for ${who} at ${start} (${duration} min)${location}${notes}`;
 }
 
 async function createAppointmentRecord(db, therapistId, patient, payload = {}) {

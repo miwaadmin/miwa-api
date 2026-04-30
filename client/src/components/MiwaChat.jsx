@@ -679,7 +679,9 @@ When you're done, I'll save this as your profile and refer back to it in every c
           id: Date.now(),
           role: 'assistant',
           content: data.appointment
-            ? `✅ Scheduled — ${data.appointment.client_id} · ${data.appointment.scheduled_start ? new Date(data.appointment.scheduled_start).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'time TBD'} · ${data.appointment.appointment_type}`
+            // Prefer the human-readable display name; fall back to client_id
+            // only if the row has no display_name set yet (very rare).
+            ? `✅ Scheduled — ${data.appointment.display_name || data.appointment.client_id} · ${data.appointment.scheduled_start ? new Date(data.appointment.scheduled_start).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'time TBD'} · ${data.appointment.appointment_type}`
             : 'Done.',
         }])
         if (data.appointment) {

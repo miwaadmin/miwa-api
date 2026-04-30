@@ -480,80 +480,145 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
-// Proactive Alerts ────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Proactive Alerts — clean rebuild
+//
+// Previous version JOIN'd proactive_alerts with patients in SQL using `pa.*`
+// and a CASE-WHEN ORDER BY. That worked on SQLite but kept 500'ing in
+// production Postgres for reasons that were hard to pin down because every
+// catch block returned a generic "Internal server error" with no stage info
+// or error detail.
+//
+// This rebuild:
+// - Splits the work into discrete stages (load alerts → enrich with patient
+//   names → sort) so when something fails we know which step blew up.
+// - Does the JOIN in JS (separate query for patient names) — no SQL syntax
+//   that's even remotely cross-DB-fragile.
+// - Sorts by severity rank in JS too — drops the CASE expression entirely.
+// - Surfaces the specific error AND the failing stage in the response,
+//   logged separately to Azure App Service logs. Generic 500s are how
+//   production bugs survive for weeks; the explicit stage labels make
+//   the next failure self-diagnosing.
+// - Patient enrichment failure is non-fatal — alerts still render, just
+//   without a name (graceful degrade).
+// ─────────────────────────────────────────────────────────────────────────────
 
-// GET /api/patients/alerts — all unread alerts for this therapist
+const SEVERITY_RANK = { CRITICAL: 1, HIGH: 2, MEDIUM: 3, LOW: 4 }
+
+function alertsErrorResponse(res, stage, err) {
+  console.error(`[alerts] ${stage} failed:`, err)
+  return res.status(500).json({
+    error: 'Failed to load alerts',
+    stage,
+    detail: err?.message || String(err),
+    code: err?.code || null,
+  })
+}
+
+// GET /api/patients/alerts — every active (non-dismissed) alert for this
+// therapist, sorted by severity then recency. Returns [] when there are no
+// alerts (never null).
 router.get('/alerts', async (req, res) => {
-  try {
-    const db = getAsyncDb()
-    // Explicit column list instead of `pa.*` — postgres can complain about
-    // ambiguous column references when wildcards collide with explicitly-
-    // named ones from a JOIN'd table. Naming each column also makes it
-    // obvious to readers what shape the client receives.
-    const alerts = await db.all(
-      `SELECT pa.id,
-              pa.therapist_id,
-              pa.patient_id,
-              pa.alert_type,
-              pa.severity,
-              pa.title,
-              pa.description,
-              pa.metric_value,
-              pa.is_read,
-              pa.dismissed_at,
-              pa.created_at,
-              p.display_name,
-              p.client_id
-       FROM proactive_alerts pa
-       LEFT JOIN patients p ON p.id = pa.patient_id
-       WHERE pa.therapist_id = ? AND pa.dismissed_at IS NULL
-       ORDER BY
-         CASE pa.severity WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'MEDIUM' THEN 3 ELSE 4 END,
-         pa.created_at DESC`,
-      req.therapist.id
-    )
-    res.json(alerts)
-  } catch (err) {
-    // Operational logging — generic 500s with no detail are how production
-    // bugs survive for weeks. Log the real error to Azure App Service logs
-    // and surface a short hint to the client so we can diagnose without
-    // SSH'ing in. The hint never includes user data, just the SQL/JS error
-    // string, which is fine to expose for an authenticated endpoint.
-    console.error('[patients/alerts GET] failed:', err)
-    res.status(500).json({ error: 'Internal server error', detail: err?.message || String(err) })
+  const therapistId = Number(req.therapist?.id)
+  if (!Number.isFinite(therapistId) || therapistId <= 0) {
+    return res.status(400).json({ error: 'Invalid session — please sign in again.' })
   }
+
+  const db = getAsyncDb()
+
+  // Stage 1: load raw alerts, no JOIN. Simple SELECT against a single table.
+  let alerts
+  try {
+    alerts = await db.all(
+      `SELECT id, therapist_id, patient_id, alert_type, severity, title,
+              description, metric_value, is_read, dismissed_at, created_at
+       FROM proactive_alerts
+       WHERE therapist_id = ? AND dismissed_at IS NULL`,
+      therapistId,
+    )
+  } catch (err) {
+    return alertsErrorResponse(res, 'load_alerts', err)
+  }
+
+  if (!Array.isArray(alerts) || alerts.length === 0) {
+    return res.json([])
+  }
+
+  // Stage 2: enrich with patient names. Non-fatal — if it errors, we still
+  // return the alerts with display_name=null rather than 500'ing the whole
+  // dashboard.
+  try {
+    const patientIds = [...new Set(alerts.map(a => a.patient_id).filter(x => x != null))]
+    if (patientIds.length > 0) {
+      const placeholders = patientIds.map(() => '?').join(', ')
+      const patients = await db.all(
+        `SELECT id, display_name, client_id FROM patients WHERE id IN (${placeholders})`,
+        ...patientIds,
+      )
+      const byId = new Map(patients.map(p => [p.id, p]))
+      alerts = alerts.map(a => ({
+        ...a,
+        display_name: byId.get(a.patient_id)?.display_name || null,
+        client_id:    byId.get(a.patient_id)?.client_id    || null,
+      }))
+    } else {
+      alerts = alerts.map(a => ({ ...a, display_name: null, client_id: null }))
+    }
+  } catch (err) {
+    console.warn('[alerts] enrichment failed (non-fatal):', err?.message || err)
+    alerts = alerts.map(a => ({ ...a, display_name: null, client_id: null }))
+  }
+
+  // Stage 3: sort by severity rank then created_at desc — in JS so we never
+  // hit SQL dialect differences on the CASE expression.
+  alerts.sort((a, b) => {
+    const sa = SEVERITY_RANK[a.severity] || 99
+    const sb = SEVERITY_RANK[b.severity] || 99
+    if (sa !== sb) return sa - sb
+    return String(b.created_at || '').localeCompare(String(a.created_at || ''))
+  })
+
+  return res.json(alerts)
 })
 
-// POST /api/patients/alerts/:id/dismiss — dismiss an alert
+// POST /api/patients/alerts/:id/dismiss — mark a single alert dismissed.
 router.post('/alerts/:id/dismiss', async (req, res) => {
+  const therapistId = Number(req.therapist?.id)
+  const alertId     = Number(req.params.id)
+  if (!Number.isFinite(therapistId) || !Number.isFinite(alertId)) {
+    return res.status(400).json({ error: 'Invalid alert id.' })
+  }
   try {
     const db = getAsyncDb()
     await db.run(
       `UPDATE proactive_alerts SET dismissed_at = CURRENT_TIMESTAMP
        WHERE id = ? AND therapist_id = ?`,
-      req.params.id, req.therapist.id
+      alertId, therapistId,
     )
     try { await persistIfNeeded() } catch {}
-    res.json({ ok: true })
+    return res.json({ ok: true })
   } catch (err) {
-    console.error('[patients/alerts dismiss] failed:', err)
-    res.status(500).json({ error: 'Internal server error', detail: err?.message || String(err) })
+    return alertsErrorResponse(res, 'dismiss', err)
   }
 })
 
-// POST /api/patients/alerts/:id/read — mark alert as read
+// POST /api/patients/alerts/:id/read — mark a single alert read.
 router.post('/alerts/:id/read', async (req, res) => {
+  const therapistId = Number(req.therapist?.id)
+  const alertId     = Number(req.params.id)
+  if (!Number.isFinite(therapistId) || !Number.isFinite(alertId)) {
+    return res.status(400).json({ error: 'Invalid alert id.' })
+  }
   try {
     const db = getAsyncDb()
     await db.run(
       `UPDATE proactive_alerts SET is_read = 1
        WHERE id = ? AND therapist_id = ?`,
-      req.params.id, req.therapist.id
+      alertId, therapistId,
     )
-    res.json({ ok: true })
+    return res.json({ ok: true })
   } catch (err) {
-    console.error('[patients/alerts read] failed:', err)
-    res.status(500).json({ error: 'Internal server error', detail: err?.message || String(err) })
+    return alertsErrorResponse(res, 'read', err)
   }
 })
 
