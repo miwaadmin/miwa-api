@@ -10,7 +10,11 @@
 import { useState, useEffect } from 'react'
 import { COMMUNITY_URL, COMMUNITY_LABEL, HAS_COMMUNITY } from '../lib/community'
 
-const STORAGE_KEY = 'miwa.community_banner.dismissed'
+// v2: prior versions auto-dismissed when the user clicked the join link,
+// which made the banner vanish on a stray click with no obvious way back.
+// Bumping the key invalidates any v1 dismissal flag so the banner returns
+// for everyone once.
+const STORAGE_KEY = 'miwa.community_banner.dismissed.v2'
 
 export default function CommunityBanner() {
   const [dismissed, setDismissed] = useState(true) // default true to avoid SSR/first-paint flash
@@ -49,11 +53,13 @@ export default function CommunityBanner() {
         <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
           Early-access {COMMUNITY_LABEL.toLowerCase()} for therapists using Miwa. Share workflows, request features, and shape what ships next.
         </p>
+        {/* Plain link — no auto-dismiss. The X button is the only dismissal
+            path so a stray click on Join doesn't make the banner vanish for
+            good with no way back short of clearing localStorage. */}
         <a
           href={COMMUNITY_URL}
           target="_blank"
           rel="noopener noreferrer"
-          onClick={dismiss}
           className="inline-flex items-center gap-1.5 mt-2 text-xs font-bold text-brand-700 hover:text-brand-800"
         >
           Join the {COMMUNITY_LABEL}
