@@ -1896,11 +1896,13 @@ export default function PatientDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { therapist } = useAuth()
-  // ?session_active=<appt_id> is set when the clinician launches a telehealth
-  // session from Schedule. We show a session-in-progress banner with a quick
-  // path to write the note when they come back.
+  // ?session_active=<appt_id> — set when the clinician launches a telehealth
+  // session from Schedule. Banner gives a one-click path to write the note.
+  // ?checkedInAppt=<appt_id> — set when the clinician checked in an in-person
+  // appointment from Schedule. Same banner pattern, different copy.
   const [searchParams, setSearchParams] = useSearchParams()
   const sessionActiveAppt = searchParams.get('session_active')
+  const checkedInAppt = searchParams.get('checkedInAppt')
   const [patient, setPatient] = useState(null)
   const [sessions, setSessions] = useState([])
   const [loading, setLoading] = useState(true)
@@ -2191,6 +2193,47 @@ export default function PatientDetail() {
               }}
               className="text-xs font-semibold px-2 py-2 rounded-lg bg-white/15 hover:bg-white/25 transition-colors"
               aria-label="Dismiss session banner"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* In-person check-in banner — shown when the clinician clicked "Check In"
+          on an appointment in Schedule. Same UI pattern as the telehealth banner
+          above; different copy. The session note signed from here will auto-
+          complete the matching appointment so it counts toward Hours. */}
+      {checkedInAppt && !sessionActiveAppt && (
+        <div className="mb-4 rounded-2xl p-4 flex items-center gap-4 text-white shadow-md"
+          style={{ background: 'linear-gradient(135deg, #6366F1, #8B5CF6)' }}>
+          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-bold">Client checked in — session in progress</p>
+            <p className="text-xs text-white/90 mt-0.5">
+              When you sign the note, the appointment will be marked completed automatically and counted toward your Hours.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 flex-shrink-0">
+            <Link
+              to={`/patients/${id}/sessions/new`}
+              className="text-xs font-bold px-3 py-2 rounded-lg bg-white text-indigo-700 hover:bg-indigo-50 transition-colors whitespace-nowrap"
+            >
+              + New Session
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                const next = new URLSearchParams(searchParams)
+                next.delete('checkedInAppt')
+                setSearchParams(next, { replace: true })
+              }}
+              className="text-xs font-semibold px-2 py-2 rounded-lg bg-white/15 hover:bg-white/25 transition-colors"
+              aria-label="Dismiss check-in banner"
             >
               ✕
             </button>

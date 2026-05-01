@@ -795,7 +795,19 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
                     try {
                       const r = await apiFetch(`/agent/appointments/${appt.id}/checkin`, { method: 'POST' })
                       const d = await r.json()
-                      if (r.ok) { alert(d.message); onSave({ ...appt, status: 'in_progress', attendance_status: d.attendance_status, checked_in_at: d.checked_in_at, minutes_late: d.minutes_late }); }
+                      if (r.ok) {
+                        // Sync the parent state so Schedule reflects the new
+                        // appt status, then drop the clinician straight onto
+                        // the patient's profile — that's where they'll write
+                        // the session note. The ?checkedInAppt query param
+                        // surfaces a "session in progress" banner there.
+                        onSave({ ...appt, status: 'in_progress', attendance_status: d.attendance_status, checked_in_at: d.checked_in_at, minutes_late: d.minutes_late });
+                        if (appt.patient_id) {
+                          navigate(`/patients/${appt.patient_id}?checkedInAppt=${appt.id}`)
+                        } else {
+                          alert(d.message)
+                        }
+                      }
                       else alert(d.error)
                     } catch (e) { alert(e.message) }
                   }}

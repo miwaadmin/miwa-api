@@ -1,7 +1,63 @@
 const express = require('express');
 const router = express.Router({ mergeParams: true });
-const { getAsyncDb } = require('../db/asyncDb');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { emit } = require('../services/event-bus');
+
+/**
+ * When a session note gets signed, look for an appointment on the same date
+ * for the same patient/therapist that's still 'scheduled' or 'in_progress'
+ * (i.e. the slot the clinician intended this note to satisfy) and mark it
+ * 'completed'. That's what wires the appointment into the practice-hours
+ * tally — the hour computer only counts appointments where status='completed'
+ * AND duration_minutes IS NOT NULL.
+ *
+ * If the appointment is missing a duration but the session has one, backfill
+ * the appointment's duration from the session so the hour math is correct.
+ *
+ * Best-effort: failures are swallowed so a stale appointment never blocks a
+ * note from saving.
+ */
+async function autoCompleteMatchingAppointment(db, therapistId, patientId, sessionRow) {
+  try {
+    if (!sessionRow) return;
+    const sessionDate = sessionRow.session_date;
+    if (!sessionDate) return;
+
+    // Match by date — appointments sit at scheduled_start (timestamp), but we
+    // want to match on the calendar day. Convert both to YYYY-MM-DD and
+    // compare. Take the most recent in-progress/scheduled slot first since
+    // that's the one the clinician most likely just checked the client into.
+    const candidates = await db.all(
+      `SELECT id, scheduled_start, duration_minutes, status
+         FROM appointments
+        WHERE therapist_id = ?
+          AND patient_id = ?
+          AND status IN ('scheduled', 'in_progress')
+          AND scheduled_start IS NOT NULL
+          AND substr(scheduled_start, 1, 10) = substr(?, 1, 10)
+        ORDER BY
+          CASE status WHEN 'in_progress' THEN 0 ELSE 1 END,
+          scheduled_start DESC
+        LIMIT 1`,
+      therapistId, patientId, sessionDate,
+    );
+    const appt = candidates && candidates[0];
+    if (!appt) return;
+
+    const newDuration = appt.duration_minutes || sessionRow.duration_minutes || null;
+    await db.run(
+      `UPDATE appointments
+          SET status = 'completed',
+              duration_minutes = ?,
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?`,
+      newDuration, appt.id,
+    );
+    try { await persistIfNeeded(); } catch {}
+  } catch {
+    // Non-fatal — the note still saved.
+  }
+}
 
 /**
  * Session 4 milestone alert — fires once when a patient reaches their 4th
@@ -135,6 +191,7 @@ router.post('/', async (req, res) => {
         });
       } catch {}
       await checkSession4Milestone(db, req.therapist.id, parseInt(req.params.patientId));
+      await autoCompleteMatchingAppointment(db, req.therapist.id, parseInt(req.params.patientId), session);
     }
 
     res.status(201).json(session);
@@ -194,6 +251,7 @@ router.put('/:sessionId', async (req, res) => {
         });
       } catch {}
       await checkSession4Milestone(db, req.therapist.id, parseInt(req.params.patientId));
+      await autoCompleteMatchingAppointment(db, req.therapist.id, parseInt(req.params.patientId), updated);
     }
 
     res.json(updated);
