@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { generateExportHTML, exportToPDF, downloadText, exportAsText } from '../lib/exportNotes'
 import NoteEnrichments from '../components/NoteEnrichments'
 import RiskMonitorBadge from '../components/RiskMonitorBadge'
+import ResourceMentionPicker, { formatResourceMention, detectResourceTrigger } from '../components/ResourceMentionPicker'
 import { renderClinical } from '../lib/renderClinical'
 
 // ── Dictation Panel ─────────────────────────────────────────────────────────
@@ -651,6 +652,48 @@ export default function SessionNote() {
     setNotes(n => ({ ...n, [activeFormat]: { ...n[activeFormat], [key]: value } }))
   }
 
+  // ── /resource slash-command state ─────────────────────────────────────────
+  // When a clinician types "/resource" in any section textarea, an inline
+  // picker pops up under that textarea. State tracks which field is active,
+  // where the trigger started (so we can splice the inserted reference into
+  // the right spot), and the trailing query for filtering.
+  const [resourceTrigger, setResourceTrigger] = useState(null) // { fieldKey, triggerStart, query, caret } | null
+  const fieldRefs = useRef({})
+
+  const handleFieldChange = (fieldKey, e) => {
+    if (signedAt) return
+    const value = e.target.value
+    const caret = e.target.selectionStart ?? value.length
+    setField(fieldKey, value)
+    const trig = detectResourceTrigger(value, caret)
+    if (trig) {
+      setResourceTrigger({ fieldKey, ...trig, caret })
+    } else if (resourceTrigger?.fieldKey === fieldKey) {
+      setResourceTrigger(null)
+    }
+  }
+
+  const insertResourceMention = (item) => {
+    if (!resourceTrigger) return
+    const { fieldKey, triggerStart, caret } = resourceTrigger
+    const current = (notes[activeFormat] || {})[fieldKey] || ''
+    const mention = formatResourceMention(item)
+    const before = current.slice(0, triggerStart)
+    const after = current.slice(caret)
+    // Add a trailing space so the clinician keeps typing naturally.
+    const next = `${before}${mention} ${after}`
+    setField(fieldKey, next)
+    setResourceTrigger(null)
+    // Restore caret position right after the inserted mention.
+    requestAnimationFrame(() => {
+      const el = fieldRefs.current[fieldKey]
+      if (el) {
+        const pos = before.length + mention.length + 1
+        try { el.setSelectionRange(pos, pos); el.focus() } catch {}
+      }
+    })
+  }
+
   const readStream = async (res, onChunk) => {
     const reader = res.body.getReader()
     const decoder = new TextDecoder()
@@ -1112,24 +1155,50 @@ export default function SessionNote() {
               {activeFields.map(field => {
                 const val = notes[activeFormat][field.key] || ''
                 const charCount = val.length
+                const showPicker = !signedAt && resourceTrigger?.fieldKey === field.key
                 return (
                   <div key={field.key}>
                     <div className="flex items-center justify-between mb-1.5">
                       <label className="label mb-0">{field.label}</label>
-                      {charCount > 0 && (
-                        <span className={`text-xs ${charCount < 50 ? 'text-amber-500' : 'text-gray-400'}`}>
-                          {charCount} chars
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] text-indigo-400 hidden sm:inline">
+                          tip: type <code className="text-indigo-600 font-semibold">/resource</code> to attach
                         </span>
-                      )}
+                        {charCount > 0 && (
+                          <span className={`text-xs ${charCount < 50 ? 'text-amber-500' : 'text-gray-400'}`}>
+                            {charCount} chars
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <textarea
+                      ref={el => { fieldRefs.current[field.key] = el }}
                       className={`textarea border-l-4 ${field.color} rounded-l-none ${signedAt ? 'bg-gray-50 text-gray-600 cursor-default' : ''}`}
                       rows={4}
                       readOnly={!!signedAt}
                       value={val}
-                      onChange={e => !signedAt && setField(field.key, e.target.value)}
+                      onChange={e => handleFieldChange(field.key, e)}
+                      onBlur={() => {
+                        // Hide the picker on blur, but only if focus is moving
+                        // outside the picker itself (mouse-clicks on items use
+                        // onMouseDown w/ preventDefault to keep focus on the
+                        // textarea, so the picker stays visible during selection).
+                        setTimeout(() => {
+                          if (resourceTrigger?.fieldKey === field.key &&
+                              document.activeElement !== fieldRefs.current[field.key]) {
+                            setResourceTrigger(null)
+                          }
+                        }, 150)
+                      }}
                       placeholder={field.placeholder}
                     />
+                    {showPicker && (
+                      <ResourceMentionPicker
+                        query={resourceTrigger.query}
+                        onPick={insertResourceMention}
+                        onClose={() => setResourceTrigger(null)}
+                      />
+                    )}
                   </div>
                 )
               })}
