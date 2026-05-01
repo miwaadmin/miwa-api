@@ -1310,11 +1310,29 @@ function CheckinSendModal({ patient, onClose }) {
 function OutcomeProgressCard({ patientId, patient }) {
   const [progress, setProgress] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [expanded, setExpanded] = useState(false)
+  // Default expanded = true so the trajectory chart is visible the moment
+  // the patient profile loads (was hidden behind a "View Charts ↓" toggle,
+  // which made it feel like the chart had disappeared).
+  const [expanded, setExpanded] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [showLinkModal, setShowLinkModal] = useState(false)
   const [showCheckinModal, setShowCheckinModal] = useState(false)
   const [checkins, setCheckins] = useState([])
+
+  // ── Filter state: which instruments / souls to show on the chart ──
+  // Default = all visible. Click a chip to toggle that line on/off so the
+  // clinician can isolate a specific score (e.g. just PHQ-9 trajectory
+  // without the GAD-7 / PCL-5 lines cluttering the view).
+  const [visibleInstruments, setVisibleInstruments] = useState({
+    phq9: true, gad7: true, pcl5: true,
+  })
+  const [visibleSouls, setVisibleSouls] = useState(null) // null = all visible
+  const toggleInstrument = (key) =>
+    setVisibleInstruments(v => ({ ...v, [key]: !v[key] }))
+  const isolateInstrument = (key) =>
+    setVisibleInstruments({ phq9: false, gad7: false, pcl5: false, [key]: true })
+  const showAllInstruments = () =>
+    setVisibleInstruments({ phq9: true, gad7: true, pcl5: true })
 
   const loadCheckins = useCallback(() => {
     if (!patientId) return
@@ -1545,6 +1563,56 @@ function OutcomeProgressCard({ patientId, patient }) {
       {expanded && (
         <div className="mt-4 space-y-4">
 
+          {/* Filter chips — let the clinician isolate a specific instrument.
+              Only show if there's more than one instrument with data, since
+              with a single instrument there's nothing to isolate. */}
+          {!isRelational && (() => {
+            const have = []
+            if (progress.phq9?.count > 0) have.push({ key: 'phq9', label: 'PHQ-9', color: '#6366F1' })
+            if (progress.gad7?.count > 0) have.push({ key: 'gad7', label: 'GAD-7', color: '#8B5CF6' })
+            if (progress.pcl5?.count > 0) have.push({ key: 'pcl5', label: 'PCL-5', color: '#EA580C' })
+            if (have.length < 2) return null
+            const allOn = have.every(h => visibleInstruments[h.key])
+            return (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mr-1">
+                  Show:
+                </span>
+                {have.map(h => {
+                  const on = visibleInstruments[h.key]
+                  return (
+                    <button
+                      key={h.key}
+                      onClick={() => toggleInstrument(h.key)}
+                      onDoubleClick={() => isolateInstrument(h.key)}
+                      title="Click to toggle. Double-click to isolate."
+                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-1 rounded-full border transition-all"
+                      style={{
+                        background: on ? `${h.color}15` : '#F9FAFB',
+                        borderColor: on ? h.color : '#E5E7EB',
+                        color: on ? h.color : '#9CA3AF',
+                      }}
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full"
+                        style={{ background: on ? h.color : '#D1D5DB' }}
+                      />
+                      {h.label}
+                    </button>
+                  )
+                })}
+                {!allOn && (
+                  <button
+                    onClick={showAllInstruments}
+                    className="text-[10px] text-indigo-600 hover:text-indigo-800 underline ml-1"
+                  >
+                    show all
+                  </button>
+                )}
+              </div>
+            )
+          })()}
+
           {/* Individual: PHQ-9 + GAD-7 dual-line chart */}
           {!isRelational && (
             <>
@@ -1579,8 +1647,10 @@ function OutcomeProgressCard({ patientId, patient }) {
                 )}
               </div>
 
-              {/* PHQ-9 + GAD-7 dual-line timeline chart */}
-              {(progress.phq9.count > 0 || progress.gad7.count > 0) && progress.timeline?.length > 0 && (
+              {/* PHQ-9 + GAD-7 dual-line timeline chart — hidden entirely when both
+                  filter chips are off, so the user can solo PCL-5 for example. */}
+              {(progress.phq9.count > 0 || progress.gad7.count > 0) && progress.timeline?.length > 0 &&
+               (visibleInstruments.phq9 || visibleInstruments.gad7) && (
                 <div className="bg-white rounded-xl border border-gray-100 p-4">
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Depression &amp; Anxiety Timeline</p>
                   <ResponsiveContainer width="100%" height={220}>
@@ -1595,12 +1665,12 @@ function OutcomeProgressCard({ patientId, patient }) {
                       <Tooltip content={<ProgressTooltip />} />
                       <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '8px' }} />
                       <ReferenceLine y={10} stroke="#6366F1" strokeDasharray="4 3" strokeWidth={1} />
-                      {progress.phq9.count > 0 && (
+                      {progress.phq9.count > 0 && visibleInstruments.phq9 && (
                         <Line type="monotone" dataKey="phq9" stroke="#6366F1" strokeWidth={2.5}
                           dot={{ fill: '#6366F1', r: 4, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }}
                           name="PHQ-9" connectNulls={false} />
                       )}
-                      {progress.gad7.count > 0 && (
+                      {progress.gad7.count > 0 && visibleInstruments.gad7 && (
                         <Line type="monotone" dataKey="gad7" stroke="#8B5CF6" strokeWidth={2.5}
                           dot={{ fill: '#8B5CF6', r: 4, strokeWidth: 2, stroke: '#fff' }} activeDot={{ r: 6 }}
                           name="GAD-7" connectNulls={false} />
@@ -1610,8 +1680,8 @@ function OutcomeProgressCard({ patientId, patient }) {
                 </div>
               )}
 
-              {/* PCL-5 standalone chart (separate scale: 0-80) */}
-              {progress.pcl5?.count > 1 && progress.timeline?.some(t => t.pcl5 !== undefined) && (
+              {/* PCL-5 standalone chart (separate scale: 0-80) — gated on filter chip too */}
+              {visibleInstruments.pcl5 && progress.pcl5?.count > 1 && progress.timeline?.some(t => t.pcl5 !== undefined) && (
                 <div className="bg-white rounded-xl border border-gray-100 p-4">
                   <div className="flex items-center justify-between mb-3">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">PCL-5 PTSD Symptom Timeline</p>
@@ -1659,11 +1729,64 @@ function OutcomeProgressCard({ patientId, patient }) {
             </>
           )}
 
+          {/* Relational: per-soul filter chips. Lets the clinician isolate a
+              single household member across all instruments (or hide one). */}
+          {isRelational && progress.byMember && (() => {
+            const allSouls = Object.keys(progress.byMember)
+            if (allSouls.length < 2) return null
+            const isVisible = (s) => visibleSouls === null || visibleSouls.has(s)
+            const allOn = visibleSouls === null
+            return (
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide mr-1">
+                  Show:
+                </span>
+                {allSouls.map((soul, i) => {
+                  const on = isVisible(soul)
+                  const color = SOUL_COLORS[i % SOUL_COLORS.length]
+                  return (
+                    <button
+                      key={soul}
+                      onClick={() => setVisibleSouls(prev => {
+                        const cur = prev === null ? new Set(allSouls) : new Set(prev)
+                        if (cur.has(soul)) cur.delete(soul); else cur.add(soul)
+                        return cur
+                      })}
+                      onDoubleClick={() => setVisibleSouls(new Set([soul]))}
+                      title="Click to toggle. Double-click to isolate."
+                      className="inline-flex items-center gap-1.5 text-[11px] font-semibold px-2 py-1 rounded-full border transition-all"
+                      style={{
+                        background: on ? `${color}15` : '#F9FAFB',
+                        borderColor: on ? color : '#E5E7EB',
+                        color: on ? color : '#9CA3AF',
+                      }}
+                    >
+                      <span className="w-2 h-2 rounded-full" style={{ background: on ? color : '#D1D5DB' }} />
+                      {soul}
+                    </button>
+                  )
+                })}
+                {!allOn && (
+                  <button
+                    onClick={() => setVisibleSouls(null)}
+                    className="text-[10px] text-indigo-600 hover:text-indigo-800 underline ml-1"
+                  >
+                    show all
+                  </button>
+                )}
+              </div>
+            )
+          })()}
+
           {/* Relational: one chart per instrument type */}
           {isRelational && progress.byMember && soulInstruments.map(instrument => {
             const chartData = buildSoulChartData(progress.byMember, instrument)
-            const soulsWithData = Object.keys(progress.byMember).filter(m => progress.byMember[m][instrument])
-            if (chartData.length < 2) return null
+            const allSouls = Object.keys(progress.byMember)
+            const isVisible = (s) => visibleSouls === null || visibleSouls.has(s)
+            const soulsWithData = allSouls
+              .filter(m => progress.byMember[m][instrument])
+              .filter(isVisible)
+            if (chartData.length < 2 || soulsWithData.length === 0) return null
             return (
               <div key={instrument} className="bg-white rounded-xl border border-gray-100 p-4">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
@@ -1676,18 +1799,25 @@ function OutcomeProgressCard({ patientId, patient }) {
                     <YAxis tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <Tooltip />
                     <Legend wrapperStyle={{ fontSize: '10px', paddingTop: '8px' }} />
-                    {soulsWithData.map((soul, i) => (
-                      <Line key={soul} type="monotone" dataKey={soul}
-                        stroke={SOUL_COLORS[i % SOUL_COLORS.length]} strokeWidth={2.5}
-                        dot={{ fill: SOUL_COLORS[i % SOUL_COLORS.length], r: 4, strokeWidth: 2, stroke: '#fff' }}
-                        activeDot={{ r: 6 }} name={soul} connectNulls={false} />
-                    ))}
+                    {soulsWithData.map(soul => {
+                      // Use the soul's stable position in allSouls so the color stays
+                      // consistent even when other souls are filtered out.
+                      const i = allSouls.indexOf(soul)
+                      return (
+                        <Line key={soul} type="monotone" dataKey={soul}
+                          stroke={SOUL_COLORS[i % SOUL_COLORS.length]} strokeWidth={2.5}
+                          dot={{ fill: SOUL_COLORS[i % SOUL_COLORS.length], r: 4, strokeWidth: 2, stroke: '#fff' }}
+                          activeDot={{ r: 6 }} name={soul} connectNulls={false} />
+                      )
+                    })}
                   </LineChart>
                 </ResponsiveContainer>
-                {/* Soul legend with color dots */}
+                {/* Soul legend with color dots — colors keyed off allSouls position
+                    so a soul's color stays the same when other souls are filtered. */}
                 <div className="flex flex-wrap gap-3 mt-2 pt-2 border-t border-gray-50">
-                  {soulsWithData.map((soul, i) => {
+                  {soulsWithData.map(soul => {
                     const d = progress.byMember[soul][instrument]
+                    const i = allSouls.indexOf(soul)
                     return (
                       <div key={soul} className="flex items-center gap-1.5">
                         <div className="w-2.5 h-2.5 rounded-full" style={{ background: SOUL_COLORS[i % SOUL_COLORS.length] }} />
