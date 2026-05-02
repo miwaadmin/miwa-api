@@ -477,9 +477,9 @@ router.post('/demo-patient', requireAuth, async (req, res) => {
         family_social_history, mental_status_observations,
         strengths_protective_factors,
         client_overview,
-        client_type, members,
+        client_type, case_type, members,
         therapist_id, created_at, updated_at
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))`,
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))`,
       clientId, displayName, phone, fakeEmail, 'email',
       age, gender, ageRange,
       pick(REFERRAL_SOURCES), pick(LIVING_SITUATIONS),
@@ -493,7 +493,10 @@ router.post('/demo-patient', requireAuth, async (req, res) => {
       archetype.mental_status_observations,
       archetype.strengths_protective_factors,
       overviewByType[clientType] || overviewByType.individual,
-      clientType, members,
+      // case_type mirrors client_type so the patient header's CASE TYPE
+      // panel renders something meaningful (instead of em-dash) on demo
+      // patients. Both columns exist for legacy reasons; we set both.
+      clientType, clientType, members,
       therapistId,
     );
     const patientId = patientResult.lastInsertRowid;

@@ -1971,6 +1971,9 @@ export default function PatientDetail() {
       gender: patient.gender || '',
       session_modality: patient.session_modality || 'in-person',
       session_duration: String(patient.session_duration || 50),
+      // Seed from case_type, fall back to client_type so the existing
+      // demo/onboarding shape isn't lost on edit.
+      case_type: patient.case_type || patient.client_type || '',
     })
     setProfileError('')
     setEditingProfile(true)
@@ -2003,6 +2006,7 @@ export default function PatientDetail() {
           gender: profileForm.gender || null,
           session_modality: profileForm.session_modality || 'in-person',
           session_duration: parseInt(profileForm.session_duration) || 50,
+          case_type: profileForm.case_type || null,
         }),
       })
       const updated = await res.json()
@@ -2380,7 +2384,25 @@ export default function PatientDetail() {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Case Type</p>
-                  <p className="mt-0.5 text-sm text-gray-800">{patient.case_type || '—'}</p>
+                  <p className="mt-0.5 text-sm text-gray-800">
+                    {(() => {
+                      // Prefer the explicit case_type field. Fall back to client_type
+                      // (set by the demo seeder + onboarding flow) so a missing
+                      // case_type never reads as empty when client_type is on file.
+                      // Display "Child / adolescent" rather than the raw "child"
+                      // token so the panel matches the rest of the page.
+                      const raw = patient.case_type || patient.client_type
+                      if (!raw) return '—'
+                      const map = {
+                        individual: 'Individual',
+                        couple: 'Couple',
+                        family: 'Family',
+                        child: 'Child / adolescent',
+                        group: 'Group',
+                      }
+                      return map[String(raw).toLowerCase()] || raw
+                    })()}
+                  </p>
                 </div>
                 <div>
                   <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Referral</p>
@@ -2927,6 +2949,34 @@ export default function PatientDetail() {
                   <option value="Other">Other</option>
                   <option value="Prefer not to say">Prefer not to say</option>
                 </select>
+              </div>
+            </div>
+
+            {/* Case type — drives caseload classification, hour-tracker buckets,
+                and whether the assessments view shows individual or per-soul UX. */}
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Case Type</label>
+              <div className="flex gap-2 flex-wrap">
+                {[
+                  { value: 'individual', label: 'Individual' },
+                  { value: 'couple',     label: 'Couple' },
+                  { value: 'family',     label: 'Family' },
+                  { value: 'child',      label: 'Child / adolescent' },
+                  { value: 'group',      label: 'Group' },
+                ].map(opt => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setProfileForm(f => ({ ...f, case_type: opt.value }))}
+                    className={`flex-1 min-w-[28%] py-2 rounded-xl text-xs font-semibold border transition-all ${
+                      profileForm.case_type === opt.value
+                        ? 'bg-brand-600 text-white border-brand-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-brand-300'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
               </div>
             </div>
 
