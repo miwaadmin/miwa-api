@@ -969,6 +969,20 @@ router.get('/progress/:patientId', async (req, res) => {
       patientId, tid
     );
 
+    // Postgres TIMESTAMP columns come back as JS Date objects via node-postgres,
+    // but the rest of this endpoint calls .slice(0, 10) and .localeCompare on
+    // administered_at as if it were an ISO string (which is what sql.js
+    // returned). Without normalization the endpoint throws on every
+    // populated patient in production and the chart silently empty-states.
+    // Normalize once here so every downstream consumer sees a string.
+    for (const a of allAssessments) {
+      if (a.administered_at instanceof Date) {
+        a.administered_at = a.administered_at.toISOString();
+      } else if (a.administered_at != null) {
+        a.administered_at = String(a.administered_at);
+      }
+    }
+
     // Normalize template_type for comparison (handles uppercase demo data + no-hyphen SMS data)
     const normType = t => (t || '').toLowerCase().replace(/[-_\s]/g, '');
     const typeIs = (a, target) => normType(a.template_type) === normType(target);
