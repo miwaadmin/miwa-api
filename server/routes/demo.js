@@ -358,6 +358,19 @@ const SESSION_THEMES = [
 // ── Main route ────────────────────────────────────────────────────────────────
 
 router.post('/demo-patient', requireAuth, async (req, res) => {
+  // Phase-by-phase error log. We don't want a single failed INSERT (e.g. an
+  // optional table that doesn't exist on this DB) to torpedo the whole seed
+  // and leave a half-populated patient with no assessments. Each phase
+  // appends here on failure; the response surfaces it so we can diagnose
+  // production issues without server logs.
+  const phaseErrors = [];
+  const safe = async (phase, fn) => {
+    try { await fn(); }
+    catch (err) {
+      phaseErrors.push({ phase, error: err.message, code: err.code || null });
+      console.error(`[demo] phase "${phase}" failed:`, err.message);
+    }
+  };
   try {
     const db = getAsyncDb();
     const therapistId = req.therapist.id;
@@ -533,14 +546,39 @@ router.post('/demo-patient', requireAuth, async (req, res) => {
         notesJson = JSON.stringify({ BIRP: { subjective: theme.subjective, objective: theme.objective, assessment: theme.assessment, plan: theme.plan } });
       }
 
-      const sResult = await db.insert(
-        `INSERT INTO sessions (patient_id, therapist_id, session_date, note_format, subjective, objective, assessment, plan, notes_json, created_at)
-         VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))`,
-        patientId, therapistId, sessDate, noteFormat,
-        theme.subjective, theme.objective, theme.assessment, theme.plan,
-        notesJson,
-      );
-      sessionIds.push(sResult.lastInsertRowid);
+      // Try the rich INSERT first (with notes_json + duration + signed_at).
+      // If notes_json/duration/signed_at don't exist on this DB (e.g. a
+      // Postgres install that was set up before runtime ALTER TABLE migrations
+      // landed), fall back to the base columns. Either way, every session
+      // ends up with a usable subjective/objective/assessment/plan and a
+      // signed_at so it counts toward Session 4 milestones.
+      let sId = null;
+      try {
+        const sResult = await db.insert(
+          `INSERT INTO sessions (patient_id, therapist_id, session_date, note_format, subjective, objective, assessment, plan, notes_json, duration_minutes, signed_at, created_at)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,datetime('now'))`,
+          patientId, therapistId, sessDate, noteFormat,
+          theme.subjective, theme.objective, theme.assessment, theme.plan,
+          notesJson, 50, `${sessDate}T11:00:00`,
+        );
+        sId = sResult.lastInsertRowid;
+      } catch (richErr) {
+        phaseErrors.push({ phase: `session_rich_insert_${i}`, error: richErr.message, code: richErr.code || null });
+        try {
+          const sResult = await db.insert(
+            `INSERT INTO sessions (patient_id, therapist_id, session_date, note_format, subjective, objective, assessment, plan, created_at)
+             VALUES (?,?,?,?,?,?,?,?,datetime('now'))`,
+            patientId, therapistId, sessDate, noteFormat,
+            theme.subjective, theme.objective, theme.assessment, theme.plan,
+          );
+          sId = sResult.lastInsertRowid;
+        } catch (baseErr) {
+          phaseErrors.push({ phase: `session_base_insert_${i}`, error: baseErr.message, code: baseErr.code || null });
+        }
+      }
+      // Always push something so sessionIds[i] aligns with assessment loops.
+      // null is valid for assessments.session_id (REFERENCES sessions(id)).
+      sessionIds.push(sId);
     }
 
     // ── Insert PHQ-9 assessments ────────────────────────────────────────────
@@ -554,13 +592,12 @@ router.post('/demo-patient', requireAuth, async (req, res) => {
       const color    = PHQ9_COLOR(score);
       const daysAgo  = sessionDaysAgo[i];
       const dateStr  = dateOffsetDays(today, -daysAgo);
-      const baseline = prevPhq9 === null ? score : phq9Arc[0];
       const change   = prevPhq9 === null ? 0 : score - prevPhq9;
       const isImp    = prevPhq9 !== null && score < prevPhq9 ? 1 : 0;
       const isDet    = prevPhq9 !== null && score > prevPhq9 ? 1 : 0;
       const clinSig  = Math.abs(change) >= 5 ? 1 : 0;
 
-      await db.insert(
+      await safe(`phq9_insert_${i}`, () => db.insert(
         `INSERT INTO assessments (patient_id, therapist_id, template_type, session_id,
           administered_at, responses, total_score, severity_level, severity_color,
           baseline_score, previous_score, score_change, is_improvement, is_deterioration,
@@ -572,7 +609,7 @@ router.post('/demo-patient', requireAuth, async (req, res) => {
         score, severity, color,
         phq9Arc[0], prevPhq9 ?? score, change, isImp, isDet,
         clinSig, 'completed', `${dateStr}T10:00:00`,
-      );
+      ));
       prevPhq9 = score;
     }
 
@@ -592,7 +629,7 @@ router.post('/demo-patient', requireAuth, async (req, res) => {
       const isDet    = prevGad7 !== null && score > prevGad7 ? 1 : 0;
       const clinSig  = Math.abs(change) >= 4 ? 1 : 0;
 
-      await db.insert(
+      await safe(`gad7_insert_${i}`, () => db.insert(
         `INSERT INTO assessments (patient_id, therapist_id, template_type, session_id,
           administered_at, responses, total_score, severity_level, severity_color,
           baseline_score, previous_score, score_change, is_improvement, is_deterioration,
@@ -604,7 +641,7 @@ router.post('/demo-patient', requireAuth, async (req, res) => {
         score, severity, color,
         gad7Arc[0], prevGad7 ?? score, change, isImp, isDet,
         clinSig, 'completed', `${dateStr}T10:00:00`,
-      );
+      ));
       prevGad7 = score;
     }
 
@@ -1000,7 +1037,9 @@ router.post('/demo-patient', requireAuth, async (req, res) => {
     await persistIfNeeded();
 
     res.json({
-      success: true,
+      success: phaseErrors.length === 0,
+      partial:          phaseErrors.length > 0,
+      phase_errors:     phaseErrors,
       patient_id:       patientId,
       client_id:        clientId,
       display_name:     displayName,
