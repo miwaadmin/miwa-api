@@ -753,9 +753,25 @@ async function generateDailyBriefing(therapistId, { sendEmail = false, force = f
 async function runMorningBriefings() {
   try {
     const db = getAsyncDb();
+    // Only brief therapists who are actually using the product. Skip:
+    //   - explicitly deactivated accounts (account_status != 'active')
+    //   - dormant accounts (no last_seen_at AND no last_login_at in 30 days)
+    //   - accounts with zero patients on file (a brief for an empty caseload
+    //     is just inbox noise — typically a leftover trial or a stale signup)
+    // Without this filter, a therapist who created multiple accounts in the
+    // past and abandoned them keeps getting daily briefs to the same email
+    // long after they've moved on.
     const therapists = await db.all(
-      `SELECT id, preferred_timezone FROM therapists
-        WHERE account_status = 'active'`
+      `SELECT t.id, t.preferred_timezone
+         FROM therapists t
+        WHERE t.account_status = 'active'
+          AND COALESCE(t.last_seen_at, t.last_login_at) IS NOT NULL
+          AND COALESCE(t.last_seen_at, t.last_login_at) >= datetime('now', '-30 days')
+          AND EXISTS (
+            SELECT 1 FROM patients p
+             WHERE p.therapist_id = t.id
+               AND COALESCE(p.status, 'active') = 'active'
+          )`
     );
     let count = 0;
     for (const t of therapists) {
