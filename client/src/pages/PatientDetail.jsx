@@ -1380,6 +1380,19 @@ function OutcomeProgressCard({ patientId, patient }) {
     ? [...new Set(Object.values(progress.byMember).flatMap(types => Object.keys(types)))]
     : []
 
+  // Data-driven view toggles. Drive rendering off the actual shape of
+  // progress, not off the patient's client_type, so a couple/family/child
+  // patient whose assessments are keyed without member_label (e.g. demo
+  // seeder, or a clinician who administered shared assessments before per-
+  // soul tracking existed) still gets a usable summary + chart instead of
+  // a blank "X assessments on record" panel.
+  const hasIndividualData =
+    (progress?.phq9?.count || 0) > 0 ||
+    (progress?.gad7?.count || 0) > 0 ||
+    (progress?.pcl5?.count || 0) > 0
+  const hasMemberedData =
+    !!progress?.byMember && Object.keys(progress.byMember).length > 0
+
   if (loading) return (
     <div>
       <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Outcome Progress</p>
@@ -1457,8 +1470,11 @@ function OutcomeProgressCard({ patientId, patient }) {
         </div>
       </div>
 
-      {/* ── Individual view: PHQ-9 + GAD-7 summary ── */}
-      {!isRelational && (
+      {/* ── Individual view: PHQ-9 + GAD-7 summary ──
+          Render whenever there's non-membered assessment data, regardless of
+          client_type — a couple whose assessments aren't soul-keyed should
+          still see an aggregate summary instead of nothing. */}
+      {hasIndividualData && (
         <div className="space-y-1.5">
           {progress.phq9.current !== null && (
             <div className="flex items-center justify-between bg-gray-50 rounded-lg px-3 py-2">
@@ -1518,8 +1534,9 @@ function OutcomeProgressCard({ patientId, patient }) {
         </div>
       )}
 
-      {/* ── Relational view: per-soul summaries ── */}
-      {isRelational && progress.byMember && (
+      {/* ── Relational view: per-soul summaries ──
+          Render whenever per-soul data exists, regardless of client_type. */}
+      {hasMemberedData && (
         <div className="space-y-2">
           {soulInstruments.map(instrument => (
             <div key={instrument} className="rounded-xl border border-gray-100 overflow-hidden">
@@ -1566,7 +1583,7 @@ function OutcomeProgressCard({ patientId, patient }) {
           {/* Filter chips — let the clinician isolate a specific instrument.
               Only show if there's more than one instrument with data, since
               with a single instrument there's nothing to isolate. */}
-          {!isRelational && (() => {
+          {hasIndividualData && (() => {
             const have = []
             if (progress.phq9?.count > 0) have.push({ key: 'phq9', label: 'PHQ-9', color: '#6366F1' })
             if (progress.gad7?.count > 0) have.push({ key: 'gad7', label: 'GAD-7', color: '#8B5CF6' })
@@ -1614,7 +1631,7 @@ function OutcomeProgressCard({ patientId, patient }) {
           })()}
 
           {/* Individual: PHQ-9 + GAD-7 dual-line chart */}
-          {!isRelational && (
+          {hasIndividualData && (
             <>
               <div className="grid grid-cols-2 gap-2">
                 {progress.phq9.count > 0 && (
@@ -1731,7 +1748,7 @@ function OutcomeProgressCard({ patientId, patient }) {
 
           {/* Relational: per-soul filter chips. Lets the clinician isolate a
               single household member across all instruments (or hide one). */}
-          {isRelational && progress.byMember && (() => {
+          {hasMemberedData && (() => {
             const allSouls = Object.keys(progress.byMember)
             if (allSouls.length < 2) return null
             const isVisible = (s) => visibleSouls === null || visibleSouls.has(s)
@@ -1779,7 +1796,7 @@ function OutcomeProgressCard({ patientId, patient }) {
           })()}
 
           {/* Relational: one chart per instrument type */}
-          {isRelational && progress.byMember && soulInstruments.map(instrument => {
+          {hasMemberedData && soulInstruments.map(instrument => {
             const chartData = buildSoulChartData(progress.byMember, instrument)
             const allSouls = Object.keys(progress.byMember)
             const isVisible = (s) => visibleSouls === null || visibleSouls.has(s)
