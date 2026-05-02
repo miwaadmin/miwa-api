@@ -621,7 +621,24 @@ function startAlertsScheduler() {
   })
   console.log('[scheduler] Started — Proactive outreach check runs every 15 minutes')
 
-  // Daily research briefs — check every hour, generate for each therapist when it's 6–7am in their timezone
+  // Daily research briefs — check every hour, generate for each therapist if
+  // (a) it's between 6 and 9am in their local timezone, AND
+  // (b) we haven't yet generated a brief for today's local date.
+  //
+  // Two reasons for the looser firing window + date-based skip check:
+  //
+  //   1. The previous skip query used "created_at > datetime('now', '-24 hours')"
+  //      which is overly strict — if yesterday's brief landed at 6:01am,
+  //      today's 6:00am check is at 23h59m, marks "recent", and skips. Brief
+  //      lost. Switching to "local_date = today" makes the skip per-day
+  //      instead of per-rolling-window.
+  //
+  //   2. The previous code only fired when localHour === 6. That's a single
+  //      point of failure: Azure App Service can be cold-starting at 6:00,
+  //      or PubMed/OpenAlex/the AI API can glitch on the one attempt that
+  //      day, and there's no retry until tomorrow. Allowing 6–9am gives the
+  //      cron 4 hourly attempts; the date-based skip ensures we still only
+  //      successfully generate one brief per therapist per day.
   cron.schedule('0 * * * *', async () => {
     let db
     try { db = getAsyncDb() } catch { return }
@@ -638,17 +655,21 @@ function startAlertsScheduler() {
             new Date().toLocaleString('en-US', { timeZone: tz, hour: 'numeric', hour12: false }),
             10
           )
-          // Only fire between 6:00 and 6:59 AM in the therapist's timezone
-          if (localHour !== 6) continue
+          // 4-hour retry window in the therapist's local morning. Still only
+          // generates once per local_date thanks to the skip check below.
+          if (localHour < 6 || localHour > 9) continue
 
-          // Skip if already generated a non-crisis brief in the last 24 hours
-          const recent = await db.get(
+          // Today's local date in the therapist's timezone (YYYY-MM-DD).
+          const localDate = new Date().toLocaleDateString('en-CA', { timeZone: tz })
+
+          // Skip if a non-crisis brief already exists for today.
+          const todays = await db.get(
             `SELECT id FROM research_briefs
              WHERE therapist_id = ? AND brief_type != 'crisis'
-             AND created_at > datetime('now', '-24 hours')`,
-            t.id
+               AND local_date = ?`,
+            t.id, localDate
           )
-          if (recent) continue
+          if (todays) continue
 
           // Only generate if they have at least one patient
           const hasPatients = await db.get(
@@ -656,7 +677,7 @@ function startAlertsScheduler() {
           )
           if (!hasPatients?.c) continue
 
-          console.log(`[researcher] Generating daily brief for therapist_id=${t.id} tz=${tz}`)
+          console.log(`[researcher] Generating daily brief for therapist_id=${t.id} tz=${tz} local_date=${localDate} attempt_hour=${localHour}`)
           generateBriefForTherapist(t.id, 'daily').catch(err =>
             console.error(`[researcher] Brief failed for therapist_id=${t.id}:`, err.message)
           )
@@ -671,7 +692,7 @@ function startAlertsScheduler() {
     }
   })
 
-  console.log('[scheduler] Started — Daily research briefs check runs hourly (fires at 6am per therapist timezone)')
+  console.log('[scheduler] Started — Daily research briefs check runs hourly (fires 6–9am per therapist timezone, once per local date)')
 
   // ── Proactive Daily "Your Day" briefing — hourly, fires at 6am local ─────
   cron.schedule('23 * * * *', async () => {
