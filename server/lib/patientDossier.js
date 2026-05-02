@@ -61,8 +61,8 @@ function sessionSnippet(s) {
  * Build a rich markdown dossier for a single patient.
  * Returns null if patient not found / not owned by therapist.
  */
-function buildPatientDossier(db, therapistId, patientId) {
-  const patient = db.get(
+async function buildPatientDossier(db, therapistId, patientId) {
+  const patient = await db.get(
     `SELECT id, client_id, display_name, age, age_range, gender, client_type,
             presenting_concerns, diagnoses, risk_screening, treatment_goals,
             medications, medical_history, session_modality, session_duration,
@@ -73,7 +73,7 @@ function buildPatientDossier(db, therapistId, patientId) {
   if (!patient) return null;
 
   // Sessions — all of them, but only recent 3 get detail
-  const sessions = db.all(
+  const sessions = await db.all(
     `SELECT id, session_date, note_format, assessment, plan, icd10_codes, signed_at, created_at
        FROM sessions WHERE patient_id = ? AND therapist_id = ?
        ORDER BY COALESCE(session_date, created_at) ASC`,
@@ -81,7 +81,7 @@ function buildPatientDossier(db, therapistId, patientId) {
   );
 
   // Assessments — all, for trajectory calc
-  const assessments = db.all(
+  const assessments = await db.all(
     `SELECT id, template_type, total_score, severity_level, administered_at,
             is_improvement, is_deterioration, baseline_score
        FROM assessments WHERE patient_id = ? AND therapist_id = ?
@@ -90,13 +90,13 @@ function buildPatientDossier(db, therapistId, patientId) {
   );
 
   // Treatment plan + goals
-  const plan = db.get(
+  const plan = await db.get(
     `SELECT id, status, last_reviewed_at, created_at FROM treatment_plans
        WHERE patient_id = ? AND therapist_id = ? AND status = 'active'
        ORDER BY created_at DESC LIMIT 1`,
     patientId, therapistId
   );
-  const goals = plan ? db.all(
+  const goals = plan ? await db.all(
     `SELECT goal_text, target_metric, status, current_value, baseline_value
        FROM treatment_goals WHERE plan_id = ?
        ORDER BY CASE status WHEN 'active' THEN 0 WHEN 'revised' THEN 1 WHEN 'met' THEN 2 ELSE 3 END, id ASC`,
@@ -104,7 +104,7 @@ function buildPatientDossier(db, therapistId, patientId) {
   ) : [];
 
   // Upcoming appointments (next 2)
-  const upcoming = db.all(
+  const upcoming = await db.all(
     `SELECT scheduled_start, appointment_type, duration_minutes, status FROM appointments
        WHERE patient_id = ? AND therapist_id = ? AND scheduled_start IS NOT NULL
          AND status != 'cancelled' AND scheduled_start > datetime('now')
@@ -113,7 +113,7 @@ function buildPatientDossier(db, therapistId, patientId) {
   );
 
   // Open (undismissed) alerts
-  const alerts = db.all(
+  const alerts = await db.all(
     `SELECT type, severity, title, description, created_at FROM progress_alerts
        WHERE patient_id = ? AND therapist_id = ? AND dismissed_at IS NULL
        ORDER BY created_at DESC LIMIT 5`,
@@ -123,7 +123,7 @@ function buildPatientDossier(db, therapistId, patientId) {
   // ── Assemble markdown ──────────────────────────────────────────────────
   const md = [];
 
-  md.push(`# Patient Dossier — ${patient.client_id}`);
+  md.push(`# Patient Dossier — ${patient.display_name || patient.client_id}`);
 
   // Profile
   md.push('## Profile');

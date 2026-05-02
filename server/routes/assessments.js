@@ -15,6 +15,12 @@ function scoreTrend(type, baseline, current) {
   return improved ? 'IMPROVING' : 'WORSENING';
 }
 
+function clientLabel(patient) {
+  return patient?.display_name || patient?.client_id || 'Client';
+}
+
+const normalizedTemplateSql = "LOWER(REPLACE(REPLACE(REPLACE(template_type, '-', ''), '_', ''), ' ', ''))";
+
 const TEMPLATES = {
   'phq-9': {
     id: 'phq-9',
@@ -456,6 +462,7 @@ function scoreAssessment(templateType, responses) {
 
 function generateAlerts(assessment, previous, patient, template) {
   const alerts = [];
+  const name = clientLabel(patient);
 
   // LAP-MD: High-Danger → CRITICAL IPV alert
   if (assessment.template_type === 'lap-md' && assessment.severity_level === 'High-Danger') {
@@ -463,7 +470,7 @@ function generateAlerts(assessment, previous, patient, template) {
       type: 'IPV_LETHALITY_RISK',
       severity: 'CRITICAL',
       title: '🚨 Intimate Partner Lethality Risk',
-      description: `${patient.client_id} screened High-Danger on LAP-MD. Consider DV hotline warm handoff, safety plan review, and protective-order consultation.`,
+      description: `${name} screened High-Danger on LAP-MD. Consider DV hotline warm handoff, safety plan review, and protective-order consultation.`,
     });
   }
 
@@ -475,7 +482,7 @@ function generateAlerts(assessment, previous, patient, template) {
         type: 'SUICIDE_RISK',
         severity: 'CRITICAL',
         title: '⚠️ Suicide Risk Alert',
-        description: `${patient.client_id} endorsed thoughts of self-harm on PHQ-9 item 9 (score: ${q9.value})`,
+        description: `${name} endorsed thoughts of self-harm on PHQ-9 item 9 (score: ${q9.value})`,
       });
     }
   }
@@ -489,14 +496,14 @@ function generateAlerts(assessment, previous, patient, template) {
         type: 'SUICIDE_RISK',
         severity: 'CRITICAL',
         title: '🚨 C-SSRS: Active Suicidal Ideation Detected',
-        description: `${patient.client_id} endorsed active suicidal ideation or behavior on C-SSRS screening. Immediate clinical assessment required.`,
+        description: `${name} endorsed active suicidal ideation or behavior on C-SSRS screening. Immediate clinical assessment required.`,
       });
     } else if (responses[0]?.value === 1) {
       alerts.push({
         type: 'SUICIDE_RISK',
         severity: 'WARNING',
         title: '⚠️ C-SSRS: Passive Suicidal Ideation',
-        description: `${patient.client_id} endorsed passive death wish on C-SSRS. Monitor closely.`,
+        description: `${name} endorsed passive death wish on C-SSRS. Monitor closely.`,
       });
     }
   }
@@ -508,7 +515,7 @@ function generateAlerts(assessment, previous, patient, template) {
         type: 'PROVISIONAL_PTSD',
         severity: 'WARNING',
         title: 'PCL-5: Provisional PTSD Threshold Reached',
-        description: `${patient.client_id} scored ${assessment.total_score} on PCL-5 (threshold ≥33 indicates provisional PTSD). Clinical assessment recommended.`,
+        description: `${name} scored ${assessment.total_score} on PCL-5 (threshold ≥33 indicates provisional PTSD). Clinical assessment recommended.`,
       });
     }
   }
@@ -621,6 +628,8 @@ router.get('/overdue', async (req, res) => {
         result.push({
           patient_id: p.id,
           client_id: p.client_id,
+          display_name: p.display_name,
+          client_label: clientLabel(p),
           last_assessment_date: lastDate,
           days_overdue: daysOverdue,
           template_types_overdue: overdueTypes,
@@ -665,8 +674,8 @@ router.post('/check-overdue', async (req, res) => {
           ? Math.floor((Date.now() - new Date(lastAssessment.last_at).getTime()) / (1000 * 60 * 60 * 24))
           : null;
         const desc = daysOverdue
-          ? `${p.client_id} has not had a PHQ-9 or GAD-7 in ${daysOverdue} days. Assessment recommended.`
-          : `${p.client_id} has never been assessed with PHQ-9 or GAD-7. Baseline assessment recommended.`;
+          ? `${clientLabel(p)} has not had a PHQ-9 or GAD-7 in ${daysOverdue} days. Assessment recommended.`
+          : `${clientLabel(p)} has never been assessed with PHQ-9 or GAD-7. Baseline assessment recommended.`;
 
         await db.insert(
           `INSERT INTO progress_alerts (patient_id, therapist_id, type, severity, title, description)
@@ -795,7 +804,7 @@ router.post('/', async (req, res) => {
     if (!template) return res.status(400).json({ error: 'Invalid template_type' });
 
     // Verify patient
-    const patient = await db.get('SELECT id, client_id FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
+    const patient = await db.get('SELECT id, client_id, display_name FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
     // Score it
@@ -908,7 +917,7 @@ router.post('/', async (req, res) => {
                VALUES (?, ?, 'TREATMENT_STAGNATION', 'WARNING', ?, ?, ?)`,
               patient_id, tid,
               'Treatment May Be Stagnating',
-              `${patient.client_id}'s ${template.name} scores have plateaued (range: ${scoreRange}) across the last ${recentForStagnation.length} assessments with no reliable change. Consider reviewing the treatment approach, adjusting interventions, or discussing progress with the client.`,
+              `${clientLabel(patient)}'s ${template.name} scores have plateaued (range: ${scoreRange}) across the last ${recentForStagnation.length} assessments with no reliable change. Consider reviewing the treatment approach, adjusting interventions, or discussing progress with the client.`,
               assessmentId
             );
             alerts.push({
@@ -960,7 +969,7 @@ router.get('/progress/:patientId', async (req, res) => {
     const tid = req.therapist.id;
     const { patientId } = req.params;
 
-    const patient = await db.get('SELECT id, client_id, client_type, members FROM patients WHERE id = ? AND therapist_id = ?', patientId, tid);
+    const patient = await db.get('SELECT id, client_id, display_name, client_type, members FROM patients WHERE id = ? AND therapist_id = ?', patientId, tid);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
     // All assessments for this patient, ordered by date
@@ -1085,6 +1094,8 @@ router.get('/progress/:patientId', async (req, res) => {
     res.json({
       patient_id: patientId,
       client_id: patient.client_id,
+      display_name: patient.display_name,
+      client_label: clientLabel(patient),
       client_type: patient.client_type || 'individual',
       timeline,
       phq9: {
@@ -1154,7 +1165,13 @@ router.get('/alerts', async (req, res) => {
       tid
     );
 
-    res.json(alerts);
+    res.json(alerts.map(a => ({
+      ...a,
+      description: a.display_name && a.client_id
+        ? String(a.description || '').replaceAll(a.client_id, a.display_name)
+        : a.description,
+      client_label: clientLabel(a),
+    })));
   } catch (err) {
     console.error('[assessments/alerts] failed:', err);
     res.status(500).json({
@@ -1204,12 +1221,18 @@ router.get('/caseload', async (req, res) => {
     const result = [];
     for (const p of patients) {
       const phq9 = await db.get(
-        'SELECT total_score, severity_level, severity_color, administered_at FROM assessments WHERE patient_id = ? AND therapist_id = ? AND template_type = ? ORDER BY administered_at DESC LIMIT 1',
-        p.id, tid, 'phq-9'
+        `SELECT total_score, severity_level, severity_color, administered_at
+         FROM assessments
+         WHERE patient_id = ? AND therapist_id = ? AND ${normalizedTemplateSql} = 'phq9'
+         ORDER BY administered_at DESC LIMIT 1`,
+        p.id, tid
       );
       const gad7 = await db.get(
-        'SELECT total_score, severity_level, severity_color, administered_at FROM assessments WHERE patient_id = ? AND therapist_id = ? AND template_type = ? ORDER BY administered_at DESC LIMIT 1',
-        p.id, tid, 'gad-7'
+        `SELECT total_score, severity_level, severity_color, administered_at
+         FROM assessments
+         WHERE patient_id = ? AND therapist_id = ? AND ${normalizedTemplateSql} = 'gad7'
+         ORDER BY administered_at DESC LIMIT 1`,
+        p.id, tid
       );
       const criticalAlert = await db.get(
         "SELECT id FROM progress_alerts WHERE patient_id = ? AND therapist_id = ? AND severity = 'CRITICAL' AND dismissed_at IS NULL LIMIT 1",
@@ -1223,6 +1246,8 @@ router.get('/caseload', async (req, res) => {
       result.push({
         patient_id: p.id,
         client_id: p.client_id,
+        display_name: p.display_name,
+        client_label: clientLabel(p),
         phq9_latest: phq9?.total_score ?? null,
         phq9_severity: phq9?.severity_level ?? null,
         phq9_color: phq9?.severity_color ?? null,
@@ -1277,16 +1302,30 @@ router.get('/practice', async (req, res) => {
 
     // PHQ-9 avg current scores per patient
     const phq9Stats = await db.all(
-      `SELECT patient_id, MAX(administered_at) as latest_date, total_score
-       FROM assessments WHERE therapist_id = ? AND template_type = 'phq-9'
-       GROUP BY patient_id`,
+      `SELECT a.patient_id, a.administered_at as latest_date, a.total_score
+       FROM assessments a
+       WHERE a.therapist_id = ? AND ${normalizedTemplateSql.replaceAll('template_type', 'a.template_type')} = 'phq9'
+       AND a.administered_at = (
+         SELECT MAX(a2.administered_at)
+         FROM assessments a2
+         WHERE a2.patient_id = a.patient_id
+           AND a2.therapist_id = a.therapist_id
+           AND ${normalizedTemplateSql.replaceAll('template_type', 'a2.template_type')} = 'phq9'
+       )`,
       tid
     );
 
     const gad7Stats = await db.all(
-      `SELECT patient_id, MAX(administered_at) as latest_date, total_score
-       FROM assessments WHERE therapist_id = ? AND template_type = 'gad-7'
-       GROUP BY patient_id`,
+      `SELECT a.patient_id, a.administered_at as latest_date, a.total_score
+       FROM assessments a
+       WHERE a.therapist_id = ? AND ${normalizedTemplateSql.replaceAll('template_type', 'a.template_type')} = 'gad7'
+       AND a.administered_at = (
+         SELECT MAX(a2.administered_at)
+         FROM assessments a2
+         WHERE a2.patient_id = a.patient_id
+           AND a2.therapist_id = a.therapist_id
+           AND ${normalizedTemplateSql.replaceAll('template_type', 'a2.template_type')} = 'gad7'
+       )`,
       tid
     );
 
@@ -1336,7 +1375,7 @@ router.get('/practice', async (req, res) => {
         "SELECT total_score FROM assessments WHERE patient_id = ? AND therapist_id = ? AND template_type = 'phq-9' ORDER BY administered_at DESC LIMIT 1",
         row.patient_id, tid
       );
-      const patientInfo = await db.get('SELECT client_id FROM patients WHERE id = ?', row.patient_id);
+      const patientInfo = await db.get('SELECT client_id, display_name FROM patients WHERE id = ?', row.patient_id);
 
       if (!firstAssessment || !latestAssessment) continue;
 
@@ -1349,6 +1388,8 @@ router.get('/practice', async (req, res) => {
         nonResponders.push({
           patient_id: row.patient_id,
           client_id: patientInfo?.client_id || `Patient ${row.patient_id}`,
+          display_name: patientInfo?.display_name || null,
+          client_label: clientLabel(patientInfo),
           assessments_count: row.assessments_count,
           latest_score: latest,
           baseline_score: baseline,
@@ -1433,7 +1474,12 @@ router.get('/practice', async (req, res) => {
       remissionRate,
     });
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('[assessments/practice] failed:', err);
+    res.status(500).json({
+      error: 'Failed to load practice overview',
+      detail: err?.message || String(err),
+      code: err?.code || null,
+    });
   }
 });
 
@@ -1451,7 +1497,7 @@ router.post('/links', async (req, res) => {
       return res.status(400).json({ error: 'Invalid template_type' });
     }
 
-    const patient = await db.get('SELECT id, client_id FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
+    const patient = await db.get('SELECT id, client_id, display_name FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
     // Crypto-random 32-byte hex token
@@ -1478,6 +1524,8 @@ router.post('/links', async (req, res) => {
       template_name: TEMPLATES[template_type].name,
       expires_at: expiresAt.toISOString(),
       client_id: patient.client_id,
+      display_name: patient.display_name,
+      client_label: clientLabel(patient),
     });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });

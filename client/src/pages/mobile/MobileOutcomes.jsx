@@ -43,8 +43,12 @@ function TrendPill({ type, baseline, current, trend }) {
   )
 }
 
+function clientLabel(row) {
+  return row?.client_label || row?.display_name || row?.client_name || row?.patient_name || row?.client_id || 'Client'
+}
+
 function ClientOutcomeCard({ row, onOpen }) {
-  const initials = (row.display_name || row.client_id || '?')
+  const initials = clientLabel(row)
     .split(' ').map(s => s[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
   const hasFlags = row.trend === 'WORSENING' || row.risk_flags > 0
   const isOverdue = row.overdue_count > 0
@@ -68,7 +72,7 @@ function ClientOutcomeCard({ row, onOpen }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-start gap-1.5 flex-wrap mb-1">
             <p className="text-sm font-semibold text-gray-900 truncate">
-              {row.display_name || row.client_id || 'Client'}
+              {clientLabel(row)}
             </p>
             {hasFlags && (
               <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-red-100 text-red-700">

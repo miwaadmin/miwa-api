@@ -27,6 +27,12 @@ const REPORTS_DIR = path.join(__dirname, '..', 'generated_reports');
 const { buildPatientDossier } = require('../lib/patientDossier');
 const { snapshotPlan } = require('../lib/treatmentPlanRevisions');
 const { logTrajectory } = require('../lib/trajectoryLogger');
+const {
+  auditAction,
+  formatRuntimeForPrompt,
+  getRuntimeSnapshot,
+  recordConversationSignal,
+} = require('../services/assistantRuntime');
 
 /* ── Embedded data for agent tools ─────────────────────────────────────── */
 const AGENT_RESOURCES = [
@@ -340,8 +346,10 @@ function buildPatientSummary(context) {
   const defaultLocation = patient.session_modality || lastAppointment?.location || null;
   const defaultType = inferAppointmentType(patient, lastAppointment?.appointment_type || '');
 
+  const displayName = patient.display_name || patient.client_id || 'Client';
+
   return [
-    `Client code: ${patient.client_id}`,
+    `Client: ${displayName}`,
     `Age range: ${patient.age_range || 'N/A'}`,
     `Client type: ${patient.client_type || patient.case_type || 'individual'}`,
     `Presenting concerns: ${scrubText(patient.presenting_concerns || '') || 'N/A'}`,
@@ -387,8 +395,8 @@ async function buildCaseloadSummary(db, therapistId) {
       ? `${latest.template_type}: ${latest.total_score}${latest.severity_level ? ` (${latest.severity_level})` : ''}`
       : 'no assessments';
 
-    // Codes only — names are scrubbed from messages before reaching Azure AI and restored after.
-    summaries.push(`• ${p.client_id} — ${scrubText(p.presenting_concerns || 'intake pending')} — ${assessmentStr}${riskFlag}`);
+    const label = p.display_name || p.client_id || 'Client';
+    summaries.push(`• ${label} — ${scrubText(p.presenting_concerns || 'intake pending')} — ${assessmentStr}${riskFlag}`);
   }
 
   return `Your caseload (${patients.length} client${patients.length !== 1 ? 's' : ''}):\n${summaries.join('\n')}`;
@@ -2592,7 +2600,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       }
 
       // Snapshot the newly created plan (revision 1)
-      snapshotPlan(db, {
+      await snapshotPlan(db, {
         planId, therapistId,
         changeKind: 'plan_created',
         changeDetail: `Created with ${goals.length} initial goals`,
@@ -2660,7 +2668,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
         args.current_value !== undefined && `current_value → ${args.current_value}`,
         args.progress_note && 'added progress note',
       ].filter(Boolean).join(', ');
-      snapshotPlan(db, {
+      await snapshotPlan(db, {
         planId: goal.plan_id, therapistId,
         changeKind: 'goal_updated',
         changeDetail: `Goal ${args.goal_id}: ${changes}`,
@@ -3691,7 +3699,7 @@ router.post('/chat', async (req, res) => {
     // Rich markdown dossier — QMD-inspired. When a patient is in focus,
     // pre-load EVERYTHING into the system prompt so Miwa doesn't need to
     // make 5 tool calls just to remember who this person is.
-    const patientDossier = patientId ? buildPatientDossier(db, req.therapist.id, patientId) : null;
+    const patientDossier = patientId ? await buildPatientDossier(db, req.therapist.id, patientId) : null;
 
     // Build system context
     const therapistRow = await db.get('SELECT full_name, first_name, preferred_timezone FROM therapists WHERE id = ?', req.therapist.id);
@@ -3699,6 +3707,12 @@ router.post('/chat', async (req, res) => {
     const therapistTz = therapistRow?.preferred_timezone || 'America/Los_Angeles';
     const caseloadSummary = await buildCaseloadSummary(db, req.therapist.id);
     const soulProfile = await loadTherapistSoul(db, req.therapist.id);
+    const assistantRuntime = await getRuntimeSnapshot(db, req.therapist.id, {
+      surface: 'miwa_chat',
+      context_type: patientId ? 'patient' : 'agent',
+      context_id: patientId || null,
+    });
+    const assistantRuntimePrompt = formatRuntimeForPrompt(assistantRuntime);
 
     // Build date context in the CLINICIAN'S timezone — critical for "today at 6pm" to
     // resolve to the right calendar date (server runs in UTC in production).
@@ -3727,7 +3741,7 @@ This therapist just created their account and has no clients or sessions yet. Be
 - If they ask "how do I..." or seem lost, use get_app_help to find the answer
 - Keep it encouraging — this is their first experience with Miwa
 ` : ''}
-${soulProfile ? `${soulProfile}\n\n` : ''}${caseloadSummary ? `CASELOAD (client_id codes shown — PHI-safe):\n${caseloadSummary}\n` : ''}${patientDossier ? `\n${patientDossier}\n\nUse the dossier above to answer questions about this client — you already have their full picture. Only call tools when you need data NOT in the dossier (e.g. session-by-session full notes, data on OTHER clients).\n` : patientSummary ? `\nCURRENT CLIENT:\n${patientSummary}\n` : ''}
+${assistantRuntimePrompt ? `${assistantRuntimePrompt}\n\n` : ''}${soulProfile ? `${soulProfile}\n\n` : ''}${caseloadSummary ? `CASELOAD:\n${caseloadSummary}\n` : ''}${patientDossier ? `\n${patientDossier}\n\nUse the dossier above to answer questions about this client — you already have their full picture. Only call tools when you need data NOT in the dossier (e.g. session-by-session full notes, data on OTHER clients).\n` : patientSummary ? `\nCURRENT CLIENT:\n${patientSummary}\n` : ''}
 CAPABILITIES — You have 27 tools. Use them proactively. Here is every tool you can call:
 
 CLIENT DATA:
@@ -3785,6 +3799,7 @@ RULES:
 - Do not claim to use GPT-4, GPT-4 Turbo, Claude, OpenAI direct API, Azure, or any specific model/vendor.
 - Client names in messages are automatically replaced with [CODE] tokens (e.g. [DEMO-ABC123]). Use them directly as client_id in tool calls.
 - If a name arrives WITHOUT a [CODE] token, call get_client_assessments or get_client_sessions with that name — the tool resolves names internally. Do NOT ask for the client code.
+- In clinician-facing replies, refer to clients by display name whenever available. Only show chart/client codes when the clinician asks for an export, needs disambiguation, or explicitly asks for the code.
 - Always call the appropriate tool to fetch real data before answering questions about a client.
 - NEVER create a new client if the clinician is referring to an EXISTING client. If they say "send a link to Ryan" and Ryan already exists, use the existing client — do NOT call create_client.
 - When the clinician asks to "send a link" for progress/portal/appointments/check-ins, use send_portal_link — NOT create_client or schedule_appointment.
@@ -3907,15 +3922,47 @@ RULES:
       // Execute tool calls and collect results
       const toolResults = [];
       for (const toolUse of toolUseBlocks) {
-        const toolResult = await executeAgentTool({
-          name: toolUse.name,
-          args: toolUse.input || {},
-          db,
-          therapistId: req.therapist.id,
-          nameMap,
-          send,
-          rawMessage,
-        });
+        const toolArgs = toolUse.input || {};
+        await auditAction(db, req.therapist.id, {
+          tool_name: toolUse.name,
+          action_type: 'tool_call',
+          status: 'started',
+          request: { args: toolArgs, context_type: contextType || 'agent', context_id: contextId || null },
+          requires_approval: ['schedule_appointment', 'cancel_appointment', 'batch_send_assessments', 'send_portal_link'].includes(toolUse.name),
+        }).catch(() => {});
+
+        let toolResult;
+        try {
+          toolResult = await executeAgentTool({
+            name: toolUse.name,
+            args: toolArgs,
+            db,
+            therapistId: req.therapist.id,
+            nameMap,
+            send,
+            rawMessage,
+          });
+          await auditAction(db, req.therapist.id, {
+            tool_name: toolUse.name,
+            action_type: 'tool_call',
+            status: 'completed',
+            request: { args: toolArgs },
+            result: {
+              requiresApproval: !!toolResult?.__requiresApproval,
+              requiresPicker: !!toolResult?.__requiresPicker,
+              keys: toolResult && typeof toolResult === 'object' ? Object.keys(toolResult).slice(0, 12) : [],
+            },
+          }).catch(() => {});
+        } catch (toolErr) {
+          await auditAction(db, req.therapist.id, {
+            tool_name: toolUse.name,
+            action_type: 'tool_call',
+            status: 'failed',
+            request: { args: toolArgs },
+            result: { error: toolErr?.message || 'Tool failed' },
+          }).catch(() => {});
+          throw toolErr;
+        }
 
         // If tool requires human interaction, stop the loop
         if (toolResult.__requiresApproval || toolResult.__requiresPicker) {
@@ -3937,6 +3984,7 @@ RULES:
         messages.push({ role: 'user', content: toolResults });
       }
     }
+    await persistIfNeeded();
 
     // Save assistant response
     try {
@@ -3952,6 +4000,13 @@ RULES:
         setImmediate(() => {
           extractAndSavePreferences(rawMessage, fullResponse, db, req.therapist.id)
             .catch(() => {});
+          recordConversationSignal(db, req.therapist.id, {
+            surface: 'miwa_chat',
+            context_type: patientId ? 'patient' : 'agent',
+            context_id: patientId || null,
+            userMessage: message,
+            assistantResponse: fullResponse,
+          }).then(() => persistIfNeeded()).catch(() => {});
         });
       }
     } catch {}
@@ -4264,7 +4319,7 @@ router.get('/treatment-plans/:planId/revisions', async (req, res) => {
       req.params.planId, req.therapist.id
     );
     if (!plan) return res.status(404).json({ error: 'Plan not found' });
-    const revs = getRevisions(db, req.params.planId);
+    const revs = await getRevisions(db, req.params.planId);
     res.json({ plan_id: Number(req.params.planId), revisions: revs });
   } catch (err) {
     sendRouteError(res, err);
@@ -4279,7 +4334,7 @@ router.get('/treatment-plans/:planId/revisions/:num', async (req, res) => {
       req.params.planId, req.therapist.id
     );
     if (!plan) return res.status(404).json({ error: 'Plan not found' });
-    const rev = getRevision(db, req.params.planId, parseInt(req.params.num, 10));
+    const rev = await getRevision(db, req.params.planId, parseInt(req.params.num, 10));
     if (!rev) return res.status(404).json({ error: 'Revision not found' });
     res.json(rev);
   } catch (err) {

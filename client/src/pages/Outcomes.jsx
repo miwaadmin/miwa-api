@@ -17,6 +17,10 @@ const RELATIONAL_TEMPLATE_LABELS = {
   'fad-gf': 'FAD-GF — Family Assessment',
 }
 
+function clientLabel(row) {
+  return row?.client_label || row?.display_name || row?.client_name || row?.patient_name || row?.client_id || 'Client'
+}
+
 // ── Severity helpers ──────────────────────────────────────────────────────────
 function getSeverityBadge(level, color) {
   if (!level) return null
@@ -125,7 +129,7 @@ function AssessmentModal({ patient, onClose, onSubmit }) {
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <div>
             <h2 className="text-lg font-bold text-gray-900">Administer Assessment</h2>
-            <p className="text-sm text-gray-500">Client: {patient?.display_name || patient?.client_id}</p>
+            <p className="text-sm text-gray-500">Client: {clientLabel(patient)}</p>
           </div>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors">
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -275,7 +279,7 @@ function AlertCard({ alert, onDismiss, onRead }) {
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap mb-1">
                   <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${cfg.badge}`}>{cfg.label}</span>
-                  <span className="text-xs font-semibold text-gray-600">Client: {alert.display_name || alert.client_id}</span>
+                  <span className="text-xs font-semibold text-gray-600">Client: {clientLabel(alert)}</span>
                   {!alert.is_read && (
                     <span className="w-2 h-2 rounded-full bg-indigo-500 flex-shrink-0" />
                   )}
@@ -352,6 +356,7 @@ export default function Outcomes() {
     const res = await fetch(`${API}/assessments/practice`, { credentials: 'include' })
     const data = await res.json()
     if (res.ok) setPracticeStats(data)
+    else setPracticeStats({ error: data?.detail || data?.error || 'Practice overview failed to load' })
     // MBC adherence — non-fatal
     try {
       const mbcRes = await fetch(`${API}/assessments/mbc-adherence`, { credentials: 'include' })
@@ -546,7 +551,7 @@ export default function Outcomes() {
       `Overdue Assessments: ${digestData.stats.overdueCount}`,
       '',
       digestData.riskClients.length > 0
-        ? `Clients with critical alerts:\n${digestData.riskClients.map(c => `  - ${c.display_name || c.client_id} (${c.alert_count} alert${c.alert_count !== 1 ? 's' : ''})`).join('\n')}`
+        ? `Clients with critical alerts:\n${digestData.riskClients.map(c => `  - ${clientLabel(c)} (${c.alert_count} alert${c.alert_count !== 1 ? 's' : ''})`).join('\n')}`
         : 'No clients with critical alerts.',
     ].join('\n')
     navigator.clipboard.writeText(text).then(() => {
@@ -558,7 +563,7 @@ export default function Outcomes() {
   function handlePrintProgress() {
     if (!progressData) return
     const printContent = `
-      <html><head><title>Progress Report — ${progressData.display_name || progressData.client_id}</title>
+      <html><head><title>Progress Report — ${clientLabel(progressData)}</title>
       <style>
         body { font-family: sans-serif; max-width: 800px; margin: 40px auto; color: #111; }
         h1 { font-size: 1.5rem; margin-bottom: 4px; }
@@ -574,7 +579,7 @@ export default function Outcomes() {
         @media print { body { margin: 20px; } }
       </style></head><body>
       <h1>Progress Report</h1>
-      <div class="meta">Client: ${progressData.display_name || progressData.client_id} &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString()}</div>
+      <div class="meta">Client: ${clientLabel(progressData)} &nbsp;|&nbsp; Generated: ${new Date().toLocaleDateString()}</div>
       <div class="scores">
         ${progressData.phq9.current !== null ? `
         <div class="score-card">
@@ -756,7 +761,7 @@ export default function Outcomes() {
                   {overdueData.map(o => (
                     <div key={o.patient_id} className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
                       <div>
-                        <span className="text-sm font-semibold text-gray-800">{o.display_name || o.client_id}</span>
+                        <span className="text-sm font-semibold text-gray-800">{clientLabel(o)}</span>
                         <span className="text-xs text-amber-700 ml-2">
                           {o.days_overdue ? `${o.days_overdue}d overdue` : 'Never assessed'}
                         </span>
@@ -802,7 +807,7 @@ export default function Outcomes() {
               >
                 <option value="">— Select a client —</option>
                 {patients.map(p => (
-                  <option key={p.id} value={p.id}>{p.display_name || p.client_id}</option>
+                  <option key={p.id} value={p.id}>{clientLabel(p)}</option>
                 ))}
               </select>
 
@@ -911,7 +916,7 @@ export default function Outcomes() {
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-bold text-gray-700">
-                        Progress Timeline — {progressData.display_name || progressData.client_id}
+                        Progress Timeline — {clientLabel(progressData)}
                       </h3>
                       <button
                         onClick={() => navigate(`/patients/${selectedPatient.id}`)}
@@ -1185,7 +1190,12 @@ export default function Outcomes() {
               Administer Assessment
             </button>
 
-            {practiceStats ? (
+            {practiceStats?.error ? (
+              <div className="bg-red-50 border border-red-200 rounded-2xl p-5 text-sm text-red-700">
+                <p className="font-bold mb-1">Practice overview could not load</p>
+                <p>{practiceStats.error}</p>
+              </div>
+            ) : practiceStats ? (
               <>
                 {/* Stats grid */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -1257,7 +1267,7 @@ export default function Outcomes() {
                       {practiceStats.nonResponders.map(nr => (
                         <div key={nr.patient_id} className="flex items-center justify-between bg-white rounded-xl px-4 py-2.5 border border-amber-100">
                           <div>
-                            <span className="text-sm font-semibold text-gray-800">{nr.display_name || nr.client_id}</span>
+                            <span className="text-sm font-semibold text-gray-800">{clientLabel(nr)}</span>
                             <span className="text-xs text-gray-500 ml-2">{nr.assessments_count} assessments</span>
                           </div>
                           <div className="text-right">
@@ -1432,7 +1442,7 @@ export default function Outcomes() {
                           <div className="flex flex-wrap gap-2">
                             {digestData.riskClients.map(c => (
                               <span key={c.patient_id} className="px-2 py-1 bg-red-50 border border-red-200 rounded-lg text-xs text-red-700 font-medium">
-                                {c.display_name || c.client_id} ({c.alert_count} alert{c.alert_count !== 1 ? 's' : ''})
+                                {clientLabel(c)} ({c.alert_count} alert{c.alert_count !== 1 ? 's' : ''})
                               </span>
                             ))}
                           </div>
@@ -1519,7 +1529,7 @@ export default function Outcomes() {
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
                             {row.has_critical_alert && <span className="text-base">🚨</span>}
-                            <span className="font-semibold text-gray-800">{row.display_name || row.client_id}</span>
+                            <span className="font-semibold text-gray-800">{clientLabel(row)}</span>
                             {row.never_assessed && <span className="text-xs text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">Never assessed</span>}
                           </div>
                         </td>

@@ -55,6 +55,7 @@ export default function Hours() {
   const [entries, setEntries] = useState([])         // recent manual entries
   const [showEntryModal, setShowEntryModal] = useState(false)
   const [editingEntry, setEditingEntry] = useState(null)
+  const [gridRefreshKey, setGridRefreshKey] = useState(0)
   const [exporting, setExporting] = useState(false)
 
   // Plan gate. If the user isn't a trainee/associate, redirect — server also
@@ -114,6 +115,18 @@ export default function Hours() {
       setExporting(false)
     }
   }, [])
+
+  const openEntryModal = useCallback((entry = null) => {
+    setEditingEntry(entry)
+    setShowEntryModal(true)
+  }, [])
+
+  const handleEntrySaved = useCallback(() => {
+    setShowEntryModal(false)
+    setEditingEntry(null)
+    setGridRefreshKey(k => k + 1)
+    loadAll()
+  }, [loadAll])
 
   // Render an "ineligible" landing instead of an empty page when a licensed
   // clinician somehow lands here — same as the server's 403, but friendlier.
@@ -189,7 +202,7 @@ export default function Hours() {
             <span className="xs:hidden">{exporting ? 'Preparing…' : 'Export'}</span>
           </button>
           <button
-            onClick={() => { setEditingEntry(null); setShowEntryModal(true) }}
+            onClick={() => openEntryModal(null)}
             className="flex-1 sm:flex-initial px-4 py-2 rounded-xl text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 transition-colors flex items-center justify-center gap-2"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -276,15 +289,19 @@ export default function Hours() {
       ) : tab === 'progress' ? (
         <ProgressView buckets={buckets} total={total} rollups={rollups} sessions={state?.totalSessions || 0} />
       ) : tab === 'track' ? (
-        <TrackGridView program={program} />
+        <TrackGridView
+          program={program}
+          refreshKey={gridRefreshKey}
+          onLogHours={(defaults) => openEntryModal(defaults)}
+        />
       ) : (
         <LogView
           entries={entries}
-          onEdit={entry => { setEditingEntry(entry); setShowEntryModal(true) }}
+          onEdit={entry => openEntryModal(entry)}
           onDelete={async id => {
             if (!window.confirm('Delete this entry? This can\'t be undone.')) return
             const res = await apiFetch(`/hours/entries/${id}`, { method: 'DELETE' })
-            if (res.ok) loadAll()
+            if (res.ok) handleEntrySaved()
             else alert('Failed to delete entry')
           }}
         />
@@ -296,7 +313,7 @@ export default function Hours() {
           entry={editingEntry}
           program={program}
           onClose={() => { setShowEntryModal(false); setEditingEntry(null) }}
-          onSaved={() => { setShowEntryModal(false); setEditingEntry(null); loadAll() }}
+          onSaved={handleEntrySaved}
         />
       )}
     </div>
@@ -386,7 +403,7 @@ function ProgressView({ buckets, total, rollups, sessions }) {
 // that day for that category (auto from appointments + manual entries
 // summed). Header lets the user navigate by week.
 // ─────────────────────────────────────────────────────────────────────────────
-function TrackGridView({ program = 'csun_mft' }) {
+function TrackGridView({ program = 'csun_mft', refreshKey = 0, onLogHours }) {
   const [weekStart, setWeekStart] = useState(() => sundayOf(new Date()))
   const [grid, setGrid] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -415,7 +432,7 @@ function TrackGridView({ program = 'csun_mft' }) {
       })
       .catch(e => setError(e.message || 'Failed to load grid'))
       .finally(() => setLoading(false))
-  }, [fromDate, toDate, program])
+  }, [fromDate, toDate, program, refreshKey])
 
   const goPrev = () => setWeekStart(d => { const n = new Date(d); n.setDate(d.getDate() - 7); return n })
   const goNext = () => setWeekStart(d => { const n = new Date(d); n.setDate(d.getDate() + 7); return n })
@@ -471,7 +488,9 @@ function TrackGridView({ program = 'csun_mft' }) {
         <h3 className="text-sm font-bold text-gray-900">{fmtRange()}</h3>
         <button onClick={goToday} className="ml-2 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-600 border border-gray-200 hover:bg-gray-50">This week</button>
         <div className="flex-1" />
-        <p className="text-xs text-gray-500">Week total: <span className="font-bold text-gray-900">{weekTotal} hrs</span></p>
+        <p className="text-xs text-gray-500">
+          Click a manual cell to log hours · Week total: <span className="font-bold text-gray-900">{weekTotal} hrs</span>
+        </p>
       </div>
 
       {error && <div className="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">{error}</div>}
@@ -520,13 +539,36 @@ function TrackGridView({ program = 'csun_mft' }) {
                     {children.map(b => {
                       const cells = days.map(d => grid.grid?.[b.id]?.[isoFromDate(d)] || 0)
                       const rowTotal = round2(cells.reduce((s, v) => s + v, 0))
+                      const canLog = b.source === 'manual' || b.source === 'both'
+                      const openLog = (date) => {
+                        if (!canLog || !onLogHours) return
+                        onLogHours({
+                          bucket_id: b.id,
+                          date,
+                          hours: '',
+                          supervisor: '',
+                          site: '',
+                          notes: '',
+                        })
+                      }
                       return (
-                        <tr key={b.id} className="border-b border-gray-100 hover:bg-gray-50">
-                          <td className="text-left px-4 py-2 text-gray-800 sticky left-0 bg-white z-10">
+                        <tr key={b.id} className={`border-b border-gray-100 ${canLog ? 'hover:bg-indigo-50/40' : 'hover:bg-gray-50'}`}>
+                          <td
+                            className={`text-left px-4 py-2 text-gray-800 sticky left-0 bg-white z-10 ${canLog ? 'cursor-pointer hover:text-indigo-700' : ''}`}
+                            onClick={() => openLog(todayLocalISO())}
+                            title={canLog ? `Log ${b.label} for today` : 'Auto-counted from completed appointments'}
+                          >
                             <span className="pl-3">{b.label}</span>
                           </td>
                           {cells.map((v, i) => (
-                            <td key={i} className={`px-2 py-2 text-center tabular-nums ${v > 0 ? 'text-gray-900 font-medium' : 'text-gray-300'}`}>
+                            <td
+                              key={i}
+                              onClick={() => openLog(isoFromDate(days[i]))}
+                              title={canLog ? `Log ${b.label} on ${fmtDate(isoFromDate(days[i]))}` : 'Auto-counted from completed appointments'}
+                              className={`px-2 py-2 text-center tabular-nums transition-colors ${
+                                canLog ? 'cursor-pointer hover:bg-indigo-100 hover:text-indigo-700' : ''
+                              } ${v > 0 ? 'text-gray-900 font-medium' : 'text-gray-300'}`}
+                            >
                               {v > 0 ? v : '·'}
                             </td>
                           ))}

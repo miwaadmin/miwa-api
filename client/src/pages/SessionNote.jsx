@@ -168,7 +168,7 @@ function DictationPanel({ onApply, onClose }) {
           )}
           <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3">
             <p className="text-xs font-semibold text-green-800 mb-1">✓ Note fields ready — all formats populated</p>
-            <p className="text-xs text-green-700">Miwa has parsed your dictation into SOAP, BIRP, and DAP fields. Review and edit before saving.</p>
+            <p className="text-xs text-green-700">Miwa has parsed your dictation into SOAP, BIRP, DAP, GIRP, and DMH SIR fields. Review and edit before saving.</p>
           </div>
           <button
             onClick={() => { onApply(sections); onClose() }}
@@ -298,7 +298,17 @@ const EMPTY_NOTES = {
   BIRP: { subjective: '', objective: '', assessment: '', plan: '' },
   DAP:  { subjective: '', assessment: '', plan: '' },
   GIRP: { goals: '', intervention: '', response: '', plan: '' },
+  DMH_SIR: {
+    situation: '',
+    interventions: '',
+    response: '',
+    risk_safety: '',
+    functioning_medical_necessity: '',
+    plan_homework: '',
+  },
 }
+
+const NOTE_FORMATS = ['SOAP', 'BIRP', 'DAP', 'GIRP', 'DMH_SIR']
 
 const FORMAT_FIELDS = {
   SOAP: [
@@ -324,10 +334,85 @@ const FORMAT_FIELDS = {
     { key: 'response',     label: 'R — Response',     placeholder: "Client's response to interventions: engagement level, progress toward goals, insight gained, emotional shifts, barriers encountered.", color: 'border-l-amber-400' },
     { key: 'plan',         label: 'P — Plan',         placeholder: "Next steps: homework assigned, goals for next session, referrals, adjustments to treatment approach, crisis planning if indicated.", color: 'border-l-purple-400' },
   ],
+  DMH_SIR: [
+    { key: 'situation', label: 'S — Situation / Presentation', placeholder: "Why this session was clinically necessary today: client's presentation, symptoms, stressors, stated concerns, observed behavior, and treatment focus.", color: 'border-l-blue-400' },
+    { key: 'interventions', label: 'I — Interventions Used', placeholder: "Specific clinician interventions: modality, skills practiced, psychoeducation, safety planning, collateral/linkage, therapeutic stance, and clinical rationale.", color: 'border-l-green-400' },
+    { key: 'response', label: 'R — Client Response', placeholder: "How the client responded: engagement, insight, affective shift, regulation, resistance, skill use, progress, or barriers.", color: 'border-l-amber-400' },
+    { key: 'risk_safety', label: 'Risk / Safety Update', placeholder: "SI/HI/self-harm/substance/DV/abuse updates, protective factors, safety plan changes, crisis resources, and rationale if no acute risk was indicated.", color: 'border-l-red-400' },
+    { key: 'functioning_medical_necessity', label: 'Functioning / Medical Necessity', placeholder: "Functional impairments and clinical necessity: home, work/school, relationships, ADLs, symptom impact, level-of-care rationale, and why treatment remains indicated.", color: 'border-l-cyan-400' },
+    { key: 'plan_homework', label: 'Plan / Homework / Next Steps', placeholder: "Next session focus, homework, referrals, assessments, collateral tasks, frequency, coordination, and follow-up plan.", color: 'border-l-purple-400' },
+  ],
 }
 
 function hasContent(noteData) {
   return Object.values(noteData).some(v => v && v.trim().length > 0)
+}
+
+function noteFormatLabel(fmt) {
+  return fmt === 'DMH_SIR' ? 'DMH SIR' : fmt
+}
+
+function normalizeConvertedForFormat(fmt, converted = {}) {
+  if (fmt === 'GIRP') {
+    return {
+      goals: converted.goals || converted.subjective || '',
+      intervention: converted.intervention || converted.objective || '',
+      response: converted.response || converted.assessment || '',
+      plan: converted.plan || '',
+    }
+  }
+  if (fmt === 'DMH_SIR') {
+    return {
+      situation: converted.situation || converted.subjective || '',
+      interventions: converted.interventions || converted.intervention || converted.objective || '',
+      response: converted.response || '',
+      risk_safety: converted.risk_safety || converted.riskSafety || '',
+      functioning_medical_necessity: converted.functioning_medical_necessity || converted.functioningMedicalNecessity || '',
+      plan_homework: converted.plan_homework || converted.planHomework || converted.plan || '',
+    }
+  }
+  return converted
+}
+
+function flattenNoteForLegacyColumns(fmt, active = {}) {
+  if (fmt === 'GIRP') {
+    return {
+      subjective: active.goals || null,
+      objective: active.intervention || null,
+      assessment: active.response || null,
+      plan: active.plan || null,
+    }
+  }
+  if (fmt === 'DMH_SIR') {
+    const assessmentParts = [
+      active.response && `Client Response: ${active.response}`,
+      active.risk_safety && `Risk/Safety: ${active.risk_safety}`,
+      active.functioning_medical_necessity && `Functioning/Medical Necessity: ${active.functioning_medical_necessity}`,
+    ].filter(Boolean)
+    return {
+      subjective: active.situation || null,
+      objective: active.interventions || null,
+      assessment: assessmentParts.join('\n\n') || null,
+      plan: active.plan_homework || null,
+    }
+  }
+  return {
+    subjective: active.subjective || null,
+    objective: active.objective || null,
+    assessment: active.assessment || null,
+    plan: active.plan || null,
+  }
+}
+
+function buildFullNoteText(fmt, active = {}) {
+  const fields = FORMAT_FIELDS[fmt] || []
+  return fields
+    .map(field => {
+      const value = active[field.key]
+      return value && value.trim() ? `${field.label}\n${value.trim()}` : ''
+    })
+    .filter(Boolean)
+    .join('\n\n')
 }
 
 // Rule-based CPT code suggestion based on session duration and client type
@@ -410,10 +495,7 @@ export default function SessionNote() {
         session_date: meta.session_date || new Date().toISOString(),
         note_format: exportNoteFormat,
         notes_json: { ...notes },
-        subjective: activeNotes.subjective || activeNotes.goals || '',
-        objective: activeNotes.objective || activeNotes.intervention || '',
-        assessment: activeNotes.assessment || activeNotes.response || '',
-        plan: activeNotes.plan || '',
+        ...flattenNoteForLegacyColumns(exportNoteFormat, activeNotes),
         icd10_codes: meta.icd10_codes,
         cpt_code: meta.cpt_code,
         duration_minutes: meta.duration_minutes,
@@ -448,6 +530,7 @@ export default function SessionNote() {
       BIRP: { ...prev.BIRP, ...(sections.BIRP || {}) },
       DAP:  { ...prev.DAP,  ...(sections.DAP  || {}) },
       GIRP: { ...prev.GIRP, ...(sections.GIRP || {}) },
+      DMH_SIR: { ...prev.DMH_SIR, ...(sections.DMH_SIR || {}) },
     }))
     // Remember the draft for later style-capture at save-time
     aiDraftRef.current = {
@@ -557,10 +640,21 @@ export default function SessionNote() {
               // Already in correct shape if it has 'subjective' key
               if ('subjective' in raw) return raw
               if ('goals' in raw) return raw
+              if ('situation' in raw) return raw
               if (fmt === 'SOAP') return { subjective: raw.S || '', objective: raw.O || '', assessment: raw.A || '', plan: raw.P || '' }
               if (fmt === 'BIRP') return { subjective: raw.B || '', objective: raw.I || '', assessment: raw.R || '', plan: raw.P || '' }
               if (fmt === 'DAP')  return { subjective: raw.D || '', assessment: raw.A || '', plan: raw.P || '' }
               if (fmt === 'GIRP') return { goals: raw.G || '', intervention: raw.I || '', response: raw.R || '', plan: raw.P || '' }
+              if (fmt === 'DMH_SIR') {
+                return {
+                  situation: raw.S || raw.situation || '',
+                  interventions: raw.I || raw.interventions || raw.intervention || '',
+                  response: raw.R || raw.response || '',
+                  risk_safety: raw.risk_safety || raw.riskSafety || '',
+                  functioning_medical_necessity: raw.functioning_medical_necessity || raw.functioningMedicalNecessity || '',
+                  plan_homework: raw.P || raw.plan_homework || raw.planHomework || raw.plan || '',
+                }
+              }
               return raw
             }
 
@@ -568,17 +662,19 @@ export default function SessionNote() {
             const normBIRP = normaliseParsed(parsed.BIRP, 'BIRP')
             const normDAP  = normaliseParsed(parsed.DAP,  'DAP')
             const normGIRP = normaliseParsed(parsed.GIRP, 'GIRP')
+            const normDMH = normaliseParsed(parsed.DMH_SIR, 'DMH_SIR')
 
             setNotes(prev => ({
+              ...prev,
               SOAP: { ...prev.SOAP, ...normSOAP },
               BIRP: { ...prev.BIRP, ...normBIRP },
               DAP:  { ...prev.DAP,  ...normDAP  },
               GIRP: { ...prev.GIRP, ...normGIRP },
+              DMH_SIR: { ...prev.DMH_SIR, ...normDMH },
             }))
             // Open whichever tab has content first
-            const fmt = ['SOAP', 'BIRP', 'DAP', 'GIRP'].find(f => hasContent(
-              f === 'SOAP' ? normSOAP : f === 'BIRP' ? normBIRP : f === 'DAP' ? normDAP : normGIRP
-            ))
+            const normalizedByFormat = { SOAP: normSOAP, BIRP: normBIRP, DAP: normDAP, GIRP: normGIRP, DMH_SIR: normDMH }
+            const fmt = NOTE_FORMATS.find(f => hasContent(normalizedByFormat[f]))
             if (fmt) setActiveFormat(fmt)
           }
         } else if (s.note_format) {
@@ -596,14 +692,28 @@ export default function SessionNote() {
             }))
             setActiveFormat('SOAP')
           } else {
+            const legacyFields = s.note_format === 'GIRP'
+              ? { goals: s.subjective || '', intervention: s.objective || '', response: s.assessment || '', plan: s.plan || '' }
+              : s.note_format === 'DMH_SIR'
+                ? {
+                    situation: s.subjective || '',
+                    interventions: s.objective || '',
+                    response: s.assessment || '',
+                    risk_safety: '',
+                    functioning_medical_necessity: '',
+                    plan_homework: s.plan || '',
+                  }
+                : {
+                    subjective: s.subjective || '',
+                    objective:  s.objective  || '',
+                    assessment: s.assessment || '',
+                    plan:       s.plan       || '',
+                  }
             setNotes(prev => ({
               ...prev,
               [s.note_format]: {
                 ...prev[s.note_format],
-                subjective: s.subjective || '',
-                objective:  s.objective  || '',
-                assessment: s.assessment || '',
-                plan:       s.plan       || '',
+                ...legacyFields,
               },
             }))
             setActiveFormat(s.note_format)
@@ -727,15 +837,16 @@ export default function SessionNote() {
     if (switchTab) setActiveTab('ai')
     setError('')
     try {
+      const legacyColumns = flattenNoteForLegacyColumns(activeFormat, activeNotes)
       const res = await apiFetch(`/ai/analyze-notes`, {
         method: 'POST',
         body: JSON.stringify({
           patientContext,
           noteFormat: activeFormat,
-          subjective: activeNotes.subjective,
-          objective:  activeNotes.objective,
-          assessment: activeNotes.assessment,
-          plan:       activeNotes.plan,
+          subjective: legacyColumns.subjective,
+          objective:  legacyColumns.objective,
+          assessment: legacyColumns.assessment,
+          plan:       legacyColumns.plan,
           patientId,
         }),
       })
@@ -765,9 +876,9 @@ export default function SessionNote() {
         method: 'POST',
         body: JSON.stringify({
           patientContext,
-          diagnoses: patient?.diagnoses || activeNotes.assessment,
-          sessionNotes: `${activeNotes.subjective}\n${activeNotes.objective || ''}\n${activeNotes.assessment}`,
-          goals: activeNotes.plan,
+          diagnoses: patient?.diagnoses || flattenNoteForLegacyColumns(activeFormat, activeNotes).assessment,
+          sessionNotes: buildFullNoteText(activeFormat, activeNotes),
+          goals: flattenNoteForLegacyColumns(activeFormat, activeNotes).plan,
         }),
       })
       if (!res.ok) { const d = await res.json(); throw new Error(d.error || 'Plan generation failed') }
@@ -806,14 +917,16 @@ export default function SessionNote() {
     // For GIRP format, cross-map to standard columns so agent queries
     // and legacy displays still get meaningful data.
     // GIRP: goals→subjective, intervention→objective, response→assessment, plan→plan
+    const legacyColumns = flattenNoteForLegacyColumns(noteFormatToSave, active)
     return {
       ...meta,
       note_format:    noteFormatToSave,
-      subjective:     active.subjective  || active.goals         || null,
-      objective:      active.objective   || active.intervention  || null,
-      assessment:     active.assessment  || active.response      || null,
-      plan:           active.plan        || null,
+      subjective:     legacyColumns.subjective,
+      objective:      legacyColumns.objective,
+      assessment:     legacyColumns.assessment,
+      plan:           legacyColumns.plan,
       notes_json:     JSON.stringify(nextNotesJson),
+      full_note:      buildFullNoteText(noteFormatToSave, active) || null,
       treatment_plan: savedTreatmentPlan || null,
       ...extraFields,
     }
@@ -985,9 +1098,9 @@ export default function SessionNote() {
                   <div className="px-3 py-2 border-b border-gray-100">
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Convert format</p>
                   </div>
-                  {['SOAP', 'BIRP', 'DAP', 'GIRP'].filter(f => f !== sessionNoteFormat).map(fmt => (
+                  {NOTE_FORMATS.filter(f => f !== sessionNoteFormat).map(fmt => (
                     <div key={fmt} className="border-b border-gray-50 last:border-0">
-                      <p className="px-3 pt-2 pb-1 text-xs font-semibold text-gray-800">{fmt}</p>
+                      <p className="px-3 pt-2 pb-1 text-xs font-semibold text-gray-800">{noteFormatLabel(fmt)}</p>
                       {[
                         { id: 'concise', label: 'Concise', desc: 'Short, clinical shorthand' },
                         { id: 'standard', label: 'Standard', desc: 'Professional' },
@@ -1005,12 +1118,7 @@ export default function SessionNote() {
                               if (!r.ok) throw new Error(d.error)
                               setNotes(n => ({
                                 ...n,
-                                [fmt]: {
-                                  subjective: d.converted.subjective || '',
-                                  objective: d.converted.objective || '',
-                                  assessment: d.converted.assessment || '',
-                                  plan: d.converted.plan || '',
-                                },
+                                [fmt]: normalizeConvertedForFormat(fmt, d.converted || {}),
                               }))
                               setActiveFormat(fmt)
                               setSessionNoteFormat(fmt)
@@ -1104,7 +1212,7 @@ export default function SessionNote() {
           <div className="card overflow-hidden">
             {/* Format tabs + Dictate button */}
             <div className="flex border-b border-gray-100 items-center">
-              {['SOAP', 'BIRP', 'DAP', 'GIRP'].map(fmt => {
+              {NOTE_FORMATS.map(fmt => {
                 const filled = hasContent(notes[fmt])
                 return (
                   <button
@@ -1116,7 +1224,7 @@ export default function SessionNote() {
                         : 'text-gray-400 border-transparent hover:text-gray-600 hover:bg-gray-50'
                     }`}
                   >
-                    {fmt}
+                    {noteFormatLabel(fmt)}
                     {filled && (
                       <span className={`w-1.5 h-1.5 rounded-full inline-block ml-2 ${activeFormat === fmt ? 'bg-brand-500' : 'bg-green-400'}`} />
                     )}

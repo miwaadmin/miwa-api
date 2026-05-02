@@ -12,19 +12,19 @@
  *                      changeDetail: 'Updated current_value to 8', authorKind: 'therapist', authorId: therapistId });
  */
 
-function snapshotPlan(db, { planId, therapistId, changeKind, changeDetail = null, authorKind = 'therapist', authorId = null }) {
+async function snapshotPlan(db, { planId, therapistId, changeKind, changeDetail = null, authorKind = 'therapist', authorId = null }) {
   try {
     if (!planId || !therapistId) return null;
 
     // Load current plan + goals
-    const plan = db.get(
+    const plan = await db.get(
       `SELECT id, patient_id, therapist_id, status, last_reviewed_at, created_at
          FROM treatment_plans WHERE id = ?`,
       planId
     );
     if (!plan) return null;
 
-    const goals = db.all(
+    const goals = await db.all(
       `SELECT id, goal_text, target_metric, baseline_value, current_value,
               status, progress_notes_json, created_at, met_at, revised_at
          FROM treatment_goals WHERE plan_id = ? ORDER BY id ASC`,
@@ -32,7 +32,7 @@ function snapshotPlan(db, { planId, therapistId, changeKind, changeDetail = null
     );
 
     // Compute next revision number
-    const last = db.get(
+    const last = await db.get(
       `SELECT COALESCE(MAX(revision_num), 0) AS max_rev
          FROM treatment_plan_revisions WHERE plan_id = ?`,
       planId
@@ -63,7 +63,7 @@ function snapshotPlan(db, { planId, therapistId, changeKind, changeDetail = null
       snapshotted_at: new Date().toISOString(),
     };
 
-    db.run(
+    await db.run(
       `INSERT INTO treatment_plan_revisions
          (plan_id, therapist_id, patient_id, revision_num, snapshot_json,
           change_kind, change_detail, author_kind, author_id)
@@ -82,9 +82,9 @@ function snapshotPlan(db, { planId, therapistId, changeKind, changeDetail = null
 /**
  * Get full revision history for a treatment plan.
  */
-function getRevisions(db, planId, { limit = 50 } = {}) {
+async function getRevisions(db, planId, { limit = 50 } = {}) {
   try {
-    return db.all(
+    return await db.all(
       `SELECT id, revision_num, change_kind, change_detail, author_kind,
               author_id, created_at
          FROM treatment_plan_revisions
@@ -99,9 +99,9 @@ function getRevisions(db, planId, { limit = 50 } = {}) {
 /**
  * Get a specific revision with full snapshot.
  */
-function getRevision(db, planId, revisionNum) {
+async function getRevision(db, planId, revisionNum) {
   try {
-    const row = db.get(
+    const row = await db.get(
       `SELECT * FROM treatment_plan_revisions
          WHERE plan_id = ? AND revision_num = ?`,
       planId, revisionNum

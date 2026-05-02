@@ -164,6 +164,12 @@ function createSchema() {
       plan TEXT,
       icd10_codes TEXT,
       ai_feedback TEXT,
+      notes_json TEXT,
+      treatment_plan TEXT,
+      duration_minutes INTEGER,
+      cpt_code TEXT,
+      signed_at DATETIME,
+      full_note TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(patient_id) REFERENCES patients(id)
     );
@@ -394,6 +400,92 @@ function createSchema() {
       UNIQUE(therapist_id, category, key)
     );
     CREATE INDEX IF NOT EXISTS idx_prefs_therapist ON therapist_preferences(therapist_id, category);
+
+    CREATE TABLE IF NOT EXISTS assistant_profiles (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      therapist_id       INTEGER NOT NULL UNIQUE REFERENCES therapists(id),
+      agent_name         TEXT NOT NULL DEFAULT 'Miwa',
+      agent_subtitle     TEXT NOT NULL DEFAULT 'Clinical assistant',
+      action_mode        TEXT NOT NULL DEFAULT 'draft_only',
+      tone               TEXT,
+      orientation        TEXT,
+      verbosity          TEXT,
+      personality_json   TEXT,
+      permissions_json   TEXT,
+      toolsets_json      TEXT,
+      gateway_json       TEXT,
+      status             TEXT NOT NULL DEFAULT 'active',
+      created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_assistant_profiles_therapist ON assistant_profiles(therapist_id);
+
+    CREATE TABLE IF NOT EXISTS assistant_memories (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      therapist_id       INTEGER NOT NULL REFERENCES therapists(id),
+      memory_type        TEXT NOT NULL DEFAULT 'preference',
+      category           TEXT NOT NULL DEFAULT 'general',
+      content            TEXT NOT NULL,
+      source             TEXT NOT NULL DEFAULT 'explicit',
+      scope_type         TEXT NOT NULL DEFAULT 'clinician',
+      scope_id           INTEGER,
+      surface            TEXT NOT NULL DEFAULT 'shared',
+      confidence         REAL NOT NULL DEFAULT 1.0,
+      pinned             INTEGER NOT NULL DEFAULT 0,
+      archived_at        DATETIME,
+      last_observed_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
+      created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_assistant_memories_therapist ON assistant_memories(therapist_id, memory_type, category);
+    CREATE INDEX IF NOT EXISTS idx_assistant_memories_scope ON assistant_memories(therapist_id, scope_type, scope_id, archived_at);
+
+    CREATE TABLE IF NOT EXISTS assistant_skills (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      therapist_id       INTEGER REFERENCES therapists(id),
+      skill_key          TEXT NOT NULL,
+      name               TEXT NOT NULL,
+      category           TEXT NOT NULL DEFAULT 'clinical',
+      description        TEXT,
+      instructions       TEXT NOT NULL,
+      enabled            INTEGER NOT NULL DEFAULT 1,
+      version            TEXT NOT NULL DEFAULT '1.0.0',
+      source             TEXT NOT NULL DEFAULT 'system',
+      created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(therapist_id, skill_key)
+    );
+    CREATE INDEX IF NOT EXISTS idx_assistant_skills_therapist ON assistant_skills(therapist_id, enabled);
+
+    CREATE TABLE IF NOT EXISTS assistant_action_audit (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      therapist_id       INTEGER NOT NULL REFERENCES therapists(id),
+      session_id         TEXT,
+      tool_name          TEXT NOT NULL,
+      action_type        TEXT NOT NULL DEFAULT 'tool_call',
+      status             TEXT NOT NULL DEFAULT 'started',
+      request_json       TEXT,
+      result_json        TEXT,
+      requires_approval  INTEGER NOT NULL DEFAULT 0,
+      approved_at        DATETIME,
+      created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+      completed_at       DATETIME
+    );
+    CREATE INDEX IF NOT EXISTS idx_assistant_audit_therapist ON assistant_action_audit(therapist_id, created_at DESC);
+
+    CREATE TABLE IF NOT EXISTS assistant_sessions (
+      id                 TEXT PRIMARY KEY,
+      therapist_id       INTEGER NOT NULL REFERENCES therapists(id),
+      source             TEXT NOT NULL DEFAULT 'in_app',
+      title              TEXT,
+      context_type       TEXT,
+      context_id         INTEGER,
+      started_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+      last_active_at     DATETIME DEFAULT CURRENT_TIMESTAMP,
+      ended_at           DATETIME,
+      meta_json          TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_assistant_sessions_therapist ON assistant_sessions(therapist_id, last_active_at DESC);
 
     CREATE TABLE IF NOT EXISTS checkin_links (
       id           INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1026,6 +1118,24 @@ function runMigrations() {
   )`);
   try { db.run(`CREATE INDEX IF NOT EXISTS idx_cost_events_therapist ON cost_events(therapist_id, created_at)`); } catch {}
   try { db.run(`CREATE INDEX IF NOT EXISTS idx_cost_events_month ON cost_events(created_at)`); } catch {}
+
+  try {
+    const memoryCols = [];
+    const mStmt = db.prepare('PRAGMA table_info(assistant_memories)');
+    while (mStmt.step()) memoryCols.push(mStmt.getAsObject().name);
+    mStmt.free();
+    const assistantMemoryCols = [
+      ['scope_type', "TEXT NOT NULL DEFAULT 'clinician'"],
+      ['scope_id', 'INTEGER'],
+      ['surface', "TEXT NOT NULL DEFAULT 'shared'"],
+    ];
+    for (const [col, def] of assistantMemoryCols) {
+      if (!memoryCols.includes(col)) {
+        try { db.run(`ALTER TABLE assistant_memories ADD COLUMN ${col} ${def}`); } catch {}
+      }
+    }
+    db.run(`CREATE INDEX IF NOT EXISTS idx_assistant_memories_scope ON assistant_memories(therapist_id, scope_type, scope_id, archived_at)`);
+  } catch {}
 
   // Monthly AI budget per therapist (cents). Null = use tier default.
   // Auto-pause flag — set when a therapist blows past their monthly budget.

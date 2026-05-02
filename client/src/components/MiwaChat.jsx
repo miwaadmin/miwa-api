@@ -388,7 +388,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
   useEffect(() => {
     if (patientId && patients.length > 0) {
       const pt = patients.find(p => String(p.id) === String(patientId))
-      setPatientName(pt?.client_id || null)
+      setPatientName(pt?.client_label || pt?.display_name || pt?.client_name || pt?.patient_name || pt?.client_id || null)
     } else {
       setPatientName(null)
     }

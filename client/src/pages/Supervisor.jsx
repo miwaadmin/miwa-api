@@ -143,6 +143,10 @@ function buildPatientPrompts(patient) {
   return prompts
 }
 
+function patientLabel(patient) {
+  return patient?.client_label || patient?.display_name || patient?.client_name || patient?.patient_name || patient?.client_id || 'Client'
+}
+
 const STYLE_OPTIONS = [
   { id: 'balanced',  label: 'Balanced',  desc: 'Thorough but concise' },
   { id: 'concise',   label: 'Concise',   desc: 'Short, bullet-first answers' },
@@ -374,7 +378,7 @@ export default function Supervisor() {
               >
                 <option value="">Select patient...</option>
                 {patients.map(p => (
-                  <option key={p.id} value={p.id}>{p.display_name || p.client_id}</option>
+                  <option key={p.id} value={p.id}>{patientLabel(p)}</option>
                 ))}
               </select>
             )}
@@ -413,7 +417,7 @@ export default function Supervisor() {
               const pt = patients.find(p => String(p.id) === String(contextId))
               return (
                 <p className="text-sm text-gray-500 max-w-sm mb-5">
-                  Consulting on <span className="font-semibold text-brand-600">{pt?.client_id || 'this client'}</span>. Miwa has read their sessions, notes, and history.
+                  Consulting on <span className="font-semibold text-brand-600">{patientLabel(pt)}</span>. Miwa has read their sessions, notes, and history.
                 </p>
               )
             })() : (
@@ -525,7 +529,7 @@ export default function Supervisor() {
             >
               <option value="">Select patient...</option>
               {patients.map(p => (
-                <option key={p.id} value={p.id}>{p.display_name || p.client_id}</option>
+                <option key={p.id} value={p.id}>{patientLabel(p)}</option>
               ))}
             </select>
           )}

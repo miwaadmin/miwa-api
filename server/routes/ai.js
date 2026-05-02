@@ -2,13 +2,18 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const { getAsyncDb } = require('../db/asyncDb');
+const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { getSupervisorSystemPrompt, getAnalysisSystemPrompt, getTreatmentPlanSystemPrompt } = require('../prompts');
 const { normalizeAssistantProfile } = require('../lib/assistant');
 const { scrubText, scrubObject } = require('../lib/scrubber');
 const { MODELS, callAI, streamAI, streamAnalyzeNotes } = require('../lib/aiExecutor');
 const { logCostEvent, assertBudgetOk } = require('../services/costTracker');
 const { extractIntakeIdentity } = require('../services/intakeIdentityExtractor');
+const {
+  formatRuntimeForPrompt,
+  getRuntimeSnapshot,
+  recordConversationSignal,
+} = require('../services/assistantRuntime');
 const {
   generateAIResponse,
   generateAIResponseWithUsage,
@@ -385,7 +390,7 @@ router.post('/convert-note', async (req, res) => {
   try {
     const { sessionId, targetFormat, verbosity = 'standard' } = req.body;
     if (!sessionId || !targetFormat) return res.status(400).json({ error: 'sessionId and targetFormat required' });
-    if (!['SOAP', 'BIRP', 'DAP', 'GIRP'].includes(targetFormat)) return res.status(400).json({ error: 'Invalid format. Use SOAP, BIRP, DAP, or GIRP.' });
+    if (!['SOAP', 'BIRP', 'DAP', 'GIRP', 'DMH_SIR'].includes(targetFormat)) return res.status(400).json({ error: 'Invalid format. Use SOAP, BIRP, DAP, GIRP, or DMH_SIR.' });
 
     const db = getAsyncDb();
     const session = await db.get('SELECT * FROM sessions WHERE id = ? AND therapist_id = ?', sessionId, req.therapist.id);
@@ -407,6 +412,7 @@ router.post('/convert-note', async (req, res) => {
       BIRP: 'B (Behavior): Observable client behaviors, presentation, affect, mood, symptoms manifested.\nI (Intervention): Therapeutic interventions applied — specific techniques, modalities, psychoeducation.\nR (Response): Client response to interventions — engagement, insight, emotional reactions, progress.\nP (Plan): Future treatment direction, homework, session frequency, referrals.',
       DAP: 'D (Data): Combined objective and subjective data — what client reported AND clinician observed. Include behavioral observations alongside self-report.\nA (Assessment): Clinical interpretation, progress toward goals, diagnostic considerations, risk.\nP (Plan): Treatment plan updates, next session focus, homework, referrals.',
       GIRP: 'G (Goals): Treatment goals addressed this session and relevance to treatment plan.\nI (Intervention): Specific therapeutic interventions and techniques applied.\nR (Response): Client observable response, behavioral changes, insight gained, progress.\nP (Plan): Continued treatment direction, next session goals, homework.',
+      DMH_SIR: 'S (Situation/Presentation): Client presentation, symptoms, stressors, session focus, and why care was clinically necessary today.\nI (Interventions Used): Specific clinician interventions, modalities, psychoeducation, skills practice, safety planning, collateral/linkage, and clinical rationale.\nR (Client Response): Client engagement, insight, affective/behavioral response, resistance, skill use, and progress/barriers.\nRisk/Safety Update: SI/HI/self-harm/substance/DV/abuse updates, protective factors, safety planning, and crisis resources if relevant.\nFunctioning/Medical Necessity: Functional impairment and level-of-care rationale across home, work/school, relationships, ADLs, and symptom impact.\nPlan/Homework/Next Steps: Homework, next focus, referrals, assessments, coordination, frequency, and follow-up.',
     };
 
     const verbosityInstructions = {
@@ -429,6 +435,7 @@ Return ONLY valid JSON:
 ${targetFormat === 'SOAP' ? '{"subjective": "...", "objective": "...", "assessment": "...", "plan": "..."}' :
   targetFormat === 'BIRP' ? '{"behavior": "...", "intervention": "...", "response": "...", "plan": "..."}' :
   targetFormat === 'DAP' ? '{"data": "...", "assessment": "...", "plan": "..."}' :
+  targetFormat === 'DMH_SIR' ? '{"situation": "...", "interventions": "...", "response": "...", "risk_safety": "...", "functioning_medical_necessity": "...", "plan_homework": "..."}' :
   '{"goals": "...", "intervention": "...", "response": "...", "plan": "..."}'}`;
 
     const { getStyleHintsForPrompt } = require('../services/style-adaptation');
@@ -464,7 +471,16 @@ ${targetFormat === 'SOAP' ? '{"subjective": "...", "objective": "...", "assessme
     } else if (targetFormat === 'DAP') {
       converted = { subjective: parsed.data || '', objective: '', assessment: parsed.assessment || '', plan: parsed.plan || '' };
     } else if (targetFormat === 'GIRP') {
-      converted = { subjective: parsed.goals || '', objective: parsed.intervention || '', assessment: parsed.response || '', plan: parsed.plan || '' };
+      converted = { goals: parsed.goals || '', intervention: parsed.intervention || '', response: parsed.response || '', plan: parsed.plan || '' };
+    } else if (targetFormat === 'DMH_SIR') {
+      converted = {
+        situation: parsed.situation || '',
+        interventions: parsed.interventions || parsed.intervention || '',
+        response: parsed.response || '',
+        risk_safety: parsed.risk_safety || '',
+        functioning_medical_necessity: parsed.functioning_medical_necessity || '',
+        plan_homework: parsed.plan_homework || parsed.plan || '',
+      };
     }
 
     res.json({ converted, targetFormat, original_format: session.note_format });
@@ -474,7 +490,7 @@ ${targetFormat === 'SOAP' ? '{"subjective": "...", "objective": "...", "assessme
   }
 });
 
-// POST /api/ai/dictate-session — transcribe verbal session summary and parse into SOAP/BIRP/DAP
+// POST /api/ai/dictate-session — transcribe verbal session summary and parse into SOAP/BIRP/DAP/GIRP/DMH_SIR
 router.post('/dictate-session', upload.single('audio'), async (req, res) => {
   req.socket.setTimeout(0);
   res.setTimeout(0);
@@ -500,7 +516,7 @@ router.post('/dictate-session', upload.single('audio'), async (req, res) => {
       detailed: 'VERBOSITY: DETAILED — Each field 4-6 sentences. Thorough documentation with clinical reasoning, specific examples, and nuanced observations.',
     }[verbosity] || '';
 
-    const dictateSystemPrompt = `You are a clinical documentation assistant for licensed therapists. Parse a verbal session summary or transcript into chart-ready progress notes in SOAP, BIRP, DAP, and GIRP formats.
+    const dictateSystemPrompt = `You are a clinical documentation assistant for licensed therapists. Parse a verbal session summary or transcript into chart-ready progress notes in SOAP, BIRP, DAP, GIRP, and DMH_SIR formats.
 
 ${verbosityRule}
 
@@ -546,6 +562,14 @@ Return ONLY valid JSON — no markdown, no explanation:
     "intervention": "Specific therapeutic interventions and techniques applied. Name the modality. 2-4 sentences.",
     "response": "Client's observable response: behavioral changes, emotional shifts, insight gained, engagement quality, progress indicators. 2-4 sentences.",
     "plan": "Continued treatment direction: next session goals, homework, adjustments to approach."
+  },
+  "DMH_SIR": {
+    "situation": "Situation / Presentation: client's presentation, symptoms, stressors, clinical focus, and why the session was medically necessary today. 3-5 sentences.",
+    "interventions": "Interventions Used: specific clinician interventions, modality, skills practice, psychoeducation, safety planning, linkage/collateral work, and clinical rationale. 3-5 sentences.",
+    "response": "Client Response: engagement, affective/behavioral response, insight, resistance, regulation, skill use, progress, or barriers. 2-4 sentences.",
+    "risk_safety": "Risk / Safety Update: SI/HI/self-harm/substance/DV/abuse updates, protective factors, safety plan changes, crisis resources, or rationale if no acute risk was indicated. 2-4 sentences.",
+    "functioning_medical_necessity": "Functioning / Medical Necessity: symptom impact and functional impairment across home, work/school, relationships, ADLs, level-of-care rationale, and why ongoing treatment remains indicated. 2-4 sentences.",
+    "plan_homework": "Plan / Homework / Next Steps: next session focus, homework, referrals, assessments, coordination, frequency, and follow-up plan. 2-4 sentences."
   }
 }
 
@@ -558,7 +582,8 @@ Rules:
 - If risk-relevant content is present (SI, HI, self-harm, DV), ALWAYS document it in assessment + plan.
 - Empty string "" if a section truly has no relevant content.
 - BIRP uses "behavior" and "intervention" not "subjective" and "objective".
-- DAP uses "data" not "subjective".`;
+- DAP uses "data" not "subjective".
+- DMH_SIR must include all six fields, even when brief. Use empty string only when the transcript truly gives no information for that field.`;
 
     // Inject per-therapist style hints (learned from their edits) into the
     // system prompt. Returns empty string until they have enough samples.
@@ -578,6 +603,7 @@ Rules:
       BIRP: { subjective: '', objective: '', assessment: '', plan: '' },
       DAP:  { subjective: '', assessment: '', plan: '' },
       GIRP: { goals: '', intervention: '', response: '', plan: '' },
+      DMH_SIR: { situation: '', interventions: '', response: '', risk_safety: '', functioning_medical_necessity: '', plan_homework: '' },
     };
     try {
       let rawJson = rawDictate.trim();
@@ -615,6 +641,14 @@ Rules:
         response: parsed.GIRP.response || '',
         plan: parsed.GIRP.plan || '',
       };
+      if (parsed.DMH_SIR) sections.DMH_SIR = {
+        situation: parsed.DMH_SIR.situation || '',
+        interventions: parsed.DMH_SIR.interventions || parsed.DMH_SIR.intervention || '',
+        response: parsed.DMH_SIR.response || '',
+        risk_safety: parsed.DMH_SIR.risk_safety || parsed.DMH_SIR.riskSafety || '',
+        functioning_medical_necessity: parsed.DMH_SIR.functioning_medical_necessity || parsed.DMH_SIR.functioningMedicalNecessity || '',
+        plan_homework: parsed.DMH_SIR.plan_homework || parsed.DMH_SIR.planHomework || parsed.DMH_SIR.plan || '',
+      };
     } catch (parseErr) {
       console.error('[dictate-session] JSON parse error:', parseErr.message);
     }
@@ -626,7 +660,7 @@ Rules:
   }
 });
 
-// POST /api/ai/convert-full-note — Convert full session note into a specific format (SOAP/BIRP/DAP/GIRP)
+// POST /api/ai/convert-full-note — Convert full session note into a specific format (SOAP/BIRP/DAP/GIRP/DMH_SIR)
 router.post('/convert-full-note', async (req, res) => {
   try {
     const { fullNote, targetFormat = 'SOAP', patientContext = {} } = req.body;
@@ -634,7 +668,7 @@ router.post('/convert-full-note', async (req, res) => {
       return res.status(400).json({ error: 'Full note cannot be empty' });
     }
 
-    const validFormats = ['SOAP', 'BIRP', 'DAP', 'GIRP'];
+    const validFormats = ['SOAP', 'BIRP', 'DAP', 'GIRP', 'DMH_SIR'];
     const fmt = validFormats.includes(targetFormat) ? targetFormat : 'SOAP';
 
     const cleanNote = scrubText(fullNote.trim());
@@ -663,6 +697,14 @@ router.post('/convert-full-note', async (req, res) => {
   "intervention": "Clinician interventions: techniques used, topics addressed, therapeutic modalities applied, exercises aligned with goals.",
   "response": "Client's response to interventions: engagement, progress toward goals, insight gained, barriers encountered.",
   "plan": "Next steps: homework, goals for next session, referrals, adjustments to treatment approach."
+}`,
+      DMH_SIR: `{
+  "situation": "Situation / Presentation: client presentation, symptoms, stressors, session focus, and medical necessity for today's service.",
+  "interventions": "Interventions Used: specific interventions, modalities, skills, psychoeducation, safety planning, linkage/collateral work, and rationale.",
+  "response": "Client Response: engagement, insight, affective/behavioral response, resistance, progress, barriers, and skill use.",
+  "risk_safety": "Risk / Safety Update: SI/HI/self-harm/substance/DV/abuse updates, protective factors, safety plan changes, crisis resources, or rationale if no acute risk.",
+  "functioning_medical_necessity": "Functioning / Medical Necessity: functional impairment, symptom impact, level-of-care rationale, and why ongoing care remains indicated.",
+  "plan_homework": "Plan / Homework / Next Steps: next session focus, homework, referrals, assessments, coordination, frequency, and follow-up."
 }`,
     };
 
@@ -828,7 +870,9 @@ router.post('/analyze-notes', async (req, res) => {
       SOAP: { subjective: 'Subjective', objective: 'Objective', assessment: 'Assessment', plan: 'Plan' },
       BIRP: { subjective: 'Behavior', objective: 'Intervention', assessment: 'Response', plan: 'Plan' },
       DAP:  { subjective: 'Data', objective: null, assessment: 'Assessment', plan: 'Plan' },
-    }[format];
+      GIRP: { subjective: 'Goals', objective: 'Intervention', assessment: 'Response', plan: 'Plan' },
+      DMH_SIR: { subjective: 'Situation / Presentation', objective: 'Interventions Used', assessment: 'Client Response + Risk/Safety + Functioning/Medical Necessity', plan: 'Plan / Homework / Next Steps' },
+    }[format] || { subjective: 'Subjective', objective: 'Objective', assessment: 'Assessment', plan: 'Plan' };
 
     const prompt = `Please analyze the following ${format} session note and return a concise, clinically usable review with these exact sections:
 
@@ -910,7 +954,13 @@ router.post('/chat', async (req, res) => {
     const therapistName = therapistRow?.first_name
       || (therapistRow?.full_name ? therapistRow.full_name.split(' ')[0] : null)
       || null;
-    const assistantProfile = await loadAssistantProfile(tid);
+    const assistantRuntime = await getRuntimeSnapshot(db, tid, {
+      surface: 'consult',
+      context_type: contextType || null,
+      context_id: contextId || null,
+    });
+    const assistantProfile = assistantRuntime.profile || await loadAssistantProfile(tid);
+    const assistantRuntimePrompt = formatRuntimeForPrompt(assistantRuntime);
     const effectiveResponseStyle = responseStyle || assistantProfile.verbosity;
     const canUseHistory = assistantAllows(assistantProfile, 'history');
     const canUsePatientContext = assistantAllows(assistantProfile, 'patient_context');
@@ -1014,7 +1064,10 @@ router.post('/chat', async (req, res) => {
     const chatModel = MODELS.GPT_MINI;
 
     const result = await generateAIResponseWithUsage([
-        { role: 'system', content: getSupervisorSystemPrompt(userRole, therapistName, effectiveResponseStyle, assistantProfile) },
+        {
+          role: 'system',
+          content: `${getSupervisorSystemPrompt(userRole, therapistName, effectiveResponseStyle, assistantProfile)}${assistantRuntimePrompt ? `\n\n${assistantRuntimePrompt}` : ''}`,
+        },
         ...messages,
       ], { maxTokens: 2000 });
     const text = (result.text || '').replace(/[\u2014\u2013]/g, ' ');
@@ -1039,6 +1092,14 @@ router.post('/chat', async (req, res) => {
       'INSERT INTO chat_messages (therapist_id, role, content, context_type, context_id) VALUES (?, ?, ?, ?, ?)',
       tid, 'assistant', fullResponse, contextType || null, contextId || null
     );
+    await recordConversationSignal(db, tid, {
+      surface: 'consult',
+      context_type: contextType || null,
+      context_id: contextId || null,
+      userMessage: message,
+      assistantResponse: fullResponse,
+    }).catch(() => {});
+    await persistIfNeeded();
 
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
@@ -1458,7 +1519,7 @@ router.post('/client-summary', async (req, res) => {
       try {
         if (s.notes_json) {
           const nj = JSON.parse(s.notes_json);
-          const fmt = ['BIRP','SOAP','DAP','GIRP'].find(f => Object.values(nj[f] || {}).some(v => v)) || 'SOAP';
+          const fmt = ['BIRP','SOAP','DAP','GIRP','DMH_SIR'].find(f => Object.values(nj[f] || {}).some(v => v)) || 'SOAP';
           const n = nj[fmt] || {};
           noteText = Object.values(n).filter(Boolean).join(' | ');
         }

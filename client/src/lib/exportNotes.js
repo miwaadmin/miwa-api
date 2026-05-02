@@ -61,6 +61,11 @@ function resolveNotes(session) {
     goals: session.goals || '',
     intervention: session.intervention || '',
     response: session.response || '',
+    situation: session.situation || '',
+    interventions: session.interventions || '',
+    risk_safety: session.risk_safety || '',
+    functioning_medical_necessity: session.functioning_medical_necessity || '',
+    plan_homework: session.plan_homework || '',
   }
 }
 
@@ -90,6 +95,14 @@ const FORMAT_LABELS = {
     { key: 'intervention', label: 'Intervention', letter: 'I' },
     { key: 'response',     label: 'Response',     letter: 'R' },
     { key: 'plan',         label: 'Plan',         letter: 'P' },
+  ],
+  DMH_SIR: [
+    { key: 'situation', label: 'Situation / Presentation', letter: 'S' },
+    { key: 'interventions', label: 'Interventions Used', letter: 'I' },
+    { key: 'response', label: 'Client Response', letter: 'R' },
+    { key: 'risk_safety', label: 'Risk / Safety Update', letter: '!' },
+    { key: 'functioning_medical_necessity', label: 'Functioning / Medical Necessity', letter: 'M' },
+    { key: 'plan_homework', label: 'Plan / Homework / Next Steps', letter: 'P' },
   ],
   INTAKE: [
     { key: 'subjective', label: 'Subjective', letter: 'S' },

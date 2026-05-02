@@ -58,6 +58,8 @@ function translateSqliteSql(sql) {
     .replace(/\bdatetime\s*\(\s*'now'\s*,\s*'-'\s*\|\|\s*(\$\d+)\s*\|\|\s*'\s*days?'\s*\)/gi, "(CURRENT_TIMESTAMP - ($1::int * INTERVAL '1 day'))")
     .replace(/\bdate\s*\(\s*'now'\s*,\s*'\+'\s*\|\|\s*(\$\d+)\s*\|\|\s*'\s*days?'\s*\)/gi, "(CURRENT_DATE + ($1::int * INTERVAL '1 day'))")
     .replace(/\bdate\s*\(\s*'now'\s*,\s*'-'\s*\|\|\s*(\$\d+)\s*\|\|\s*'\s*days?'\s*\)/gi, "(CURRENT_DATE - ($1::int * INTERVAL '1 day'))")
+    .replace(/\bdate\s*\(\s*'now'\s*,\s*(\$\d+)\s*\)/gi, "(CURRENT_DATE + ($1::text)::interval)")
+    .replace(/\bdatetime\s*\(\s*'now'\s*,\s*(\$\d+)\s*\)/gi, "(CURRENT_TIMESTAMP + ($1::text)::interval)")
     .replace(/\bdatetime\s*\(\s*(\$\d+)\s*,\s*'\+(\d+)\s+days?'\s*\)/gi, "($1::timestamp + INTERVAL '$2 days')")
     .replace(/\bdatetime\s*\(\s*(\$\d+)\s*,\s*'-(\d+)\s+days?'\s*\)/gi, "($1::timestamp - INTERVAL '$2 days')")
     .replace(/\bdatetime\s*\(\s*'now'\s*,\s*'-(\d+)\s+days?'\s*\)/gi, "(CURRENT_TIMESTAMP - INTERVAL '$1 days')")
@@ -89,7 +91,12 @@ function createPostgresAdapter(pool) {
 
   return {
     async run(sql, ...params) {
-      return query(sql, flattenParams(params));
+      const result = await query(sql, flattenParams(params));
+      return {
+        changes: result.rowCount ?? 0,
+        rowCount: result.rowCount ?? 0,
+        rows: result.rows,
+      };
     },
 
     async all(sql, ...params) {

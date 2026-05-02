@@ -59,6 +59,14 @@ test('translateSqliteSql converts parameterized relative datetime helpers', () =
     translateSqliteSql("SELECT * FROM patients WHERE last_session_date < datetime('now', '-' || ? || ' days')"),
     "SELECT * FROM patients WHERE last_session_date < (CURRENT_TIMESTAMP - ($1::int * INTERVAL '1 day'))"
   );
+  assert.equal(
+    translateSqliteSql("SELECT * FROM sessions WHERE session_date >= date('now', ?)"),
+    "SELECT * FROM sessions WHERE session_date >= (CURRENT_DATE + ($1::text)::interval)"
+  );
+  assert.equal(
+    translateSqliteSql("SELECT * FROM sessions WHERE created_at >= datetime('now', ?)"),
+    "SELECT * FROM sessions WHERE created_at >= (CURRENT_TIMESTAMP + ($1::text)::interval)"
+  );
 });
 
 test('translateSqliteSql converts concrete relative datetime helpers', () => {
@@ -127,9 +135,9 @@ test('postgres adapter preserves get/all/insert result shapes', async () => {
   const pool = {
     async query(sql, params = []) {
       calls.push({ sql, params });
-      if (/RETURNING id/i.test(sql)) return { rows: [{ id: 42 }] };
+      if (/RETURNING id/i.test(sql)) return { rows: [{ id: 42 }], rowCount: 1 };
       if (/LIMIT 1/i.test(sql)) return { rows: [{ id: 7, email: 'test@example.com' }] };
-      return { rows: [{ id: 1 }, { id: 2 }] };
+      return { rows: [{ id: 1 }, { id: 2 }], rowCount: 2 };
     },
   };
   const db = createPostgresAdapter(pool);
@@ -137,10 +145,16 @@ test('postgres adapter preserves get/all/insert result shapes', async () => {
   assert.deepEqual(await db.all('SELECT * FROM patients WHERE therapist_id = ?', 5), [{ id: 1 }, { id: 2 }]);
   assert.deepEqual(await db.get('SELECT * FROM therapists WHERE id = ? LIMIT 1', 7), { id: 7, email: 'test@example.com' });
   assert.deepEqual(await db.insert('INSERT INTO patients (client_id) VALUES (?)', 'C-1'), { lastInsertRowid: 42 });
+  assert.deepEqual(await db.run('UPDATE patients SET archived = 1 WHERE therapist_id = ?', 5), {
+    changes: 2,
+    rowCount: 2,
+    rows: [{ id: 1 }, { id: 2 }],
+  });
 
   assert.deepEqual(calls.map((call) => call.sql), [
     'SELECT * FROM patients WHERE therapist_id = $1',
     'SELECT * FROM therapists WHERE id = $1 LIMIT 1',
     'INSERT INTO patients (client_id) VALUES ($1) RETURNING id',
+    'UPDATE patients SET archived = 1 WHERE therapist_id = $1',
   ]);
 });
