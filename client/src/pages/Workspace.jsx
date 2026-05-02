@@ -70,9 +70,21 @@ function createEmptyWorkspaceForm() {
     presentingProblem: '',
     treatmentGoal: '',
     sessionNotes: '',
+    ongoingSituation: '',
+    ongoingInterventions: '',
+    ongoingResponse: '',
+    ongoingRiskSafety: '',
+    ongoingFunctioningMedicalNecessity: '',
+    ongoingPlanHomework: '',
     ageRange: '',
     referralSource: '',
     livingSituation: '',
+    symptomOnsetDurationSeverity: '',
+    precipitatingMaintainingFactors: '',
+    culturalIdentityContext: '',
+    educationEmploymentContext: '',
+    legalMandatedContext: '',
+    safetyPlanDetails: '',
     mentalHealthHistory: '',
     substanceUse: '',
     riskScreening: '',
@@ -116,6 +128,13 @@ function cleanPlainText(text) {
     .trim()
 }
 
+function combineLabeledParts(parts) {
+  return parts
+    .filter(([, value]) => value && value.trim())
+    .map(([label, value]) => `${label}: ${value.trim()}`)
+    .join('\n\n')
+}
+
 function buildClientId() {
   return `Client-${Date.now().toString().slice(-6)}`
 }
@@ -139,6 +158,12 @@ const IMPORT_FIELD_LABELS = {
   ageRange: 'Age Range',
   referralSource: 'Referral Source',
   livingSituation: 'Living Situation',
+  symptomOnsetDurationSeverity: 'Symptom Onset / Duration / Severity',
+  precipitatingMaintainingFactors: 'Precipitating / Maintaining Factors',
+  culturalIdentityContext: 'Cultural / Identity Context',
+  educationEmploymentContext: 'Education / Employment Context',
+  legalMandatedContext: 'Legal / Mandated Reporting Context',
+  safetyPlanDetails: 'Safety Plan / Crisis Plan',
   presentingProblem: 'Presenting Problem',
   mentalHealthHistory: 'Mental Health History',
   medicalHistory: 'Medical History',
@@ -170,19 +195,19 @@ const IMPORT_SECTION_CONFIG = [
     key: 'presentingConcerns',
     label: 'Presenting Concerns',
     description: 'Why the client is seeking care now and the main problems identified.',
-    fields: ['presentingProblem', 'functionalImpairments'],
+    fields: ['presentingProblem', 'symptomOnsetDurationSeverity', 'precipitatingMaintainingFactors', 'functionalImpairments'],
   },
   {
     key: 'historyContext',
     label: 'History & Context',
     description: 'Mental health, medical, medication, family/social, trauma, and substance-use context.',
-    fields: ['mentalHealthHistory', 'medicalHistory', 'medications', 'substanceUse', 'familySocialHistory', 'traumaHistory'],
+    fields: ['mentalHealthHistory', 'medicalHistory', 'medications', 'substanceUse', 'familySocialHistory', 'traumaHistory', 'culturalIdentityContext', 'educationEmploymentContext'],
   },
   {
     key: 'riskAndSafety',
     label: 'Risk & Safety',
     description: 'Suicide risk, self-harm risk, abuse concerns, and safety planning details.',
-    fields: ['riskScreening'],
+    fields: ['riskScreening', 'safetyPlanDetails', 'legalMandatedContext'],
   },
   {
     key: 'clinicalObservations',
@@ -679,6 +704,40 @@ export default function Workspace() {
   const displaySections = output || liveSections
   const activeTabs = sessionType === 'intake' ? getIntakeTabs() : ONGOING_TABS
   const selectedPatient = patients.find(p => String(p.id) === String(linkedPatientId))
+  const workspaceInputSnapshot = {
+    sessionType,
+    caseType: form.caseType,
+    noteFormat: form.noteFormat,
+    therapeuticOrientation: form.therapeuticOrientation,
+    presentingProblem: form.presentingProblem,
+    treatmentGoal: form.treatmentGoal,
+    sessionNotes: form.sessionNotes,
+    ongoingSituation: form.ongoingSituation,
+    ongoingInterventions: form.ongoingInterventions,
+    ongoingResponse: form.ongoingResponse,
+    ongoingRiskSafety: form.ongoingRiskSafety,
+    ongoingFunctioningMedicalNecessity: form.ongoingFunctioningMedicalNecessity,
+    ongoingPlanHomework: form.ongoingPlanHomework,
+    ageRange: form.ageRange,
+    referralSource: form.referralSource,
+    livingSituation: form.livingSituation,
+    symptomOnsetDurationSeverity: form.symptomOnsetDurationSeverity,
+    precipitatingMaintainingFactors: form.precipitatingMaintainingFactors,
+    culturalIdentityContext: form.culturalIdentityContext,
+    educationEmploymentContext: form.educationEmploymentContext,
+    legalMandatedContext: form.legalMandatedContext,
+    safetyPlanDetails: form.safetyPlanDetails,
+    mentalHealthHistory: form.mentalHealthHistory,
+    substanceUse: form.substanceUse,
+    riskScreening: form.riskScreening,
+    familySocialHistory: form.familySocialHistory,
+    mentalStatusObservations: form.mentalStatusObservations,
+    medicalHistory: form.medicalHistory,
+    medications: form.medications,
+    traumaHistory: form.traumaHistory,
+    strengthsProtectiveFactors: form.strengthsProtectiveFactors,
+    functionalImpairments: form.functionalImpairments,
+  }
 
   const handleSaveToChart = async () => {
     const finalSections = editableOutput || displaySections
@@ -693,6 +752,21 @@ export default function Workspace() {
       const diagnosis = cleanPlainText(finalSections.diagnosis)
       const supervision = cleanPlainText(finalSections.supervision)
       const icd10_codes = extractIcdCodes(diagnosis).join(', ')
+      const profilePresentingConcerns = combineLabeledParts([
+        ['Presenting problem', form.presentingProblem],
+        ['Onset / duration / severity', form.symptomOnsetDurationSeverity],
+        ['Precipitating / maintaining factors', form.precipitatingMaintainingFactors],
+      ]) || form.presentingProblem || null
+      const profileRiskScreening = combineLabeledParts([
+        ['Risk screening', form.riskScreening],
+        ['Safety plan / crisis plan', form.safetyPlanDetails],
+        ['Legal / mandated reporting context', form.legalMandatedContext],
+      ]) || form.riskScreening || null
+      const profileFamilySocialHistory = combineLabeledParts([
+        ['Family / social history', form.familySocialHistory],
+        ['Cultural / identity context', form.culturalIdentityContext],
+        ['School / work / role functioning', form.educationEmploymentContext],
+      ]) || form.familySocialHistory || null
 
       let patientId = linkedPatientId
       let patientRecord = selectedPatient
@@ -719,15 +793,15 @@ export default function Workspace() {
             age_range: form.ageRange || null,
             referral_source: form.referralSource || null,
             living_situation: form.livingSituation || null,
-            presenting_concerns: form.presentingProblem || null,
+            presenting_concerns: profilePresentingConcerns,
             diagnoses: summarizeDiagnosisForProfile(diagnosis) || null,
             notes: documentation || clinicalThinking || null,
             client_overview: '',
             client_overview_signature: '',
             mental_health_history: form.mentalHealthHistory || null,
             substance_use: form.substanceUse || null,
-            risk_screening: form.riskScreening || null,
-            family_social_history: form.familySocialHistory || null,
+            risk_screening: profileRiskScreening,
+            family_social_history: profileFamilySocialHistory,
             mental_status_observations: form.mentalStatusObservations || null,
             treatment_goals: form.treatmentGoal || null,
             medical_history: form.medicalHistory || null,
@@ -755,15 +829,15 @@ export default function Workspace() {
             age_range: form.ageRange || patientRecord.age_range,
             referral_source: form.referralSource || patientRecord.referral_source,
             living_situation: form.livingSituation || patientRecord.living_situation,
-            presenting_concerns: form.presentingProblem || patientRecord.presenting_concerns,
+            presenting_concerns: profilePresentingConcerns || patientRecord.presenting_concerns,
             diagnoses: summarizeDiagnosisForProfile(diagnosis) || patientRecord.diagnoses,
             notes: clinicalThinking || documentation || patientRecord.notes,
             client_overview: '',
             client_overview_signature: '',
             mental_health_history: form.mentalHealthHistory || patientRecord.mental_health_history,
             substance_use: form.substanceUse || patientRecord.substance_use,
-            risk_screening: form.riskScreening || patientRecord.risk_screening,
-            family_social_history: form.familySocialHistory || patientRecord.family_social_history,
+            risk_screening: profileRiskScreening || patientRecord.risk_screening,
+            family_social_history: profileFamilySocialHistory || patientRecord.family_social_history,
             mental_status_observations: form.mentalStatusObservations || patientRecord.mental_status_observations,
             treatment_goals: form.treatmentGoal || patientRecord.treatment_goals,
             medical_history: form.medicalHistory || patientRecord.medical_history,
@@ -798,6 +872,7 @@ export default function Workspace() {
               clinicalThinking: finalSections.clinicalThinking || '',
               diagnosis: finalSections.diagnosis || '',
               supervision: finalSections.supervision || '',
+              inputSnapshot: workspaceInputSnapshot,
             },
           }),
           treatment_plan: clinicalThinking || null,
@@ -862,7 +937,7 @@ export default function Workspace() {
           <h1 className="text-xl font-bold text-gray-900">Session Workspace</h1>
           <p className="text-sm text-gray-500 mt-1">
             {sessionType === 'intake'
-              ? 'Complete an intake assessment. Generates a biopsychosocial, clinical formulation, diagnostic impressions, treatment plan, and supervision guidance. Progress notes (SOAP/BIRP/DAP/GIRP) are for ongoing sessions.'
+              ? 'Complete an intake assessment. Generates a biopsychosocial, clinical formulation, diagnostic impressions, treatment plan, and supervision guidance. Progress notes (SOAP/BIRP/DAP/GIRP/DMH SIR) are for ongoing sessions.'
               : `Enter session notes and get a polished ${form.noteFormat} progress note, clinical thinking, diagnosis support, and supervision guidance.`}
           </p>
         </div>
@@ -1239,17 +1314,17 @@ export default function Workspace() {
               {sessionType === 'ongoing' && (
               <div>
                 <label className="label">Note Format</label>
-                <div className="flex items-center gap-1 bg-gray-100 dark:bg-slate-800 rounded-lg p-1 h-9 border border-transparent dark:border-white/10">
-                  {['SOAP', 'BIRP', 'DAP', 'GIRP'].map(fmt => (
+                <div className="grid grid-cols-5 gap-1 bg-gray-100 dark:bg-slate-800 rounded-lg p-1 border border-transparent dark:border-white/10">
+                  {['SOAP', 'BIRP', 'DAP', 'GIRP', 'DMH_SIR'].map(fmt => (
                     <button
                       key={fmt}
                       type="button"
                       onClick={() => set('noteFormat', fmt)}
-                      className={`flex-1 text-xs font-medium py-1 rounded-md transition-colors ${
+                      className={`min-h-8 text-[11px] font-medium px-1 py-1 rounded-md transition-colors ${
                         form.noteFormat === fmt ? 'bg-white dark:bg-slate-900 text-brand-700 dark:text-white shadow-sm dark:shadow-[inset_0_1px_0_rgba(167,139,250,0.35)]' : 'text-gray-500 dark:text-slate-300 hover:text-gray-700 dark:hover:text-white'
                       }`}
                     >
-                      {fmt}
+                      {fmt === 'DMH_SIR' ? 'DMH SIR' : fmt}
                     </button>
                   ))}
                 </div>
@@ -1378,6 +1453,76 @@ export default function Workspace() {
                   />
                   <p className="text-xs text-gray-400 mt-1">Use bullets, fragments, or shorthand. Miwa will expand them into clinical language.</p>
                 </div>
+                <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
+                  <div>
+                    <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">DMH / SIR documentation check</p>
+                    <p className="text-xs text-indigo-600 mt-1">
+                      These fields make sure the session note captures the information DMH-style documentation expects, instead of relying on one loose notes box.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="label">Situation / Presentation</label>
+                    <textarea
+                      className="textarea"
+                      rows={3}
+                      placeholder="Current presentation, symptoms, stressors, session focus, observed behavior, and why services were clinically necessary today."
+                      value={form.ongoingSituation}
+                      onChange={e => set('ongoingSituation', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Interventions Used</label>
+                    <textarea
+                      className="textarea"
+                      rows={3}
+                      placeholder="Modalities, techniques, skills practiced, psychoeducation, safety planning, collateral/linkage, and clinical rationale."
+                      value={form.ongoingInterventions}
+                      onChange={e => set('ongoingInterventions', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Client Response</label>
+                    <textarea
+                      className="textarea"
+                      rows={2}
+                      placeholder="Engagement, insight, affective shift, resistance, regulation, skill use, progress, or barriers."
+                      value={form.ongoingResponse}
+                      onChange={e => set('ongoingResponse', e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">Risk / Safety Update</label>
+                      <textarea
+                        className="textarea"
+                        rows={3}
+                        placeholder="SI/HI/self-harm, substance risk, DV/abuse concerns, protective factors, safety plan changes, or no-acute-risk rationale."
+                        value={form.ongoingRiskSafety}
+                        onChange={e => set('ongoingRiskSafety', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Functioning / Medical Necessity</label>
+                      <textarea
+                        className="textarea"
+                        rows={3}
+                        placeholder="Impact on home, work/school, relationships, parenting, ADLs, level-of-care rationale, and why treatment remains indicated."
+                        value={form.ongoingFunctioningMedicalNecessity}
+                        onChange={e => set('ongoingFunctioningMedicalNecessity', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="label">Plan / Homework / Next Steps</label>
+                    <textarea
+                      className="textarea"
+                      rows={2}
+                      placeholder="Homework, next session focus, referrals, assessments, collateral tasks, coordination, frequency, and follow-up."
+                      value={form.ongoingPlanHomework}
+                      onChange={e => set('ongoingPlanHomework', e.target.value)}
+                    />
+                  </div>
+                </div>
               </>
             )}
 
@@ -1428,6 +1573,79 @@ export default function Workspace() {
                     <option value="unhoused">Unhoused</option>
                     <option value="other">Other</option>
                   </select>
+                </div>
+
+                <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-4 space-y-3">
+                  <div>
+                    <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide">Intake completeness check</p>
+                    <p className="text-xs text-teal-600 mt-1">
+                      These slots fill the gaps DMH-style documentation often needs for medical necessity, treatment planning, and defensible intake records.
+                    </p>
+                  </div>
+                  <div>
+                    <label className="label">Symptom Onset / Duration / Severity</label>
+                    <textarea
+                      className="textarea"
+                      rows={2}
+                      placeholder="When symptoms started, duration/course, current severity, frequency, intensity, and any recent worsening or improvement."
+                      value={form.symptomOnsetDurationSeverity}
+                      onChange={e => set('symptomOnsetDurationSeverity', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="label">Precipitating / Maintaining Factors</label>
+                    <textarea
+                      className="textarea"
+                      rows={2}
+                      placeholder="Recent triggers, stressors, relationship patterns, avoidance cycles, environmental barriers, or factors maintaining symptoms."
+                      value={form.precipitatingMaintainingFactors}
+                      onChange={e => set('precipitatingMaintainingFactors', e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">Cultural / Identity Context</label>
+                      <textarea
+                        className="textarea"
+                        rows={2}
+                        placeholder="Culture, identity, language, religion/spirituality, immigration, discrimination, or other context relevant to care."
+                        value={form.culturalIdentityContext}
+                        onChange={e => set('culturalIdentityContext', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">School / Work / Role Functioning</label>
+                      <textarea
+                        className="textarea"
+                        rows={2}
+                        placeholder="School, work, caregiving, parenting, legal, financial, or role-functioning context."
+                        value={form.educationEmploymentContext}
+                        onChange={e => set('educationEmploymentContext', e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="label">Legal / Mandated Reporting Context</label>
+                      <textarea
+                        className="textarea"
+                        rows={2}
+                        placeholder="Custody, court, CPS/APS, abuse/neglect reporting, consent limitations, releases, or other legal/ethical context."
+                        value={form.legalMandatedContext}
+                        onChange={e => set('legalMandatedContext', e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="label">Safety Plan / Crisis Plan</label>
+                      <textarea
+                        className="textarea"
+                        rows={2}
+                        placeholder="Warning signs, coping steps, supports, crisis resources, means safety, emergency plan, and protective actions."
+                        value={form.safetyPlanDetails}
+                        onChange={e => set('safetyPlanDetails', e.target.value)}
+                      />
+                    </div>
+                  </div>
                 </div>
 
                 <div>
@@ -1644,7 +1862,7 @@ export default function Workspace() {
                   <h3 className="text-sm font-semibold text-gray-700 mb-2">Output will appear here</h3>
                   <p className="text-xs text-gray-400 max-w-xs">
                     {sessionType === 'intake'
-                      ? <>Fill in the intake information on the left and click <strong className="text-gray-600">Generate Intake Assessment</strong>. You'll get a biopsychosocial assessment, clinical formulation, diagnostic impressions, treatment plan recommendations, and supervision guidance. The intake stays as-is — progress notes (SOAP/BIRP/DAP/GIRP) are for ongoing sessions.</>
+                      ? <>Fill in the intake information on the left and click <strong className="text-gray-600">Generate Intake Assessment</strong>. You'll get a biopsychosocial assessment, clinical formulation, diagnostic impressions, treatment plan recommendations, and supervision guidance. The intake stays as-is — progress notes (SOAP/BIRP/DAP/GIRP/DMH SIR) are for ongoing sessions.</>
                       : <>Fill in your session context on the left and click <strong className="text-gray-600">Generate Session Note</strong>. You'll get a polished clinical note in {form.noteFormat} format, clinical thinking, diagnosis support, and supervision.</>}
                   </p>
                   <div className="mt-6 grid grid-cols-2 gap-2 w-full max-w-xs">

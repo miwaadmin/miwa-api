@@ -177,6 +177,12 @@ Return valid JSON only with exactly this shape:
     "ageRange": string,
     "referralSource": string,
     "livingSituation": string,
+    "symptomOnsetDurationSeverity": string,
+    "precipitatingMaintainingFactors": string,
+    "culturalIdentityContext": string,
+    "educationEmploymentContext": string,
+    "legalMandatedContext": string,
+    "safetyPlanDetails": string,
     "mentalHealthHistory": string,
     "medicalHistory": string,
     "medications": string,
@@ -209,9 +215,9 @@ If the document does not clearly support one of those, return an empty string.
 
 Section guidance:
 - clientOverview: case type, age range, referral source, living situation, high-level clinical frame
-- presentingConcerns: why the client is seeking treatment now, core symptoms/problems, functional distress
-- historyContext: mental health history, medical history, medications, substance use, family/social context, trauma history
-- riskAndSafety: suicide risk, self-harm, violence risk, abuse, safety planning, protective notes
+- presentingConcerns: why the client is seeking treatment now, core symptoms/problems, onset/duration/severity, precipitating and maintaining factors, functional distress
+- historyContext: mental health history, medical history, medications, substance use, family/social context, trauma history, cultural/identity context, school/work/role functioning
+- riskAndSafety: suicide risk, self-harm, violence risk, abuse, mandated reporting/legal context, safety planning, protective notes
 - clinicalObservations: MSE, affect, thought process, behavior, insight/judgment, clinician observations
 - strengthsAndGoals: strengths, supports, motivation, protective factors, functional goals, initial treatment goals
 
@@ -244,6 +250,12 @@ ${extractedText.substring(0, 24000)}
       ageRange: fields.ageRange || '',
       referralSource: fields.referralSource || '',
       livingSituation: fields.livingSituation || '',
+      symptomOnsetDurationSeverity: fields.symptomOnsetDurationSeverity || '',
+      precipitatingMaintainingFactors: fields.precipitatingMaintainingFactors || '',
+      culturalIdentityContext: fields.culturalIdentityContext || '',
+      educationEmploymentContext: fields.educationEmploymentContext || '',
+      legalMandatedContext: fields.legalMandatedContext || '',
+      safetyPlanDetails: fields.safetyPlanDetails || '',
       mentalHealthHistory: fields.mentalHealthHistory || '',
       medicalHistory: fields.medicalHistory || '',
       medications: fields.medications || '',
@@ -1258,11 +1270,18 @@ router.post('/workspace', async (req, res) => {
       sessionType,
       caseType, noteFormat, therapeuticOrientation,
       presentingProblem, treatmentGoal, sessionNotes,
+      ongoingSituation, ongoingInterventions, ongoingResponse,
+      ongoingRiskSafety, ongoingFunctioningMedicalNecessity, ongoingPlanHomework,
       verbosity = 'standard',
       // intake-specific
       ageRange, referralSource, livingSituation,
+      symptomOnsetDurationSeverity, precipitatingMaintainingFactors,
+      culturalIdentityContext, educationEmploymentContext,
+      legalMandatedContext, safetyPlanDetails,
       mentalHealthHistory, substanceUse, riskScreening,
       familySocialHistory, mentalStatusObservations,
+      medicalHistory, medications, traumaHistory,
+      strengthsProtectiveFactors, functionalImpairments,
     } = _b2;
     const userRole = req.therapist.user_role || 'licensed';
     const isTrainee = userRole === 'trainee';
@@ -1301,11 +1320,22 @@ ${isIntake
 - Referral Source: ${referralSource || '(not provided)'}
 - Living Situation: ${livingSituation || '(not provided)'}
 - Presenting Problem: ${presentingProblem || '(not provided)'}
+- Symptom Onset / Duration / Severity: ${symptomOnsetDurationSeverity || '(not provided)'}
+- Precipitating / Maintaining Factors: ${precipitatingMaintainingFactors || '(not provided)'}
+- Cultural / Identity Context: ${culturalIdentityContext || '(not provided)'}
+- School / Work / Role Functioning: ${educationEmploymentContext || '(not provided)'}
+- Legal / Mandated Reporting Context: ${legalMandatedContext || '(not provided)'}
 - Mental Health History: ${mentalHealthHistory || '(not provided)'}
+- Medical History: ${medicalHistory || '(not provided)'}
+- Medications: ${medications || '(not provided)'}
 - Substance Use: ${substanceUse || '(not provided)'}
 - Risk Screening: ${riskScreening || '(not provided)'}
+- Safety Plan / Crisis Plan: ${safetyPlanDetails || '(not provided)'}
 - Family / Social History: ${familySocialHistory || '(not provided)'}
+- Trauma History: ${traumaHistory || '(not provided)'}
 - Mental Status Observations: ${mentalStatusObservations || '(not provided)'}
+- Strengths / Protective Factors: ${strengthsProtectiveFactors || '(not provided)'}
+- Functional Impairments / Medical Necessity: ${functionalImpairments || '(not provided)'}
 - Initial Treatment Goals: ${treatmentGoal || '(not provided)'}
 
 Return exactly five sections using these markers (do not change the markers):
@@ -1318,8 +1348,9 @@ Write a comprehensive biopsychosocial intake assessment. This is the primary int
 - Substance Use History: current and past use, patterns, impact on functioning
 - Medical History: relevant medical conditions noted
 - Family and Social History: family mental health history, key relationships, cultural/social context, support system
+- Cultural / Identity / Role Context: cultural identity, language, spirituality, school/work, caregiving, legal, financial, and role-functioning context when provided
 - Mental Status Examination: appearance, behavior, affect, mood, speech, thought process/content, cognition, insight, judgment
-- Risk Assessment: SI, HI, self-harm, safety planning considerations
+- Risk Assessment: SI, HI, self-harm, abuse/neglect, mandated reporting/legal considerations, safety planning, crisis plan, protective actions
 - Functional Assessment: impact on work, relationships, daily living
 - Strengths and Protective Factors: client resources and resilience factors
 
@@ -1376,6 +1407,12 @@ Formatting rules for ALL sections:
 - Clinician Role: ${isTrainee ? 'Trainee / Pre-Licensed' : 'Licensed Clinician'}
 - Presenting Problem: ${presentingProblem || '(not provided)'}
 - Treatment Goal: ${treatmentGoal || '(not provided)'}
+- DMH/SIR Situation / Presentation: ${ongoingSituation || '(not provided)'}
+- DMH/SIR Interventions Used: ${ongoingInterventions || '(not provided)'}
+- DMH/SIR Client Response: ${ongoingResponse || '(not provided)'}
+- DMH/SIR Risk / Safety Update: ${ongoingRiskSafety || '(not provided)'}
+- DMH/SIR Functioning / Medical Necessity: ${ongoingFunctioningMedicalNecessity || '(not provided)'}
+- DMH/SIR Plan / Homework / Next Steps: ${ongoingPlanHomework || '(not provided)'}
 - Session Notes / Bullet Points:
 ${sessionNotes || '(not provided)'}
 
