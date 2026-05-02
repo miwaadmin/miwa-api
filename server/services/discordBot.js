@@ -51,11 +51,15 @@ function noteEvent(name, err) {
 const REQUIRED_CHANNELS = [
   {
     name: 'welcome',
-    topic: 'Start here. Read the pinned rules. Then say hi in #general.',
+    topic: 'Start here. Read the pinned rules. Then introduce yourself in #introductions.',
   },
   {
     name: 'announcements',
     topic: 'Product updates from Valdrex. Read-only for everyone else.',
+  },
+  {
+    name: 'introductions',
+    topic: 'Tell us who you are — name, where you are in training or practice, what brought you here.',
   },
   {
     name: 'general',
@@ -96,7 +100,8 @@ const WELCOME_MESSAGE = [
   '**🗂️ Channel guide**',
   '',
   '`#announcements` — product updates from me, weekly-ish',
-  '`#general` — open chat, introduce yourself, ask anything',
+  '`#introductions` — say hi 👋 — name, where you are in training or practice, what brought you here',
+  '`#general` — open chat, anonymized clinical questions, ask anything',
   '`#feedback` — bugs and feature requests (react with 👍 to upvote, or use `/feedback` to send privately)',
   '`#show-n-tell` — share workflows, templates, wins',
   '',
@@ -196,7 +201,7 @@ async function startDiscordBot() {
       '',
       'Quick start:',
       '• Read the pinned rules in #welcome (TL;DR: **no PHI ever**)',
-      '• Drop a hello in #general so we know you\'re here',
+      '• Say hi in #introductions — name, where you are in training/practice, what brought you here',
       '• Bugs / feature requests go in #feedback (or use `/feedback` to send privately)',
       '',
       'If you\'re working toward CA BBS hours and haven\'t tried the Hours feature yet, give it a look — auto-tallies your supervised hours from your appointments.',
