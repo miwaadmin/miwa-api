@@ -374,7 +374,7 @@ export default function Supervisor() {
               >
                 <option value="">Select patient...</option>
                 {patients.map(p => (
-                  <option key={p.id} value={p.id}>{p.client_id}</option>
+                  <option key={p.id} value={p.id}>{p.display_name || p.client_id}</option>
                 ))}
               </select>
             )}
@@ -525,7 +525,7 @@ export default function Supervisor() {
             >
               <option value="">Select patient...</option>
               {patients.map(p => (
-                <option key={p.id} value={p.id}>{p.client_id}</option>
+                <option key={p.id} value={p.id}>{p.display_name || p.client_id}</option>
               ))}
             </select>
           )}
