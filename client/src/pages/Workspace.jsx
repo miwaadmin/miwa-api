@@ -1453,11 +1453,11 @@ export default function Workspace() {
                   />
                   <p className="text-xs text-gray-400 mt-1">Use bullets, fragments, or shorthand. Miwa will expand them into clinical language.</p>
                 </div>
-                <div className="rounded-xl border border-indigo-100 bg-indigo-50/40 p-4 space-y-3">
+                <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
                   <div>
-                    <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">DMH / SIR documentation check</p>
-                    <p className="text-xs text-indigo-600 mt-1">
-                      These fields make sure the session note captures the information DMH-style documentation expects, instead of relying on one loose notes box.
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Structured documentation details</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Add anything not already captured above. These feed the same generated note, including DMH SIR when selected.
                     </p>
                   </div>
                   <div>
@@ -1575,11 +1575,11 @@ export default function Workspace() {
                   </select>
                 </div>
 
-                <div className="rounded-xl border border-teal-100 bg-teal-50/40 p-4 space-y-3">
+                <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
                   <div>
-                    <p className="text-xs font-semibold text-teal-700 uppercase tracking-wide">Intake completeness check</p>
-                    <p className="text-xs text-teal-600 mt-1">
-                      These slots fill the gaps DMH-style documentation often needs for medical necessity, treatment planning, and defensible intake records.
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Additional intake details</p>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Capture details that sharpen medical necessity, risk, diagnosis, and treatment planning.
                     </p>
                   </div>
                   <div>

@@ -934,7 +934,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
       {/* ── Chat panel ── */}
       {isOpen && (
         <div
-          className="fixed z-50 flex flex-col overflow-hidden rounded-2xl shadow-2xl"
+          className="miwa-chat-panel fixed z-50 flex flex-col overflow-hidden rounded-2xl shadow-2xl"
           style={{
             ...(() => {
               // Panel anchors to the FAB — whichever corner the FAB sits in,
@@ -1051,7 +1051,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
           </div>
 
           {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-gray-50/60">
+          <div className="miwa-chat-scroll flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-gray-50/60">
             {messages.length === 0 && !streaming ? (
               <div className="flex flex-col items-center justify-center h-full text-center py-4">
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3 shadow-lg" style={{ background: 'linear-gradient(135deg,#5746ed,#0ac5a2)' }}>
@@ -1062,18 +1062,18 @@ When you're done, I'll save this as your profile and refer back to it in every c
                     <circle cx="19.2" cy="18.5" r="1.1" fill="white" fillOpacity="0.65" />
                   </svg>
                 </div>
-                <p className="text-sm font-semibold text-gray-800">
+                <p className="miwa-chat-empty-title text-sm font-semibold text-gray-800">
                   Hi {firstName}! 👋
                 </p>
-                <p className="text-xs text-gray-500 mt-1 max-w-[260px]">
+                <p className="miwa-chat-empty-copy text-xs text-gray-500 mt-1 max-w-[260px]">
                   {patientName
                     ? `I can schedule, send an assessment, pull a report, or find resources for ${patientName}.`
                     : 'I can schedule sessions, send assessments, generate reports, search clinical resources, check your billing, or help you learn any feature. Just ask!'}
                 </p>
-                <p className="text-[10px] text-gray-400 mt-2 max-w-[260px] leading-relaxed">
+                <p className="miwa-chat-empty-copy text-[10px] text-gray-400 mt-2 max-w-[260px] leading-relaxed">
                   💡 <strong className="text-gray-500">Found a bug or wishing for a feature?</strong> Just tell me — I'll send your feedback straight to the Miwa team.
                 </p>
-                <p className="text-[10px] text-gray-400 mt-2 max-w-[240px]">
+                <p className="miwa-chat-empty-copy text-[10px] text-gray-400 mt-2 max-w-[240px]">
                   For deep clinical consultation, use the{' '}
                   <a href="/consult" className="text-brand-500 hover:underline">Consult page →</a>
                 </p>
@@ -1115,7 +1115,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
                         className={`max-w-[82%] px-3.5 py-2 text-[13px] leading-relaxed ${
                           isUser
                             ? 'text-white rounded-3xl rounded-br-md shadow-sm'
-                            : 'text-gray-900 rounded-3xl rounded-bl-md'
+                            : 'miwa-assistant-bubble text-gray-900 rounded-3xl rounded-bl-md'
                         }`}
                         style={isUser
                           ? { background: 'linear-gradient(180deg, #2A8AFE 0%, #007AFF 100%)' }
@@ -1137,7 +1137,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
                 {streaming && streamingText && (
                   <div className="flex justify-start">
                     <div
-                      className="max-w-[82%] rounded-3xl rounded-bl-md px-3.5 py-2 text-[13px] text-gray-900 leading-relaxed"
+                      className="miwa-assistant-bubble max-w-[82%] rounded-3xl rounded-bl-md px-3.5 py-2 text-[13px] text-gray-900 leading-relaxed"
                       style={{ background: '#E9E9EB' }}
                     >
                       <div dangerouslySetInnerHTML={{ __html: renderMarkdown(streamingText) }} />
@@ -1148,7 +1148,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
                 {streaming && !streamingText && (
                   <div className="flex justify-start">
                     <div
-                      className="rounded-3xl rounded-bl-md px-4 py-2.5"
+                      className="miwa-assistant-bubble rounded-3xl rounded-bl-md px-4 py-2.5"
                       style={{ background: '#E9E9EB' }}
                     >
                       <TypingDots />
@@ -1344,9 +1344,9 @@ When you're done, I'll save this as your profile and refer back to it in every c
               wrapper so the focus ring + visual border shape is the pill, not the
               underlying multiline element. Send + mic buttons sit outside the pill
               like Messages.app. */}
-          <div className="flex-shrink-0 px-3 py-3 bg-white border-t border-gray-100">
+          <div className="miwa-chat-inputbar flex-shrink-0 px-3 py-3 bg-white border-t border-gray-100">
             <div className="flex items-end gap-2">
-              <div className="flex-1 flex items-end rounded-full border border-gray-200 bg-gray-50 focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-400/20 transition-colors pl-4 pr-1 py-1">
+              <div className="miwa-chat-inputpill flex-1 flex items-end rounded-full border border-gray-200 bg-gray-50 focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-400/20 transition-colors pl-4 pr-1 py-1">
                 <textarea
                   ref={textareaRef}
                   className="flex-1 resize-none bg-transparent border-0 px-0 py-1.5 text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-0"

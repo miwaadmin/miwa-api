@@ -337,7 +337,7 @@ export default function Dashboard() {
                 <button
                   key={c.patient_id}
                   onClick={() => navigate(`/patients/${c.patient_id}`)}
-                  className={`rounded-lg border px-3 py-2.5 text-left transition-all hover:scale-[1.01] ${tone.bg} ${tone.border}`}
+                  className={`dashboard-pulse-card rounded-lg border px-3 py-2.5 text-left transition-all hover:scale-[1.01] ${tone.bg} ${tone.border}`}
                 >
                   <div className="flex items-start gap-2">
                     <span className={`text-xs ${tone.label}`}>{tone.icon}</span>
