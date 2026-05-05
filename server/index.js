@@ -182,6 +182,19 @@ app.get('/api/settings', requireAuth, async (req, res) => {
        FROM therapists WHERE id = ?`,
       req.therapist.id
     );
+    const counts = {
+      patients: (await db.get('SELECT COUNT(*) as c FROM patients WHERE therapist_id = ?', req.therapist.id))?.c || 0,
+      sessions: (await db.get('SELECT COUNT(*) as c FROM sessions WHERE therapist_id = ?', req.therapist.id))?.c || 0,
+      appointments: (await db.get('SELECT COUNT(*) as c FROM appointments WHERE therapist_id = ? AND status != ?', req.therapist.id, 'cancelled'))?.c || 0,
+    };
+    const hasEstablishedAccount = !!row?.soul_markdown || counts.patients > 0 || counts.sessions > 0 || counts.appointments > 0;
+    const onboardingCompleted = row?.onboarding_completed === undefined
+      ? true
+      : !!row?.onboarding_completed || hasEstablishedAccount;
+    if (hasEstablishedAccount && !row?.onboarding_completed) {
+      await db.run('UPDATE therapists SET onboarding_completed = 1 WHERE id = ?', req.therapist.id);
+      await persistIfNeeded();
+    }
     res.json({
       user_role: row?.user_role || 'licensed',
       referral_code: row?.referral_code || null,
@@ -200,7 +213,9 @@ app.get('/api/settings', requireAuth, async (req, res) => {
         try { const p = row?.assistant_permissions_json ? JSON.parse(row.assistant_permissions_json) : {}; return p.auto_mbc_enabled !== false } catch { return true }
       })(),
       training_data_opt_out: !!row?.training_data_opt_out,
-      onboarding_completed: row?.onboarding_completed === undefined ? true : !!row?.onboarding_completed,
+      onboarding_completed: onboardingCompleted,
+      onboarding_inferred: hasEstablishedAccount && !row?.onboarding_completed,
+      account_counts: counts,
       soul_markdown: row?.soul_markdown || null,
     });
   } catch (err) {

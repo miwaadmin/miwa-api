@@ -77,9 +77,12 @@ export function AuthProvider({ children }) {
   }
 
   // ── Idle session timeout (HIPAA § 164.312(a)(2)(iii)) ─────────────────────
-  // Auto-logout after 60 minutes of no mouse/keyboard/touch activity.
+  // Auto-logout after an inactivity window. Defaults to 12 hours so clinicians
+  // do not have to re-login repeatedly during normal use; deployments can
+  // tighten this with VITE_IDLE_TIMEOUT_MINUTES when policy requires it.
   // Resets on any user interaction. Only runs when logged in.
-  const IDLE_TIMEOUT_MS = 60 * 60 * 1000 // 60 minutes
+  const IDLE_TIMEOUT_MINUTES = Number(import.meta.env.VITE_IDLE_TIMEOUT_MINUTES || 720)
+  const IDLE_TIMEOUT_MS = Math.max(15, IDLE_TIMEOUT_MINUTES) * 60 * 1000
   const idleTimer = useRef(null)
 
   const resetIdleTimer = useCallback(() => {

@@ -52,6 +52,33 @@ const SYSTEM_SKILLS = [
   },
 ];
 
+const DEFAULT_PERSISTENT_GOALS = [
+  {
+    goal_key: 'keep_assessments_current',
+    title: 'Keep active clients assessment-current',
+    description: 'Watch for clients without recent PHQ-9, GAD-7, PCL-5, or other measures and surface a follow-up before the chart goes stale.',
+    cadence: 'daily',
+  },
+  {
+    goal_key: 'prepare_sessions',
+    title: 'Prepare upcoming sessions',
+    description: 'Before sessions, surface current themes, risk flags, open plans, and likely next focus areas.',
+    cadence: 'daily',
+  },
+  {
+    goal_key: 'reduce_documentation_debt',
+    title: 'Reduce documentation debt',
+    description: 'Track unsigned notes and documentation gaps so the clinician can close them before they pile up.',
+    cadence: 'daily',
+  },
+  {
+    goal_key: 'watch_risk_and_open_loops',
+    title: 'Watch risk signals and open loops',
+    description: 'Surface risk-review needs, stalled cases, and promised follow-ups that need clinician review.',
+    cadence: 'daily',
+  },
+];
+
 function safeJsonParse(value, fallback) {
   if (!value) return fallback;
   try {
@@ -95,6 +122,182 @@ async function seedSystemSkills(db) {
       );
     }
   }
+}
+
+async function ensurePersistentGoals(db, therapistId) {
+  for (const goal of DEFAULT_PERSISTENT_GOALS) {
+    const existing = await db.get(
+      'SELECT id FROM assistant_goals WHERE therapist_id = ? AND goal_key = ?',
+      therapistId,
+      goal.goal_key,
+    ).catch(() => null);
+    if (existing) {
+      await db.run(
+        `UPDATE assistant_goals
+            SET title = ?, description = ?, cadence = ?, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?`,
+        goal.title,
+        goal.description,
+        goal.cadence,
+        existing.id,
+      ).catch(() => {});
+    } else {
+      await db.insert(
+        `INSERT INTO assistant_goals
+          (therapist_id, goal_key, title, description, cadence, status)
+         VALUES (?, ?, ?, ?, ?, 'active')`,
+        therapistId,
+        goal.goal_key,
+        goal.title,
+        goal.description,
+        goal.cadence,
+      ).catch(() => {});
+    }
+  }
+
+  return db.all(
+    `SELECT id, goal_key, title, description, status, cadence, last_checked_at,
+            next_check_at, evidence_json, created_at, updated_at
+       FROM assistant_goals
+      WHERE therapist_id = ? AND status != 'archived'
+      ORDER BY status ASC, goal_key ASC`,
+    therapistId,
+  ).catch(() => []);
+}
+
+async function getTherapistAccountState(db, therapistId) {
+  const therapist = await db.get(
+    `SELECT id, first_name, full_name, user_role, onboarding_completed,
+            soul_markdown, created_at, last_login_at, last_seen_at
+       FROM therapists WHERE id = ?`,
+    therapistId,
+  );
+  if (!therapist) return null;
+
+  const counts = {
+    patients: (await db.get('SELECT COUNT(*) as c FROM patients WHERE therapist_id = ?', therapistId))?.c || 0,
+    sessions: (await db.get('SELECT COUNT(*) as c FROM sessions WHERE therapist_id = ?', therapistId))?.c || 0,
+    appointments: (await db.get('SELECT COUNT(*) as c FROM appointments WHERE therapist_id = ? AND status != ?', therapistId, 'cancelled'))?.c || 0,
+    scheduledTasks: (await db.get("SELECT COUNT(*) as c FROM agent_scheduled_tasks WHERE therapist_id = ? AND status = 'pending'", therapistId))?.c || 0,
+  };
+
+  const hasSoul = !!String(therapist.soul_markdown || '').trim();
+  const isEstablished = hasSoul || counts.patients > 0 || counts.sessions > 0 || counts.appointments > 0;
+  const onboardingComplete = !!therapist.onboarding_completed || isEstablished;
+
+  if (!therapist.onboarding_completed && isEstablished) {
+    await db.run('UPDATE therapists SET onboarding_completed = 1 WHERE id = ?', therapistId).catch(() => {});
+  }
+
+  return {
+    therapist: {
+      id: therapist.id,
+      first_name: therapist.first_name || null,
+      full_name: therapist.full_name || null,
+      user_role: therapist.user_role || 'licensed',
+      created_at: therapist.created_at,
+      last_login_at: therapist.last_login_at,
+      last_seen_at: therapist.last_seen_at,
+    },
+    counts,
+    onboarding: {
+      completed: onboardingComplete,
+      inferred: !therapist.onboarding_completed && isEstablished,
+      hasSoul,
+      isEstablished,
+    },
+  };
+}
+
+async function getPersistentOpenLoops(db, therapistId) {
+  const loops = [];
+
+  const unsignedCount = (await db.get(
+    'SELECT COUNT(*) as c FROM sessions WHERE therapist_id = ? AND signed_at IS NULL',
+    therapistId,
+  ).catch(() => null))?.c || 0;
+  if (unsignedCount > 0) {
+    loops.push({
+      id: 'unsigned_notes',
+      kind: 'documentation',
+      severity: unsignedCount >= 10 ? 'high' : 'medium',
+      title: `${unsignedCount} unsigned note${unsignedCount === 1 ? '' : 's'}`,
+      detail: 'Documentation is waiting for clinician review and signature.',
+      action: { label: 'Review unsigned notes', href: '/unsigned' },
+    });
+  }
+
+  const todayAppointments = await db.all(
+    `SELECT a.id, a.scheduled_start, a.appointment_type, p.client_id, p.display_name
+       FROM appointments a JOIN patients p ON p.id = a.patient_id
+      WHERE a.therapist_id = ?
+        AND a.status != 'cancelled'
+        AND DATE(a.scheduled_start) = DATE('now')
+      ORDER BY a.scheduled_start ASC LIMIT 6`,
+    therapistId,
+  ).catch(() => []);
+  if (todayAppointments.length > 0) {
+    loops.push({
+      id: 'todays_sessions',
+      kind: 'preparation',
+      severity: 'info',
+      title: `${todayAppointments.length} session${todayAppointments.length === 1 ? '' : 's'} today`,
+      detail: 'Miwa should keep prep context close at hand.',
+      items: todayAppointments.map(a => ({
+        id: a.id,
+        client: a.display_name || a.client_id,
+        starts_at: a.scheduled_start,
+        type: a.appointment_type,
+      })),
+      action: { label: 'Open schedule', href: '/schedule' },
+    });
+  }
+
+  const riskClients = await db.all(
+    `SELECT id, client_id, display_name, risk_screening
+       FROM patients
+      WHERE therapist_id = ?
+        AND risk_screening IS NOT NULL
+        AND TRIM(risk_screening) != ''
+        AND LOWER(risk_screening) NOT LIKE '%low risk%'
+      ORDER BY updated_at DESC LIMIT 5`,
+    therapistId,
+  ).catch(() => []);
+  if (riskClients.length > 0) {
+    loops.push({
+      id: 'risk_reviews',
+      kind: 'risk',
+      severity: 'high',
+      title: `${riskClients.length} risk review${riskClients.length === 1 ? '' : 's'} to keep visible`,
+      detail: 'Clients with risk language should stay in the active clinical agenda until reviewed.',
+      items: riskClients.map(p => ({ patient_id: p.id, client: p.display_name || p.client_id, client_id: p.client_id })),
+      action: { label: 'Review caseload', href: '/dashboard' },
+    });
+  }
+
+  const overdueAssessments = await db.all(
+    `SELECT p.id, p.client_id, p.display_name, MAX(a.administered_at) as last_assessment
+       FROM patients p
+       LEFT JOIN assessments a ON a.patient_id = p.id AND a.therapist_id = p.therapist_id
+      WHERE p.therapist_id = ? AND COALESCE(p.status, 'active') = 'active'
+      GROUP BY p.id, p.client_id, p.display_name
+      HAVING last_assessment IS NULL OR last_assessment < datetime('now', '-30 days')
+      ORDER BY last_assessment ASC LIMIT 6`,
+    therapistId,
+  ).catch(() => []);
+  if (overdueAssessments.length > 0) {
+    loops.push({
+      id: 'overdue_assessments',
+      kind: 'measurement',
+      severity: 'medium',
+      title: `${overdueAssessments.length} client${overdueAssessments.length === 1 ? '' : 's'} overdue for measures`,
+      detail: 'Measurement-based care follow-up is available through secure assessment links.',
+      items: overdueAssessments.map(p => ({ patient_id: p.id, client: p.display_name || p.client_id, client_id: p.client_id, last_assessment: p.last_assessment })),
+      action: { label: 'Open outcomes', href: '/outcomes' },
+    });
+  }
+
+  return loops;
 }
 
 async function ensureAssistantProfile(db, therapistId) {
@@ -209,6 +412,18 @@ function formatRuntimeForPrompt(runtime) {
   if (runtime.scheduledTasks?.length) {
     lines.push(`PENDING ASSISTANT TASKS: ${runtime.scheduledTasks.length}`);
   }
+  if (runtime.goals?.length) {
+    lines.push('PERSISTENT ASSISTANT GOALS:');
+    for (const goal of runtime.goals.slice(0, 6)) {
+      lines.push(`- [${goal.status}] ${goal.title}: ${goal.description || goal.cadence || 'ongoing'}`);
+    }
+  }
+  if (runtime.openLoops?.length) {
+    lines.push('CURRENT CLINICAL OPEN LOOPS:');
+    for (const loop of runtime.openLoops.slice(0, 8)) {
+      lines.push(`- [${loop.severity}/${loop.kind}] ${loop.title}: ${loop.detail}`);
+    }
+  }
   return lines.join('\n');
 }
 
@@ -240,6 +455,9 @@ async function getRelevantMemories(db, therapistId, options = {}) {
 
 async function getRuntimeSnapshot(db, therapistId, options = {}) {
   const profile = await ensureAssistantProfile(db, therapistId);
+  const account = await getTherapistAccountState(db, therapistId);
+  const goals = await ensurePersistentGoals(db, therapistId);
+  const openLoops = await getPersistentOpenLoops(db, therapistId);
   const memories = await getRelevantMemories(db, therapistId, options);
   const preferences = await db.all(
     `SELECT id, category, key, value, source, confidence, last_observed_at
@@ -267,6 +485,9 @@ async function getRuntimeSnapshot(db, therapistId, options = {}) {
 
   return {
     profile,
+    account,
+    goals,
+    openLoops,
     memories,
     preferences,
     skills,
@@ -449,8 +670,10 @@ module.exports = {
   auditAction,
   ensureAssistantProfile,
   formatRuntimeForPrompt,
+  getPersistentOpenLoops,
   getRelevantMemories,
   getRuntimeSnapshot,
+  getTherapistAccountState,
   recordConversationSignal,
   startAssistantSession,
   touchAssistantSession,

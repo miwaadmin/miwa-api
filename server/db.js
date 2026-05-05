@@ -473,6 +473,23 @@ function createSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_assistant_audit_therapist ON assistant_action_audit(therapist_id, created_at DESC);
 
+    CREATE TABLE IF NOT EXISTS assistant_goals (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      therapist_id       INTEGER NOT NULL REFERENCES therapists(id),
+      goal_key           TEXT NOT NULL,
+      title              TEXT NOT NULL,
+      description        TEXT,
+      status             TEXT NOT NULL DEFAULT 'active',
+      cadence            TEXT NOT NULL DEFAULT 'ongoing',
+      last_checked_at    DATETIME,
+      next_check_at      DATETIME,
+      evidence_json      TEXT,
+      created_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at         DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(therapist_id, goal_key)
+    );
+    CREATE INDEX IF NOT EXISTS idx_assistant_goals_therapist ON assistant_goals(therapist_id, status, next_check_at);
+
     CREATE TABLE IF NOT EXISTS assistant_sessions (
       id                 TEXT PRIMARY KEY,
       therapist_id       INTEGER NOT NULL REFERENCES therapists(id),

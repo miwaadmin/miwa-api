@@ -5,7 +5,9 @@ const {
   archiveMemory,
   auditAction,
   ensureAssistantProfile,
+  getPersistentOpenLoops,
   getRuntimeSnapshot,
+  getTherapistAccountState,
   startAssistantSession,
   touchAssistantSession,
   updateRuntimeProfile,
@@ -162,6 +164,29 @@ router.get('/audit', async (req, res) => {
       limit,
     );
     res.json({ audit: rows });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
+router.get('/state', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const account = await getTherapistAccountState(db, therapistId(req));
+    const runtime = await getRuntimeSnapshot(db, therapistId(req), {
+      surface: req.query.surface || 'miwa_chat',
+      context_type: req.query.context_type,
+      context_id: req.query.context_id,
+    });
+    await persistIfNeeded();
+    res.json({
+      account,
+      profile: runtime.profile,
+      goals: runtime.goals || [],
+      openLoops: runtime.openLoops || await getPersistentOpenLoops(db, therapistId(req)),
+      memories: runtime.memories || [],
+      scheduledTasks: runtime.scheduledTasks || [],
+    });
   } catch (err) {
     sendError(res, err);
   }
