@@ -8,10 +8,10 @@
 import { Link, useNavigate } from 'react-router-dom'
 
 const VALUES = [
-  { icon: '🔒', title: 'Privacy-first', desc: 'HIPAA-aligned infrastructure, Azure-hosted clinical data, and no clinical data used to train AI models.' },
+  { icon: '🔒', title: 'Privacy-first', desc: 'Encrypted clinical data, limited access, and no clinical data used to train AI models.' },
   { icon: '🧠', title: 'Clinician judgment stays central', desc: 'AI does not practice therapy. Miwa helps you document faster and think more clearly, every output is a starting point, not a final answer.' },
   { icon: '🌱', title: 'Built for where you are', desc: 'Whether you\'re a first-year trainee or a decade-in licensed clinician, Miwa adapts to your role and experience.' },
-  { icon: '⚕️', title: 'Clinical reality, not corporate software', desc: 'Shaped by actual therapist workflows: shorthand notes, documentation backlogs, supervision prep the night before.' },
+  { icon: '⚕️', title: 'Clinical reality, not corporate software', desc: 'Shaped around the way therapists actually work: shorthand notes, documentation backlogs, and supervision prep.' },
 ]
 
 export default function MobileAbout() {
@@ -51,7 +51,7 @@ export default function MobileAbout() {
           </span>
         </h2>
         <p className="text-base text-gray-600 mt-3 leading-relaxed">
-          Miwa is a clinical documentation and workflow assistant built specifically for licensed mental health therapists and trainees.
+          Miwa is a clinical documentation assistant built specifically for mental health therapists and trainees.
         </p>
       </div>
 
@@ -63,7 +63,7 @@ export default function MobileAbout() {
             Mental health clinicians carry enormous documentation burdens. Session notes, case conceptualizations, treatment plans, supervision prep. The paperwork can eclipse the clinical work itself.
           </p>
           <p>
-            Clinical AI tools have to handle real client information carefully. That creates responsibility for the product, the clinician, and every vendor in the workflow.
+            Clinical AI tools have to handle real client information carefully. That creates responsibility for the product and the clinician.
           </p>
           <p>
             Miwa threads this needle. The AI helps you think and write faster. The clinician stays responsible for everything that happens. Your data stays private and is never used to train models.
@@ -101,7 +101,7 @@ export default function MobileAbout() {
         <ul className="space-y-2 text-[14px] text-gray-700 leading-relaxed">
           {[
             'Miwa is a clinical support tool, not an EHR.',
-            'Miwa stores clinical records needed to provide the service and protects them in HIPAA-aligned Azure infrastructure.',
+            'Miwa stores the clinical records needed to provide the service and protects them with encryption and access controls.',
             'All AI output must be reviewed by a licensed or supervised clinician.',
             'Miwa does not replace supervision, consultation, or professional judgment.',
             'You own your clinical data. You can export or delete it at any time.',

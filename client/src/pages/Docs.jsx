@@ -33,7 +33,7 @@ Click into your client → "New Session". Choose your note format (SOAP, BIRP, o
 Miwa generates the note with AI-suggested diagnosis codes and a CPT code. Review, edit if needed, and click "Sign & Lock."
 
 **Step 5: Share an assessment**
-From the client's profile, click "Send Assessment" -> choose PHQ-9, GAD-7, or PCL-5 -> generate a secure link. The client completes it on mobile and scores appear instantly in their chart. SMS delivery is disabled until Miwa completes the messaging BAA and consent workflow.`,
+From the client's profile, click "Send Assessment," choose PHQ-9, GAD-7, or PCL-5, then generate a secure link. The client completes it on mobile and scores appear in their chart.`,
       },
     ],
   },
@@ -96,9 +96,9 @@ All instruments are scored automatically using official scoring algorithms. Seve
 2. Click "Send Assessment"
 3. Select the assessment type (PHQ-9, GAD-7, or PCL-5)
 4. Generate the secure link
-5. Share it with the client through your approved communication workflow
+5. Share it with the client through your usual approved communication channel
 
-Assessment links expire after 30 days. No app download is required for the client. SMS delivery is planned but remains disabled until the messaging vendor BAA, consent attestation, and operational controls are complete.`,
+Assessment links expire after 30 days. No app download is required for the client.`,
       },
       {
         heading: 'Outcome Tracking',
@@ -166,9 +166,9 @@ Appointments show the client ID, time, and session type (telehealth or in-person
         heading: 'Telehealth Integration',
         body: `If you've added a telehealth URL in Settings (Zoom, Doxy.me, Google Meet, etc.), Miwa will:
 
-1. Store the link for appointment workflows
+1. Store the link for appointments
 2. Show a "Start Session" button on scheduled appointments
-3. Let you share the link through your approved client communication workflow
+3. Let you share the link through your usual approved client communication channel
 
 Set up your telehealth link: Settings → Telehealth URL → paste your video platform link → Save.`,
       },
@@ -243,7 +243,7 @@ Miwa will pull the relevant data, generate the report, and give you options to c
       {
         heading: 'Telehealth URL',
         body: `Paste your video platform link (Zoom, Doxy.me, Google Meet, etc.). When appointments are scheduled, Miwa:
-- Stores the link for appointment workflows
+- Stores the link for appointments
 - Shows a "Start Session" button on your calendar
 
 The same link is used for all telehealth sessions. If you use different links per client, you can update it before each session.`,
@@ -267,13 +267,13 @@ Change your theme in Settings → Appearance.`,
       {
         heading: 'Frequently Asked Questions',
         body: `**Is Miwa HIPAA compliant?**
-Miwa is built on HIPAA-aligned infrastructure: Azure hosting, Azure OpenAI for PHI-capable AI workflows, encrypted transport, HttpOnly cookie authentication, and no clinical data used to train AI models. Covered entities still need their own policies, BAAs, and configuration review.
+Miwa is built for HIPAA-covered clinical work, with encryption, access controls, and no clinical data used to train AI models. Covered entities should still complete their own compliance review before using any clinical software.
 
 **Does Miwa replace my EHR?**
-Miwa is a clinical copilot, not an EHR. It sits alongside your existing workflow. Many clinicians use it as their primary documentation tool and export notes to their EHR.
+Miwa is a clinical assistant, not a full EHR. Many clinicians use it for documentation and export notes to their record system.
 
 **What AI models does Miwa use?**
-Miwa uses an approved Azure OpenAI production path for clinical reasoning, note generation, consultation, and structured extraction tasks. All AI output is for clinical support only and must be reviewed.
+Miwa uses approved AI service paths for note drafting, consultation, and structured extraction tasks. All AI output is for clinical support only and must be reviewed.
 
 **Can I use Miwa on mobile?**
 Yes. Miwa is a progressive web app (PWA) that works on iOS and Android. You can add it to your home screen for an app-like experience. Voice dictation works on mobile.

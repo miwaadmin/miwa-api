@@ -63,8 +63,8 @@ export default function SmsPolicy() {
             SMS messaging &amp; consent
           </h1>
           <p className="text-lg text-zinc-600 leading-relaxed">
-            Miwa SMS is not active for production PHI workflows yet. This page documents the consent and privacy rules
-            that will apply before text messaging is enabled, including the requirement for a messaging BAA, client
+            Miwa SMS is not active for production clinical messaging yet. This page documents the consent and privacy rules
+            that will apply before text messaging is enabled, including client
             consent, and opt-out controls.
           </p>
           <p className="text-base text-zinc-500 mt-6">
@@ -79,8 +79,8 @@ export default function SmsPolicy() {
 
           <Section title="1. Who sends Miwa SMS messages" id="who">
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
-              Launch status: SMS is disabled until Miwa completes the messaging vendor BAA, consent attestation, and
-              operational review. Current production workflows should use in-app actions and secure links instead.
+              Launch status: SMS is disabled until Miwa completes consent, safety, and
+              safety review. Current production use should rely on in-app actions and secure links instead.
             </p>
             <p>
               Miwa is a clinical documentation platform used by licensed mental health therapists in the United States.
@@ -200,7 +200,7 @@ export default function SmsPolicy() {
             </p>
             <p>
               See our full <Link to="/privacy" className="font-semibold" style={{ color: PURPLE }}>Privacy Policy</Link>
-              {' '}for how Miwa handles all data, including PHI.
+              {' '}for how Miwa handles sensitive clinical data.
             </p>
           </Section>
 

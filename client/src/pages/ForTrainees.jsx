@@ -98,7 +98,7 @@ export default function ForTrainees() {
             { title: 'Voice → clinical notes', desc: 'Dictate a recap. Miwa drafts SOAP, BIRP, DAP simultaneously with ICD-10 suggestions. You review and sign.' },
             { title: 'Learns your voice', desc: 'Every edit you make teaches Miwa your style. By the time you\'re licensed, drafts already sound like you.' },
             { title: 'Letter generator', desc: 'ESA letters, 504 accommodation requests, return-to-work, drafted from the chart. Review and sign.' },
-            { title: 'Assessment delivery', desc: 'PHQ-9, GAD-7, PCL-5, and C-SSRS through secure links. Scores appear instantly with trend tracking. SMS is coming after BAA and consent controls are complete.' },
+            { title: 'Assessment delivery', desc: 'PHQ-9, GAD-7, PCL-5, and C-SSRS through secure links. Scores appear instantly with trend tracking.' },
             { title: 'Living treatment plans', desc: 'Plans that update as sessions progress, goals, objectives, and auto-progress tracking.' },
             { title: 'Proactive alerts', desc: 'Deterioration detection, risk review flags, overdue assessment alerts between sessions.' },
             { title: 'Supervision documentation', desc: 'Structured case presentations, supervision notes, and progress summaries tailored for your supervisor.' },

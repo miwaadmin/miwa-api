@@ -391,7 +391,7 @@ function Hero() {
         <div className="flex flex-wrap items-center justify-center gap-x-10 gap-y-3 text-sm text-gray-600">
           <span>Trusted by licensed MFTs, LCSWs &amp; LPCCs</span>
           <span>·</span>
-          <span>HIPAA-aligned infrastructure</span>
+          <span>Privacy-minded design</span>
           <span>·</span>
           <span>Pre-licensed pricing for interns &amp; associates</span>
         </div>
@@ -491,10 +491,10 @@ function PricingPreview() {
 /* ── FAQ ──────────────────────────────────────────────────────────── */
 function FAQ() {
   const faqs = [
-    { q: 'Is Miwa HIPAA compliant?', a: 'Miwa is built on HIPAA-aligned infrastructure with Azure hosting, Azure OpenAI for PHI-capable AI workflows, encrypted transport, HttpOnly cookie auth, and minimum-necessary prompting. Covered entities still need their own policies, BAAs, and configuration review.' },
-    { q: 'Does Miwa replace my EHR?', a: 'No. Miwa is a clinical AI assistant, not a full EHR or insurance billing system. It sits alongside your workflow as your documentation, outcome tracking, scheduling, client portal, and clinical intelligence layer.' },
+    { q: 'Is Miwa HIPAA compliant?', a: 'Miwa is built for HIPAA-covered clinical work, with encryption, access controls, and privacy protections around sensitive client information. Practices should complete their own compliance review before using any clinical software.' },
+    { q: 'Does Miwa replace my EHR?', a: 'No. Miwa is a clinical assistant, not a full EHR or insurance billing system. Many clinicians use it alongside their existing record system for notes, outcomes, scheduling, and preparation.' },
     { q: 'Who qualifies for Pre-Licensed pricing?', a: 'Anyone who isn\'t fully licensed yet: practicum interns, MFT trainees, and licensed associates (AMFT, ACSW, APCC). When you get your full license, you can upgrade to Licensed Therapist.' },
-    { q: 'What assessments are supported?', a: 'PHQ-9, GAD-7, PCL-5, and C-SSRS can be completed through secure links, scored automatically, and tracked over time. SMS delivery is disabled until the messaging BAA and consent workflow are complete.' },
+    { q: 'What assessments are supported?', a: 'PHQ-9, GAD-7, PCL-5, and C-SSRS can be completed through secure links, scored automatically, and tracked over time.' },
     { q: 'Can I use Miwa on mobile?', a: 'Yes. Miwa is a PWA installable on iOS and Android. Voice dictation works on mobile.' },
   ]
   return (
@@ -717,7 +717,7 @@ export default function Home() {
               },
               {
                 prompt: 'Assessment delivery',
-                action: 'Share PHQ-9, GAD-7, PCL-5, and C-SSRS links between sessions. Scores appear instantly with trend tracking. SMS is coming after BAA and consent controls are complete.',
+                action: 'Share PHQ-9, GAD-7, PCL-5, and C-SSRS links between sessions. Scores appear instantly with trend tracking.',
                 icon: '📤',
               },
               {

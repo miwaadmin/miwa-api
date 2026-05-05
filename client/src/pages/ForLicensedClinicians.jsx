@@ -195,7 +195,7 @@ export default function ForLicensedClinicians() {
             },
             {
               title: 'Assessment delivery',
-              desc: 'Share PHQ-9, GAD-7, PCL-5, C-SSRS, and more through secure links. Scores appear instantly with trend tracking. SMS is coming after BAA and consent controls are complete.',
+              desc: 'Share PHQ-9, GAD-7, PCL-5, C-SSRS, and more through secure links. Scores appear instantly with trend tracking.',
               color: '#0ea5e9',
             },
             {
@@ -214,8 +214,8 @@ export default function ForLicensedClinicians() {
               color: '#14b8a6',
             },
             {
-              title: 'HIPAA-aligned infrastructure',
-              desc: 'Azure-hosted production path, Azure OpenAI for PHI-capable AI workflows, and no clinical data used to train AI models.',
+              title: 'Privacy-minded design',
+              desc: 'Encrypted clinical data, limited access, and no clinical data used to train AI models.',
               color: '#64748b',
             },
           ].map((f, i) => (

@@ -349,7 +349,7 @@ export default function MobileRegister() {
             <p className="text-[11px] text-gray-400 text-center leading-relaxed">
               By creating an account you agree to our{' '}
               <Link to="/privacy" className="underline">Privacy Policy</Link>.
-              Miwa is built on HIPAA-aligned infrastructure and does not use clinical data to train AI models.
+              Miwa is built to protect clinical data and does not use it to train AI models.
             </p>
           </form>
         )}

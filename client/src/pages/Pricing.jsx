@@ -33,7 +33,7 @@ const PLANS = [
       'Session attendance tracking',
       'Voice-first mobile app',
     ],
-    notIncluded: ['Automated SMS outreach', 'Multi-step workflows', 'Court & insurance reports', 'Priority support'],
+    notIncluded: ['Automated outreach', 'Multi-step tasks', 'Court & insurance reports', 'Priority support'],
   },
   {
     id: 'associate',
@@ -48,8 +48,8 @@ const PLANS = [
     credType: 'associate',
     includesFrom: 'Trainee',
     features: [
-      'Drafted outreach workflows',
-      'Multi-step workflows (onboard, close, court prep)',
+      'Drafted outreach',
+      'Multi-step tasks (onboard, close, court prep)',
       'Batch assessment sender',
       'Attorney summaries & insurance pre-auth letters',
       'Court, insurance & supervision reports',
@@ -74,7 +74,7 @@ const PLANS = [
     includesFrom: 'Associate',
     features: [
       'No verification required',
-      'All multi-step workflows unlocked',
+      'All multi-step tasks unlocked',
       'Court prep & legal documentation',
       'Full practice intelligence dashboard',
       'Advanced report exports',
@@ -94,7 +94,7 @@ const COMPETITORS = [
   { feature: 'Learns your documentation voice', miwa: true, upheal: false, sp: false, tn: false },
   { feature: 'Living treatment plan tracking', miwa: true, upheal: false, sp: false, tn: false },
   { feature: 'Proactive deterioration alerts', miwa: true, upheal: false, sp: false, tn: false },
-  { feature: 'Drafted outreach workflows', miwa: true, upheal: false, sp: false, tn: false },
+  { feature: 'Drafted outreach', miwa: true, upheal: false, sp: false, tn: false },
   { feature: 'Assessment delivery through secure links', miwa: true, upheal: false, sp: false, tn: false },
   { feature: 'Pre-licensed pricing', miwa: '$39/mo', upheal: false, sp: false, tn: false },
   { feature: 'Voice-first mobile app', miwa: true, upheal: true, sp: true, tn: true },
@@ -236,7 +236,7 @@ export default function Pricing() {
         <div className="mt-5 rounded-2xl p-6 flex flex-col sm:flex-row items-center justify-between gap-4 bg-gray-900">
           <div>
             <h3 className="font-bold text-white">Enterprise / Health System</h3>
-            <p className="text-white/60 text-base mt-0.5">Custom contracts, EHR integration, SSO, volume pricing, BAA.</p>
+            <p className="text-white/60 text-base mt-0.5">Custom contracts, EHR integration, SSO, volume pricing, and security review.</p>
           </div>
           <a href="mailto:hello@miwa.care"
             className="flex-shrink-0 px-6 py-3 rounded-xl text-base font-semibold text-white transition-all hover:opacity-90"
@@ -290,7 +290,7 @@ export default function Pricing() {
           Competitor pricing and feature availability can change. Verify current plan details before making a purchasing decision.
         </p>
         <p className="text-center text-gray-400 text-sm mt-2">
-          Miwa is purpose-built for therapists' actual workflows: pre-session briefs, risk monitoring, letter generation, morning caseload briefings, and learned documentation voice in one workspace.
+          Miwa is built for the work therapists repeat every week: pre-session briefs, risk review, letters, morning caseload briefings, and documentation in your own voice.
         </p>
       </div>
 

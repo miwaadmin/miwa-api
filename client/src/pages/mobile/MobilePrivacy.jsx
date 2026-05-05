@@ -105,10 +105,10 @@ export default function MobilePrivacy() {
 
         <Section title="How we use AI models">
           <p>
-            Miwa uses Azure OpenAI for note drafting, assessment analysis, transcription-related workflows, and clinical reasoning. PHI-capable AI work is routed through the approved Azure path, and clinical data is not used to train models.
+            Miwa uses approved AI service paths for note drafting, assessment review, transcription-related support, and clinical reasoning. Clinical data is not used to train models.
           </p>
           <p>
-            When exact identifiers are not needed, Miwa minimizes names, dates of birth, addresses, phone numbers, and other identifiers before AI processing. Some clinical workflows may still require PHI, so minimum-necessary prompting matters.
+            When exact identifiers are not needed, Miwa minimizes names, dates of birth, addresses, phone numbers, and other identifiers before AI processing.
           </p>
           <p>
             We log the fact that a request was made (for billing + rate limiting) but do not persistently store model prompt content.
@@ -120,7 +120,7 @@ export default function MobilePrivacy() {
             Miwa does not sell, rent, or share your clinical data with third parties for marketing purposes.
           </p>
           <p>
-            We share only with service vendors necessary to operate the product: hosting and database services on Microsoft Azure, AI model hosting through Azure OpenAI, email through Google Workspace under BAA, and payments through Stripe. SMS delivery is not active for PHI until a messaging BAA and consent workflow are complete.
+            We share information only with service providers needed to operate Miwa, such as hosting, AI processing, email, payments, security, and support.
           </p>
           <p>
             We will disclose information if legally required (subpoena, court order). When legally permitted, we will notify you first.

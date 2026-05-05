@@ -101,7 +101,7 @@ const SHOWCASE = [
   },
   {
     title: 'Outcome Tracking',
-    desc: 'PHQ-9, GAD-7, PCL-5, and C-SSRS shared through secure links. Clients complete on mobile. Scores appear instantly with trend tracking. SMS is coming after BAA and consent controls are complete.',
+    desc: 'PHQ-9, GAD-7, PCL-5, and C-SSRS shared through secure links. Clients complete them on mobile, and scores appear with trend tracking.',
     color: '#4dc4ff',
     mockup: (
       <Mock url="miwa.care/outcomes">
@@ -286,7 +286,7 @@ const SHOWCASE = [
 const FEATURES = [
   { category: 'Miwa Copilot', color: '#6366f1', items: [
     { title: 'Plain-language interface', desc: 'Talk to Miwa like a colleague. It understands clinical language, reads context, and handles multi-step work, not just answers.' },
-    { title: 'Multi-step task execution', desc: 'Miwa plans and executes complex workflows: client onboarding, case closure, court prep, all through conversation.' },
+    { title: 'Multi-step task execution', desc: 'Miwa helps with longer tasks like client onboarding, case closure, and court prep through plain conversation.' },
     { title: 'Full caseload context', desc: 'Every Miwa session starts with your entire caseload: scores, trends, risk flags, and treatment progress.' },
     { title: 'Learns your voice', desc: 'Every time you edit an AI draft, Miwa learns your style. After ~10 sessions, the first draft already sounds like you wrote it.' },
   ]},
@@ -329,7 +329,7 @@ const FEATURES = [
   { category: 'Proactive Alerts & Outreach', color: '#f59e0b', items: [
     { title: 'Deterioration detection', desc: 'Miwa monitors score trajectories and alerts you when a client is worsening, before the next session.' },
     { title: 'Risk review flags', desc: 'Safety concerns from session notes and assessment scores are surfaced proactively for clinical review.' },
-    { title: 'Drafted outreach workflows', desc: 'Miwa can help prepare appointment reminders, missed-session follow-ups, and mood check-ins. SMS sending stays disabled until BAA and consent controls are complete.' },
+    { title: 'Drafted outreach', desc: 'Miwa can help prepare appointment reminders, missed-session follow-ups, and mood check-ins for clinician review.' },
     { title: 'Overdue assessment alerts', desc: 'Miwa tracks assessment cadences and flags when clients are overdue for PHQ-9, GAD-7, or PCL-5.' },
   ]},
   { category: 'Assessment Delivery', color: '#4dc4ff', items: [
