@@ -22,6 +22,12 @@ const ORIGINAL_ENV = {
   AZURE_OPENAI_SPEECH_DEPLOYMENT: process.env.AZURE_OPENAI_SPEECH_DEPLOYMENT,
   AZURE_OPENAI_AUDIO_SPEECH_DEPLOYMENT: process.env.AZURE_OPENAI_AUDIO_SPEECH_DEPLOYMENT,
   AZURE_OPENAI_VOICE_DEPLOYMENT: process.env.AZURE_OPENAI_VOICE_DEPLOYMENT,
+  AI_TEXT_PROVIDER: process.env.AI_TEXT_PROVIDER,
+  AI_PROVIDER: process.env.AI_PROVIDER,
+  OPENAI_PHI_API_KEY: process.env.OPENAI_PHI_API_KEY,
+  OPENAI_PHI_MODEL: process.env.OPENAI_PHI_MODEL,
+  OPENAI_PHI_ZDR_ENABLED: process.env.OPENAI_PHI_ZDR_ENABLED,
+  OPENAI_PHI_PROJECT_ID: process.env.OPENAI_PHI_PROJECT_ID,
 };
 
 function restoreEnv() {
@@ -314,6 +320,72 @@ describe('Azure OpenAI client error handling', () => {
     assert.ok(!JSON.stringify(status).includes('main-secret-key'));
     assert.ok(!JSON.stringify(status).includes('tts-secret-key'));
     assert.ok(!JSON.stringify(status).includes('/openai/deployments'));
+  });
+
+  test('OpenAI PHI/ZDR text lane uses store=false and reports safe provider metadata', async () => {
+    process.env.AI_TEXT_PROVIDER = 'openai';
+    process.env.OPENAI_PHI_API_KEY = 'phi-secret-key';
+    process.env.OPENAI_PHI_MODEL = 'gpt-5.5';
+    process.env.OPENAI_PHI_ZDR_ENABLED = 'true';
+
+    let seenRequest = null;
+    aiClient._test.setClient({
+      responses: {
+        create: async (request) => {
+          seenRequest = request;
+          return {
+            output_text: 'fictional direct OpenAI answer',
+            usage: { input_tokens: 11, output_tokens: 7 },
+          };
+        },
+      },
+    });
+
+    const result = await aiClient.generateAIResponseWithUsage([
+      { role: 'user', content: 'FICTIONAL_OPENAI_PHI_MARKER' },
+    ]);
+    const status = aiClient.getAIConfigStatus();
+
+    assert.equal(result.text, 'fictional direct OpenAI answer');
+    assert.equal(seenRequest.model, 'gpt-5.5');
+    assert.equal(seenRequest.store, false);
+    assert.equal(status.provider, 'openai-phi-zdr');
+    assert.equal(status.openaiPhi.configured, true);
+    assert.equal(status.openaiPhi.zdrConfirmed, true);
+    assert.ok(!JSON.stringify(status).includes('phi-secret-key'));
+  });
+
+  test('OpenAI PHI/ZDR text lane fails closed unless ZDR is confirmed', async () => {
+    process.env.AI_TEXT_PROVIDER = 'openai';
+    process.env.OPENAI_PHI_API_KEY = 'phi-secret-key';
+    process.env.OPENAI_PHI_MODEL = 'gpt-5.5';
+    delete process.env.OPENAI_PHI_ZDR_ENABLED;
+
+    let wasCalled = false;
+    aiClient._test.setClient({
+      responses: {
+        create: async () => {
+          wasCalled = true;
+          return { output_text: 'should not happen' };
+        },
+      },
+    });
+
+    let thrown;
+    const logs = await captureConsoleError(async () => {
+      try {
+        await aiClient.generateAIResponse([{ role: 'user', content: 'FICTIONAL_UNSENT_PHI' }]);
+      } catch (err) {
+        thrown = err;
+      }
+    });
+
+    assert.equal(wasCalled, false);
+    assert.ok(aiClient.isAIServiceError(thrown));
+    assert.equal(thrown.ai.provider, 'openai-phi-zdr');
+    assert.equal(thrown.ai.error_code, 'openai_phi_zdr_not_confirmed');
+    assert.ok(!JSON.stringify(logs).includes('FICTIONAL_UNSENT_PHI'));
+    assert.ok(!JSON.stringify(logs).includes('phi-secret-key'));
   });
 
   test('TTS dedicated resource requires endpoint and key together', async () => {

@@ -17,6 +17,10 @@ const PRICING_CENTS_PER_MILLION = {
   // Azure OpenAI deployment aliases
   'gpt-main': { in: 250, out: 1000 },
   'gpt-4o':   { in: 250, out: 1000 },
+  // OpenAI API PHI/ZDR lane
+  'gpt-5.5': { in: 500, out: 3000 },
+  'gpt-5.4': { in: 250, out: 1500 },
+  'gpt-5.4-mini': { in: 75, out: 450 },
 };
 
 // ── Default monthly budget per subscription tier (cents) ─────────────────────

@@ -6,8 +6,13 @@ This is the near-term bar before inviting real clinicians to store PHI in Miwa.
 
 - Use Azure App Service for the Node/React monolith.
 - Use Azure Database for PostgreSQL Flexible Server as the production database.
-- Keep Azure OpenAI as the only PHI-capable model path unless another provider
-  has a signed BAA and an explicit code path review.
+- Azure OpenAI remains an approved PHI-capable model path.
+- OpenAI API may be used for PHI text/reasoning only through the approved
+  BAA-backed Zero Data Retention project. Set `AI_TEXT_PROVIDER=openai`,
+  `OPENAI_PHI_API_KEY`, `OPENAI_PHI_ZDR_ENABLED=true`, and optionally
+  `OPENAI_PHI_MODEL` (defaults to `gpt-5.5`). Do not use live web search,
+  files, vector stores, assistants, threads, batches, evals, or fine-tuning for
+  PHI.
 - Store secrets in Azure App Service configuration now; move to Azure Key Vault
   before scale.
 - Keep `miwa.care` and `www.miwa.care` serving the app. Use `api.miwa.care`
@@ -44,7 +49,9 @@ Miwa is good enough for a small private beta when:
 - Login, registration, password reset, and email verification work on Azure.
 - Patient CRUD, session notes, assessments, public links, and document upload
   work against Azure PostgreSQL.
-- AI features use Azure OpenAI only and fail safely.
+- AI features use an approved BAA-backed provider path and fail safely. If
+  direct OpenAI is enabled, `/api/ai/status` and `/api/admin/readiness` must
+  show the OpenAI PHI/ZDR lane as configured and ZDR-confirmed.
 - Uploads/reports are stored outside the App Service filesystem.
 - Logs contain operational metadata only, not PHI.
 - Backups and restore have been tested end-to-end.

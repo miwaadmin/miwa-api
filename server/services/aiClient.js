@@ -1,8 +1,10 @@
 const { OpenAI, AzureOpenAI, toFile } = require('openai');
 
-const AI_PROVIDER = 'azure-openai';
+const AZURE_AI_PROVIDER = 'azure-openai';
+const OPENAI_PHI_PROVIDER = 'openai-phi-zdr';
 const GENERIC_AI_MESSAGE = 'The AI service is temporarily unavailable. Please try again in a moment.';
 const DEFAULT_AZURE_OPENAI_API_VERSION = '2025-04-01-preview';
+const DEFAULT_OPENAI_PHI_MODEL = 'gpt-5.5';
 const TRANSCRIPTION_DEPLOYMENT_ENV_NAMES = [
   'AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT',
   'AZURE_OPENAI_TRANSCRIBE_DEPLOYMENT',
@@ -36,9 +38,10 @@ class AIServiceError extends Error {
     this.statusCode = 502;
     this.expose = true;
     const hasDeploymentMetadata = Object.prototype.hasOwnProperty.call(metadata, 'deployment');
+    const provider = metadata.provider || getTextAIProvider();
     this.ai = {
-      provider: AI_PROVIDER,
-      deployment: hasDeploymentMetadata ? metadata.deployment : (process.env.AZURE_OPENAI_DEPLOYMENT || null),
+      provider,
+      deployment: hasDeploymentMetadata ? metadata.deployment : getDefaultModelForProvider(provider),
       request_id: metadata.request_id || null,
       status_code: metadata.status_code || null,
       error_type: metadata.error_type || null,
@@ -63,6 +66,31 @@ function getAzureApiVersion() {
   return String(process.env.AZURE_OPENAI_API_VERSION || DEFAULT_AZURE_OPENAI_API_VERSION).trim();
 }
 
+function isTruthyEnv(name) {
+  return ['1', 'true', 'yes', 'on'].includes(String(process.env[name] || '').trim().toLowerCase());
+}
+
+function getTextAIProvider() {
+  const configured = String(process.env.AI_TEXT_PROVIDER || process.env.AI_PROVIDER || 'azure').trim().toLowerCase();
+  if (configured === 'openai' || configured === 'openai-phi' || configured === 'openai-phi-zdr') return OPENAI_PHI_PROVIDER;
+  if (configured === 'auto') {
+    return String(process.env.OPENAI_PHI_API_KEY || '').trim() && isTruthyEnv('OPENAI_PHI_ZDR_ENABLED')
+      ? OPENAI_PHI_PROVIDER
+      : AZURE_AI_PROVIDER;
+  }
+  return AZURE_AI_PROVIDER;
+}
+
+function getOpenAIModel() {
+  return String(process.env.OPENAI_PHI_MODEL || DEFAULT_OPENAI_PHI_MODEL).trim();
+}
+
+function getDefaultModelForProvider(provider = getTextAIProvider()) {
+  return provider === OPENAI_PHI_PROVIDER
+    ? getOpenAIModel()
+    : (process.env.AZURE_OPENAI_DEPLOYMENT || null);
+}
+
 function requireAzureConfig() {
   const endpoint = normalizeEndpoint(process.env.AZURE_OPENAI_ENDPOINT);
   const apiKey = process.env.AZURE_OPENAI_KEY;
@@ -80,7 +108,37 @@ function requireAzureConfig() {
   return { endpoint, apiKey, deployment, apiVersion };
 }
 
+function requireOpenAIConfig() {
+  const apiKey = String(process.env.OPENAI_PHI_API_KEY || '').trim();
+  const model = getOpenAIModel();
+
+  if (!apiKey || !model) {
+    throw sanitizeAIError({
+      status: 500,
+      code: 'openai_phi_config_missing',
+      type: 'configuration_error',
+    }, {
+      provider: OPENAI_PHI_PROVIDER,
+      deployment: model || null,
+    });
+  }
+
+  if (!isTruthyEnv('OPENAI_PHI_ZDR_ENABLED')) {
+    throw sanitizeAIError({
+      status: 500,
+      code: 'openai_phi_zdr_not_confirmed',
+      type: 'configuration_error',
+    }, {
+      provider: OPENAI_PHI_PROVIDER,
+      deployment: model,
+    });
+  }
+
+  return { apiKey, model };
+}
+
 let aiClientInstance = null;
+let openAIClientInstance = null;
 let audioClientInstance = null;
 let ttsClientInstance = null;
 let testClient = null;
@@ -88,6 +146,7 @@ let testAudioClient = null;
 
 function getAIClient() {
   if (testClient) return testClient;
+  if (getTextAIProvider() === OPENAI_PHI_PROVIDER) return getOpenAIClient();
   if (aiClientInstance) return aiClientInstance;
   const { endpoint, apiKey } = requireAzureConfig();
   aiClientInstance = new OpenAI({
@@ -95,6 +154,14 @@ function getAIClient() {
     baseURL: `${endpoint}/openai/v1/`,
   });
   return aiClientInstance;
+}
+
+function getOpenAIClient() {
+  if (testClient) return testClient;
+  if (openAIClientInstance) return openAIClientInstance;
+  const { apiKey } = requireOpenAIConfig();
+  openAIClientInstance = new OpenAI({ apiKey });
+  return openAIClientInstance;
 }
 
 function getAudioAIClient() {
@@ -148,8 +215,9 @@ function getTTSAIClient() {
   return ttsClientInstance;
 }
 
-// IMPORTANT: ALL PHI MUST GO THROUGH AZURE ONLY
-// DO NOT add fallback providers here
+// IMPORTANT: PHI may only use BAA-backed, approved providers.
+// Text calls can use Azure OpenAI or OpenAI API with BAA + ZDR enabled.
+// Audio remains on the Azure path unless explicitly reviewed later.
 
 function getRequestId(err) {
   return err?.request_id
@@ -163,8 +231,10 @@ function getRequestId(err) {
 
 function sanitizeAIError(err, overrides = {}) {
   const hasDeploymentOverride = Object.prototype.hasOwnProperty.call(overrides, 'deployment');
+  const provider = overrides.provider || getTextAIProvider();
   const metadata = {
-    deployment: hasDeploymentOverride ? overrides.deployment : (process.env.AZURE_OPENAI_DEPLOYMENT || null),
+    provider,
+    deployment: hasDeploymentOverride ? overrides.deployment : getDefaultModelForProvider(provider),
     request_id: getRequestId(err),
     status_code: err?.status || err?.statusCode || err?.response?.status || null,
     error_type: err?.type || err?.error?.type || err?.name || null,
@@ -172,7 +242,7 @@ function sanitizeAIError(err, overrides = {}) {
     timestamp: new Date().toISOString(),
   };
   const safe = new AIServiceError(metadata);
-  console.error('[aiClient] Azure OpenAI request failed', safe.ai);
+  console.error('[aiClient] AI request failed', safe.ai);
   return safe;
 }
 
@@ -187,7 +257,7 @@ function safeAIErrorResponse(err) {
   return {
     error: 'AI_SERVICE_UNAVAILABLE',
     message: GENERIC_AI_MESSAGE,
-    provider: AI_PROVIDER,
+    provider: err.ai?.provider || getTextAIProvider(),
     request_id: err.ai?.request_id || null,
     timestamp: err.ai?.timestamp || new Date().toISOString(),
   };
@@ -197,13 +267,21 @@ function safeAIErrorMessage(err) {
   return isAIServiceError(err) ? GENERIC_AI_MESSAGE : (err?.message || 'Something went wrong.');
 }
 
-async function runAzureRequest(fn, metadata = {}) {
+async function runAIRequest(fn, metadata = {}) {
   try {
     return await fn();
   } catch (err) {
     if (isAIServiceError(err)) throw err;
     throw sanitizeAIError(err, metadata);
   }
+}
+
+async function runAzureRequest(fn, metadata = {}) {
+  return runAIRequest(fn, { provider: AZURE_AI_PROVIDER, ...metadata });
+}
+
+async function runTextAIRequest(fn, metadata = {}) {
+  return runAIRequest(fn, { provider: getTextAIProvider(), ...metadata });
 }
 
 function getFirstEnvMatch(names) {
@@ -229,6 +307,7 @@ function getEndpointHost(endpoint) {
 }
 
 function getAIConfigStatus() {
+  const textProvider = getTextAIProvider();
   const endpoint = normalizeEndpoint(process.env.AZURE_OPENAI_ENDPOINT);
   const transcription = getFirstEnvMatch(TRANSCRIPTION_DEPLOYMENT_ENV_NAMES);
   const tts = getFirstEnvMatch(TTS_DEPLOYMENT_ENV_NAMES);
@@ -237,7 +316,15 @@ function getAIConfigStatus() {
   const ttsUsesDedicatedResource = Boolean(ttsEndpoint.value && ttsKey.value);
 
   return {
-    provider: AI_PROVIDER,
+    provider: textProvider,
+    textProvider,
+    openaiPhi: {
+      configured: Boolean(String(process.env.OPENAI_PHI_API_KEY || '').trim()),
+      zdrConfirmed: isTruthyEnv('OPENAI_PHI_ZDR_ENABLED'),
+      model: getOpenAIModel(),
+      projectIdConfigured: Boolean(String(process.env.OPENAI_PHI_PROJECT_ID || '').trim()),
+    },
+    azureConfigured: Boolean(endpoint && String(process.env.AZURE_OPENAI_KEY || '').trim() && String(process.env.AZURE_OPENAI_DEPLOYMENT || '').trim()),
     endpointHost: getEndpointHost(endpoint),
     hasApiKey: Boolean(String(process.env.AZURE_OPENAI_KEY || '').trim()),
     mainDeployment: String(process.env.AZURE_OPENAI_DEPLOYMENT || '').trim() || null,
@@ -308,10 +395,12 @@ function azureUsage(response) {
 }
 
 async function generateAIResponse(messages, options = {}) {
-  const { deployment } = requireAzureConfig();
+  const provider = getTextAIProvider();
+  const deployment = provider === OPENAI_PHI_PROVIDER ? requireOpenAIConfig().model : requireAzureConfig().deployment;
   const request = {
     model: deployment,
     input: messages,
+    store: false,
   };
 
   if (options.maxTokens) request.max_output_tokens = options.maxTokens;
@@ -319,15 +408,17 @@ async function generateAIResponse(messages, options = {}) {
     request.text = { format: { type: 'json_object' } };
   }
 
-  const response = await runAzureRequest(() => getAIClient().responses.create(request));
+  const response = await runTextAIRequest(() => getAIClient().responses.create(request), { deployment });
   return extractResponseText(response) || '';
 }
 
 async function generateAIResponseWithUsage(messages, options = {}) {
-  const { deployment } = requireAzureConfig();
+  const provider = getTextAIProvider();
+  const deployment = provider === OPENAI_PHI_PROVIDER ? requireOpenAIConfig().model : requireAzureConfig().deployment;
   const request = {
     model: deployment,
     input: messages,
+    store: false,
   };
 
   if (options.maxTokens) request.max_output_tokens = options.maxTokens;
@@ -335,7 +426,7 @@ async function generateAIResponseWithUsage(messages, options = {}) {
     request.text = { format: { type: 'json_object' } };
   }
 
-  const response = await runAzureRequest(() => getAIClient().responses.create(request));
+  const response = await runTextAIRequest(() => getAIClient().responses.create(request), { deployment });
   return {
     text: extractResponseText(response) || '',
     usage: azureUsage(response),
@@ -344,14 +435,16 @@ async function generateAIResponseWithUsage(messages, options = {}) {
 }
 
 async function generateAIResponseWithTools(systemPrompt, messages, tools, options = {}) {
-  const { deployment } = requireAzureConfig();
+  const provider = getTextAIProvider();
+  const deployment = provider === OPENAI_PHI_PROVIDER ? requireOpenAIConfig().model : requireAzureConfig().deployment;
   const input = [
     { role: 'system', content: systemPrompt || 'You are a clinical assistant helping therapists.' },
     ...normalizeMessages(messages),
   ];
-  const response = await runAzureRequest(() => getAIClient().responses.create({
+  const response = await runTextAIRequest(() => getAIClient().responses.create({
     model: deployment,
     input,
+    store: false,
     max_output_tokens: options.maxTokens || 2000,
     tools: (tools || []).map((tool) => ({
       type: 'function',
@@ -360,7 +453,7 @@ async function generateAIResponseWithTools(systemPrompt, messages, tools, option
       parameters: tool.input_schema || tool.parameters || { type: 'object', properties: {} },
     })),
     tool_choice: 'auto',
-  }));
+  }), { provider, deployment });
 
   const content = [];
   const text = extractResponseText(response);
@@ -436,12 +529,15 @@ module.exports = {
       testClient = null;
       testAudioClient = null;
       aiClientInstance = null;
+      openAIClientInstance = null;
       audioClientInstance = null;
       ttsClientInstance = null;
     },
     sanitizeAIError,
     normalizeEndpoint,
     requireTTSAzureConfig,
+    requireOpenAIConfig,
     getAzureApiVersion,
+    getTextAIProvider,
   },
 };

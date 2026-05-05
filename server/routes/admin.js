@@ -189,6 +189,8 @@ function buildReadinessChecks() {
   const fromEmail = envValue('FROM_EMAIL');
   const mailer = getMailerConfigStatus();
   const sms = configuredSmsProvider();
+  const textProvider = String(process.env.AI_TEXT_PROVIDER || process.env.AI_PROVIDER || 'azure').trim().toLowerCase();
+  const usingOpenAiPhi = ['openai', 'openai-phi', 'openai-phi-zdr'].includes(textProvider);
 
   const checks = [
     check(
@@ -210,8 +212,20 @@ function buildReadinessChecks() {
     check(
       'azure_openai',
       'Azure OpenAI configuration',
-      hasEnv('AZURE_OPENAI_ENDPOINT') && hasEnv('AZURE_OPENAI_KEY') && hasEnv('AZURE_OPENAI_DEPLOYMENT') ? 'pass' : 'fail',
-      'Requires AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY, and AZURE_OPENAI_DEPLOYMENT'
+      hasEnv('AZURE_OPENAI_ENDPOINT') && hasEnv('AZURE_OPENAI_KEY') && hasEnv('AZURE_OPENAI_DEPLOYMENT') ? 'pass' : (usingOpenAiPhi ? 'warn' : 'fail'),
+      usingOpenAiPhi
+        ? 'Azure is optional fallback while AI_TEXT_PROVIDER uses OpenAI PHI/ZDR'
+        : 'Requires AZURE_OPENAI_ENDPOINT, AZURE_OPENAI_KEY, and AZURE_OPENAI_DEPLOYMENT'
+    ),
+    check(
+      'openai_phi_zdr',
+      'OpenAI PHI/ZDR text model lane',
+      usingOpenAiPhi
+        ? (hasEnv('OPENAI_PHI_API_KEY') && String(process.env.OPENAI_PHI_ZDR_ENABLED || '').toLowerCase() === 'true' ? 'pass' : 'fail')
+        : (hasEnv('OPENAI_PHI_API_KEY') ? 'pass' : 'warn'),
+      usingOpenAiPhi
+        ? 'Requires OPENAI_PHI_API_KEY and OPENAI_PHI_ZDR_ENABLED=true'
+        : 'Optional approved lane for newest OpenAI models; set AI_TEXT_PROVIDER=openai to use it'
     ),
     check(
       'legacy_model_keys',

@@ -1,14 +1,15 @@
 /**
- * Miwa Azure AI Executor
+ * Miwa AI Executor
  *
  * All backend AI text/tool calls route through server/services/aiClient.js,
- * which is configured for Azure OpenAI's v1 endpoint only.
+ * which can use Azure OpenAI or the OpenAI API PHI/ZDR lane.
  */
 
 const {
   generateAIResponse,
   generateAIResponseWithUsage,
   generateAIResponseWithTools,
+  getAIConfigStatus,
 } = require('../services/aiClient');
 const { logCostEvent, assertBudgetOk } = require('../services/costTracker');
 
@@ -21,11 +22,14 @@ const MODELS = {
 
 function logAzure(context, usage = {}, status = 'ok') {
   if (!context || !context.therapistId) return;
+  const aiStatus = getAIConfigStatus();
   logCostEvent({
     therapistId: context.therapistId,
     kind: context.kind || 'unknown',
-    provider: 'azure-openai',
-    model: process.env.AZURE_OPENAI_DEPLOYMENT || MODELS.AZURE_MAIN,
+    provider: aiStatus.textProvider || aiStatus.provider || 'unknown',
+    model: aiStatus.textProvider === 'openai-phi-zdr'
+      ? aiStatus.openaiPhi?.model
+      : (process.env.AZURE_OPENAI_DEPLOYMENT || MODELS.AZURE_MAIN),
     inputTokens: usage.input || 0,
     outputTokens: usage.output || 0,
     status,
