@@ -165,12 +165,25 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE TABLE IF NOT EXISTS chat_messages (
   id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   therapist_id  BIGINT REFERENCES therapists(id),
+  conversation_id BIGINT,
   role          TEXT NOT NULL,
   content       TEXT NOT NULL,
   context_type  TEXT,
   context_id    BIGINT,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+CREATE TABLE IF NOT EXISTS consult_conversations (
+  id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  therapist_id  BIGINT NOT NULL REFERENCES therapists(id),
+  title         TEXT,
+  context_type  TEXT,
+  context_id    BIGINT,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_consult_conversations ON consult_conversations(therapist_id, updated_at);
+CREATE INDEX IF NOT EXISTS idx_chat_messages_consult_conversation ON chat_messages(conversation_id, created_at);
 
 -- ── Documents ────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS documents (

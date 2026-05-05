@@ -147,6 +147,32 @@ function patientLabel(patient) {
   return patient?.client_label || patient?.display_name || patient?.client_name || patient?.patient_name || patient?.client_id || 'Client'
 }
 
+function conversationPatientLabel(conversation) {
+  const name = [conversation?.first_name, conversation?.last_name].filter(Boolean).join(' ').trim()
+  return name || conversation?.client_id || null
+}
+
+function conversationTitle(conversation) {
+  if (!conversation) return 'New consult'
+  const client = conversationPatientLabel(conversation)
+  if (client) return client
+  return conversation.title || 'Consult session'
+}
+
+function conversationTime(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  const sameDay = date.toDateString() === new Date().toDateString()
+  return sameDay
+    ? date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })
+    : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
+function truncate(text, max = 76) {
+  if (!text) return ''
+  return text.length > max ? `${text.slice(0, max - 3).trim()}...` : text
+}
+
 const STYLE_OPTIONS = [
   { id: 'balanced',  label: 'Balanced',  desc: 'Thorough but concise' },
   { id: 'concise',   label: 'Concise',   desc: 'Short, bullet-first answers' },
@@ -161,8 +187,11 @@ export default function Supervisor() {
   const [streaming, setStreaming] = useState(false)
   const [streamingText, setStreamingText] = useState('')
   const [loading, setLoading] = useState(true)
+  const [historyLoading, setHistoryLoading] = useState(true)
   const [error, setError] = useState('')
   const [patients, setPatients] = useState([])
+  const [conversations, setConversations] = useState([])
+  const [activeConversationId, setActiveConversationId] = useState(null)
   const [contextType, setContextType] = useState('general')
   const [contextId, setContextId] = useState('')
   const [responseStyle, setResponseStyle] = useState(
@@ -172,6 +201,7 @@ export default function Supervisor() {
   const textareaRef = useRef(null)
   // Pick 4 random general prompts once per mount
   const generalPrompts = useRef(pickRandom(GENERAL_PROMPT_POOL, 4))
+  const activeConversation = conversations.find(c => String(c.id) === String(activeConversationId))
 
   // Handle navigation state (from PatientDetail "Discuss in AI Chat" and chat widget Full view)
   useEffect(() => {
@@ -185,16 +215,30 @@ export default function Supervisor() {
     }
   }, [location.state])
 
+  const loadConversations = useCallback(async () => {
+    setHistoryLoading(true)
+    try {
+      const data = await apiFetch('/ai/consult-conversations?limit=60').then(r => r.json())
+      setConversations(Array.isArray(data) ? data : [])
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
     Promise.all([
-      apiFetch('/ai/chat-history?limit=50').then(r => r.json()),
+      loadConversations(),
       apiFetch('/patients').then(r => r.json()),
-    ]).then(([history, pts]) => {
-      setMessages(Array.isArray(history) ? history : [])
+    ]).then(([, pts]) => {
+      setMessages([])
       setPatients(Array.isArray(pts) ? pts : [])
       setLoading(false)
-    }).catch(() => setLoading(false))
-  }, [])
+    }).catch(() => {
+      setMessages([])
+      setLoading(false)
+      setHistoryLoading(false)
+    })
+  }, [loadConversations])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -222,6 +266,32 @@ export default function Supervisor() {
     }
   }
 
+  const startFreshConsult = useCallback(() => {
+    setActiveConversationId(null)
+    setMessages([])
+    setInput('')
+    setStreamingText('')
+    setError('')
+    setTimeout(() => textareaRef.current?.focus(), 80)
+  }, [])
+
+  const openConversation = useCallback(async (conversation) => {
+    if (!conversation || streaming) return
+    setLoading(true)
+    setError('')
+    try {
+      const history = await apiFetch(`/ai/chat-history?limit=80&conversationId=${encodeURIComponent(conversation.id)}`).then(r => r.json())
+      setActiveConversationId(conversation.id)
+      setMessages(Array.isArray(history) ? history : [])
+      setContextType(conversation.context_type || 'general')
+      setContextId(conversation.context_id ? String(conversation.context_id) : '')
+    } catch (err) {
+      setError(err.message || 'Could not open that consult session')
+    } finally {
+      setLoading(false)
+    }
+  }, [streaming])
+
   const sendText = useCallback(async (text) => {
     if (!text.trim() || streaming) return
 
@@ -236,6 +306,7 @@ export default function Supervisor() {
     try {
       const payload = {
         message: text,
+        conversationId: activeConversationId,
         contextType: contextType !== 'general' ? contextType : null,
         contextId: contextId ? parseInt(contextId) : null,
         responseStyle,
@@ -267,6 +338,7 @@ export default function Supervisor() {
               setStreamingText(accumulated)
             }
             if (data.type === 'done' || data.done) {
+              if (data.conversation_id) setActiveConversationId(data.conversation_id)
               setMessages(m => [...m, {
                 id: Date.now() + 1,
                 role: 'assistant',
@@ -275,6 +347,7 @@ export default function Supervisor() {
               }])
               setStreamingText('')
               setStreaming(false)
+              loadConversations()
             }
             if (data.error) throw new Error(data.error)
           } catch (e) {
@@ -306,7 +379,7 @@ export default function Supervisor() {
       setStreaming(false)
       setStreamingText('')
     }
-  }, [streaming, contextType, contextId, responseStyle])
+  }, [streaming, activeConversationId, contextType, contextId, responseStyle, loadConversations])
 
   const sendMessage = useCallback(() => sendText(input.trim()), [input, sendText])
 
@@ -321,10 +394,73 @@ export default function Supervisor() {
     if (!confirm('Clear all chat history? This cannot be undone.')) return
     await apiFetch('/ai/chat-history', { method: 'DELETE' })
     setMessages([])
+    setActiveConversationId(null)
+    setConversations([])
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex h-full min-h-0 bg-gray-50 dark:bg-slate-950">
+      <aside className="hidden lg:flex w-72 xl:w-80 shrink-0 flex-col border-r border-gray-200 dark:border-white/10 bg-white dark:bg-slate-950">
+        <div className="p-4 border-b border-gray-100 dark:border-white/10">
+          <button
+            onClick={startFreshConsult}
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-sm font-semibold px-3 py-2.5 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            New consult
+          </button>
+        </div>
+
+        <div className="px-4 pt-4 pb-2 flex items-center justify-between">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-gray-400">Consult history</h2>
+          <button onClick={loadConversations} className="text-xs text-gray-400 hover:text-brand-600">Refresh</button>
+        </div>
+
+        <div className="flex-1 min-h-0 overflow-y-auto px-3 pb-4 space-y-1">
+          {historyLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <div className="w-5 h-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : conversations.length === 0 ? (
+            <div className="px-3 py-8 text-center">
+              <p className="text-sm font-medium text-gray-600 dark:text-slate-300">No consults yet</p>
+              <p className="text-xs text-gray-400 mt-1">Past sessions will appear here after Miwa responds.</p>
+            </div>
+          ) : (
+            conversations.map(conversation => {
+              const selected = String(activeConversationId) === String(conversation.id)
+              return (
+                <button
+                  key={conversation.id}
+                  onClick={() => openConversation(conversation)}
+                  className={`w-full text-left rounded-xl px-3 py-3 transition-colors border ${
+                    selected
+                      ? 'bg-brand-50 dark:bg-brand-500/10 border-brand-200 dark:border-brand-500/30'
+                      : 'bg-transparent border-transparent hover:bg-gray-50 dark:hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <p className={`text-sm font-semibold truncate ${selected ? 'text-brand-700 dark:text-brand-200' : 'text-gray-800 dark:text-slate-100'}`}>
+                      {conversationTitle(conversation)}
+                    </p>
+                    <span className="text-[11px] text-gray-400 shrink-0">{conversationTime(conversation.updated_at)}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 mt-1 leading-snug line-clamp-2">
+                    {truncate(conversation.last_message || conversation.title || 'Consult session')}
+                  </p>
+                  {conversation.message_count ? (
+                    <p className="text-[10px] text-gray-400 mt-1.5">{conversation.message_count} messages</p>
+                  ) : null}
+                </button>
+              )
+            })
+          )}
+        </div>
+      </aside>
+
+      <div className="flex flex-col min-w-0 flex-1 h-full">
       {/* Top bar, hidden on mobile */}
       <div className="hidden md:flex flex-shrink-0 px-6 py-3 bg-white border-b border-gray-100 items-center gap-4">
         <div className="flex items-center gap-3">
@@ -334,8 +470,12 @@ export default function Supervisor() {
             </svg>
           </div>
           <div>
-            <div className="text-sm font-semibold text-gray-900">Miwa</div>
-            <div className="text-xs text-gray-500">25+ years clinical experience · DSM-5-TR · ICD-10-CM</div>
+            <div className="text-sm font-semibold text-gray-900">
+              {activeConversation ? conversationTitle(activeConversation) : 'Miwa'}
+            </div>
+            <div className="text-xs text-gray-500">
+              {activeConversation ? 'Opened from consult history' : 'Fresh consult session ready for input'}
+            </div>
           </div>
         </div>
 
@@ -422,7 +562,7 @@ export default function Supervisor() {
               )
             })() : (
               <p className="text-sm text-gray-500 max-w-sm mb-5">
-                I'm Miwa. What would you like to consult on today?
+                I'm Miwa. This is a fresh consult session. What would you like to think through today?
               </p>
             )}
 
@@ -574,6 +714,7 @@ export default function Supervisor() {
         <p className="text-xs text-gray-400 text-center mt-2">
           Miwa provides AI clinical support only, not a replacement for licensed supervision or professional judgment.
         </p>
+      </div>
       </div>
     </div>
   )

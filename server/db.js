@@ -177,12 +177,24 @@ function createSchema() {
     CREATE TABLE IF NOT EXISTS chat_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       therapist_id INTEGER REFERENCES therapists(id),
+      conversation_id INTEGER,
       role TEXT NOT NULL,
       content TEXT NOT NULL,
       context_type TEXT,
       context_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS consult_conversations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      therapist_id INTEGER NOT NULL REFERENCES therapists(id),
+      title TEXT,
+      context_type TEXT,
+      context_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_consult_conversations ON consult_conversations(therapist_id, updated_at);
 
     CREATE TABLE IF NOT EXISTS documents (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1096,6 +1108,17 @@ function runMigrations() {
       try { db.run(`ALTER TABLE therapists ADD COLUMN ${col} ${def}`); } catch {}
     }
   }
+
+  const chatCols = [];
+  const chatStmt = db.prepare('PRAGMA table_info(chat_messages)');
+  while (chatStmt.step()) chatCols.push(chatStmt.getAsObject().name);
+  chatStmt.free();
+  if (!chatCols.includes('conversation_id')) {
+    try { db.run('ALTER TABLE chat_messages ADD COLUMN conversation_id INTEGER'); } catch (_) {}
+  }
+  try {
+    db.run('CREATE INDEX IF NOT EXISTS idx_chat_messages_consult_conversation ON chat_messages(conversation_id, created_at)');
+  } catch (_) {}
   // Grandfather existing therapists past the new email-verification gate.
   // Anyone who has ever logged in (or whose row predates this migration)
   // is treated as already verified so they don't get locked out by the new
