@@ -72,6 +72,7 @@ export default function PublicNav() {
           <NavLink to="/resources"               current={pathname}>Resources</NavLink>
           <NavLink to="/network"                 current={pathname}>Network</NavLink>
           <NavLink to="/about"                   current={pathname}>About</NavLink>
+          <NavLink to="/privacy-and-compliance"  current={pathname}>Privacy & Compliance</NavLink>
         </div>
       </div>
       <div className="flex items-center gap-4">

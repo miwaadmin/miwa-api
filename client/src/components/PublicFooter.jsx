@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { MiwaLogo } from './Sidebar'
 import { COMMUNITY_URL, COMMUNITY_LABEL, HAS_COMMUNITY } from '../lib/community'
 
@@ -30,6 +31,18 @@ export default function PublicFooter() {
           </span>
         </div>
         <div className="flex items-center gap-5">
+          <Link
+            to="/privacy-and-compliance"
+            className="text-white/60 hover:text-white text-sm font-medium transition-colors"
+          >
+            Privacy & Compliance
+          </Link>
+          <Link
+            to="/security"
+            className="text-white/60 hover:text-white text-sm font-medium transition-colors"
+          >
+            Security
+          </Link>
           {HAS_COMMUNITY && (
             <a
               href={COMMUNITY_URL}

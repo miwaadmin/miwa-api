@@ -47,6 +47,7 @@ import ForPractices from './pages/ForPractices'
 import Docs from './pages/Docs'
 import Security from './pages/Security'
 import Privacy from './pages/Privacy'
+import PrivacyCompliance from './pages/PrivacyCompliance'
 import SmsPolicy from './pages/SmsPolicy'
 import DeleteAccount from './pages/DeleteAccount'
 import TaskDetail from './pages/TaskDetail'
@@ -175,6 +176,7 @@ export default function App() {
               <Route path="/docs" element={<Docs />} />
               <Route path="/security" element={isMobileDevice() ? <MobileSecurity /> : <Security />} />
               <Route path="/privacy" element={isMobileDevice() ? <MobilePrivacy /> : <Privacy />} />
+              <Route path="/privacy-and-compliance" element={<PrivacyCompliance />} />
               <Route path="/sms-policy" element={<SmsPolicy />} />
               <Route path="/delete-account" element={<DeleteAccount />} />
               <Route path="/resources" element={<Resources />} />
