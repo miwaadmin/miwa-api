@@ -203,7 +203,7 @@ export default function DeleteAccount() {
           </div>
           <div className="flex items-center justify-center gap-6 text-base">
             <Link to="/privacy" className="hover:text-white">Privacy</Link>
-            <Link to="/security" className="hover:text-white">Security</Link>
+            <Link to="/privacy-and-compliance" className="hover:text-white">Privacy</Link>
             <Link to="/delete-account" className="hover:text-white" style={{ color: 'white' }}>Delete Account</Link>
           </div>
           <p className="text-sm mt-6 opacity-60">© 2026 Miwa. All rights reserved.</p>

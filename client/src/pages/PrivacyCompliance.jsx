@@ -120,9 +120,9 @@ export default function PrivacyCompliance() {
               <Link to="/privacy" className="rounded-xl px-6 py-3 text-center text-base font-bold text-white transition hover:opacity-90" style={{ background: GRAD }}>
                 Read privacy policy
               </Link>
-              <Link to="/security" className="rounded-xl px-6 py-3 text-center text-base font-bold transition hover:bg-gray-50" style={{ border: '1px solid rgba(17,24,39,0.12)', color: INK }}>
-                View security details
-              </Link>
+              <a href="mailto:privacy@miwa.care" className="rounded-xl px-6 py-3 text-center text-base font-bold transition hover:bg-gray-50" style={{ border: '1px solid rgba(17,24,39,0.12)', color: INK }}>
+                Request BAA
+              </a>
             </div>
             <p className="mt-5 text-sm" style={{ color: '#7a8190' }}>
               Last reviewed May 2026. Compliance claims should be reviewed with counsel before enterprise rollout.

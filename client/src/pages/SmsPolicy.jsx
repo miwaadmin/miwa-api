@@ -224,7 +224,7 @@ export default function SmsPolicy() {
           </div>
           <div className="flex items-center justify-center gap-6 text-base">
             <Link to="/about" className="hover:text-white">About</Link>
-            <Link to="/security" className="hover:text-white">Security</Link>
+            <Link to="/privacy-and-compliance" className="hover:text-white">Privacy</Link>
             <Link to="/privacy" className="hover:text-white">Privacy</Link>
             <Link to="/sms-policy" className="hover:text-white" style={{ color: 'white' }}>SMS Policy</Link>
           </div>

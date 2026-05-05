@@ -55,12 +55,6 @@ export default function PublicFooter() {
           >
             Privacy
           </Link>
-          <Link
-            to="/security"
-            className="text-white/60 hover:text-white text-sm font-medium transition-colors"
-          >
-            Security
-          </Link>
           {HAS_COMMUNITY && (
             <a
               href={COMMUNITY_URL}

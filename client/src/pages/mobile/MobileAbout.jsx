@@ -124,7 +124,7 @@ export default function MobileAbout() {
           Create a Miwa account
         </Link>
         <div className="flex gap-2 justify-center pt-2 text-sm">
-          <Link to="/security" className="text-brand-600 active:text-brand-800 font-medium px-3 py-2">Security</Link>
+          <Link to="/privacy-and-compliance" className="text-brand-600 active:text-brand-800 font-medium px-3 py-2">Privacy</Link>
           <Link to="/privacy" className="text-brand-600 active:text-brand-800 font-medium px-3 py-2">Privacy</Link>
           <Link to="/pricing" className="text-brand-600 active:text-brand-800 font-medium px-3 py-2">Pricing</Link>
         </div>

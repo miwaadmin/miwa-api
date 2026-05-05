@@ -173,7 +173,7 @@ export default function MobilePrivacy() {
       {/* CTA */}
       <div className="px-6 py-8 flex flex-col gap-2">
         <div className="flex gap-2 justify-center pt-2 text-sm">
-          <Link to="/security" className="text-brand-600 active:text-brand-800 font-medium px-3 py-2">Security</Link>
+          <Link to="/privacy-and-compliance" className="text-brand-600 active:text-brand-800 font-medium px-3 py-2">Privacy</Link>
           <Link to="/about" className="text-brand-600 active:text-brand-800 font-medium px-3 py-2">About</Link>
           <Link to="/delete-account" className="text-brand-600 active:text-brand-800 font-medium px-3 py-2">Delete account</Link>
         </div>

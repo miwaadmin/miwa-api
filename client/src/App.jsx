@@ -45,7 +45,6 @@ import ForTrainees from './pages/ForTrainees'
 import ForLicensedClinicians from './pages/ForLicensedClinicians'
 import ForPractices from './pages/ForPractices'
 import Docs from './pages/Docs'
-import Security from './pages/Security'
 import Privacy from './pages/Privacy'
 import PrivacyCompliance from './pages/PrivacyCompliance'
 import SmsPolicy from './pages/SmsPolicy'
@@ -73,7 +72,6 @@ import MobileOutcomes from './pages/mobile/MobileOutcomes'
 import MobileLogin from './pages/mobile/MobileLogin'
 import MobileRegister from './pages/mobile/MobileRegister'
 import MobileAbout from './pages/mobile/MobileAbout'
-import MobileSecurity from './pages/mobile/MobileSecurity'
 import MobilePrivacy from './pages/mobile/MobilePrivacy'
 import MobileForgotPassword from './pages/mobile/MobileForgotPassword'
 import MobileResetPassword from './pages/mobile/MobileResetPassword'
@@ -174,7 +172,7 @@ export default function App() {
               <Route path="/for-practices" element={<ForPractices />} />
               <Route path="/templates" element={<Templates />} />
               <Route path="/docs" element={<Docs />} />
-              <Route path="/security" element={isMobileDevice() ? <MobileSecurity /> : <Security />} />
+              <Route path="/security" element={<Navigate to="/privacy-and-compliance" replace />} />
               <Route path="/privacy" element={isMobileDevice() ? <MobilePrivacy /> : <Privacy />} />
               <Route path="/privacy-and-compliance" element={<PrivacyCompliance />} />
               <Route path="/sms-policy" element={<SmsPolicy />} />
