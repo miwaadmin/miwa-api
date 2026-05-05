@@ -16,6 +16,92 @@ const GRAD_TEXT = {
   backgroundClip: 'text',
 }
 
+const FEATURE_ICON_PATHS = {
+  brief: [
+    'M8 6h8',
+    'M8 10h8',
+    'M8 14h5',
+    'M6 3h12a2 2 0 0 1 2 2v14l-4-2-4 2-4-2-4 2V5a2 2 0 0 1 2-2z',
+  ],
+  risk: [
+    'M12 9v4',
+    'M12 17h.01',
+    'M10.3 4.2 2.8 17a2 2 0 0 0 1.7 3h14.4a2 2 0 0 0 1.7-3L13.7 4.2a2 2 0 0 0-3.4 0z',
+  ],
+  letter: [
+    'M7 3h7l4 4v14H7z',
+    'M14 3v5h5',
+    'M9 13h6',
+    'M9 17h4',
+  ],
+  morning: [
+    'M12 4v2',
+    'M12 18v2',
+    'M4 12H2',
+    'M22 12h-2',
+    'm5 5-1.4 1.4',
+    'm18.4 5-1.4 1.4',
+    'm5 19 1.4-1.4',
+    'm18.4 19-1.4-1.4',
+    'M12 8a4 4 0 1 1 0 8 4 4 0 0 1 0-8z',
+  ],
+  voice: [
+    'M4 18c3-3 5-3 8 0s5 3 8 0',
+    'M6 14c2-2 4-2 6 0s4 2 6 0',
+    'M8 10c1.5-1 2.5-1 4 0s2.5 1 4 0',
+    'M12 5v14',
+  ],
+  mic: [
+    'M12 3a3 3 0 0 0-3 3v5a3 3 0 0 0 6 0V6a3 3 0 0 0-3-3z',
+    'M5 10v1a7 7 0 0 0 14 0v-1',
+    'M12 18v3',
+    'M9 21h6',
+  ],
+  delivery: [
+    'M12 3v10',
+    'm8 8-4-4-4 4',
+    'M5 14v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4',
+  ],
+  alerts: [
+    'M4 19h16',
+    'M7 16V9',
+    'M12 16V5',
+    'M17 16v-4',
+  ],
+  plans: [
+    'M12 21s7-4.5 7-11a7 7 0 0 0-14 0c0 6.5 7 11 7 11z',
+    'M9 10l2 2 4-4',
+  ],
+}
+
+function FeatureCardIcon({ type }) {
+  const iconKey =
+    String(type).startsWith('Active') ? 'risk' :
+    String(type).startsWith('Letter') ? 'letter' :
+    String(type).startsWith('Morning') ? 'morning' :
+    String(type).startsWith('Learns') ? 'voice' :
+    String(type).startsWith('Voice') ? 'mic' :
+    String(type).startsWith('Assessment') ? 'delivery' :
+    String(type).startsWith('Proactive') ? 'alerts' :
+    String(type).startsWith('Living') ? 'plans' :
+    String(type)
+  const paths = FEATURE_ICON_PATHS[iconKey] || FEATURE_ICON_PATHS.brief
+  return (
+    <span
+      className="mb-4 flex h-10 w-10 items-center justify-center rounded-lg text-white shadow-lg"
+      style={{
+        background: GRAD,
+        boxShadow: '0 10px 26px rgba(45,212,191,0.18)',
+      }}
+      aria-hidden="true"
+    >
+      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+        {paths.map((d) => <path key={d} d={d} />)}
+      </svg>
+    </span>
+  )
+}
+
 const NAV_LINKS = [
   { to: '/features',      label: 'Features' },
   { to: '/pricing',       label: 'Pricing' },
@@ -647,7 +733,7 @@ export default function Home() {
             ].map((item, i) => (
               <div key={i} className="rounded-2xl p-6"
                 style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
-                <span className="text-2xl mb-3 block">{item.icon}</span>
+                <FeatureCardIcon type={item.prompt} />
                 <p className="text-white font-bold text-base mb-2 leading-snug">
                   {item.prompt}
                 </p>
