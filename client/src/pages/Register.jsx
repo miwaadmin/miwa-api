@@ -18,7 +18,7 @@ const CREDENTIAL_TYPES = [
   {
     id: 'associate',
     label: 'Associate',
-    subtitle: 'AMFT, ACSW, APCC — licensed associate',
+    subtitle: 'AMFT, ACSW, APCC, licensed associate',
     note: 'License number required',
     noteColor: '#2dd4bf',
     gradient: 'linear-gradient(135deg, #0d9488, #2dd4bf)',
@@ -26,7 +26,7 @@ const CREDENTIAL_TYPES = [
   {
     id: 'licensed',
     label: 'Licensed Therapist',
-    subtitle: 'LMFT, LCSW, LPCC — fully licensed',
+    subtitle: 'LMFT, LCSW, LPCC, fully licensed',
     note: 'Full access, no verification needed',
     noteColor: '#a78bfa',
     gradient: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
@@ -91,7 +91,7 @@ export default function Register() {
 
       // No auto-login. The user must click the verification link in their
       // inbox before signing in. Show the "check your email" screen for any
-      // registration outcome (success or duplicate-email — they look the same
+      // registration outcome (success or duplicate-email, they look the same
       // from the form's perspective, by design).
       setDone(true)
     } catch (err) {
@@ -114,7 +114,7 @@ export default function Register() {
   const inputCls = "w-full rounded-xl px-4 py-3 text-base bg-white border border-gray-200 text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-indigo-400/50 focus:border-indigo-400 transition-colors"
   const labelCls = "block text-sm font-semibold text-gray-700 mb-1.5"
 
-  // ── "Check your email" screen — shown after every registration submit ─────
+  // ── "Check your email" screen, shown after every registration submit ─────
   if (done) {
     return (
       <div className="public-page min-h-screen flex items-center justify-center p-4"
@@ -182,7 +182,7 @@ export default function Register() {
           <div className="space-y-4">
             {/* Free trial reassurance */}
             <div className="rounded-2xl px-5 py-4 text-center border border-emerald-200 bg-emerald-50/60">
-              <p className="text-base font-bold text-emerald-800">Start free — no credit card required</p>
+              <p className="text-base font-bold text-emerald-800">Start free, no credit card required</p>
               <p className="text-sm text-emerald-600 mt-0.5">Full access during your trial. Choose your role to get started.</p>
             </div>
 

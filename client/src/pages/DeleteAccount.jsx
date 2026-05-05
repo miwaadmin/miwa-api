@@ -18,8 +18,8 @@ function Nav() {
       </Link>
       <div className="hidden md:flex items-center gap-6 text-base text-white/55">
         <Link to="/features" className="hover:text-white transition-colors">Features</Link>
-        <Link to="/for-trainees" className="hover:text-white transition-colors">For Trainees</Link>
-        <Link to="/for-practices" className="hover:text-white transition-colors">For Practices</Link>
+        <Link to="/for-trainees" className="hover:text-white transition-colors">Trainees</Link>
+        <Link to="/for-practices" className="hover:text-white transition-colors">Practices</Link>
         <Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link>
       </div>
       <div className="flex items-center gap-3">
@@ -67,14 +67,14 @@ export default function DeleteAccount() {
       {/* Hero */}
       <header className="pt-32 pb-12 px-6" style={{ background: '#fafafa', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
         <div className="max-w-3xl mx-auto">
-          <p className="text-base font-semibold mb-3" style={{ color: PURPLE, letterSpacing: '0.1em' }}>MIWA — DATA &amp; ACCOUNT DELETION</p>
+          <p className="text-base font-semibold mb-3" style={{ color: PURPLE, letterSpacing: '0.1em' }}>MIWA, DATA &amp; ACCOUNT DELETION</p>
           <h1 className="text-4xl md:text-5xl font-black text-zinc-900 mb-4" style={{ letterSpacing: '-0.03em' }}>
             Delete your Miwa account
           </h1>
           <p className="text-lg text-zinc-600 leading-relaxed">
             You can request deletion of your Miwa (<strong>miwa.care</strong> / Miwa Care mobile app) therapist
             account and associated data at any time. Because Miwa is used in licensed clinical practice and handles
-            Protected Health Information (PHI), deletion follows specific HIPAA rules — read the details below.
+            Protected Health Information (PHI), deletion follows specific HIPAA rules, read the details below.
           </p>
         </div>
       </header>
@@ -89,7 +89,7 @@ export default function DeleteAccount() {
             </p>
 
             <div className="mb-8 p-6 rounded-2xl" style={{ background: '#f8fafc', border: '1px solid rgba(96,71,238,0.15)' }}>
-              <h3 className="text-lg font-semibold text-zinc-900 mb-4">Option A — In-app deletion (fastest)</h3>
+              <h3 className="text-lg font-semibold text-zinc-900 mb-4">Option A, In-app deletion (fastest)</h3>
               <Step num="1" title="Sign in to Miwa">
                 <p>Open the Miwa Care app or go to <a href="https://miwa.care/login" className="font-semibold" style={{ color: PURPLE }}>miwa.care/login</a>.</p>
               </Step>
@@ -105,7 +105,7 @@ export default function DeleteAccount() {
             </div>
 
             <div className="mb-8 p-6 rounded-2xl" style={{ background: '#f8fafc', border: '1px solid rgba(45,212,191,0.2)' }}>
-              <h3 className="text-lg font-semibold text-zinc-900 mb-4">Option B — Email request</h3>
+              <h3 className="text-lg font-semibold text-zinc-900 mb-4">Option B, Email request</h3>
               <p>
                 Email <a href="mailto:privacy@miwa.care" className="font-semibold" style={{ color: PURPLE }}>privacy@miwa.care</a> from
                 the address associated with your account with the subject line <strong>“Account deletion request.”</strong>
@@ -137,7 +137,7 @@ export default function DeleteAccount() {
               <li className="flex gap-3"><span className="mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: PURPLE }} />
                 <span>
                   <strong>Patient clinical records</strong> (session notes, assessments, diagnoses, treatment plans)
-                  created during your use of Miwa are retained per applicable record-retention law — typically 7 years after
+                  created during your use of Miwa are retained per applicable record-retention law, typically 7 years after
                   last date of service for adults, and longer for minors. The therapist or successor clinician remains
                   responsible for these records as the HIPAA Covered Entity. On deletion request, we can export these to you
                   (or to a designated successor clinician) before deletion, or retain them under our Business Associate
@@ -145,15 +145,15 @@ export default function DeleteAccount() {
                 </span>
               </li>
               <li className="flex gap-3"><span className="mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: PURPLE }} />
-                <span><strong>Audit logs</strong> — retained for a minimum of 6 years per HIPAA § 164.316(b)(2)(i). Logs
+                <span><strong>Audit logs</strong>, retained for a minimum of 6 years per HIPAA § 164.316(b)(2)(i). Logs
                   contain user IDs and access events but not patient content.</span>
               </li>
               <li className="flex gap-3"><span className="mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: PURPLE }} />
-                <span><strong>Billing records</strong> — Stripe retains its own transaction records per its own retention
+                <span><strong>Billing records</strong>, Stripe retains its own transaction records per its own retention
                   policies, independent of Miwa.</span>
               </li>
               <li className="flex gap-3"><span className="mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: PURPLE }} />
-                <span><strong>Backups</strong> — encrypted backups roll over on a 35-day cycle. Data in backups older than
+                <span><strong>Backups</strong>, encrypted backups roll over on a 35-day cycle. Data in backups older than
                   35 days is permanently overwritten.</span>
               </li>
             </ul>
@@ -177,7 +177,7 @@ export default function DeleteAccount() {
             <p>
               If you are a patient whose therapist uses Miwa, your data is held in your therapist's Miwa account.
               Requests for access, correction, or deletion of your Protected Health Information should be directed to
-              your therapist — they are the HIPAA Covered Entity. Miwa will support your therapist in fulfilling any
+              your therapist, they are the HIPAA Covered Entity. Miwa will support your therapist in fulfilling any
               lawful request within required timeframes.
             </p>
           </Section>

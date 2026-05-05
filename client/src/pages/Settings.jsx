@@ -597,7 +597,7 @@ export default function Settings() {
             ) : (
               <div className="flex items-center gap-3">
                 <p className="flex-1 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
-                  {therapist?.full_name || <span className="text-gray-400 italic">Not set — Miwa can't address you by name until this is filled in</span>}
+                  {therapist?.full_name || <span className="text-gray-400 italic">Not set, Miwa can't address you by name until this is filled in</span>}
                 </p>
                 <button
                   onClick={() => setEditingName(true)}
@@ -917,7 +917,7 @@ export default function Settings() {
               placeholder="Examples: Keep responses concise. Prefer family-systems framing. Flag documentation risks early."
               className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-brand-400 focus:ring-brand-200"
             />
-            <p className="text-[11px] text-gray-400 mt-1.5">This is safe assistant memory for preferences, style, and workflow habits — not raw client details.</p>
+            <p className="text-[11px] text-gray-400 mt-1.5">This is safe assistant memory for preferences, style, and workflow habits, not raw client details.</p>
           </div>
 
           <div>
@@ -970,7 +970,7 @@ export default function Settings() {
 
         <div className="flex items-center gap-3">
           <div className="flex-1 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 font-mono tracking-wide">
-            {referralCode || '—'}
+            {referralCode || ', '}
           </div>
           <button onClick={copyReferralCode} className="btn-secondary text-sm">
             {codeCopied ? 'Copied!' : 'Copy'}
@@ -978,7 +978,7 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Automation Rules removed — replaced by Proactive Outreach below */}
+      {/* Automation Rules removed, replaced by Proactive Outreach below */}
 
       {/* ── Miwa Soul Profile ─────────────────────────────────────────────── */}
       <div className="card p-6">
@@ -1001,7 +1001,7 @@ export default function Settings() {
               </span>
             </div>
             <p className="text-xs text-gray-500 mt-0.5">
-              Miwa learns your preferences automatically from every conversation — note style, scheduling patterns, clinical approach, and corrections.
+              Miwa learns your preferences automatically from every conversation, note style, scheduling patterns, clinical approach, and corrections.
             </p>
           </div>
           <svg className={`w-4 h-4 text-gray-400 mt-0.5 flex-shrink-0 transition-transform ${soulExpanded ? 'rotate-180' : ''}`}
@@ -1014,7 +1014,7 @@ export default function Settings() {
           <div className="mt-5 space-y-4">
             <div className="rounded-xl p-3 text-xs text-indigo-700"
               style={{ background: 'rgba(87,70,237,0.06)', border: '1px solid rgba(87,70,237,0.15)' }}>
-              Miwa observes every interaction and silently adapts. No configuration needed — just use Miwa naturally and it learns your style.
+              Miwa observes every interaction and silently adapts. No configuration needed, just use Miwa naturally and it learns your style.
               Explicit corrections ("don't do X") are always applied with the highest priority.
             </div>
 
@@ -1107,7 +1107,7 @@ export default function Settings() {
         )}
       </div>
 
-      {/* Group Practice removed — separate product at practice.miwa.care */}
+      {/* Group Practice removed, separate product at practice.miwa.care */}
 
       {/* Proactive Outreach Settings */}
       <OutreachSettings />

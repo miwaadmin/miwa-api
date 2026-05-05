@@ -12,7 +12,7 @@ const values = [
   {
     icon: '🔒',
     title: 'Privacy-first architecture',
-    desc: 'Miwa is built on HIPAA-aligned infrastructure with Azure-hosted clinical data, Azure OpenAI for PHI-capable AI workflows, and no clinical data used to train AI models. Security is not an afterthought — it is the foundation.',
+    desc: 'Miwa is built on HIPAA-aligned infrastructure with Azure-hosted clinical data, Azure OpenAI for PHI-capable AI workflows, and no clinical data used to train AI models. Security is not an afterthought, it is the foundation.',
   },
   {
     icon: '🧠',
@@ -72,7 +72,7 @@ export default function About() {
                 The result is a tool that can meaningfully reduce documentation time without putting anyone at risk.
               </p>
               <p>
-                Today, Miwa goes further. It watches your caseload between sessions — flagging when someone deteriorates or a risk concern appears in your notes. It prepares briefs 30 minutes before each appointment so you're never starting cold. It learns your clinical voice, so AI-drafted documentation already sounds like you. And it handles multi-step workflows — send assessments to your whole panel, draft ESA letters and attorney summaries, organize supervision prep — all through plain conversation.
+                Today, Miwa goes further. It watches your caseload between sessions, flagging when someone deteriorates or a risk concern appears in your notes. It prepares briefs 30 minutes before each appointment so you're never starting cold. It learns your clinical voice, so AI-drafted documentation already sounds like you. And it handles multi-step workflows, send assessments to your whole panel, draft ESA letters and attorney summaries, organize supervision prep, all through plain conversation.
               </p>
               <p className="text-gray-700 font-semibold">
                 But every output is a draft. Every decision is yours.
@@ -87,7 +87,7 @@ export default function About() {
               'Miwa stores the clinical records needed to provide the service, protected in HIPAA-aligned Azure infrastructure.',
               'All AI output must be reviewed by a licensed or supervised clinician.',
               'We are not a crisis service or a replacement for supervision.',
-              'Your data is yours — never used to train AI models.',
+              'Your data is yours, never used to train AI models.',
             ].map(item => (
               <div key={item} className="flex items-start gap-3">
                 <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5" style={{ background: GRAD }}>

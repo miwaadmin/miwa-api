@@ -1,7 +1,7 @@
 import { adminApiFetch } from '../../lib/api'
 
 export function formatDate(value) {
-  if (!value) return '—'
+  if (!value) return ', '
   try {
     return new Date(value).toLocaleString('en-US', {
       timeZone: 'America/Los_Angeles',

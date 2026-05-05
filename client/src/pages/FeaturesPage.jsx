@@ -32,7 +32,7 @@ function Mock({ children, url = 'miwa.care' }) {
 const SHOWCASE = [
   {
     title: 'AI Progress Notes',
-    desc: 'Dictate a 3-minute session recap. Miwa generates SOAP, BIRP, and DAP notes simultaneously — ready to sign.',
+    desc: 'Dictate a 3-minute session recap. Miwa generates SOAP, BIRP, and DAP notes simultaneously, ready to sign.',
     color: '#22c55e',
     mockup: (
       <Mock url="miwa.care/workspace">
@@ -43,7 +43,7 @@ const SHOWCASE = [
             <span className="text-[8px] text-red-400/40 ml-auto">0:47</span>
           </div>
           <div className="flex items-center gap-1.5 mb-1">
-            <span className="text-[8px] font-bold uppercase" style={{ color: PURPLE }}>SOAP — Generated</span>
+            <span className="text-[8px] font-bold uppercase" style={{ color: PURPLE }}>SOAP, Generated</span>
             {['SOAP','BIRP','DAP'].map(f => (
               <span key={f} className="text-[7px] px-1 py-0.5 rounded" style={{ background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)' }}>{f}</span>
             ))}
@@ -51,7 +51,7 @@ const SHOWCASE = [
           {[
             { l: 'S', t: 'Client reported improved sleep and reduced avoidance.' },
             { l: 'O', t: 'Engaged, affect euthymic, eye contact maintained.' },
-            { l: 'A', t: 'PTSD (F43.10) — early response to CPT protocol.' },
+            { l: 'A', t: 'PTSD (F43.10), early response to CPT protocol.' },
             { l: 'P', t: 'Continue CPT. Assign thought record. F/U 1 week.' },
           ].map(r => (
             <div key={r.l} className="flex gap-1.5">
@@ -69,7 +69,7 @@ const SHOWCASE = [
   },
   {
     title: 'Miwa Copilot',
-    desc: 'Talk to Miwa like a colleague. It spots what your caseload needs and handles it — scheduling, assessments, reports — through plain conversation.',
+    desc: 'Talk to Miwa like a colleague. It spots what your caseload needs and handles it, scheduling, assessments, reports, through plain conversation.',
     color: '#6366f1',
     mockup: (
       <Mock url="miwa.care/consult">
@@ -106,7 +106,7 @@ const SHOWCASE = [
     mockup: (
       <Mock url="miwa.care/outcomes">
         <div className="space-y-2">
-          <div className="text-[8px] font-bold text-white/30 uppercase tracking-wide">PHQ-9 Trend — Marcus T.</div>
+          <div className="text-[8px] font-bold text-white/30 uppercase tracking-wide">PHQ-9 Trend, Marcus T.</div>
           <div className="flex items-end gap-1 h-12">
             {[18, 16, 14, 12, 9, 7].map((v, i) => (
               <div key={i} className="flex-1 rounded-sm" style={{ height: `${(v / 20) * 100}%`, background: v > 14 ? '#ef4444' : v > 9 ? '#f59e0b' : '#22c55e', opacity: 0.7 + (i * 0.05) }} />
@@ -132,7 +132,7 @@ const SHOWCASE = [
         <div className="space-y-2">
           <div className="flex items-center gap-1.5 mb-1">
             <span className="text-[7px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full bg-violet-500/20 text-violet-400">✦ Brief ready</span>
-            <span className="text-[8px] text-white/25">3:00 PM — Maria R.</span>
+            <span className="text-[8px] text-white/25">3:00 PM, Maria R.</span>
           </div>
           <p className="text-[8px] text-white/65 leading-relaxed">
             Today's session with Maria. Last session you focused on her mom's diagnosis. Her mid-week check-in mood was 2/5; she mentioned not sleeping.
@@ -141,7 +141,7 @@ const SHOWCASE = [
             Two threads worth picking up: (1) the unfinished narrative about her sister, (2) the avoidance of the homework.
           </p>
           <div className="flex items-center gap-1.5 pt-1">
-            <span className="text-[7px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-400 font-bold">⚠ PHQ-9 12→16 — consider re-screen</span>
+            <span className="text-[7px] px-1 py-0.5 rounded bg-amber-500/15 text-amber-400 font-bold">⚠ PHQ-9 12→16, consider re-screen</span>
           </div>
         </div>
       </Mock>
@@ -162,7 +162,7 @@ const SHOWCASE = [
             <span className="text-amber-400 text-[9px]">⚠</span>
             <div>
               <p className="text-[7px] font-bold text-amber-300 uppercase tracking-wider">Suicidal ideation language</p>
-              <p className="text-[7px] text-amber-100/80 leading-relaxed">No C-SSRS in last 2 weeks — consider administering before signing.</p>
+              <p className="text-[7px] text-amber-100/80 leading-relaxed">No C-SSRS in last 2 weeks, consider administering before signing.</p>
             </div>
           </div>
         </div>
@@ -171,7 +171,7 @@ const SHOWCASE = [
   },
   {
     title: 'Letter Generator',
-    desc: 'ESA letters, school 504 support, insurance pre-auth, attorney summaries, return-to-work — drafted from the chart in your voice. Review, edit, sign.',
+    desc: 'ESA letters, school 504 support, insurance pre-auth, attorney summaries, return-to-work, drafted from the chart in your voice. Review, edit, sign.',
     color: '#ec4899',
     mockup: (
       <Mock url="miwa.care/letters">
@@ -201,13 +201,13 @@ const SHOWCASE = [
     mockup: (
       <Mock url="admin@miwa.care inbox">
         <div className="space-y-1.5">
-          <p className="text-[7px] font-bold uppercase tracking-wide text-teal-400">☀ Your day — Friday</p>
+          <p className="text-[7px] font-bold uppercase tracking-wide text-teal-400">☀ Your day, Friday</p>
           <p className="text-[7px] text-white/55 leading-relaxed">Quick read on your 12 clients overnight:</p>
           <div className="space-y-1">
             {[
-              { color: 'rgba(239,68,68,0.15)', border: 'rgba(239,68,68,0.3)', text: '⚠ Maria — PHQ-9 jumped (12→16). Re-screen before session.' },
-              { color: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.3)', text: '↓ Marcus — completed homework early. Worth acknowledging.' },
-              { color: 'rgba(96,71,238,0.15)', border: 'rgba(96,71,238,0.3)', text: '✦ New referral — intake packet not yet sent.' },
+              { color: 'rgba(239,68,68,0.15)', border: 'rgba(239,68,68,0.3)', text: '⚠ Maria, PHQ-9 jumped (12→16). Re-screen before session.' },
+              { color: 'rgba(16,185,129,0.15)', border: 'rgba(16,185,129,0.3)', text: '↓ Marcus, completed homework early. Worth acknowledging.' },
+              { color: 'rgba(96,71,238,0.15)', border: 'rgba(96,71,238,0.3)', text: '✦ New referral, intake packet not yet sent.' },
               { color: 'rgba(255,255,255,0.03)', border: 'rgba(255,255,255,0.06)', text: '· 8 stable clients on autopilot.' },
             ].map((row, i) => (
               <p key={i} className="text-[7px] text-white/55 px-1.5 py-1 rounded" style={{ background: row.color, border: `1px solid ${row.border}` }}>
@@ -266,7 +266,7 @@ const SHOWCASE = [
             </div>
           </div>
           <div className="rounded-md px-2 py-1.5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <p className="text-[8px] font-bold text-white/60 mb-0.5">Progress Report — Jordan M.</p>
+            <p className="text-[8px] font-bold text-white/60 mb-0.5">Progress Report, Jordan M.</p>
             <p className="text-[7px] text-white/35">Treatment period: Jan 6 – Mar 28, 2026</p>
             <p className="text-[7px] text-white/35">Sessions attended: 12 of 12 scheduled</p>
             <p className="text-[7px] text-white/35">PHQ-9: 18 → 9 (significant improvement)</p>
@@ -285,31 +285,31 @@ const SHOWCASE = [
 
 const FEATURES = [
   { category: 'Miwa Copilot', color: '#6366f1', items: [
-    { title: 'Plain-language interface', desc: 'Talk to Miwa like a colleague. It understands clinical language, reads context, and handles multi-step work — not just answers.' },
-    { title: 'Multi-step task execution', desc: 'Miwa plans and executes complex workflows: client onboarding, case closure, court prep — all through conversation.' },
+    { title: 'Plain-language interface', desc: 'Talk to Miwa like a colleague. It understands clinical language, reads context, and handles multi-step work, not just answers.' },
+    { title: 'Multi-step task execution', desc: 'Miwa plans and executes complex workflows: client onboarding, case closure, court prep, all through conversation.' },
     { title: 'Full caseload context', desc: 'Every Miwa session starts with your entire caseload: scores, trends, risk flags, and treatment progress.' },
     { title: 'Learns your voice', desc: 'Every time you edit an AI draft, Miwa learns your style. After ~10 sessions, the first draft already sounds like you wrote it.' },
   ]},
   { category: 'Active Risk Monitor', color: '#f59e0b', items: [
-    { title: 'Real-time language scanning', desc: 'Miwa watches your session notes for SI, HI, self-harm, and abuse disclosure language as you type — non-blocking, never in your way.' },
+    { title: 'Real-time language scanning', desc: 'Miwa watches your session notes for SI, HI, self-harm, and abuse disclosure language as you type, non-blocking, never in your way.' },
     { title: 'Screener-coverage check', desc: 'If the risk matches a screener (C-SSRS, Tarasoff) you haven\'t administered recently, Miwa nudges you to consider one.' },
-    { title: 'Knows denial from disclosure', desc: 'It can tell "client denied SI" from "client endorses passive SI" — no nagging on routine clearance language.' },
+    { title: 'Knows denial from disclosure', desc: 'It can tell "client denied SI" from "client endorses passive SI", no nagging on routine clearance language.' },
     { title: 'Liability-aware documentation', desc: 'Helps ensure the right screen is on file when risk content appears in a signed note. Your clinical judgment still leads.' },
   ]},
   { category: 'Letter & Form Generator', color: '#ec4899', items: [
     { title: 'Five clinical templates', desc: 'ESA letters, school 504 support, insurance pre-authorization, attorney summaries, return-to-work / fitness-for-duty.' },
     { title: 'Drafted from the chart', desc: 'Miwa pulls diagnosis, treatment course, assessment scores, and functional observations. You pick the template; Miwa writes the first draft.' },
     { title: 'In your clinical voice', desc: 'Uses your letterhead, credentials, and (once learned) your writing style. Never invents facts that aren\'t in the chart.' },
-    { title: 'Review, edit, finalize', desc: 'Every letter is a draft. You edit inline, save, finalize, copy, or download — sign before sending.' },
+    { title: 'Review, edit, finalize', desc: 'Every letter is a draft. You edit inline, save, finalize, copy, or download, sign before sending.' },
   ]},
   { category: 'Morning Briefing', color: '#14b8a6', items: [
     { title: 'Morning dashboard brief', desc: 'The single thing every clinician opens to start the day: caseload pulse, prep priorities, and recent changes.' },
-    { title: 'Per-client status', desc: 'Every active client labeled: stable, improving, needs attention, overdue, or new referral — sorted by clinical urgency, not schedule order.' },
+    { title: 'Per-client status', desc: 'Every active client labeled: stable, improving, needs attention, overdue, or new referral, sorted by clinical urgency, not schedule order.' },
     { title: 'Suggested prep order', desc: 'Miwa recommends which client to prep first if you only have 20 minutes before your first session.' },
-    { title: 'Overnight assessment completions', desc: 'Any scores that came in overnight are surfaced with trend context — improving or concerning.' },
+    { title: 'Overnight assessment completions', desc: 'Any scores that came in overnight are surfaced with trend context, improving or concerning.' },
   ]},
   { category: 'Pre-Session Briefs', color: '#8b5cf6', items: [
-    { title: 'Auto-generated before appointments', desc: 'Miwa prepares a clinical brief 30 minutes before each session — last session summary, score trends, and open goals.' },
+    { title: 'Auto-generated before appointments', desc: 'Miwa prepares a clinical brief 30 minutes before each session, last session summary, score trends, and open goals.' },
     { title: 'Treatment continuity', desc: 'Never start a session cold. See what was discussed, what homework was assigned, and what to follow up on.' },
     { title: 'Risk and alert summary', desc: 'Any deterioration flags, overdue assessments, or safety concerns are highlighted at the top of the brief.' },
     { title: 'Goal tracking context', desc: 'Active treatment plan goals and progress are surfaced so you can check in on what matters.' },
@@ -321,13 +321,13 @@ const FEATURES = [
     { title: 'Session attendance tracking', desc: 'Check-in, late arrival, no-show, and cancellation tracking for every session.' },
   ]},
   { category: 'Treatment Plan Agent', color: '#10b981', items: [
-    { title: 'Living treatment plans', desc: 'Treatment plans that update automatically as sessions progress — goals, objectives, and interventions stay current.' },
+    { title: 'Living treatment plans', desc: 'Treatment plans that update automatically as sessions progress, goals, objectives, and interventions stay current.' },
     { title: 'Auto-progress tracking', desc: 'Miwa tracks goal progress across sessions and flags when objectives are met or stalled.' },
     { title: 'Measurable outcomes', desc: 'Assessment scores are linked directly to treatment goals, so progress is data-driven.' },
     { title: 'Plan generation', desc: 'Generate treatment plans from intake data, or let Miwa evolve them from session notes over time.' },
   ]},
   { category: 'Proactive Alerts & Outreach', color: '#f59e0b', items: [
-    { title: 'Deterioration detection', desc: 'Miwa monitors score trajectories and alerts you when a client is worsening — before the next session.' },
+    { title: 'Deterioration detection', desc: 'Miwa monitors score trajectories and alerts you when a client is worsening, before the next session.' },
     { title: 'Risk review flags', desc: 'Safety concerns from session notes and assessment scores are surfaced proactively for clinical review.' },
     { title: 'Drafted outreach workflows', desc: 'Miwa can help prepare appointment reminders, missed-session follow-ups, and mood check-ins. SMS sending stays disabled until BAA and consent controls are complete.' },
     { title: 'Overdue assessment alerts', desc: 'Miwa tracks assessment cadences and flags when clients are overdue for PHQ-9, GAD-7, or PCL-5.' },
@@ -335,12 +335,12 @@ const FEATURES = [
   { category: 'Assessment Delivery', color: '#4dc4ff', items: [
     { title: 'PHQ-9, GAD-7, PCL-5, C-SSRS secure links', desc: 'Share validated screening tools directly with clients. Scores appear instantly with trend tracking.' },
     { title: 'Batch assessment sender', desc: 'Send assessments to your entire caseload or filtered subsets at once. Miwa handles delivery and timing.' },
-    { title: 'Trend tracking', desc: 'Score history charts show trajectory: improving, stable, or deteriorating — at a glance.' },
+    { title: 'Trend tracking', desc: 'Score history charts show trajectory: improving, stable, or deteriorating, at a glance.' },
     { title: 'Automated cadences', desc: 'Set recurring assessment schedules per client. Miwa handles delivery, reminders, and follow-up.' },
   ]},
   { category: 'Practice Intelligence & Reports', color: '#f472b6', items: [
     { title: 'Cross-client pattern discovery', desc: 'Miwa identifies patterns across your caseload: common stressors, treatment response trends, and cohort insights.' },
-    { title: 'Court & legal reports', desc: 'Professional progress reports formatted for court, attorneys, or probation officers — generated in seconds.' },
+    { title: 'Court & legal reports', desc: 'Professional progress reports formatted for court, attorneys, or probation officers, generated in seconds.' },
     { title: 'Supervision reports', desc: 'Structured supervision notes, case conceptualizations, and training documentation.' },
     { title: 'Research briefs', desc: 'Weekly peer-reviewed research synthesis tailored to your caseload specialties.' },
   ]},
@@ -356,7 +356,7 @@ export default function FeaturesPage() {
     <PublicPageShell>
       <PublicNav />
 
-      {/* Hero — centered to match Pricing / Home */}
+      {/* Hero, centered to match Pricing / Home */}
       <div className="text-center pt-32 pb-14 px-6">
         <p className="text-base font-bold uppercase tracking-widest mb-4" style={{ color: PURPLE }}>Features</p>
         <h1 className="text-4xl lg:text-5xl font-extrabold text-gray-900 mb-5" style={{ textWrap: 'balance' }}>

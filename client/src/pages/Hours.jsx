@@ -1,12 +1,12 @@
 /**
- * Hours — practice hour tracking for trainees and associates.
+ * Hours, practice hour tracking for trainees and associates.
  *
  * v1 mirrors the CSUN MFT practicum bucket structure (matches the layout
  * shown in csun.tevera.app's Track view). Direct service hours auto-tally
  * from completed appointments; supervision/training/advocacy hours are
  * logged manually.
  *
- * UNOFFICIAL — not BBS-approved, not a substitute for the supervisor's
+ * UNOFFICIAL, not BBS-approved, not a substitute for the supervisor's
  * signature on the official 32A. The disclaimer banner makes that clear.
  */
 import { useState, useEffect, useCallback, useMemo, Fragment } from 'react'
@@ -20,7 +20,7 @@ import {
 } from '../lib/hourBuckets'
 
 // Today as YYYY-MM-DD in the user's local time (matches how the server
-// stores dates — see practice_hours.date column).
+// stores dates, see practice_hours.date column).
 const todayLocalISO = () => {
   const d = new Date()
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`
@@ -58,7 +58,7 @@ export default function Hours() {
   const [gridRefreshKey, setGridRefreshKey] = useState(0)
   const [exporting, setExporting] = useState(false)
 
-  // Plan gate. If the user isn't a trainee/associate, redirect — server also
+  // Plan gate. If the user isn't a trainee/associate, redirect, server also
   // enforces this but we want graceful UX, not a 403.
   const cred = therapist?.credential_type || 'licensed'
   const eligible = cred === 'trainee' || cred === 'associate'
@@ -129,7 +129,7 @@ export default function Hours() {
   }, [loadAll])
 
   // Render an "ineligible" landing instead of an empty page when a licensed
-  // clinician somehow lands here — same as the server's 403, but friendlier.
+  // clinician somehow lands here, same as the server's 403, but friendlier.
   if (!eligible) {
     return (
       <div className="p-8 max-w-2xl mx-auto">
@@ -163,14 +163,14 @@ export default function Hours() {
 
   return (
     <div className="p-4 sm:p-6 max-w-5xl mx-auto space-y-4 sm:space-y-5">
-      {/* Header — stacks on phone, side-by-side on tablet+ */}
+      {/* Header, stacks on phone, side-by-side on tablet+ */}
       <div className="flex items-start justify-between gap-3 flex-wrap">
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold text-gray-900">Hours</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             Auto-tallied from your completed appointments. Manual entries fill in supervision, training, and advocacy.
           </p>
-          {/* Program switcher — small, inline, persisted in localStorage. */}
+          {/* Program switcher, small, inline, persisted in localStorage. */}
           <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-0.5">
             {[
               { id: 'csun_mft',    label: 'CSUN Practicum' },
@@ -213,7 +213,7 @@ export default function Hours() {
         </div>
       </div>
 
-      {/* Uncounted-scheduled hint — visible only when there's something to fix.
+      {/* Uncounted-scheduled hint, visible only when there's something to fix.
           Most common reason hours stay at 0 is past appointments still in
           'scheduled' status; this nudges the user to mark them complete. */}
       {state?.uncountedScheduled > 0 && (
@@ -239,14 +239,14 @@ export default function Hours() {
           <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
         <p className="text-xs text-amber-800 leading-relaxed">
-          <span className="font-semibold">Unofficial — for your reference only.</span>
+          <span className="font-semibold">Unofficial, for your reference only.</span>
           {program === 'ca_bbs_lmft'
             ? ' Verify minimums and caps against your current BBS handbook before submitting your 4600 application. Bucket structure mirrors Title 16 §1833.1 but the official numbers can change.'
             : ' Use these totals to fill out your CSUN/BBS form. Your supervisor\'s signature on the official 32A is still required.'}
         </p>
       </div>
 
-      {/* Tabs — horizontal scroll on phone if labels overflow */}
+      {/* Tabs, horizontal scroll on phone if labels overflow */}
       <div className="flex gap-2 border-b border-gray-200 overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0">
         {[
           { id: 'progress', label: 'Progress' },
@@ -267,7 +267,7 @@ export default function Hours() {
         ))}
       </div>
 
-      {/* Server error chip — surfaced inline so the page still renders the
+      {/* Server error chip, surfaced inline so the page still renders the
           bucket skeleton underneath. Useful for diagnosing a 500 from the
           /api/hours endpoint without making the page go blank. */}
       {error && (
@@ -321,7 +321,7 @@ export default function Hours() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Progress view — top-level rollups with progress bars + leaf-bucket detail.
+// Progress view, top-level rollups with progress bars + leaf-bucket detail.
 // ─────────────────────────────────────────────────────────────────────────────
 function ProgressView({ buckets, total, rollups, sessions }) {
   return (
@@ -398,7 +398,7 @@ function ProgressView({ buckets, total, rollups, sessions }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Track grid view — Tevera-style spreadsheet: leaf buckets as rows, days
+// Track grid view, Tevera-style spreadsheet: leaf buckets as rows, days
 // of the selected week as columns. Each cell shows the hours logged on
 // that day for that category (auto from appointments + manual entries
 // summed). Header lets the user navigate by week.
@@ -613,7 +613,7 @@ function isoFromDate(d) {
 function round2(n) { return Math.round((Number(n) || 0) * 100) / 100 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Log view — recent manual entries with edit/delete affordances.
+// Log view, recent manual entries with edit/delete affordances.
 // ─────────────────────────────────────────────────────────────────────────────
 function LogView({ entries, onEdit, onDelete }) {
   if (entries.length === 0) {
@@ -644,7 +644,7 @@ function LogView({ entries, onEdit, onDelete }) {
               <td className="px-4 py-3 text-gray-700 text-xs">{fmtDate(e.date)}</td>
               <td className="px-4 py-3 text-gray-900 text-xs font-medium">{prettyBucket(e.bucket_id)}</td>
               <td className="px-4 py-3 text-right tabular-nums font-semibold">{e.hours}</td>
-              <td className="px-4 py-3 text-gray-600 text-xs">{e.supervisor || '—'}</td>
+              <td className="px-4 py-3 text-gray-600 text-xs">{e.supervisor || ', '}</td>
               <td className="px-4 py-3 text-right">
                 <button onClick={() => onEdit(e)} className="text-xs text-brand-600 hover:underline mr-3">Edit</button>
                 <button onClick={() => onDelete(e.id)} className="text-xs text-red-600 hover:underline">Delete</button>
@@ -658,13 +658,13 @@ function LogView({ entries, onEdit, onDelete }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Entry modal — add/edit a manual hour entry.
+// Entry modal, add/edit a manual hour entry.
 // ─────────────────────────────────────────────────────────────────────────────
 function EntryModal({ entry, program = 'csun_mft', onClose, onSaved }) {
   const isEdit = !!entry?.id
   // Default bucket options come from the client-side mirror so the dropdown
   // is never empty even if the /hours/buckets API call fails. The server is
-  // still authoritative — submission gets validated server-side.
+  // still authoritative, submission gets validated server-side.
   const [bucketOptions, setBucketOptions] = useState(() => getManualBuckets(program))
   const [form, setForm] = useState(() => {
     const initialOpts = getManualBuckets(program)
@@ -877,7 +877,7 @@ const PARENT_LABELS = {
 }
 function parentLabel(parent) { return PARENT_LABELS[parent] || 'Other' }
 
-// Quick label lookup for the log table — keeps each row readable without
+// Quick label lookup for the log table, keeps each row readable without
 // fetching the full bucket structure twice. Includes both CSUN MFT and
 // CA BBS LMFT bucket ids so a single log row works across programs.
 const BUCKET_LABELS = {

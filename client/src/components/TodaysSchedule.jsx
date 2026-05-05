@@ -4,7 +4,7 @@ import { apiFetch } from '../lib/api'
 import { patientInitials } from '../lib/avatar'
 
 /**
- * TodaysSchedule — the Dashboard's "Your Day" appointment list.
+ * TodaysSchedule, the Dashboard's "Your Day" appointment list.
  *
  * Each card shows the time, patient, and appointment type in the collapsed
  * state. Clicking an appointment expands it inline to reveal:
@@ -15,7 +15,7 @@ import { patientInitials } from '../lib/avatar'
  *   - a shortcut to open the full chart.
  *
  * The narrative is what used to live in the separate "Pre-Session Briefs"
- * card — folding it here keeps everything a clinician needs for the day
+ * card, folding it here keeps everything a clinician needs for the day
  * in one place. No more scrolling between sections.
  */
 
@@ -57,7 +57,7 @@ function typeTheme(type) {
 // ── inline brief bits ──────────────────────────────────────────────────────
 
 function TrendPill({ type, t }) {
-  const prev = t.previous != null ? t.previous : '—'
+  const prev = t.previous != null ? t.previous : ', '
   const curr = t.latest
   const tone = t.trend === 'worsening'
     ? 'text-red-700 bg-red-50 border-red-100'
@@ -83,7 +83,7 @@ function MoodDot({ score }) {
     : 'bg-emerald-500 text-white'
   return (
     <span className={`inline-flex items-center justify-center w-5 h-5 rounded-full text-[9px] font-bold flex-shrink-0 ${tone}`}>
-      {score != null ? score : '—'}
+      {score != null ? score : ', '}
     </span>
   )
 }
@@ -98,14 +98,14 @@ function BriefPanel({ brief, patientId, onOpenChart }) {
 
   return (
     <div className="border-t border-gray-100 bg-white/60 px-5 py-4 space-y-4">
-      {/* Narrative — the hero */}
+      {/* Narrative, the hero */}
       {narrative ? (
         <p className="text-[13px] leading-relaxed text-gray-800 whitespace-pre-line">
           {narrative}
         </p>
       ) : narrativeStatus === 'error' ? (
         <p className="text-[12px] italic text-amber-700">
-          Narrative synthesis failed — structured data below.
+          Narrative synthesis failed, structured data below.
         </p>
       ) : (
         <p className="text-[12px] italic text-gray-400">Brief still synthesizing…</p>
@@ -344,7 +344,7 @@ export default function TodaysSchedule({ onEmpty }) {
       ))}
       {briefCount > 0 && (
         <p className="text-[11px] text-brand-600 text-center mt-2 italic">
-          ✦ {briefCount} pre-session brief{briefCount === 1 ? '' : 's'} ready — tap a card to open
+          ✦ {briefCount} pre-session brief{briefCount === 1 ? '' : 's'} ready, tap a card to open
         </p>
       )}
     </div>

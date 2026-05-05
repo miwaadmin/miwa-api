@@ -1,5 +1,5 @@
 /**
- * MobileLayout — purpose-built mobile action hub for clinicians.
+ * MobileLayout, purpose-built mobile action hub for clinicians.
  * Replaces the desktop Layout on small screens / Capacitor native.
  * Bottom tab bar with 5 tabs, compact header, full-height content.
  */
@@ -159,7 +159,7 @@ export default function MobileLayout() {
         <TabLink to="/m" end icon={TabIcons.today} label="Today" />
         <TabLink to="/m/clients" icon={TabIcons.clients} label="Clients" />
 
-        {/* Center record button — elevated */}
+        {/* Center record button, elevated */}
         <NavLink
           to="/m/record"
           className={({ isActive }) =>

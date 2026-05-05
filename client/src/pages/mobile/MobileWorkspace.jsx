@@ -1,8 +1,8 @@
 /**
- * MobileWorkspace — mobile action hub.
+ * MobileWorkspace, mobile action hub.
  *
  * The desktop Workspace.jsx is a 1,700-line intake + document import
- * command center. On mobile, that unified surface doesn't work — each
+ * command center. On mobile, that unified surface doesn't work, each
  * flow deserves its own screen. This page surfaces the workspace's
  * primary actions as big tappable cards that route to the purpose-
  * built mobile flows (record, new client, intake import).
@@ -66,7 +66,7 @@ export default function MobileWorkspace() {
 
   useEffect(() => { loadRecent() }, [loadRecent])
 
-  // Direct file upload from mobile — handles both audio and PDF intakes.
+  // Direct file upload from mobile, handles both audio and PDF intakes.
   // The server routes to the right handler based on MIME type.
   const handleIntakeUpload = async (e) => {
     const file = e.target.files?.[0]

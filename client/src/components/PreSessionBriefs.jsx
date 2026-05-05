@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { apiFetch } from '../lib/api'
 
 /**
- * PreSessionBriefs — the dashboard hero for Miwa's continuity agent.
+ * PreSessionBriefs, the dashboard hero for Miwa's continuity agent.
  *
  * Each card's centerpiece is an AI-written 60-second narrative: the
  * forward-looking "what you left off with, what changed, what to pick up."
@@ -35,7 +35,7 @@ function formatDate(dateStr) {
 }
 
 function TrendPill({ type, t }) {
-  const prev = t.previous != null ? t.previous : '—'
+  const prev = t.previous != null ? t.previous : ', '
   const curr = t.latest
   const tone = t.trend === 'worsening'
     ? 'text-red-700 bg-red-50 border-red-100'
@@ -61,7 +61,7 @@ function MoodDot({ score }) {
     : 'bg-emerald-500 text-white'
   return (
     <span className={`inline-flex items-center justify-center w-6 h-6 rounded-full text-[10px] font-bold ${tone}`}>
-      {score != null ? score : '—'}
+      {score != null ? score : ', '}
     </span>
   )
 }
@@ -99,7 +99,7 @@ function BriefCard({ brief: wrapper, onRegenerate, isRegenerating }) {
       : hasWorsening ? 'border-amber-200 bg-amber-50/30'
       : 'border-indigo-100 bg-white'
     }`}>
-      {/* Header — time + patient */}
+      {/* Header, time + patient */}
       <button
         onClick={handleToggle}
         className="w-full text-left px-5 pt-4 pb-2"
@@ -127,7 +127,7 @@ function BriefCard({ brief: wrapper, onRegenerate, isRegenerating }) {
         </div>
       </button>
 
-      {/* Narrative (always visible — this is the hero) */}
+      {/* Narrative (always visible, this is the hero) */}
       <div className="px-5 pb-3">
         {narrative ? (
           <p className="text-[13px] leading-relaxed text-gray-800 whitespace-pre-line">
@@ -135,7 +135,7 @@ function BriefCard({ brief: wrapper, onRegenerate, isRegenerating }) {
           </p>
         ) : narrativeStatus === 'error' ? (
           <p className="text-[12px] italic text-amber-700">
-            Narrative synthesis failed — structured data below. Try Refresh.
+            Narrative synthesis failed, structured data below. Try Refresh.
           </p>
         ) : narrativeStatus === 'skipped' ? (
           <p className="text-[12px] italic text-gray-400">
@@ -146,7 +146,7 @@ function BriefCard({ brief: wrapper, onRegenerate, isRegenerating }) {
         )}
       </div>
 
-      {/* Compact badges row — always visible */}
+      {/* Compact badges row, always visible */}
       <div className="px-5 pb-3 flex flex-wrap gap-1.5">
         {Object.entries(trajectory).map(([type, t]) => (
           <TrendPill key={type} type={type} t={t} />
@@ -171,7 +171,7 @@ function BriefCard({ brief: wrapper, onRegenerate, isRegenerating }) {
       {/* Expanded reference strip */}
       {expanded && (
         <div className="border-t border-gray-100 bg-white/60 px-5 py-4 space-y-4">
-          {/* Risk flags — top of list when present */}
+          {/* Risk flags, top of list when present */}
           {riskFlags.length > 0 && (
             <div>
               <p className="text-[11px] font-semibold text-red-700 uppercase tracking-wider mb-2">
@@ -298,7 +298,7 @@ export default function PreSessionBriefs() {
       const list = Array.isArray(data) ? data : (data?.briefs || [])
       setBriefs(list)
     } catch {
-      // silent — component hides when empty
+      // silent, component hides when empty
     } finally {
       setLoading(false)
     }

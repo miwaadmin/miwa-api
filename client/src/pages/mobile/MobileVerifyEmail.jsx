@@ -1,5 +1,5 @@
 /**
- * MobileVerifyEmail — native email verification landing.
+ * MobileVerifyEmail, native email verification landing.
  *
  * Hit by the link in the verification email. Posts the token, logs the
  * user in on success, shows a clean error + resend flow on failure.

@@ -1,5 +1,5 @@
 /**
- * MobileLogin — App Store first impression.
+ * MobileLogin, App Store first impression.
  *
  * Full-screen native-feeling sign in. Big inputs, keyboard-optimized
  * autocomplete, soft gradient backdrop, no marketing chrome. When the

@@ -1,5 +1,5 @@
 /**
- * MobilePrivacy — native privacy policy page.
+ * MobilePrivacy, native privacy policy page.
  *
  * Mobile version of Privacy.jsx. Same underlying legal commitments,
  * organized as an expandable list so a user can scan to the section

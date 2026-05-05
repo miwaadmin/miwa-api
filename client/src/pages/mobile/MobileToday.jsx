@@ -1,5 +1,5 @@
 /**
- * MobileToday — the mobile home screen.
+ * MobileToday, the mobile home screen.
  * Shows what matters RIGHT NOW: greeting, next session, today's schedule, alerts.
  */
 import { useState, useEffect } from 'react'

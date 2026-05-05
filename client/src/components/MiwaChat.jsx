@@ -1,5 +1,5 @@
 /**
- * MiwaChat — floating chat panel available on every protected page.
+ * MiwaChat, floating chat panel available on every protected page.
  * Opens as a compact panel (bottom-right). Auto-detects patient context from URL.
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -12,7 +12,7 @@ import { renderClinical } from '../lib/renderClinical'
  * Heuristic: should this message be run in the background instead of
  * blocking the chat?
  *
- * "Task" messages are ones where the user is delegating work — Miwa
+ * "Task" messages are ones where the user is delegating work, Miwa
  * should go do it and report back, not chat synchronously. Examples:
  *   "Analyze my caseload"
  *   "Generate a quarterly outcomes report"
@@ -24,7 +24,7 @@ import { renderClinical } from '../lib/renderClinical'
  *   "Yes"
  *   "Schedule Jane for 3pm tomorrow"   (action with approval flow)
  *
- * The heuristic errs toward SYNC when uncertain — worst case, something
+ * The heuristic errs toward SYNC when uncertain, worst case, something
  * that could have been background runs in-chat (slight wait). Routing a
  * quick question to the background would be much more annoying (user has
  * to go check the inbox for a two-word answer).
@@ -60,7 +60,7 @@ function looksLikeBackgroundTask(text) {
   if (hasScope && t.length > 60) return true             // caseload-wide + not trivial
   // Pure question with no task verb → sync
   if (startsWithInterrogative && !hasTaskVerb) return false
-  // Default: sync (safer — background is opt-in via signal, not opt-out).
+  // Default: sync (safer, background is opt-in via signal, not opt-out).
   return false
 }
 
@@ -104,7 +104,7 @@ function stripForSpeech(text) {
     .replace(/\+(\d+)\s*(points?|pts?)/gi, 'up $1 $2')
     .replace(/-(\d+)\s*(points?|pts?)/gi, 'down $1 $2')
 
-    // ── Clinical severity in parens: "(moderate)" → "— moderate" ──
+    // ── Clinical severity in parens: "(moderate)" → ",  moderate" ──
     .replace(/\((mild|moderate|severe|minimal|critical|low|high)\)/gi, ', $1,')
 
     // ── Common abbreviations ───────────────────────────────────────
@@ -117,7 +117,7 @@ function stripForSpeech(text) {
     .replace(/\bw\/o\s*/gi, 'without ')
 
     // ── Em/en dashes → natural spoken pause ───────────────────────
-    .replace(/\s*[—–]\s*/g, ', ')
+    .replace(/\s*[, –]\s*/g, ', ')
 
     // ── Ellipsis → pause ──────────────────────────────────────────
     .replace(/\.\.\./g, '. ')
@@ -170,7 +170,7 @@ function usePatientContext() {
   return match ? match[1] : null
 }
 
-// Floating Miwa is always the agent — action-first, concise.
+// Floating Miwa is always the agent, action-first, concise.
 // Deep clinical analysis lives on the Consult page (/consult).
 
 export default function MiwaChat() {
@@ -250,7 +250,7 @@ export default function MiwaChat() {
       if (!s.dragging) return
       const dx = clientX - s.startX
       const dy = clientY - s.startY
-      // Mark as "moved" once pointer travels more than 4px — used to suppress click
+      // Mark as "moved" once pointer travels more than 4px, used to suppress click
       if (Math.abs(dx) > 4 || Math.abs(dy) > 4) s.moved = true
       const size = 56 // w-14
       const maxX = window.innerWidth - size - 4
@@ -302,7 +302,7 @@ export default function MiwaChat() {
   // Keep voiceEnabled ref in sync
   useEffect(() => { voiceEnabledRef.current = voiceEnabled }, [voiceEnabled])
 
-  // Cancel TTS when panel closes — use audioRef directly to avoid TDZ
+  // Cancel TTS when panel closes, use audioRef directly to avoid TDZ
   useEffect(() => {
     if (!isOpen) {
       if (audioRef.current) {
@@ -337,17 +337,17 @@ export default function MiwaChat() {
       const firstName = therapist?.first_name || therapist?.full_name?.split(' ')[0] || 'there'
       const intro = `Hi ${firstName}! I'm Miwa, your clinical copilot. 👋
 
-Before we get to work, I'd love to get to know you — how you think about therapy, how you like to work, and how I can show up as the most useful copilot possible. The more you tell me here, the less you'll have to explain later.
+Before we get to work, I'd love to get to know you, how you think about therapy, how you like to work, and how I can show up as the most useful copilot possible. The more you tell me here, the less you'll have to explain later.
 
-Answer in any order, any format (paragraph, bullets, stream-of-consciousness — whatever feels natural). Skip anything that doesn't apply. Takes about 5 minutes.
+Answer in any order, any format (paragraph, bullets, stream-of-consciousness, whatever feels natural). Skip anything that doesn't apply. Takes about 5 minutes.
 
 ---
 
 **🪪 About you**
 
-1. **What should I call you?** (first name, Dr. Last Name, nickname — whatever you prefer)
+1. **What should I call you?** (first name, Dr. Last Name, nickname, whatever you prefer)
 
-2. **How long have you been practicing, and what kind of license do you hold?** (LMFT, LCSW, psychologist, associate, pre-license, etc. — optional but helpful context)
+2. **How long have you been practicing, and what kind of license do you hold?** (LMFT, LCSW, psychologist, associate, pre-license, etc., optional but helpful context)
 
 3. **Who do you typically work with?** Populations, age ranges, presenting concerns, modalities (individual, couples, family, group)?
 
@@ -365,11 +365,11 @@ Answer in any order, any format (paragraph, bullets, stream-of-consciousness —
 
 **🎙️ How I should show up**
 
-7. **Communication style** — concise and scannable, balanced, or detailed and thorough?
+7. **Communication style**, concise and scannable, balanced, or detailed and thorough?
 
-8. **Tone** — warm and collegial, clinical and precise, direct and punchy, reflective, something else?
+8. **Tone**, warm and collegial, clinical and precise, direct and punchy, reflective, something else?
 
-9. **Hard rules or pet peeves** — things I should *never* do or say. (e.g. "never use client names, always codes" / "don't recommend meds" / "don't hedge, just tell me what you think" / "no emojis" / "push back when I'm wrong")
+9. **Hard rules or pet peeves**, things I should *never* do or say. (e.g. "never use client names, always codes" / "don't recommend meds" / "don't hedge, just tell me what you think" / "no emojis" / "push back when I'm wrong")
 
 10. **Anything else I should know about you or your practice?** Values, training lineage, setting (private practice, agency, telehealth only), boundaries, things that matter to you clinically.
 
@@ -426,7 +426,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
     // ── Auto-route long-running "do this for me" messages to the background
     //   task runner. This is the "agentic" behavior the user asked for:
     //   Miwa decides whether something is a task vs. a quick question, and
-    //   backgrounds it automatically — no explicit button required.
+    //   backgrounds it automatically, no explicit button required.
     //
     //   Signals that a message is a TASK (run in background):
     //     • action verb at the start (analyze, generate, draft, compile,
@@ -436,7 +436,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
     //
     //   We SKIP background routing if:
     //     • message references a specific patient in context (contextOverride
-    //       is set, or user is on a patient page) — those are interactive
+    //       is set, or user is on a patient page), those are interactive
     //     • it's a yes/no / clarifying question / short greeting
     //     • onboarding flow (handled below)
     //     • a pending-action flow (approval, picker, disambiguation)
@@ -456,14 +456,14 @@ When you're done, I'll save this as your profile and refer back to it in every c
             setMessages(m => [...m, {
               id: Date.now() + 1,
               role: 'assistant',
-              content: `🕊️ On it — I'll work on this in the background. I'll notify you as soon as it's done. You can close this chat and keep working; the result will show up in your Tasks inbox (top-right) when ready.\n\n*Task:* ${task.title}`,
+              content: `🕊️ On it, I'll work on this in the background. I'll notify you as soon as it's done. You can close this chat and keep working; the result will show up in your Tasks inbox (top-right) when ready.\n\n*Task:* ${task.title}`,
             }])
             setStreaming(false)
             setStreamingText('')
             return
           }
           // If the task endpoint errored, fall through to sync chat so the
-          // user still gets a response — background is an optimization, not a
+          // user still gets a response, background is an optimization, not a
           // hard requirement.
         } catch {
           // Same: fall through to sync chat on any failure.
@@ -492,7 +492,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
         setMessages(m => [...m, {
           id: Date.now() + 1,
           role: 'assistant',
-          content: `I couldn't save your profile just now — but no worries, I'll remember what you said for this conversation. You can update it later in Settings.`,
+          content: `I couldn't save your profile just now, but no worries, I'll remember what you said for this conversation. You can update it later in Settings.`,
         }])
       } finally {
         setStreaming(false)
@@ -593,7 +593,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
                     setMessages(m => [...m, { id: Date.now() + 3, role: 'assistant', content: accumulated }])
                     setStreaming(false)
                   }).catch(() => {
-                    // TTS failed — show text anyway
+                    // TTS failed, show text anyway
                     setMessages(m => [...m, { id: Date.now() + 3, role: 'assistant', content: accumulated }])
                     setStreaming(false)
                   })
@@ -681,7 +681,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
           content: data.appointment
             // Prefer the human-readable display name; fall back to client_id
             // only if the row has no display_name set yet (very rare).
-            ? `✅ Scheduled — ${data.appointment.display_name || data.appointment.client_id} · ${data.appointment.scheduled_start ? new Date(data.appointment.scheduled_start).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'time TBD'} · ${data.appointment.appointment_type}`
+            ? `✅ Scheduled, ${data.appointment.display_name || data.appointment.client_id} · ${data.appointment.scheduled_start ? new Date(data.appointment.scheduled_start).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'time TBD'} · ${data.appointment.appointment_type}`
             : 'Done.',
         }])
         if (data.appointment) {
@@ -736,7 +736,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
       setMessages(m => [...m, {
         id: Date.now(),
         role: 'assistant',
-        content: `Queued ${count} ${pendingBatchPicker.assessmentType} link${count !== 1 ? 's' : ''} — ${pendingBatchPicker.spreadOption === 'spread' ? 'spread over 24 hours' : 'sending now'}.`,
+        content: `Queued ${count} ${pendingBatchPicker.assessmentType} link${count !== 1 ? 's' : ''}, ${pendingBatchPicker.spreadOption === 'spread' ? 'spread over 24 hours' : 'sending now'}.`,
       }])
       setPendingBatchPicker(null)
       setBatchSelected([])
@@ -783,7 +783,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
       const source = ctx.createBufferSource()
       source.buffer = audioBuffer
       source.connect(ctx.destination)
-      // setSpeaking(true) here — audio is actually starting RIGHT NOW
+      // setSpeaking(true) here, audio is actually starting RIGHT NOW
       setLoadingAudio(false)
       setSpeaking(true)
       source.onended = () => { setSpeaking(false); audioRef.current = null }
@@ -837,7 +837,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
         stream.getTracks().forEach(t => t.stop())
         const blob = new Blob(audioChunksRef.current, { type: mimeType })
         setListening(false)
-        if (blob.size < 500) return // too short — ignore
+        if (blob.size < 500) return // too short, ignore
 
         try {
           setStreaming(true)
@@ -868,7 +868,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
       mediaRecorder.start()
       setListening(true)
     } catch {
-      setError('Microphone access denied — check browser permissions.')
+      setError('Microphone access denied, check browser permissions.')
     }
   }, [listening, streaming, stopSpeaking, sendText])
 
@@ -884,7 +884,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
 
   return (
     <>
-      {/* ── Floating button — draggable, position persisted in localStorage ── */}
+      {/* ── Floating button, draggable, position persisted in localStorage ── */}
       <button
         data-tour="miwa-chat"
         onClick={handleFabClick}
@@ -910,7 +910,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
           </svg>
         ) : (
-          /* Miwa logo — M with teal dot */
+          /* Miwa logo, M with teal dot */
           <svg width="30" height="30" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
             <path
               d="M8 28 L8 16 C8 11 12.5 9 16.5 13.5 L20 19.5 L23.5 13.5 C27.5 9 32 11 32 16 L32 28"
@@ -937,7 +937,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
           className="miwa-chat-panel fixed z-50 flex flex-col overflow-hidden rounded-2xl shadow-2xl"
           style={{
             ...(() => {
-              // Panel anchors to the FAB — whichever corner the FAB sits in,
+              // Panel anchors to the FAB, whichever corner the FAB sits in,
               // the panel opens toward the opposite side so it stays on screen.
               // Default bottom-right when FAB hasn't been dragged.
               const base = {
@@ -1010,7 +1010,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
                 <div className="text-xs text-white/70">Agent · Schedule · Assess · Report</div>
               )}
             </div>
-            {/* Voice mode toggle — pill button, hard to miss */}
+            {/* Voice mode toggle, pill button, hard to miss */}
             {voiceSupported && (
               <button
                 onClick={() => {
@@ -1026,7 +1026,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
                     stopSpeaking()
                   }
                 }}
-                title={voiceEnabled ? 'Voice mode on — click to turn off' : 'Turn on voice mode'}
+                title={voiceEnabled ? 'Voice mode on, click to turn off' : 'Turn on voice mode'}
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all flex-shrink-0 ${
                   voiceEnabled
                     ? 'bg-white text-brand-700 shadow-md'
@@ -1071,7 +1071,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
                     : 'I can schedule sessions, send assessments, generate reports, search clinical resources, check your billing, or help you learn any feature. Just ask!'}
                 </p>
                 <p className="miwa-chat-empty-copy text-[10px] text-gray-400 mt-2 max-w-[260px] leading-relaxed">
-                  💡 <strong className="text-gray-500">Found a bug or wishing for a feature?</strong> Just tell me — I'll send your feedback straight to the Miwa team.
+                  💡 <strong className="text-gray-500">Found a bug or wishing for a feature?</strong> Just tell me, I'll send your feedback straight to the Miwa team.
                 </p>
                 <p className="miwa-chat-empty-copy text-[10px] text-gray-400 mt-2 max-w-[240px]">
                   For deep clinical consultation, use the{' '}
@@ -1296,7 +1296,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
             </div>
           )}
 
-          {/* Audio loading indicator — TTS request in-flight, not yet playing */}
+          {/* Audio loading indicator, TTS request in-flight, not yet playing */}
           {loadingAudio && !speaking && (
             <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-gray-50 border-t border-gray-100">
               <div className="w-3 h-3 border-2 border-brand-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
@@ -1310,7 +1310,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
             </div>
           )}
 
-          {/* Speaking indicator — audio is actually playing */}
+          {/* Speaking indicator, audio is actually playing */}
           {speaking && (
             <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-brand-50 border-t border-brand-100">
               <div className="flex gap-0.5 items-end h-4">
@@ -1340,7 +1340,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
             </div>
           )}
 
-          {/* Input — iMessage-style pill. The textarea sits inside a rounded-full
+          {/* Input, iMessage-style pill. The textarea sits inside a rounded-full
               wrapper so the focus ring + visual border shape is the pill, not the
               underlying multiline element. Send + mic buttons sit outside the pill
               like Messages.app. */}
@@ -1363,7 +1363,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
                 />
               </div>
 
-              {/* Mic button — prominent, hard to miss */}
+              {/* Mic button, prominent, hard to miss */}
               {voiceSupported && (
                 <button
                   onClick={listening ? stopListening : startListening}
@@ -1393,7 +1393,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
                 </button>
               )}
 
-              {/* Send button — sendText() auto-detects task-like messages and
+              {/* Send button, sendText() auto-detects task-like messages and
                   routes them to the background runner transparently. */}
               <button
                 onClick={() => sendText(input.trim())}

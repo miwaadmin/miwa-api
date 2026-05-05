@@ -6,13 +6,13 @@ import PublicFooter from '../components/PublicFooter'
 import { API_BASE } from '../lib/api'
 
 /**
- * PublicLethalityScreen — an anonymous, unauthenticated web version of
+ * PublicLethalityScreen, an anonymous, unauthenticated web version of
  * the 11-question LAP-MD (Lethality Assessment Program, Maryland Model)
  * developed by the Maryland Network Against Domestic Violence, based on
  * Dr. Jacquelyn Campbell's Danger Assessment research.
  *
- * Anyone can reach this URL directly — a survivor, an advocate, a family
- * member, a clinician at another agency — and take the screen. The
+ * Anyone can reach this URL directly, a survivor, an advocate, a family
+ * member, a clinician at another agency, and take the screen. The
  * server generates AI-personalized guidance on submit, plus a curated
  * list of matched safety resources. No account required, no PII stored.
  *
@@ -267,7 +267,7 @@ export default function PublicLethalityScreen() {
             This is the same 11-question screen used by police and victim advocates across the country, developed by the Maryland Network Against Domestic Violence.
           </p>
           <p className="text-gray-500 text-sm max-w-xl mx-auto mt-3 leading-relaxed">
-            Answer as honestly as you can — for whichever partner or ex-partner worries you most. It takes about 3 minutes.
+            Answer as honestly as you can, for whichever partner or ex-partner worries you most. It takes about 3 minutes.
           </p>
         </div>
 
@@ -309,7 +309,7 @@ export default function PublicLethalityScreen() {
           <div className="pt-4 flex items-center justify-between flex-wrap gap-3">
             <p className="text-xs text-gray-500">
               {unanswered === 0
-                ? 'All questions answered — ready to submit.'
+                ? 'All questions answered, ready to submit.'
                 : `${unanswered} question${unanswered === 1 ? '' : 's'} remaining.`}
             </p>
             <button
@@ -326,7 +326,7 @@ export default function PublicLethalityScreen() {
         {/* Footnote */}
         <div className="mt-12 pt-6 border-t border-gray-200">
           <p className="text-xs text-gray-500 leading-relaxed">
-            This screen is not a diagnosis, not a prediction, and not medical advice. It is a starting point for a conversation with someone who is trained to help. It was developed by the Maryland Network Against Domestic Violence, derived from research by Dr. Jacquelyn Campbell (Johns Hopkins). The full questionnaire and scoring rules are intentionally fixed — changing the wording invalidates the instrument.
+            This screen is not a diagnosis, not a prediction, and not medical advice. It is a starting point for a conversation with someone who is trained to help. It was developed by the Maryland Network Against Domestic Violence, derived from research by Dr. Jacquelyn Campbell (Johns Hopkins). The full questionnaire and scoring rules are intentionally fixed, changing the wording invalidates the instrument.
           </p>
         </div>
       </div>

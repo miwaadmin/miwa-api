@@ -1,5 +1,5 @@
 /**
- * MobileTaskDetail — native view of a single background agent task.
+ * MobileTaskDetail, native view of a single background agent task.
  *
  * Full-screen page with a back header, prompt card, status badge, and
  * result surface that renders clinical markdown. Auto-polls every 5s
@@ -132,7 +132,7 @@ export default function MobileTaskDetail() {
               <div className="rounded-2xl bg-blue-50 border border-blue-200 p-4 flex items-center gap-3">
                 <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
                 <p className="text-sm text-blue-900 flex-1">
-                  Working on it. Pulls in fresh data every 5 seconds — feel free to leave and come back.
+                  Working on it. Pulls in fresh data every 5 seconds, feel free to leave and come back.
                 </p>
               </div>
             )}

@@ -8,13 +8,13 @@ import { TourProvider } from '../context/TourContext'
 
 export default function Layout() {
   const location = useLocation()
-  // Hide MiwaChat on Consult page — Consult IS the deep thinking interface
+  // Hide MiwaChat on Consult page, Consult IS the deep thinking interface
   const hideChat = location.pathname === '/consult'
 
   return (
     <TourProvider>
       <div className="app-shell flex h-screen overflow-hidden">
-        {/* Sidebar — hidden on mobile, visible on md+ */}
+        {/* Sidebar, hidden on mobile, visible on md+ */}
         <div className="hidden md:flex">
           <Sidebar />
         </div>
@@ -26,10 +26,10 @@ export default function Layout() {
           </main>
         </div>
 
-        {/* Bottom nav — only on mobile */}
+        {/* Bottom nav, only on mobile */}
         <BottomNav />
 
-        {/* Floating Miwa chat — hidden on Consult page (Consult has its own chat) */}
+        {/* Floating Miwa chat, hidden on Consult page (Consult has its own chat) */}
         {!hideChat && <MiwaChat />}
 
         {/* Spotlight tour overlay */}

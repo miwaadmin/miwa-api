@@ -1,5 +1,5 @@
 /**
- * MobileLibrary — native Resources / in-app library.
+ * MobileLibrary, native Resources / in-app library.
  *
  * Mobile version of DashboardResources.jsx. Flat searchable list of
  * every clinical resource by default, with category chips to filter
@@ -185,7 +185,7 @@ export default function MobileLibrary() {
                         className="inline-flex items-center gap-1 text-[12px] font-bold px-3 py-1.5 rounded-lg"
                         style={{ background: `${item._color}15`, color: item._color }}
                       >
-                        Open ↗
+                        Open �-
                       </a>
                     )}
                   </div>

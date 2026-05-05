@@ -1,5 +1,5 @@
 /**
- * PublicPageShell — white base with Miwa brand colors (purple / teal / white).
+ * PublicPageShell, white base with Miwa brand colors (purple / teal / white).
  * Sections control their own accent patches. Dark nav + footer frame the page.
  */
 export default function PublicPageShell({ children }) {

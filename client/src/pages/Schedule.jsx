@@ -1,5 +1,5 @@
 /**
- * Schedule — Upheal-style clinical calendar.
+ * Schedule, Upheal-style clinical calendar.
  * Week grid + Month view · Mini-calendar sidebar · Absolute-positioned events.
  */
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
@@ -270,7 +270,7 @@ function EventBlock({ appt, onClick }) {
           </p>
         )}
         <p className="text-[11px] font-bold truncate leading-tight" style={{ color: p.text }}>
-          {tiny ? fmtTime(start) + ' ' : ''}{appt.display_name || appt.client_id || '—'}
+          {tiny ? fmtTime(start) + ' ' : ''}{appt.display_name || appt.client_id || ', '}
         </p>
         {h >= 54 && (
           <p className="text-[10px] truncate mt-auto opacity-70" style={{ color: p.text }}>
@@ -361,7 +361,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
 
   // Load the leaf bucket list for the override picker. Server gates this
   // endpoint to trainees/associates so the fetch silently 403s for licensed
-  // accounts — we just don't render the picker in that case.
+  // accounts, we just don't render the picker in that case.
   useEffect(() => {
     if (!isTrainingAccount) return
     apiFetch('/hours/buckets/all').then(r => r.json()).then(d => {
@@ -387,7 +387,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
   }, [form.patient_id]) // eslint-disable-line
 
   const handleSave = async (force = false) => {
-    // Defensive coerce — if a caller wires onClick={handleSave} without an
+    // Defensive coerce, if a caller wires onClick={handleSave} without an
     // arrow wrapper, React passes the synthetic event in here. We only ever
     // want a strict boolean so the JSON.stringify below can't choke on a
     // DOM element's circular React fiber refs.
@@ -463,7 +463,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
             })
           } catch { return iso }
         }
-        const lines = data.conflicts.map(c => `• ${fmt(c.scheduled_start)} — ${c.display_name}`).join('\n')
+        const lines = data.conflicts.map(c => `• ${fmt(c.scheduled_start)}, ${c.display_name}`).join('\n')
         const ok = window.confirm(
           `This time overlaps with:\n\n${lines}\n\n` +
           `Book anyway? (Use this for couple/family sessions where each ` +
@@ -544,7 +544,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
         {/* Form */}
         <div className="px-6 pb-2 space-y-4 max-h-[60vh] overflow-y-auto">
 
-          {/* Client — supports inline "create new client" via the special
+          {/* Client, supports inline "create new client" via the special
               __new__ value. When chosen, we render a small block of name +
               contact fields below, and the server creates the patient row
               before booking the appointment. */}
@@ -555,7 +555,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
               value={form.patient_id}
               onChange={e => set('patient_id', e.target.value)}
               disabled={!isNew}
-              title={!isNew ? 'Reassigning a saved appointment to a different client isn\'t supported here — delete and recreate.' : ''}
+              title={!isNew ? 'Reassigning a saved appointment to a different client isn\'t supported here, delete and recreate.' : ''}
             >
               <option value="">Select a client…</option>
               {isNew && <option value="__new__">＋ Add new client…</option>}
@@ -564,7 +564,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
           </div>
 
           {/* Inline new-client fields. Only shown when the user picked
-              "+ Add new client…" — and only on a fresh appointment. */}
+              "+ Add new client…", and only on a fresh appointment. */}
           {isNew && form.patient_id === '__new__' && (
             <div className="rounded-xl border p-3 space-y-2.5"
               style={{ borderColor: T.borderIndigo, background: isDark ? 'rgba(109,87,255,0.08)' : '#f5f3ff' }}>
@@ -680,7 +680,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
             />
           </div>
 
-          {/* Telehealth video link (Meet) — only for saved appointments */}
+          {/* Telehealth video link (Meet), only for saved appointments */}
           {!isNew && liveAppt && (
             <div className="rounded-xl border border-emerald-100 bg-emerald-50/40 p-3">
               <div className="flex items-center justify-between mb-2">
@@ -758,7 +758,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
             />
           </div>
 
-          {/* Practicum hour override — only visible to trainees and associates.
+          {/* Practicum hour override, only visible to trainees and associates.
               Lets the user fix Miwa's auto-mapping (e.g. "Individual" was actually
               with a 14-year-old → Individual Child Client) without changing the
               session's appointment_type, which other parts of the app care about. */}
@@ -798,7 +798,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
                       if (r.ok) {
                         // Sync the parent state so Schedule reflects the new
                         // appt status, then drop the clinician straight onto
-                        // the patient's profile — that's where they'll write
+                        // the patient's profile, that's where they'll write
                         // the session note. The ?checkedInAppt query param
                         // surfaces a "session in progress" banner there.
                         onSave({ ...appt, status: 'in_progress', attendance_status: d.attendance_status, checked_in_at: d.checked_in_at, minutes_late: d.minutes_late });
@@ -827,7 +827,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
                   }}
                   className="flex-1 py-2 rounded-xl text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition-colors"
                 >
-                  ✗ No-Show
+                  �- No-Show
                 </button>
               </div>
             </div>
@@ -862,7 +862,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
             </button>
           )}
           <div className="flex-1" />
-          {/* Start Session — opens Meet in a new tab AND navigates Miwa's tab to the
+          {/* Start Session, opens Meet in a new tab AND navigates Miwa's tab to the
               patient's workspace. When the clinician ends the call and closes the Meet
               tab, they're already on the right screen in Miwa to write the session note.
               Google Meet itself always lands on meet.google.com/landing post-call;
@@ -883,7 +883,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
                 }
                 // When the Meet tab closes, bring focus back to Miwa. We don't error on
                 // cross-origin access (the noopener target means we often can't read
-                // .closed) — silent failure is fine, focus just doesn't auto-restore.
+                // .closed), silent failure is fine, focus just doesn't auto-restore.
                 if (meetWin && !meetWin.closed) {
                   const poll = setInterval(() => {
                     try {
@@ -893,7 +893,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
                       }
                     } catch { clearInterval(poll) }
                   }, 2000)
-                  // Give up polling after an hour — sessions shouldn't run longer.
+                  // Give up polling after an hour, sessions shouldn't run longer.
                   setTimeout(() => clearInterval(poll), 60 * 60 * 1000)
                 }
               }}
@@ -916,7 +916,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
           <button
             type="button"
             // Wrap so React's synthetic click event isn't passed as the
-            // `force` argument — the event has circular fiber refs that
+            // `force` argument, the event has circular fiber refs that
             // blow up JSON.stringify on the request body.
             onClick={() => handleSave()}
             disabled={saving}
@@ -1057,7 +1057,7 @@ function WeekView({ weekStart, appointments, today, selectedDate, onCellClick, o
 
   return (
     <div className="flex-1 flex flex-col overflow-hidden" style={{ background: T.pageBg }}>
-      {/* Day headers — sticky */}
+      {/* Day headers, sticky */}
       <div
         className="flex-shrink-0 grid border-b z-10"
         style={{ gridTemplateColumns: GRID_COLS, background: T.surface, borderColor: T.borderIndigo, minWidth: '700px' }}
@@ -1076,14 +1076,14 @@ function WeekView({ weekStart, appointments, today, selectedDate, onCellClick, o
           const dayActive = (byDate[ds] || []).filter(a => a.status !== 'cancelled')
           const count   = dayActive.length
           // Tooltip lists each appointment so the therapist can spot any duplicates
-          // or unexpected entries at a glance — answers "why does this say 2?"
+          // or unexpected entries at a glance, answers "why does this say 2?"
           const countTitle = count > 0
             ? dayActive
                 .slice()
                 .sort((a, b) => (parseTime(a)?.getTime() ?? 0) - (parseTime(b)?.getTime() ?? 0))
                 .map(a => {
                   const t = parseTime(a)
-                  return `${t ? fmtTime(t) : '—'} · ${a.display_name || a.client_id || 'Client'}`
+                  return `${t ? fmtTime(t) : ', '} · ${a.display_name || a.client_id || 'Client'}`
                 })
                 .join('\n')
             : ''
@@ -1244,7 +1244,7 @@ export default function Schedule() {
     if (view === 'week' && scrollRef.current) {
       const now = new Date()
       const currentHour = now.getHours() + now.getMinutes() / 60
-      // Scroll to 1 hour before current time, or 8am — whichever is later
+      // Scroll to 1 hour before current time, or 8am, whichever is later
       const scrollToHour = Math.max(8, currentHour - 1)
       scrollRef.current.scrollTop = HOUR_PX * (scrollToHour - DAY_START) - 16
     }
@@ -1271,7 +1271,7 @@ export default function Schedule() {
       setPatients(Array.isArray(pts) ? pts : [])
     } catch (_) {}
     setLoading(false)
-    // Refresh conflicts whenever appointments reload — picks up dupes the
+    // Refresh conflicts whenever appointments reload, picks up dupes the
     // user might have created via the agent before the guard existed.
     loadConflicts()
   }, [loadConflicts])
@@ -1296,7 +1296,7 @@ export default function Schedule() {
     })
     setModal(null)
     // If the appointment was for a brand-new client, that patient row didn't
-    // exist when we last fetched /patients — refresh so the dropdown picks
+    // exist when we last fetched /patients, refresh so the dropdown picks
     // them up next time the modal opens.
     const knownPatient = patients.some(p => p.id === savedAppt?.patient_id)
     if (!knownPatient) {
@@ -1308,7 +1308,7 @@ export default function Schedule() {
   const handleDelete = id => {
     setAppointments(prev => prev.filter(a => a.id !== id))
     setModal(null)
-    // A deletion may resolve a conflict — refresh so the pill disappears.
+    // A deletion may resolve a conflict, refresh so the pill disappears.
     loadConflicts()
   }
 
@@ -1433,7 +1433,7 @@ export default function Schedule() {
                     <div className="w-0.5 self-stretch rounded-full flex-shrink-0 mt-0.5" style={{ background: pp.border }} />
                     <div className="min-w-0">
                       <p className="text-[11px] font-bold truncate transition-colors" style={{ color: T.text }}>
-                        {a.display_name || a.client_id || '—'}
+                        {a.display_name || a.client_id || ', '}
                       </p>
                       <p className="text-[10px]" style={{ color: T.textFaint }}>
                         {t ? t.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''} · {fmtTime(t)}
@@ -1449,7 +1449,7 @@ export default function Schedule() {
         {/* Miwa tip */}
         <div className="p-4 border-t" style={{ borderColor: T.sidebarBorder }}>
           <p className="text-[10px] leading-relaxed" style={{ color: T.upcomingLabel }}>
-            <span className="font-bold" style={{ color: T.tipLabel }}>Tip:</span> Ask Miwa to schedule — <em>"Book Client 002 Tuesday 2pm"</em>
+            <span className="font-bold" style={{ color: T.tipLabel }}>Tip:</span> Ask Miwa to schedule, <em>"Book Client 002 Tuesday 2pm"</em>
           </p>
         </div>
       </aside>
@@ -1508,7 +1508,7 @@ export default function Schedule() {
 
           <div className="flex-1" />
 
-          {/* Conflicts pill — only renders when there's actually something to clean up */}
+          {/* Conflicts pill, only renders when there's actually something to clean up */}
           {conflicts.length > 0 && (
             <button
               onClick={() => setShowConflicts(true)}
@@ -1597,7 +1597,7 @@ export default function Schedule() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Conflicts cleanup modal — review and resolve appointments that overlap
+// Conflicts cleanup modal, review and resolve appointments that overlap
 // each other. Each group lists every overlapping appointment with a delete
 // button so the therapist can keep the right one and remove duplicates.
 // ─────────────────────────────────────────────────────────────────────────────

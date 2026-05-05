@@ -4,7 +4,7 @@ import { apiFetch } from '../lib/api'
 import { renderClinical } from '../lib/renderClinical'
 
 /**
- * /tasks/:id — full-page view of a single background agent task.
+ * /tasks/:id, full-page view of a single background agent task.
  * Shows the prompt, timing, full tool-call log, and the complete result.
  */
 export default function TaskDetail() {
@@ -136,7 +136,7 @@ export default function TaskDetail() {
         {isRunning && (
           <div className="mb-4 flex items-center gap-2 text-sm text-brand-600">
             <div className="w-3 h-3 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
-            Working — {task.iterations} step{task.iterations === 1 ? '' : 's'} so far.
+            Working, {task.iterations} step{task.iterations === 1 ? '' : 's'} so far.
           </div>
         )}
       </div>
@@ -150,7 +150,7 @@ export default function TaskDetail() {
               <details key={i} className="text-xs bg-gray-50 rounded-lg p-2">
                 <summary className="cursor-pointer font-semibold text-gray-800">
                   <span className="inline-block w-6 text-gray-500">#{i + 1}</span> {tc.tool}
-                  {tc.needs_input && <span className="ml-2 text-amber-700">(halted — needs input)</span>}
+                  {tc.needs_input && <span className="ml-2 text-amber-700">(halted, needs input)</span>}
                 </summary>
                 <div className="mt-2 space-y-1">
                   <div>

@@ -14,7 +14,7 @@ const GRAD_TEXT = {
   backgroundClip: 'text',
 }
 
-/* Continuity-brief mockup — the signature feature for licensed clinicians */
+/* Continuity-brief mockup, the signature feature for licensed clinicians */
 function ContinuityBriefMockup() {
   return (
     <div className="rounded-2xl overflow-hidden shadow-xl" style={{ background: '#111113', border: '1px solid rgba(0,0,0,0.15)' }}>
@@ -30,12 +30,12 @@ function ContinuityBriefMockup() {
         <div className="flex items-center gap-2">
           <span className="text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-wider"
             style={{ background: 'rgba(96,71,238,0.15)', color: '#a99dff' }}>
-            ✦ Pre-session brief — ready
+            ✦ Pre-session brief, ready
           </span>
           <span className="text-[10px] text-white/30">generated 30 min ago</span>
         </div>
         <p className="text-[13px] text-white/85 leading-relaxed">
-          Today's session with Maria. Last session you focused on her mom's diagnosis — homework was the thought record, and you flagged shame as the next theme to explore.
+          Today's session with Maria. Last session you focused on her mom's diagnosis, homework was the thought record, and you flagged shame as the next theme to explore.
         </p>
         <p className="text-[13px] text-white/85 leading-relaxed">
           Her mid-week check-in mood was 2/5; she mentioned not sleeping. Two threads worth picking up: (1) the unfinished narrative about her sister, (2) the avoidance of the homework.
@@ -62,7 +62,7 @@ function RiskMonitorMockup() {
           <div className="w-2 h-2 rounded-full bg-yellow-400/70" />
           <div className="w-2 h-2 rounded-full bg-green-400/70" />
         </div>
-        <span className="text-[10px] text-white/25 ml-2">miwa.care · session note — in progress</span>
+        <span className="text-[10px] text-white/25 ml-2">miwa.care · session note, in progress</span>
       </div>
       <div className="p-5 space-y-3">
         <p className="text-[11px] font-bold text-white/40 uppercase tracking-wider">Subjective</p>
@@ -74,7 +74,7 @@ function RiskMonitorMockup() {
           <div className="flex-1">
             <p className="text-[10px] font-bold text-amber-300 uppercase tracking-wider mb-1">Suicidal ideation language</p>
             <p className="text-[11px] text-amber-100/85 leading-relaxed">
-              SI language detected. No C-SSRS in the last 2 weeks — consider administering before signing.
+              SI language detected. No C-SSRS in the last 2 weeks, consider administering before signing.
             </p>
           </div>
         </div>
@@ -88,20 +88,20 @@ export default function ForLicensedClinicians() {
     <PublicPageShell>
       <PublicNav />
 
-      {/* Hero — centered text + big mockup below (Notion/Figma style) */}
+      {/* Hero, centered text + big mockup below (Notion/Figma style) */}
       <div className="text-center pt-32 pb-12 px-6 max-w-4xl mx-auto">
         <h1 className="text-5xl md:text-6xl font-extrabold text-gray-900 mb-6 leading-[1.05] tracking-tight">
           The assistant you'd hire{' '}
           <span style={GRAD_TEXT}>if you could afford one.</span>
         </h1>
         <p className="text-gray-700 text-xl max-w-2xl mx-auto mb-8 leading-relaxed">
-          Miwa is an AI assistant built specifically for licensed clinicians. It prepares your sessions, flags safety concerns as you type, drafts letters, and learns to sound like you — so you can see more clients without running on empty.
+          Miwa is an AI assistant built specifically for licensed clinicians. It prepares your sessions, flags safety concerns as you type, drafts letters, and learns to sound like you, so you can see more clients without running on empty.
         </p>
         <div className="flex items-center justify-center gap-3 flex-wrap mb-3">
           <Link to="/register"
             className="inline-flex px-8 py-3.5 rounded-xl text-base font-bold text-white transition-all hover:opacity-90"
             style={{ background: '#111113' }}>
-            Start free — no credit card
+            Start free, no credit card
           </Link>
           <Link to="/features"
             className="inline-flex px-6 py-3.5 rounded-xl text-base font-medium text-gray-700 hover:text-gray-900 transition-all"
@@ -112,7 +112,7 @@ export default function ForLicensedClinicians() {
         <p className="text-gray-400 text-sm">14-day free trial. $129/mo after. Cancel any time.</p>
       </div>
 
-      {/* BIG hero mockup — the signature continuity brief in full */}
+      {/* BIG hero mockup, the signature continuity brief in full */}
       <div className="max-w-[1200px] mx-auto px-6 pb-24">
         <div className="rounded-3xl overflow-hidden shadow-2xl" style={{
           background: 'linear-gradient(180deg, rgba(96,71,238,0.03), rgba(45,212,191,0.03))',
@@ -121,7 +121,7 @@ export default function ForLicensedClinicians() {
         }}>
           <ContinuityBriefMockup />
           <p className="text-center text-gray-500 text-sm mt-6 italic">
-            A real pre-session brief — synthesized from your last note, their check-ins, and their assessment trends. Ready 30 minutes before every appointment.
+            A real pre-session brief, synthesized from your last note, their check-ins, and their assessment trends. Ready 30 minutes before every appointment.
           </p>
         </div>
       </div>
@@ -133,21 +133,21 @@ export default function ForLicensedClinicians() {
           Never walk into a session cold.
         </h2>
         <p className="text-gray-700 text-lg leading-relaxed mb-4">
-          Most platforms summarize the last note. Miwa synthesizes everything that's happened since — the note, the mid-week check-ins, the assessment shifts, the treatment plan goals — into a short narrative you can read in the hallway.
+          Most platforms summarize the last note. Miwa synthesizes everything that's happened since, the note, the mid-week check-ins, the assessment shifts, the treatment plan goals, into a short narrative you can read in the hallway.
         </p>
         <p className="text-gray-500 text-base leading-relaxed">
           It's the demo that makes clinicians say "this is different."
         </p>
       </div>
 
-      {/* Section: Active risk monitor — big mockup + copy */}
+      {/* Section: Active risk monitor, big mockup + copy */}
       <div className="py-20 px-6" style={{ borderTop: '1px solid rgba(0,0,0,0.07)', background: 'rgba(0,0,0,0.015)' }}>
         <div className="max-w-[900px] mx-auto text-center mb-12">
           <h2 className="text-3xl md:text-4xl font-bold text-gray-900 mb-5">
             A second pair of eyes on your notes.
           </h2>
           <p className="text-gray-700 text-lg leading-relaxed">
-            Miwa watches your language as you type. If risk content appears — SI, HI, self-harm, abuse disclosure — and the matching screener isn't already in the chart, Miwa surfaces a non-blocking nudge.
+            Miwa watches your language as you type. If risk content appears, SI, HI, self-harm, abuse disclosure, and the matching screener isn't already in the chart, Miwa surfaces a non-blocking nudge.
           </p>
         </div>
         <div className="max-w-[1000px] mx-auto">
@@ -185,7 +185,7 @@ export default function ForLicensedClinicians() {
             },
             {
               title: 'Letter generator',
-              desc: 'ESA letters, school accommodation support, insurance pre-auths, attorney summaries, return-to-work letters. Drafted from the chart in your voice — review and sign.',
+              desc: 'ESA letters, school accommodation support, insurance pre-auths, attorney summaries, return-to-work letters. Drafted from the chart in your voice, review and sign.',
               color: '#ec4899',
             },
             {
@@ -200,7 +200,7 @@ export default function ForLicensedClinicians() {
             },
             {
               title: 'Living treatment plans',
-              desc: 'Treatment plans that update as sessions progress. Goals, objectives, and auto-progress tracking — without the quarterly rewrite.',
+              desc: 'Treatment plans that update as sessions progress. Goals, objectives, and auto-progress tracking, without the quarterly rewrite.',
               color: '#10b981',
             },
             {
@@ -239,7 +239,7 @@ export default function ForLicensedClinicians() {
             You are the clinician. Miwa is the assistant.
           </h2>
           <p className="text-gray-700 text-lg leading-relaxed mb-4">
-            Every output is a draft. Every decision is yours. Miwa is built to save you the mechanical work — composing notes, tracking outcomes, drafting letters — so your clinical time is spent on the things only you can do: thinking, attuning, choosing the intervention, being present with the client in the room.
+            Every output is a draft. Every decision is yours. Miwa is built to save you the mechanical work, composing notes, tracking outcomes, drafting letters, so your clinical time is spent on the things only you can do: thinking, attuning, choosing the intervention, being present with the client in the room.
           </p>
           <p className="text-gray-500 text-base leading-relaxed">
             Miwa doesn't practice therapy. You do.

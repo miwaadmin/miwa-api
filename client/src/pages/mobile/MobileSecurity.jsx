@@ -1,5 +1,5 @@
 /**
- * MobileSecurity — native security/compliance page.
+ * MobileSecurity, native security/compliance page.
  *
  * Mobile version of Security.jsx. Keeps the same factual/legal language
  * (HIPAA posture, minimum-necessary prompting, no-training contracts) but presents it
@@ -12,7 +12,7 @@ import { Link, useNavigate } from 'react-router-dom'
 const PROTECTIONS = [
   { icon: '📋', title: 'HIPAA-aligned controls', desc: 'Designed to avoid PHI in URLs, reduce sensitive logging, and support clinical retention workflows.' },
   { icon: '🔒', title: 'Encryption in transit + at rest', desc: 'TLS 1.3 everywhere; sensitive fields encrypted before storage.' },
-  { icon: '🔑', title: 'HttpOnly cookie auth', desc: 'Session tokens never exposed to JavaScript — protects against XSS exfiltration.' },
+  { icon: '🔑', title: 'HttpOnly cookie auth', desc: 'Session tokens never exposed to JavaScript, protects against XSS exfiltration.' },
   { icon: '🛡️', title: 'Helmet + CSP + rate limits', desc: 'Hardened HTTP headers, Content-Security-Policy, per-route rate limiting.' },
   { icon: '🔐', title: 'Role-based access', desc: 'Clinicians see only their own clients. Admin dashboard is separately gated.' },
   { icon: '📊', title: 'Operational audit trail', desc: 'Security and administrative events are logged for review as the product matures.' },
@@ -124,7 +124,7 @@ export default function MobileSecurity() {
 
         <Section title="Data retention & export">
           <p>
-            You own your clinical data. You can export any or all of it — patients, sessions, assessments, documents — as JSON at any time from Settings.
+            You own your clinical data. You can export any or all of it, patients, sessions, assessments, documents, as JSON at any time from Settings.
           </p>
           <p>
             Patient records are retained according to clinical record-retention rules, typically at least 7 years after the last date of service and longer where required. When a record becomes eligible for deletion, Miwa can remove it from active storage and allow it to age out of rolling backups.
@@ -133,7 +133,7 @@ export default function MobileSecurity() {
 
         <Section title="Authentication & sessions">
           <p>
-            Sessions are managed via HttpOnly cookies — tokens never touch JavaScript, which protects against XSS exfiltration.
+            Sessions are managed via HttpOnly cookies, tokens never touch JavaScript, which protects against XSS exfiltration.
           </p>
           <p>
             Password reset and email verification are time-bounded and single-use.
@@ -148,7 +148,7 @@ export default function MobileSecurity() {
 
         <Section title="Questions or concerns">
           <p>
-            Email <a href="mailto:security@miwa.care" className="text-brand-600 font-semibold underline">security@miwa.care</a> for anything security- or privacy-related. Responsible disclosure welcomed — we'll acknowledge within 1 business day.
+            Email <a href="mailto:security@miwa.care" className="text-brand-600 font-semibold underline">security@miwa.care</a> for anything security- or privacy-related. Responsible disclosure welcomed, we'll acknowledge within 1 business day.
           </p>
         </Section>
       </div>

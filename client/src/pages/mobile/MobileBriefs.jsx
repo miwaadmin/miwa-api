@@ -1,5 +1,5 @@
 /**
- * MobileBriefs — mobile research-brief reading list.
+ * MobileBriefs, mobile research-brief reading list.
  *
  * Mobile version of Briefs.jsx. Lists all generated research briefs in
  * a stack, with save/open tracking. Tap a brief to expand inline and
@@ -212,12 +212,12 @@ export default function MobileBriefs() {
                                 rel="noopener noreferrer"
                                 className="flex items-start gap-2 text-xs text-brand-600 active:text-brand-800"
                               >
-                                <span className="flex-shrink-0 mt-0.5">↗</span>
+                                <span className="flex-shrink-0 mt-0.5">�-</span>
                                 <span>
                                   {a.source === 'pubmed' && (
                                     <span className="text-[9px] font-bold bg-blue-100 text-blue-700 px-1 py-0.5 rounded mr-1">PubMed</span>
                                   )}
-                                  {a.title} {a.journal && <span className="text-gray-400">— {a.journal}</span>}
+                                  {a.title} {a.journal && <span className="text-gray-400">,  {a.journal}</span>}
                                 </span>
                               </a>
                             ))}

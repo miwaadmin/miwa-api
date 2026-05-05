@@ -25,7 +25,7 @@ function formatText(text) {
 }
 
 /**
- * Resolve notes from a session object — handles both the nested notes_json
+ * Resolve notes from a session object, handles both the nested notes_json
  * format ({SOAP: {...}, BIRP: {...}}) and flat column format ({subjective, objective, ...}).
  * Returns the fields for the given note_format.
  */
@@ -140,7 +140,7 @@ export function formatSessionForExport(session, patientName, therapistName) {
       </div>
   `
 
-  // Formatted sections (active format only — no raw transcript)
+  // Formatted sections (active format only, no raw transcript)
   for (const field of fields) {
     const content = notes[field.key]
     if (content && content.trim()) {
@@ -193,7 +193,7 @@ export function generateExportHTML(sessions, patientName, therapistName, dateRan
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Progress Notes — ${escapeHTML(patientName)}</title>
+  <title>Progress Notes, ${escapeHTML(patientName)}</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
@@ -367,7 +367,7 @@ export function generateExportHTML(sessions, patientName, therapistName, dateRan
  * Export to PDF using html2pdf library (bundled locally)
  */
 export async function exportToPDF(htmlContent, filename = 'clinical-notes.pdf') {
-  // Dynamic import — bundled by Vite, no CDN needed
+  // Dynamic import, bundled by Vite, no CDN needed
   const html2pdf = (await import('html2pdf.js')).default
 
   const wrapper = document.createElement('div')
@@ -437,7 +437,7 @@ export function exportAsText(sessions, patientName, therapistName) {
     if (session.duration_minutes) text += `  |  Duration: ${session.duration_minutes} min`
     text += `\n  ${line}\n`
 
-    // Format fields (active format only — no raw transcript)
+    // Format fields (active format only, no raw transcript)
     for (const field of fields) {
       const content = notes[field.key]
       if (content && content.trim()) {

@@ -1,5 +1,5 @@
 /**
- * HoursWidget — compact dashboard summary for trainees and associates.
+ * HoursWidget, compact dashboard summary for trainees and associates.
  *
  * Renders nothing for licensed clinicians. For everyone else, it fetches
  * the current hour-tracking state (using whichever program the user last
@@ -37,14 +37,14 @@ export default function HoursWidget() {
         const arr = Array.isArray(data?.buckets) ? data.buckets : []
         setApiBuckets(arr)
       })
-      .catch(() => { /* swallow — widget will render zeroes from skeleton */ })
+      .catch(() => { /* swallow, widget will render zeroes from skeleton */ })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
   }, [eligible, program])
 
   if (!eligible) return null
 
-  // Always render once the auth gate passes — even with zeroes. Suppressing
+  // Always render once the auth gate passes, even with zeroes. Suppressing
   // on "no data" makes the widget invisible the first time a trainee opens
   // their account, which defeats its purpose as a wayfinding signpost.
   const buckets = mergeBucketTotals(program, apiBuckets)

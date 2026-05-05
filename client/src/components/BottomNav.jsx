@@ -1,8 +1,8 @@
 import { NavLink } from 'react-router-dom'
 
 /**
- * BottomNav — legacy bottom tab bar for the DESKTOP Layout when viewed on
- * a narrow screen (edge case — mobile users normally land in MobileLayout).
+ * BottomNav, legacy bottom tab bar for the DESKTOP Layout when viewed on
+ * a narrow screen (edge case, mobile users normally land in MobileLayout).
  *
  * All items route to /m/* paths so a user who ends up on a desktop page
  * via an external link still lands back inside the mobile shell after

@@ -19,7 +19,7 @@ const GRAD_TEXT = {
 const NAV_LINKS = [
   { to: '/features',      label: 'Features' },
   { to: '/pricing',       label: 'Pricing' },
-  { to: '/for-trainees',  label: 'For Trainees' },
+  { to: '/for-trainees',  label: 'Trainees' },
   { to: '/about',         label: 'About' },
 ]
 
@@ -135,7 +135,7 @@ function SessionNoteMockup() {
         </div>
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wide" style={{color:PURPLE}}>SOAP — Generated</span>
+            <span className="text-[10px] font-bold uppercase tracking-wide" style={{color:PURPLE}}>SOAP, Generated</span>
             {['SOAP','BIRP','DAP'].map(fmt=>(
               <span key={fmt} className="text-[9px] px-1.5 py-0.5 rounded"
                 style={{background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.4)'}}>{fmt}</span>
@@ -144,7 +144,7 @@ function SessionNoteMockup() {
           {[
             {label:'S',text:'Client reported improved sleep and reduced avoidance behaviors.'},
             {label:'O',text:'Appeared engaged, affect euthymic, maintained eye contact.'},
-            {label:'A',text:'PTSD (F43.10) — early response to CPT protocol.'},
+            {label:'A',text:'PTSD (F43.10), early response to CPT protocol.'},
             {label:'P',text:'Continue CPT. Assign thought record. Follow up in 1 week.'},
           ].map(row=>(
             <div key={row.label} className="flex gap-2.5">
@@ -183,7 +183,7 @@ function CaseloadMockup() {
         {[
           {id:'Jordan M.',msg:'PCL-5 increased 8pts (34→42). Review stressors.',color:'#ef4444',icon:'↑',type:'DETERIORATION'},
           {id:'Elena R.',msg:'PHQ-9 improved 6pts (10→4). Significant progress.',color:TEAL,icon:'↓',type:'IMPROVEMENT'},
-          {id:'Priya K.',msg:'No assessment in 35 days — overdue.',color:'#f59e0b',icon:'!',type:'OVERDUE'},
+          {id:'Priya K.',msg:'No assessment in 35 days, overdue.',color:'#f59e0b',icon:'!',type:'OVERDUE'},
         ].map(a=>(
           <div key={a.id} className="flex gap-3 px-3 py-2.5 rounded-xl"
             style={{background:'rgba(255,255,255,0.03)',border:`1px solid ${a.color}20`}}>
@@ -261,7 +261,7 @@ function Hero() {
       <div className="absolute bottom-0 left-0 w-[400px] h-[400px] pointer-events-none rounded-full"
         style={{ background: 'radial-gradient(circle, rgba(45,212,191,0.07) 0%, transparent 70%)' }} />
 
-      {/* Centered hero text — Notion / Figma style */}
+      {/* Centered hero text, Notion / Figma style */}
       <div className="relative z-10 max-w-4xl mx-auto text-center mb-14">
         <h1 className="font-extrabold leading-[1.05] tracking-tight mb-6"
           style={{ fontSize: 'clamp(3rem, 6vw, 5.5rem)', textWrap: 'balance', color: '#111' }}>
@@ -270,7 +270,7 @@ function Hero() {
         </h1>
 
         <p className="text-xl md:text-2xl text-gray-600 max-w-2xl mx-auto mb-10 leading-relaxed">
-          Miwa is an AI assistant for therapists. It writes your notes, prepares every session, flags safety concerns as you type, and tells you who needs attention this morning — so the clinical work stays yours.
+          Miwa is an AI assistant for therapists. It writes your notes, prepares every session, flags safety concerns as you type, and tells you who needs attention this morning, so the clinical work stays yours.
         </p>
 
         <div className="flex flex-wrap gap-4 justify-center mb-5">
@@ -288,7 +288,7 @@ function Hero() {
         <p className="text-sm text-gray-500">14-day free trial · No credit card required · Pre-licensed pricing for trainees</p>
       </div>
 
-      {/* BIG product mockup — the hero visual */}
+      {/* BIG product mockup, the hero visual */}
       <div className="relative z-10 max-w-[1200px] mx-auto px-4">
         <div className="rounded-3xl overflow-hidden shadow-2xl" style={{
           background: 'linear-gradient(180deg, rgba(96,71,238,0.04), rgba(45,212,191,0.04))',
@@ -501,7 +501,7 @@ export default function Home() {
               {
                 stat: '8+',
                 unit: 'hrs/week',
-                desc: 'Therapists spend 8+ hours per week on documentation — nearly a full clinical day lost to paperwork.',
+                desc: 'Therapists spend 8+ hours per week on documentation, nearly a full clinical day lost to paperwork.',
                 cite: 'Eleos Health, 2024',
               },
               {
@@ -530,7 +530,7 @@ export default function Home() {
           </div>
 
           <p className="text-center text-white/30 text-sm">
-            Miwa combines voice-to-note dictation, multi-step task execution, and proactive caseload monitoring — so you can focus on the client, not the paperwork.
+            Miwa combines voice-to-note dictation, multi-step task execution, and proactive caseload monitoring, so you can focus on the client, not the paperwork.
           </p>
         </div>
       </section>
@@ -606,12 +606,12 @@ export default function Home() {
               },
               {
                 prompt: 'Active risk monitor',
-                action: 'As you type session notes, Miwa watches for SI, HI, self-harm, and abuse language — and nudges you toward C-SSRS or Tarasoff when the chart doesn\'t have one on file.',
+                action: 'As you type session notes, Miwa watches for SI, HI, self-harm, and abuse language, and nudges you toward C-SSRS or Tarasoff when the chart doesn\'t have one on file.',
                 icon: '⚠',
               },
               {
                 prompt: 'Letter & form generation',
-                action: 'ESA letters, school 504 support, insurance pre-auth, attorney summaries, return-to-work — drafted from the chart in your voice. Review, edit, sign.',
+                action: 'ESA letters, school 504 support, insurance pre-auth, attorney summaries, return-to-work, drafted from the chart in your voice. Review, edit, sign.',
                 icon: '📝',
               },
               {
@@ -626,7 +626,7 @@ export default function Home() {
               },
               {
                 prompt: 'Voice → clinical notes',
-                action: 'Dictate a 3-minute recap. Miwa drafts SOAP, BIRP, DAP, and GIRP simultaneously — ICD-10 codes suggested, risk flags caught, ready to sign.',
+                action: 'Dictate a 3-minute recap. Miwa drafts SOAP, BIRP, DAP, and GIRP simultaneously, ICD-10 codes suggested, risk flags caught, ready to sign.',
                 icon: '🎙',
               },
               {
@@ -636,12 +636,12 @@ export default function Home() {
               },
               {
                 prompt: 'Proactive caseload alerts',
-                action: 'Deterioration detection, risk review flags, overdue assessment alerts — Miwa watches the caseload between sessions, not just during them.',
+                action: 'Deterioration detection, risk review flags, overdue assessment alerts, Miwa watches the caseload between sessions, not just during them.',
                 icon: '📊',
               },
               {
                 prompt: 'Living treatment plans',
-                action: 'Treatment plans that update as sessions progress. Goals, objectives, and auto-progress tracking — without the quarterly rewrite.',
+                action: 'Treatment plans that update as sessions progress. Goals, objectives, and auto-progress tracking, without the quarterly rewrite.',
                 icon: '🎯',
               },
             ].map((item, i) => (

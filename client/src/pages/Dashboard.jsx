@@ -7,7 +7,7 @@ import HoursWidget from '../components/HoursWidget'
 import CommunityBanner from '../components/CommunityBanner'
 
 function formatDate(dateStr) {
-  if (!dateStr) return '—'
+  if (!dateStr) return ', '
   try {
     return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   } catch { return dateStr }
@@ -83,7 +83,7 @@ export default function Dashboard() {
   const [dailyBriefing, setDailyBriefing] = useState(null)
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState('')
-  // Live running clock for the purple hero — ticks every second
+  // Live running clock for the purple hero, ticks every second
   const [now, setNow] = useState(() => new Date())
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000)
@@ -236,7 +236,7 @@ export default function Dashboard() {
               <h2 className="text-xl font-bold tracking-tight">{greeting}</h2>
               <p className="text-white/55 text-sm mt-0.5">
                 {isNewAccount ? 'Your calm, review-first AI therapist copilot' : (() => {
-                  // Contextual nudge — surface the single most actionable thing,
+                  // Contextual nudge, surface the single most actionable thing,
                   // not a static restatement of the tile numbers above.
                   const u = displayStats.unsignedNotes || 0
                   const t = displayStats.appointmentsToday || 0
@@ -265,7 +265,7 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Right: stats — daily-focused. Patients = caseload, Today =
+            {/* Right: stats, daily-focused. Patients = caseload, Today =
                 what's on the calendar, This Week = Mon-Sun progress, Unsigned
                 = backlog. Unsigned is clickable; the others are passive
                 read-outs. */}
@@ -306,7 +306,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* ── Practicum hours widget — only renders for trainees/associates.
+      {/* ── Practicum hours widget, only renders for trainees/associates.
           Lives above Caseload Pulse so trainees see their progress first
           when they open the dashboard, before triaging clients. ── */}
       <HoursWidget />
@@ -369,7 +369,7 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* ── Community invite — only renders if VITE_COMMUNITY_URL is set ── */}
+      {/* ── Community invite, only renders if VITE_COMMUNITY_URL is set ── */}
       <CommunityBanner />
 
       {/* ── Alerts ── */}
@@ -468,7 +468,7 @@ export default function Dashboard() {
               {
                 step: 2,
                 title: 'Record a session note',
-                desc: 'Open your client → "New Session". Type bullets or dictate — Miwa generates SOAP, BIRP, and DAP notes.',
+                desc: 'Open your client → "New Session". Type bullets or dictate, Miwa generates SOAP, BIRP, and DAP notes.',
                 to: '/workspace',
                 cta: 'Open Workspace',
                 done: displayStats.totalSessions > 0,
@@ -476,7 +476,7 @@ export default function Dashboard() {
               {
                 step: 3,
                 title: 'Ask Miwa a clinical question',
-                desc: 'Open the Consult chat and ask anything — case conceptualization, treatment planning, or "Who needs a PHQ-9?"',
+                desc: 'Open the Consult chat and ask anything, case conceptualization, treatment planning, or "Who needs a PHQ-9?"',
                 to: '/consult',
                 cta: 'Chat with Miwa',
                 done: false,

@@ -12,7 +12,7 @@ import TreatmentPlanPanel from '../components/TreatmentPlanPanel'
 import { renderClinical } from '../lib/renderClinical'
 
 function formatDate(dateStr) {
-  if (!dateStr) return '—'
+  if (!dateStr) return ', '
   try {
     return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   } catch {
@@ -20,7 +20,7 @@ function formatDate(dateStr) {
   }
 }
 
-// Shared renderer — all AI output uses the same clinical styling app-wide
+// Shared renderer, all AI output uses the same clinical styling app-wide
 const renderMarkdown = renderClinical
 
 // Strip markdown, bullets, numbers, normalize smart quotes → plain prose string
@@ -28,7 +28,7 @@ function cleanToPlain(text) {
   return text
     .replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1')
     .replace(/^#{1,4}\s*/gm, '')
-    .replace(/^[-–—•*]\s*/gm, '')
+    .replace(/^[-–, •*]\s*/gm, '')
     .replace(/^\d+[\.\)\:]\s*/gm, '')   // numbered list items
     .replace(/\b\d+\s+(?=[A-Z])/gm, '') // bare leading digit before capital word (e.g. "9 Anxiety")
     .replace(/--+/g, '')
@@ -55,7 +55,7 @@ function summarizeAnalysis(text) {
   return { codes, snippet: clinical.slice(0, 3).join(' ').trim() || plain.slice(0, 380) }
 }
 
-// Clean paragraph summary from treatment plan — skip template preamble
+// Clean paragraph summary from treatment plan, skip template preamble
 function summarizeProfileText(text, max = 180) {
   const plain = cleanToPlain(text || '')
   if (!plain) return ''
@@ -131,7 +131,7 @@ function summarizePlan(text) {
 function summarizeSessionNote(fmt, noteData) {
   if (!noteData) return null
 
-  // Field labels per format — used to build natural transitions
+  // Field labels per format, used to build natural transitions
   const FIELD_INTRO = {
     SOAP: { subjective: null, objective: 'Clinically,', assessment: 'Assessment indicates', plan: 'The plan includes' },
     BIRP: { subjective: null, objective: 'The therapist', assessment: 'In response,', plan: 'Going forward,' },
@@ -206,8 +206,8 @@ function fileTypeIcon(ft) {
 
 // Unified clinical profile experience. Subsumes the old CaseIntelligencePanel
 // and the right-column "Clinical Profile" duplicate. Two render modes:
-//   • mode="compact" — thin status strip used above an active session viewer
-//   • mode="full"    — full living-profile panel: status + AI clinical summary
+//   • mode="compact", thin status strip used above an active session viewer
+//   • mode="full"   , full living-profile panel: status + AI clinical summary
 //                       + outcome progress + next focus + quality gates +
 //                       recommended actions + ICD-10 + evidence collapsible
 // Diagnosis and intake fields stay in the left-column profile card; this panel
@@ -361,7 +361,7 @@ function ClinicalProfilePanel({
           </div>
         )}
 
-        {/* AI Clinical Summary — narrative across the whole chart */}
+        {/* AI Clinical Summary, narrative across the whole chart */}
         <div>
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Clinical Summary</p>
           {summaryLoading && !clientSummary ? (
@@ -381,7 +381,7 @@ function ClinicalProfilePanel({
                 dangerouslySetInnerHTML={{ __html: renderClinical(clientSummary || '') }} />
             </>
           ) : sessions.length === 0 ? (
-            <p className="text-sm text-gray-400">No sessions recorded yet — add a session first.</p>
+            <p className="text-sm text-gray-400">No sessions recorded yet, add a session first.</p>
           ) : (
             <div className="flex flex-col items-center justify-center py-6 text-center rounded-xl border-2 border-solid border-gray-200">
               <svg className="w-8 h-8 text-brand-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -399,7 +399,7 @@ function ClinicalProfilePanel({
           )}
         </div>
 
-        {/* Outcome Progress — assessment trajectory chart */}
+        {/* Outcome Progress, assessment trajectory chart */}
         {patient?.id && <OutcomeProgressCard patientId={patient.id} patient={patient} />}
 
         {/* Next session focus + Quality gates (intelligence-driven) */}
@@ -467,7 +467,7 @@ function ClinicalProfilePanel({
           </div>
         )}
 
-        {/* Why Miwa thinks this — evidence trail, collapsed by default */}
+        {/* Why Miwa thinks this, evidence trail, collapsed by default */}
         {!loading && !error && data && (data.evidence || []).length > 0 && (
           <details className="rounded-xl border border-gray-200 bg-white overflow-hidden">
             <summary className="cursor-pointer px-3 py-2 text-xs font-semibold text-gray-500 uppercase tracking-wide list-none flex items-center justify-between select-none hover:bg-gray-50">
@@ -719,7 +719,7 @@ function TrendArrow({ trend, baseline, current }) {
   if (trend === 'IMPROVING') return <span className="text-emerald-600 font-bold text-xs">{dir} Improving</span>
   if (trend === 'WORSENING') return <span className="text-red-600 font-bold text-xs">{dir} Worsening</span>
   if (trend === 'STABLE') return <span className="text-amber-600 font-bold text-xs">→ Stable</span>
-  return <span className="text-gray-400 text-xs">—</span>
+  return <span className="text-gray-400 text-xs">, </span>
 }
 
 function ProgressTooltip({ active, payload, label }) {
@@ -826,7 +826,7 @@ function PatientAssessmentModal({ patient, onClose, onSubmit }) {
           </button>
         </div>
 
-        {/* Soul picker — couple / family only */}
+        {/* Soul picker, couple / family only */}
         {isRelational && (
           <div className="px-6 pt-3 pb-0">
             <p className="text-xs font-semibold text-gray-500 mb-1.5">Who is completing this?</p>
@@ -879,7 +879,7 @@ function PatientAssessmentModal({ patient, onClose, onSubmit }) {
                     Worst event (optional)
                   </label>
                   <p className="text-xs text-amber-600 mb-2">
-                    Briefly describe the type of traumatic event (e.g. "motor vehicle accident", "interpersonal violence") — do not include names, dates, or identifying details.
+                    Briefly describe the type of traumatic event (e.g. "motor vehicle accident", "interpersonal violence"), do not include names, dates, or identifying details.
                   </p>
                   <input
                     type="text"
@@ -904,7 +904,7 @@ function PatientAssessmentModal({ patient, onClose, onSubmit }) {
                             ? templateType === 'cssrs' && opt.value === 1 ? 'bg-red-600 text-white border-red-600' : 'bg-indigo-600 text-white border-indigo-600'
                             : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
                         }`}>
-                        {templateType === 'cssrs' ? <span className="font-bold">{opt.label}</span> : <><span className="font-bold mr-1">{opt.value}</span> — {opt.label}</>}
+                        {templateType === 'cssrs' ? <span className="font-bold">{opt.label}</span> : <><span className="font-bold mr-1">{opt.value}</span>, {opt.label}</>}
                       </button>
                     ))}
                   </div>
@@ -1244,12 +1244,12 @@ function CheckinSendModal({ patient, onClose }) {
 
               <div>
                 <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
-                  Message <span className="normal-case font-normal text-gray-400">(optional — defaults to standard message)</span>
+                  Message <span className="normal-case font-normal text-gray-400">(optional, defaults to standard message)</span>
                 </label>
                 <textarea
                   className="w-full border border-gray-200 rounded-xl px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-teal-400/40 resize-none"
                   rows={3}
-                  placeholder="Hi, checking in — how have you been feeling since our last session? Click the link to share a quick update."
+                  placeholder="Hi, checking in, how have you been feeling since our last session? Click the link to share a quick update."
                   value={message}
                   onChange={e => setMessage(e.target.value)}
                   maxLength={300}
@@ -1472,7 +1472,7 @@ function OutcomeProgressCard({ patientId, patient }) {
 
       {/* ── Individual view: PHQ-9 + GAD-7 summary ──
           Render whenever there's non-membered assessment data, regardless of
-          client_type — a couple whose assessments aren't soul-keyed should
+          client_type, a couple whose assessments aren't soul-keyed should
           still see an aggregate summary instead of nothing. */}
       {hasIndividualData && (
         <div className="space-y-1.5">
@@ -1580,7 +1580,7 @@ function OutcomeProgressCard({ patientId, patient }) {
       {expanded && (
         <div className="mt-4 space-y-4">
 
-          {/* Filter chips — let the clinician isolate a specific instrument.
+          {/* Filter chips, let the clinician isolate a specific instrument.
               Only show if there's more than one instrument with data, since
               with a single instrument there's nothing to isolate. */}
           {hasIndividualData && (() => {
@@ -1664,7 +1664,7 @@ function OutcomeProgressCard({ patientId, patient }) {
                 )}
               </div>
 
-              {/* PHQ-9 + GAD-7 dual-line timeline chart — hidden entirely when both
+              {/* PHQ-9 + GAD-7 dual-line timeline chart, hidden entirely when both
                   filter chips are off, so the user can solo PCL-5 for example. */}
               {(progress.phq9.count > 0 || progress.gad7.count > 0) && progress.timeline?.length > 0 &&
                (visibleInstruments.phq9 || visibleInstruments.gad7) && (
@@ -1697,7 +1697,7 @@ function OutcomeProgressCard({ patientId, patient }) {
                 </div>
               )}
 
-              {/* PCL-5 standalone chart (separate scale: 0-80) — gated on filter chip too */}
+              {/* PCL-5 standalone chart (separate scale: 0-80), gated on filter chip too */}
               {visibleInstruments.pcl5 && progress.pcl5?.count > 1 && progress.timeline?.some(t => t.pcl5 !== undefined) && (
                 <div className="bg-white rounded-xl border border-gray-100 p-4">
                   <div className="flex items-center justify-between mb-3">
@@ -1725,10 +1725,10 @@ function OutcomeProgressCard({ patientId, patient }) {
                   {progress.pcl5.clusters && (
                     <div className="mt-3 grid grid-cols-4 gap-2">
                       {[
-                        { label: 'B — Intrusion', val: progress.pcl5.clusters.B, max: 20, color: '#6366F1' },
-                        { label: 'C — Avoidance', val: progress.pcl5.clusters.C, max: 8,  color: '#8B5CF6' },
-                        { label: 'D — Neg. Cog.', val: progress.pcl5.clusters.D, max: 28, color: '#EC4899' },
-                        { label: 'E — Arousal',   val: progress.pcl5.clusters.E, max: 24, color: '#EA580C' },
+                        { label: 'B, Intrusion', val: progress.pcl5.clusters.B, max: 20, color: '#6366F1' },
+                        { label: 'C, Avoidance', val: progress.pcl5.clusters.C, max: 8,  color: '#8B5CF6' },
+                        { label: 'D, Neg. Cog.', val: progress.pcl5.clusters.D, max: 28, color: '#EC4899' },
+                        { label: 'E, Arousal',   val: progress.pcl5.clusters.E, max: 24, color: '#EA580C' },
                       ].map(({ label, val, max, color }) => (
                         <div key={label} className="bg-gray-50 rounded-xl p-2 text-center">
                           <p className="text-[9px] font-semibold text-gray-500 leading-tight mb-1">{label}</p>
@@ -1807,7 +1807,7 @@ function OutcomeProgressCard({ patientId, patient }) {
             return (
               <div key={instrument} className="bg-white rounded-xl border border-gray-100 p-4">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">
-                  {TEMPLATE_LABELS[instrument] || instrument} — Soul Comparison
+                  {TEMPLATE_LABELS[instrument] || instrument}, Soul Comparison
                 </p>
                 <ResponsiveContainer width="100%" height={200}>
                   <LineChart data={chartData} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
@@ -1829,7 +1829,7 @@ function OutcomeProgressCard({ patientId, patient }) {
                     })}
                   </LineChart>
                 </ResponsiveContainer>
-                {/* Soul legend with color dots — colors keyed off allSouls position
+                {/* Soul legend with color dots, colors keyed off allSouls position
                     so a soul's color stays the same when other souls are filtered. */}
                 <div className="flex flex-wrap gap-3 mt-2 pt-2 border-t border-gray-50">
                   {soulsWithData.map(soul => {
@@ -1839,7 +1839,7 @@ function OutcomeProgressCard({ patientId, patient }) {
                       <div key={soul} className="flex items-center gap-1.5">
                         <div className="w-2.5 h-2.5 rounded-full" style={{ background: SOUL_COLORS[i % SOUL_COLORS.length] }} />
                         <span className="text-[10px] text-gray-600 font-medium">{soul}</span>
-                        <span className="text-[10px] text-gray-400">{d.current ?? '—'}</span>
+                        <span className="text-[10px] text-gray-400">{d.current ?? ', '}</span>
                         {d.severity && (
                           <span className="text-[10px] px-1 py-0.5 rounded text-white font-semibold" style={{ background: d.color || '#6B7280' }}>
                             {d.severity}
@@ -1886,7 +1886,7 @@ function OutcomeProgressCard({ patientId, patient }) {
                   </>
                 ) : (
                   <>
-                    <span className="text-lg text-gray-300 w-10 text-center flex-shrink-0">—</span>
+                    <span className="text-lg text-gray-300 w-10 text-center flex-shrink-0">, </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-500 truncate">{c.message?.slice(0, 60)}</p>
                       <p className="text-[11px] text-gray-400">Sent {new Date(c.created_at).toLocaleDateString()}</p>
@@ -1913,9 +1913,9 @@ export default function PatientDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { therapist } = useAuth()
-  // ?session_active=<appt_id> — set when the clinician launches a telehealth
+  // ?session_active=<appt_id>, set when the clinician launches a telehealth
   // session from Schedule. Banner gives a one-click path to write the note.
-  // ?checkedInAppt=<appt_id> — set when the clinician checked in an in-person
+  // ?checkedInAppt=<appt_id>, set when the clinician checked in an in-person
   // appointment from Schedule. Same banner pattern, different copy.
   const [searchParams, setSearchParams] = useSearchParams()
   const sessionActiveAppt = searchParams.get('session_active')
@@ -1987,7 +1987,7 @@ export default function PatientDetail() {
       const last_name = (profileForm.last_name || '').trim()
       const email = (profileForm.email || '').trim()
       const display_name = [first_name, last_name].filter(Boolean).join(' ') || null
-      // Lightweight format check — only when something was entered. The server
+      // Lightweight format check, only when something was entered. The server
       // accepts it either way, but blocking obvious typos here saves a round trip.
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         throw new Error('That email doesn\'t look right. Double-check and try again.')
@@ -2178,7 +2178,7 @@ export default function PatientDetail() {
   return (
     <>
     <div className="p-6 max-w-6xl mx-auto">
-      {/* Session-in-progress banner — shown when the clinician launched a telehealth
+      {/* Session-in-progress banner, shown when the clinician launched a telehealth
           session from Schedule. Gives them a one-click path to write the note when
           they come back to this tab after ending the Meet. */}
       {sessionActiveAppt && (
@@ -2221,7 +2221,7 @@ export default function PatientDetail() {
         </div>
       )}
 
-      {/* In-person check-in banner — shown when the clinician clicked "Check In"
+      {/* In-person check-in banner, shown when the clinician clicked "Check In"
           on an appointment in Schedule. Same UI pattern as the telehealth banner
           above; different copy. The session note signed from here will auto-
           complete the matching appointment so it counts toward Hours. */}
@@ -2234,7 +2234,7 @@ export default function PatientDetail() {
             </svg>
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold">Client checked in — session in progress</p>
+            <p className="text-sm font-bold">Client checked in, session in progress</p>
             <p className="text-xs text-white/90 mt-0.5">
               When you sign the note, the appointment will be marked completed automatically and counted toward your Hours.
             </p>
@@ -2319,7 +2319,7 @@ export default function PatientDetail() {
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-bold text-white">Chat with Miwa about {patient.display_name || patient.client_id}</p>
-          <p className="text-xs text-white/60 mt-0.5">Ask clinical questions, get case conceptualization, or explore treatment options — Miwa reads all session notes and documents for this client.</p>
+          <p className="text-xs text-white/60 mt-0.5">Ask clinical questions, get case conceptualization, or explore treatment options, Miwa reads all session notes and documents for this client.</p>
         </div>
         <button
           onClick={() => navigate('/consult', { state: { contextType: 'patient', contextId: parseInt(id), clientId: patient.client_id } })}
@@ -2335,7 +2335,7 @@ export default function PatientDetail() {
         <div className="space-y-4">
           {/* Clinical Profile */}
           <div className="card overflow-hidden">
-            {/* Header with avatar + name inside the gradient — no overlap issues */}
+            {/* Header with avatar + name inside the gradient, no overlap issues */}
             <div className="px-5 py-4 relative" style={{ background: 'linear-gradient(135deg, #5746ed, #0ac5a2)' }}>
               <div className="absolute inset-0" style={{ background: 'radial-gradient(circle at 80% 50%, rgba(255,255,255,0.12), transparent)' }} />
               <div className="relative flex items-center gap-3">
@@ -2392,7 +2392,7 @@ export default function PatientDetail() {
                       // Display "Child / adolescent" rather than the raw "child"
                       // token so the panel matches the rest of the page.
                       const raw = patient.case_type || patient.client_type
-                      if (!raw) return '—'
+                      if (!raw) return ', '
                       const map = {
                         individual: 'Individual',
                         couple: 'Couple',
@@ -2406,7 +2406,7 @@ export default function PatientDetail() {
                 </div>
                 <div>
                   <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Referral</p>
-                  <p className="mt-0.5 text-sm text-gray-800">{patient.referral_source || '—'}</p>
+                  <p className="mt-0.5 text-sm text-gray-800">{patient.referral_source || ', '}</p>
                 </div>
               </div>
 
@@ -2441,14 +2441,14 @@ export default function PatientDetail() {
                 </div>
               </div>
 
-              {/* Souls — couple / family only */}
+              {/* Souls, couple / family only */}
               {patient.client_type && patient.client_type !== 'individual' && (() => {
                 const souls = (() => { try { return patient.members ? JSON.parse(patient.members) : [] } catch { return [] } })()
                 if (!souls.length) return null
                 return (
                   <div>
                     <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1.5">
-                      {patient.client_type === 'couple' ? 'Couple' : 'Family'} — Souls
+                      {patient.client_type === 'couple' ? 'Couple' : 'Family'}, Souls
                     </p>
                     <div className="flex flex-wrap gap-1.5">
                       {souls.map((soul, i) => (
@@ -2482,7 +2482,7 @@ export default function PatientDetail() {
                 )}
               </div>
 
-              {/* Presenting Concerns — brief 1-liner */}
+              {/* Presenting Concerns, brief 1-liner */}
               {patient.presenting_concerns && (
                 <div>
                   <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide mb-1">Presenting Concerns</p>
@@ -2490,7 +2490,7 @@ export default function PatientDetail() {
                 </div>
               )}
 
-              {/* Intake Details collapsible — everything else */}
+              {/* Intake Details collapsible, everything else */}
               <details className="rounded-xl border border-gray-200 bg-gray-50 overflow-hidden">
                 <summary className="cursor-pointer px-3 py-2.5 text-xs font-semibold text-gray-500 uppercase tracking-wide list-none flex items-center justify-between select-none hover:bg-gray-100 transition-colors">
                   <span>Intake Details</span>
@@ -2537,7 +2537,7 @@ export default function PatientDetail() {
             </div>{/* end px-5 pb-5 */}
           </div>{/* end card */}
 
-          {/* Session History — immediately after clinical profile */}
+          {/* Session History, immediately after clinical profile */}
           <div className="card">
             <div className="px-4 py-3 border-b border-gray-100 space-y-2">
               <div className="flex items-center justify-between">
@@ -2626,7 +2626,7 @@ export default function PatientDetail() {
               <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
                 <div>
                   <h3 className="text-sm font-semibold text-gray-900">
-                    {getSessionDisplayFormat(activeSession)} — {formatDate(activeSession.session_date)}
+                    {getSessionDisplayFormat(activeSession)}, {formatDate(activeSession.session_date)}
                     {activeSession.note_format === 'INTAKE' && (
                       <span className="ml-2 text-xs font-semibold text-brand-500">{getSessionContentFormat(activeSession)} note available</span>
                     )}
@@ -2683,7 +2683,7 @@ export default function PatientDetail() {
                 ))}
               </div>
 
-              {/* Tab content — scrollable */}
+              {/* Tab content, scrollable */}
               <div className="flex-1 overflow-y-auto p-5">
 
                 {/* SESSION NOTE TAB */}
@@ -2726,7 +2726,7 @@ export default function PatientDetail() {
                           {fmt} Note Summary
                         </p>
                         <p className="text-sm text-gray-700 leading-relaxed">
-                          {paragraph || 'Session notes recorded — click below to view the full note.'}
+                          {paragraph || 'Session notes recorded, click below to view the full note.'}
                         </p>
                       </div>
                       <Link
@@ -2767,7 +2767,7 @@ export default function PatientDetail() {
                           </div>
                         </div>
                       )}
-                      {/* Clinical summary snippet — rendered as markdown so
+                      {/* Clinical summary snippet, rendered as markdown so
                           **bold**, bullet lists, etc. from the AI display
                           correctly rather than as literal asterisks. */}
                       <div>
@@ -2813,7 +2813,7 @@ export default function PatientDetail() {
               </div>
             </div>
           ) : (
-            // No session selected — show the unified Clinical Profile panel.
+            // No session selected, show the unified Clinical Profile panel.
             // Diagnosis is intentionally omitted here; it lives once in the
             // left-column profile card and is the single source of truth.
             <ClinicalProfilePanel
@@ -2952,7 +2952,7 @@ export default function PatientDetail() {
               </div>
             </div>
 
-            {/* Case type — drives caseload classification, hour-tracker buckets,
+            {/* Case type, drives caseload classification, hour-tracker buckets,
                 and whether the assessments view shows individual or per-soul UX. */}
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Case Type</label>

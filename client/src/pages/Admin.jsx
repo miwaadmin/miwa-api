@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { apiFetch } from '../lib/api'
 
 function formatDate(value) {
-  if (!value) return '—'
+  if (!value) return ', '
   try {
     return new Date(value).toLocaleString('en-US', {
       timeZone: 'America/Los_Angeles',
@@ -36,7 +36,7 @@ function AiCostsPanel({ data, onUnpause }) {
   if (!data) {
     return (
       <div className="card p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-1">AI spend — this month</h2>
+        <h2 className="text-sm font-semibold text-gray-900 mb-1">AI spend, this month</h2>
         <p className="text-xs text-gray-500">No cost data yet. Once any clinician talks to Miwa, this fills in.</p>
       </div>
     )
@@ -224,7 +224,7 @@ function StripeMigrationCard({ onComplete }) {
 
       {result && (
         <div className="mt-4 p-3 rounded-lg bg-emerald-50 border border-emerald-100 text-xs text-emerald-900">
-          Migration complete — cleared {result.cleared_customers} customer IDs and reset {result.reset_subscriptions} active subscriptions.
+          Migration complete, cleared {result.cleared_customers} customer IDs and reset {result.reset_subscriptions} active subscriptions.
         </div>
       )}
     </div>
@@ -343,7 +343,7 @@ export default function Admin() {
       if (!usageRes.ok) throw new Error(usageData.error || 'Failed to load usage')
       if (!supportRes.ok) throw new Error(supportData.error || 'Failed to load support')
       if (!billingRes.ok) throw new Error(billingData.error || 'Failed to load billing')
-      // ai-costs may not exist on older deployments — non-fatal
+      // ai-costs may not exist on older deployments, non-fatal
       setOverview(overviewData)
       setAccounts(Array.isArray(accountsData) ? accountsData : [])
       setUsage(usageData)
@@ -481,7 +481,7 @@ export default function Admin() {
                 {(overview?.recent_events || []).map(event => (
                   <div key={event.id} className="border-b border-gray-100 pb-2 last:border-0">
                     <p className="text-sm text-gray-800 font-medium">{event.event_type}</p>
-                    <p className="text-xs text-gray-500 mt-1">{event.full_name || event.email || 'System'} · {event.status || '—'} · {formatDate(event.created_at)}</p>
+                    <p className="text-xs text-gray-500 mt-1">{event.full_name || event.email || 'System'} · {event.status || ', '} · {formatDate(event.created_at)}</p>
                     {event.message && <p className="text-xs text-gray-600 mt-1">{event.message}</p>}
                   </div>
                 ))}
@@ -665,7 +665,7 @@ export default function Admin() {
                   {(support?.events || []).map(event => (
                     <div key={event.id} className="border-b border-gray-100 pb-2 last:border-0">
                       <p className="text-sm text-gray-800">{event.event_type}</p>
-                      <p className="text-xs text-gray-500 mt-1">{event.full_name || event.email || 'System'} · {event.status || '—'} · {formatDate(event.created_at)}</p>
+                      <p className="text-xs text-gray-500 mt-1">{event.full_name || event.email || 'System'} · {event.status || ', '} · {formatDate(event.created_at)}</p>
                       {event.message && <p className="text-xs text-gray-600 mt-1">{event.message}</p>}
                     </div>
                   ))}

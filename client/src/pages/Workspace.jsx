@@ -29,17 +29,17 @@ function getIntakeTabs() {
 function renderClinicalDocument(text) {
   if (!text) return ''
   return text
-    // H1 headers — major section titles (bold, larger, with colored left border)
+    // H1 headers, major section titles (bold, larger, with colored left border)
     .replace(/^# (.*)/gm, '<div class="mt-6 mb-3 pl-3 border-l-4 border-indigo-500"><h2 class="text-base font-bold text-gray-900 uppercase tracking-wide">$1</h2></div>')
-    // H2 headers — subsection titles
+    // H2 headers, subsection titles
     .replace(/^## (.*)/gm, '<div class="mt-5 mb-2 pl-3 border-l-3 border-teal-400"><h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide">$1</h3></div>')
-    // H3 headers — sub-subsections
+    // H3 headers, sub-subsections
     .replace(/^### (.*)/gm, '<h4 class="text-sm font-semibold text-gray-800 mt-4 mb-1.5">$1</h4>')
-    // Bold text — section labels within paragraphs
+    // Bold text, section labels within paragraphs
     .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
     // Italic
     .replace(/\*(.*?)\*/g, '<em class="text-gray-600">$1</em>')
-    // Bullet lists — clean, professional
+    // Bullet lists, clean, professional
     .replace(/^[-•]\s+(.*)/gm, '<div class="flex gap-2 ml-4 mb-1"><span class="text-indigo-400 mt-0.5">&#8226;</span><span class="text-sm text-gray-700 leading-relaxed">$1</span></div>')
     // Numbered lists
     .replace(/^(\d+)\.\s+(.*)/gm, '<div class="flex gap-2 ml-4 mb-1"><span class="text-sm font-medium text-indigo-500 mt-0.5 min-w-[1.2rem]">$1.</span><span class="text-sm text-gray-700 leading-relaxed">$2</span></div>')
@@ -47,9 +47,9 @@ function renderClinicalDocument(text) {
     .replace(/\[SUGGESTION: (.*?)\]/g, '<span class="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-800 text-xs px-2 py-1 rounded-lg my-1">💡 $1</span>')
     // Observed from transcript tags
     .replace(/\[observed from transcript\]/gi, '<span class="inline-flex items-center bg-blue-50 border border-blue-200 text-blue-700 text-[10px] px-1.5 py-0.5 rounded ml-1">from transcript</span>')
-    // ICD-10 codes — highlight them
+    // ICD-10 codes, highlight them
     .replace(/\b([A-Z]\d{2}(?:\.\d{1,4})?)\b/g, '<code class="bg-indigo-50 text-indigo-700 text-xs px-1 py-0.5 rounded font-mono">$1</code>')
-    // Paragraphs — proper spacing
+    // Paragraphs, proper spacing
     .replace(/\n\n/g, '</p><p class="mb-3 text-sm text-gray-700 leading-relaxed">')
     .replace(/\n/g, '<br/>')
 }
@@ -1026,7 +1026,7 @@ export default function Workspace() {
             ))}
           </div>
 
-          {/* Sample case loader — only for ongoing sessions */}
+          {/* Sample case loader, only for ongoing sessions */}
           {sessionType === 'ongoing' && (
             <>
               <div className="card p-4 space-y-3 border border-brand-100">
@@ -1332,7 +1332,7 @@ export default function Workspace() {
               )}
             </div>
 
-            {/* Soul management — visible when case type is couple or family */}
+            {/* Soul management, visible when case type is couple or family */}
             {(form.caseType === 'couple' || form.caseType === 'family') && (
               <div className="rounded-xl border border-violet-100 bg-violet-50/40 p-3 space-y-2">
                 <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">
@@ -1412,7 +1412,7 @@ export default function Workspace() {
               </div>
             </div>
 
-            {/* Presenting problem — always shown */}
+            {/* Presenting problem, always shown */}
             <div>
               <label className="label">
                 Presenting Problem
@@ -1862,7 +1862,7 @@ export default function Workspace() {
                   <h3 className="text-sm font-semibold text-gray-700 mb-2">Output will appear here</h3>
                   <p className="text-xs text-gray-400 max-w-xs">
                     {sessionType === 'intake'
-                      ? <>Fill in the intake information on the left and click <strong className="text-gray-600">Generate Intake Assessment</strong>. You'll get a biopsychosocial assessment, clinical formulation, diagnostic impressions, treatment plan recommendations, and supervision guidance. The intake stays as-is — progress notes (SOAP/BIRP/DAP/GIRP/DMH SIR) are for ongoing sessions.</>
+                      ? <>Fill in the intake information on the left and click <strong className="text-gray-600">Generate Intake Assessment</strong>. You'll get a biopsychosocial assessment, clinical formulation, diagnostic impressions, treatment plan recommendations, and supervision guidance. The intake stays as-is, progress notes (SOAP/BIRP/DAP/GIRP/DMH SIR) are for ongoing sessions.</>
                       : <>Fill in your session context on the left and click <strong className="text-gray-600">Generate Session Note</strong>. You'll get a polished clinical note in {form.noteFormat} format, clinical thinking, diagnosis support, and supervision.</>}
                   </p>
                   <div className="mt-6 grid grid-cols-2 gap-2 w-full max-w-xs">
@@ -1944,7 +1944,7 @@ export default function Workspace() {
                     <div className="space-y-3">
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         {editableOutput?.[activeTab] !== undefined ? (
-                          <p className="text-xs text-gray-400">Editing — modify the text below. Changes are preserved when you switch tabs.</p>
+                          <p className="text-xs text-gray-400">Editing, modify the text below. Changes are preserved when you switch tabs.</p>
                         ) : (
                           <p className="text-xs text-gray-400">Review the generated content. Click Edit to modify before saving.</p>
                         )}

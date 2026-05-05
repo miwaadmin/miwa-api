@@ -179,7 +179,7 @@ export default function TreatmentPlanPanel({ patientId }) {
     )
   }
 
-  // No plan exists — show creation CTA
+  // No plan exists, show creation CTA
   if (!plan) {
     return (
       <div className="card overflow-hidden">
@@ -216,7 +216,7 @@ export default function TreatmentPlanPanel({ patientId }) {
     )
   }
 
-  // Plan exists — render goals with progress tracking
+  // Plan exists, render goals with progress tracking
   const goals = plan.goals || []
   const countByStatus = goals.reduce((acc, g) => {
     const key = (g.status || 'active').toLowerCase()

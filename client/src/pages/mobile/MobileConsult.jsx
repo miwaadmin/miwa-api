@@ -1,12 +1,12 @@
 /**
- * MobileConsult — mobile-first case consultation chat.
+ * MobileConsult, mobile-first case consultation chat.
  *
  * Not the desktop Supervisor page squeezed into a phone. A full-screen
  * chat UI built for thumbs: one textarea pinned to the bottom, bubbles
  * that breathe, a few "think out loud" starter prompts that matter for
  * case conceptualization.
  *
- * Hits the same /ai/chat endpoint as MobileMiwa and Supervisor — it's
+ * Hits the same /ai/chat endpoint as MobileMiwa and Supervisor, it's
  * framed differently (consultation prompts + a "pick a client" shortcut)
  * so the therapist gets into case-focused work fast.
  */
@@ -97,7 +97,7 @@ export default function MobileConsult() {
       setMessages(prev => [...prev, {
         id: Date.now() + 1,
         role: 'assistant',
-        content: `Sorry — I couldn't respond. ${err.message}`,
+        content: `Sorry, I couldn't respond. ${err.message}`,
       }])
     } finally {
       setSending(false)
@@ -119,7 +119,7 @@ export default function MobileConsult() {
       {/* Header */}
       <div className="px-4 py-3 border-b border-gray-100 bg-white">
         <h1 className="text-lg font-bold text-gray-900">Consult</h1>
-        <p className="text-[11px] text-gray-500 mt-0.5">Clinical thought partner — case conceptualization, supervision prep</p>
+        <p className="text-[11px] text-gray-500 mt-0.5">Clinical thought partner, case conceptualization, supervision prep</p>
       </div>
 
       {/* Messages */}
@@ -132,7 +132,7 @@ export default function MobileConsult() {
             </div>
             <h2 className="text-lg font-semibold text-gray-900 mb-1">What are you thinking through?</h2>
             <p className="text-sm text-gray-500 max-w-xs mx-auto leading-relaxed mb-6">
-              Walk a case out loud. I'll help you think — I won't decide for you.
+              Walk a case out loud. I'll help you think, I won't decide for you.
             </p>
 
             <div className="space-y-2 max-w-sm mx-auto">

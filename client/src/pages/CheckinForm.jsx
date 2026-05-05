@@ -1,11 +1,11 @@
 /**
- * CheckinForm — between-session mood check-in (SMS/email link).
+ * CheckinForm, between-session mood check-in (SMS/email link).
  *
  * Rebuilt mobile-first. Full-screen, safe-area aware. The mood score is
  * picked via big emoji/number buttons sized for thumbs. Optional free
  * text for context. Uses the same /public/checkin/:token endpoint.
  *
- * This is what your client sees when you send them a mid-week SMS —
+ * This is what your client sees when you send them a mid-week SMS , 
  * zero friction, under 20 seconds to complete.
  */
 import { useState, useEffect } from 'react'
@@ -155,7 +155,7 @@ export default function CheckinForm() {
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">Thanks for checking in</h1>
           <p className="text-base text-gray-600 max-w-sm leading-relaxed">
-            Your clinician has your update. If today was a tough one, you're not alone — and they'll see it.
+            Your clinician has your update. If today was a tough one, you're not alone, and they'll see it.
           </p>
 
           {mood && mood <= 2 && (

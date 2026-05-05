@@ -18,8 +18,8 @@ function Nav() {
       </Link>
       <div className="hidden md:flex items-center gap-6 text-base text-white/55">
         <Link to="/features" className="hover:text-white transition-colors">Features</Link>
-        <Link to="/for-trainees" className="hover:text-white transition-colors">For Trainees</Link>
-        <Link to="/for-practices" className="hover:text-white transition-colors">For Practices</Link>
+        <Link to="/for-trainees" className="hover:text-white transition-colors">Trainees</Link>
+        <Link to="/for-practices" className="hover:text-white transition-colors">Practices</Link>
         <Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link>
       </div>
       <div className="flex items-center gap-3">
@@ -127,11 +127,11 @@ export default function SmsPolicy() {
             <p>Clients only receive messages their therapist initiates. Miwa does not send marketing, promotional, or
               automated content to clients on its own. The categories of messages are:</p>
             <ul className="space-y-2 mt-4">
-              <Bullet><strong>Assessment links</strong> — a short message with a secure link to complete a clinical
+              <Bullet><strong>Assessment links</strong>, a short message with a secure link to complete a clinical
                 instrument the therapist has assigned (PHQ-9, GAD-7, PCL-5, and similar).</Bullet>
-              <Bullet><strong>Mood check-ins</strong> — a short prompt with a secure link to log how the client is
+              <Bullet><strong>Mood check-ins</strong>, a short prompt with a secure link to log how the client is
                 feeling between sessions.</Bullet>
-              <Bullet><strong>Appointment-related messages</strong> — telehealth links and reminders the therapist
+              <Bullet><strong>Appointment-related messages</strong>, telehealth links and reminders the therapist
                 chooses to send.</Bullet>
             </ul>
             <p className="mt-6"><strong>Sample messages:</strong></p>
@@ -142,7 +142,7 @@ export default function SmsPolicy() {
               Reply STOP to opt out, HELP for help. Msg &amp; data rates may apply.
             </div>
             <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 text-base text-zinc-800 leading-relaxed mt-2">
-              Hi — checking in. How are things going since our last session? Tap here to share a quick
+              Hi, checking in. How are things going since our last session? Tap here to share a quick
               update:<br />
               https://miwa.care/checkin/xyz789<br />
               Reply STOP to opt out, HELP for help. Msg &amp; data rates may apply.
@@ -166,7 +166,7 @@ export default function SmsPolicy() {
               <Bullet>Reply <strong>STOP</strong>, <strong>END</strong>, <strong>CANCEL</strong>,
                 <strong> UNSUBSCRIBE</strong>, or <strong>QUIT</strong> to any message from Miwa. Twilio will
                 automatically block further SMS to that number and send a one-time confirmation reply.</Bullet>
-              <Bullet>Ask their therapist directly to remove their phone number or disable SMS — the therapist can do
+              <Bullet>Ask their therapist directly to remove their phone number or disable SMS, the therapist can do
                 this from the client's profile in Miwa.</Bullet>
               <Bullet>Email <a href="mailto:support@miwa.care" className="font-semibold" style={{ color: PURPLE }}>
                 support@miwa.care</a> from any address and request removal.</Bullet>

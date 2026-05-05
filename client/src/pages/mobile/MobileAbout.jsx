@@ -1,5 +1,5 @@
 /**
- * MobileAbout — native-feeling mission page.
+ * MobileAbout, native-feeling mission page.
  *
  * Replaces the full desktop About page's grid hero + 4-column values
  * grid with a clean stack of readable paragraphs and value cards sized
@@ -9,7 +9,7 @@ import { Link, useNavigate } from 'react-router-dom'
 
 const VALUES = [
   { icon: '🔒', title: 'Privacy-first', desc: 'HIPAA-aligned infrastructure, Azure-hosted clinical data, and no clinical data used to train AI models.' },
-  { icon: '🧠', title: 'Clinician judgment stays central', desc: 'AI does not practice therapy. Miwa helps you document faster and think more clearly — every output is a starting point, not a final answer.' },
+  { icon: '🧠', title: 'Clinician judgment stays central', desc: 'AI does not practice therapy. Miwa helps you document faster and think more clearly, every output is a starting point, not a final answer.' },
   { icon: '🌱', title: 'Built for where you are', desc: 'Whether you\'re a first-year trainee or a decade-in licensed clinician, Miwa adapts to your role and experience.' },
   { icon: '⚕️', title: 'Clinical reality, not corporate software', desc: 'Shaped by actual therapist workflows: shorthand notes, documentation backlogs, supervision prep the night before.' },
 ]
@@ -69,7 +69,7 @@ export default function MobileAbout() {
             Miwa threads this needle. The AI helps you think and write faster. The clinician stays responsible for everything that happens. Your data stays private and is never used to train models.
           </p>
           <p>
-            Today, Miwa goes further. It watches your caseload between sessions — flagging when someone deteriorates or a risk concern appears in your notes. It prepares briefs 30 minutes before each appointment so you're never starting cold. It learns your clinical voice, so AI-drafted documentation already sounds like you.
+            Today, Miwa goes further. It watches your caseload between sessions, flagging when someone deteriorates or a risk concern appears in your notes. It prepares briefs 30 minutes before each appointment so you're never starting cold. It learns your clinical voice, so AI-drafted documentation already sounds like you.
           </p>
           <p className="font-semibold text-gray-900">
             Every output is a draft. Every decision is yours.

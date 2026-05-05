@@ -3,10 +3,10 @@ import { MiwaLogo } from './Sidebar'
 import { COMMUNITY_URL, COMMUNITY_LABEL, HAS_COMMUNITY } from '../lib/community'
 
 /**
- * PublicFooter — minimal footer for every public page.
+ * PublicFooter, minimal footer for every public page.
  *
  * Logo + copyright. Adds a Community link when VITE_COMMUNITY_URL is
- * configured — gives anonymous visitors on miwa.care a path into the
+ * configured, gives anonymous visitors on miwa.care a path into the
  * Discord without forcing them to sign up first.
  */
 export default function PublicFooter() {
@@ -30,12 +30,24 @@ export default function PublicFooter() {
             Miwa.care
           </span>
         </div>
-        <div className="flex items-center gap-5">
+        <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2">
+          <Link
+            to="/about"
+            className="text-white/60 hover:text-white text-sm font-medium transition-colors"
+          >
+            About
+          </Link>
+          <Link
+            to="/network"
+            className="text-white/60 hover:text-white text-sm font-medium transition-colors"
+          >
+            Network
+          </Link>
           <Link
             to="/privacy-and-compliance"
             className="text-white/60 hover:text-white text-sm font-medium transition-colors"
           >
-            Privacy & Compliance
+            Privacy
           </Link>
           <Link
             to="/security"

@@ -199,7 +199,7 @@ export default function AdminSupport() {
                           value={draftResponse[item.id] ?? item.admin_response ?? ''}
                           onChange={e => setDraftResponse(d => ({ ...d, [item.id]: e.target.value }))}
                           className="w-full text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/20"
-                          placeholder="Write a short reply — the user will receive this by email when you mark this Resolved…"
+                          placeholder="Write a short reply, the user will receive this by email when you mark this Resolved…"
                         />
                         <p className="text-[10px] text-gray-500 leading-relaxed">
                           Saves the reply. Emails the user when you click <strong>Resolve</strong> (or now, if it's already resolved and you re-resolve below).
@@ -273,7 +273,7 @@ export default function AdminSupport() {
               {(support?.events || []).map(event => (
                 <div key={event.id} className="border-b border-gray-100 pb-2 last:border-0">
                   <p className="text-sm text-gray-800">{event.event_type}</p>
-                  <p className="text-xs text-gray-500 mt-1">{event.full_name || event.email || 'System'} · {event.status || '—'} · {formatDate(event.created_at)}</p>
+                  <p className="text-xs text-gray-500 mt-1">{event.full_name || event.email || 'System'} · {event.status || ', '} · {formatDate(event.created_at)}</p>
                   {event.message && <p className="text-xs text-gray-600 mt-1">{event.message}</p>}
                 </div>
               ))}

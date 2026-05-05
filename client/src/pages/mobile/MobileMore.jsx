@@ -1,12 +1,12 @@
 /**
- * MobileMore — overflow menu linking to secondary screens.
+ * MobileMore, overflow menu linking to secondary screens.
  * Settings, Outcomes, Briefs, Resources, Billing, Schedule.
  */
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { therapistInitials } from '../../lib/avatar'
 
-// `hoursOnly: true` items are filtered to trainees + associates only —
+// `hoursOnly: true` items are filtered to trainees + associates only , 
 // licensed clinicians don't log practicum hours, so the link is hidden
 // for them.
 const menuSections = [

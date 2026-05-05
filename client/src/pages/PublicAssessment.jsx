@@ -1,5 +1,5 @@
 /**
- * PublicAssessment — client-facing screener page (SMS/email link).
+ * PublicAssessment, client-facing screener page (SMS/email link).
  *
  * Rebuilt mobile-first. Full-screen, safe-area aware, progress bar,
  * one-question-at-a-time swipe-ish flow, warm copy. Looks identical
@@ -11,7 +11,7 @@
  *   3. Questions stack, each with big tappable option buttons
  *   4. Submit → result screen with score + crisis resources if flagged
  *
- * This page is what your clients see — zero friction, no login, no
+ * This page is what your clients see, zero friction, no login, no
  * install, every question is thumb-reachable.
  */
 import { useEffect, useMemo, useState, useRef } from 'react'

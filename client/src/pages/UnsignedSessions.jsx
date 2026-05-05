@@ -1,5 +1,5 @@
 /**
- * UnsignedSessions — flat list of every session note across the caseload that
+ * UnsignedSessions, flat list of every session note across the caseload that
  * has content but no signed_at. Reached from the dashboard's Unsigned tile.
  * Click a row → straight to that session in the patient's workspace.
  */
@@ -8,7 +8,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../lib/api'
 
 function formatDate(iso) {
-  if (!iso) return '—'
+  if (!iso) return ', '
   try {
     return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
   } catch { return iso }
@@ -84,7 +84,7 @@ export default function UnsignedSessions() {
 
       {!loading && error && (
         <div className="rounded-2xl p-5 bg-red-50 border border-red-200 text-sm text-red-700">
-          Couldn't load unsigned notes — {error}
+          Couldn't load unsigned notes, {error}
         </div>
       )}
 

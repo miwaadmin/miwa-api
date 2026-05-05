@@ -1,5 +1,5 @@
 /**
- * MobileResetPassword — native password-reset completion screen.
+ * MobileResetPassword, native password-reset completion screen.
  *
  * Consumes the token from the reset email, lets the user pick a new
  * password with show/hide, and kicks them to /login on success.

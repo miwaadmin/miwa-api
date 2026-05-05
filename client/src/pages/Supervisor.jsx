@@ -68,9 +68,9 @@ const GENERAL_PROMPT_POOL = [
   "What distinguishes ADHD from Bipolar II in adults presenting with attention difficulties?",
   "Walk me through differential considerations for a client with dissociative symptoms",
   "How do I differentiate PTSD from Borderline Personality Disorder in a client with complex trauma?",
-  "My client disclosed suicidal ideation today — walk me through my documentation obligations",
-  "A client just disclosed abuse — when does mandatory reporting apply in my state?",
-  "My client threatened harm to a third party — what are my duty-to-warn obligations?",
+  "My client disclosed suicidal ideation today, walk me through my documentation obligations",
+  "A client just disclosed abuse, when does mandatory reporting apply in my state?",
+  "My client threatened harm to a third party, what are my duty-to-warn obligations?",
   "What evidence-based approaches work best for treatment-resistant depression?",
   "Walk me through the phases of EMDR for a client with complex, multi-incident trauma",
   "What DBT skills are most effective for emotional dysregulation in young adults?",
@@ -79,8 +79,8 @@ const GENERAL_PROMPT_POOL = [
   "What should be in a safety plan for a client with passive ideation but no plan or intent?",
   "How do I document a client's refusal of a higher level of care?",
   "How do I approach culturally adapted CBT for a client with collectivist family values?",
-  "My client has significant immigration-related stressors — how does this intersect with depression?",
-  "I'm feeling countertransference with a client — help me think through it",
+  "My client has significant immigration-related stressors, how does this intersect with depression?",
+  "I'm feeling countertransference with a client, help me think through it",
   "How do I approach termination with a client who is making progress but resisting ending?",
   "What are the ICD-10-CM codes for PTSD with dissociation vs complex PTSD?",
   "What codes apply for depression with anxious distress specifier?",
@@ -130,13 +130,13 @@ function buildPatientPrompts(patient) {
 
   prompts.push(
     goal
-      ? `My client wants to ${goal.replace(/^\d+\.\s*/, '').toLowerCase()} — what interventions best support this?`
+      ? `My client wants to ${goal.replace(/^\d+\.\s*/, '').toLowerCase()}, what interventions best support this?`
       : `What treatment modalities are most indicated for this client's profile?`
   )
 
   prompts.push(
     patient.risk_screening
-      ? `My client endorsed safety concerns at intake — walk me through an ongoing monitoring framework`
+      ? `My client endorsed safety concerns at intake, walk me through an ongoing monitoring framework`
       : `What countertransference dynamics should I watch for with this client?`
   )
 
@@ -325,7 +325,7 @@ export default function Supervisor() {
 
   return (
     <div className="flex flex-col h-full">
-      {/* Top bar — hidden on mobile */}
+      {/* Top bar, hidden on mobile */}
       <div className="hidden md:flex flex-shrink-0 px-6 py-3 bg-white border-b border-gray-100 items-center gap-4">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-teal-500 flex items-center justify-center">

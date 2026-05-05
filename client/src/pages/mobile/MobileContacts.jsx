@@ -1,5 +1,5 @@
 /**
- * MobileContacts — native view of the therapist's trusted contacts.
+ * MobileContacts, native view of the therapist's trusted contacts.
  *
  * Stacks contact cards in a mobile-friendly list with category chips
  * up top and a search bar. Tap a card to expand inline (notes, email,

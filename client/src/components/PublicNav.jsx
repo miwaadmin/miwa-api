@@ -3,14 +3,13 @@ import { useAuth } from '../context/AuthContext'
 import { MiwaLogo } from './Sidebar'
 
 /**
- * PublicNav — single source of truth for the top nav on every public
- * marketing / legal page (Home, Pricing, Features, For Trainees, For
- * Practices, About, Docs, Resources, Privacy, Security, Templates, etc).
+ * PublicNav, single source of truth for the top nav on every public
+ * marketing / legal page (Home, Pricing, Features, audience pages,
+ * Docs, Resources, Privacy, Security, Templates, etc).
  *
  * Design rules (locked):
  *   - White background with soft shadow + hairline border.
- *   - Logo + all four primary links on the left (Features, Pricing,
- *     For Trainees, About).
+ *   - Logo + primary conversion links on the left.
  *   - Sign In + Get Started on the right. If logged in, Sign In hides
  *     and the CTA becomes "Open Miwa" → /dashboard.
  *   - The active page's link renders bold/dark so the user knows where
@@ -66,13 +65,11 @@ export default function PublicNav() {
         <div className="hidden lg:flex items-center gap-4 xl:gap-5">
           <NavLink to="/features"                current={pathname}>Features</NavLink>
           <NavLink to="/pricing"                 current={pathname}>Pricing</NavLink>
-          <NavLink to="/for-trainees"            current={pathname}>For Trainees</NavLink>
-          <NavLink to="/for-licensed-clinicians" current={pathname}>For Licensed Clinicians</NavLink>
-          <NavLink to="/for-practices"           current={pathname}>For Practices</NavLink>
+          <NavLink to="/for-trainees"            current={pathname}>Trainees</NavLink>
+          <NavLink to="/for-licensed-clinicians" current={pathname}>Clinicians</NavLink>
+          <NavLink to="/for-practices"           current={pathname}>Practices</NavLink>
           <NavLink to="/resources"               current={pathname}>Resources</NavLink>
-          <NavLink to="/network"                 current={pathname}>Network</NavLink>
-          <NavLink to="/about"                   current={pathname}>About</NavLink>
-          <NavLink to="/privacy-and-compliance"  current={pathname}>Privacy & Compliance</NavLink>
+          <NavLink to="/privacy-and-compliance"  current={pathname}>Privacy</NavLink>
         </div>
       </div>
       <div className="flex items-center gap-4">

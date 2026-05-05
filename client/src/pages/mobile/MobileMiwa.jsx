@@ -1,5 +1,5 @@
 /**
- * MobileMiwa — full-screen Miwa chat optimized for mobile.
+ * MobileMiwa, full-screen Miwa chat optimized for mobile.
  * Streaming agent chat with voice input, quick action pills, auto-scroll.
  */
 import { useState, useEffect, useRef, useCallback } from 'react'

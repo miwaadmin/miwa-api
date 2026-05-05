@@ -328,11 +328,11 @@ export default function AdminOverview() {
           <div>
             <h2 className="text-sm font-semibold text-gray-900">Database Backup</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              Encrypted nightly snapshot emailed to {backupStatus?.backup_to_email || '—'} via Gmail (HIPAA-covered).
+              Encrypted nightly snapshot emailed to {backupStatus?.backup_to_email || ', '} via Gmail (HIPAA-covered).
             </p>
           </div>
           <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${backupStatus?.enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-            {backupStatus?.enabled ? 'ENABLED' : 'DISABLED — set BACKUP_PASSPHRASE'}
+            {backupStatus?.enabled ? 'ENABLED' : 'DISABLED, set BACKUP_PASSPHRASE'}
           </span>
         </div>
 
@@ -392,7 +392,7 @@ export default function AdminOverview() {
             {(overview?.recent_events || []).map(event => (
               <div key={event.id} className="border-b border-gray-100 pb-2 last:border-0">
                 <p className="text-sm text-gray-800 font-medium">{event.event_type}</p>
-                <p className="text-xs text-gray-500 mt-1">{event.full_name || event.email || 'System'} · {event.status || '—'} · {formatDate(event.created_at)}</p>
+                <p className="text-xs text-gray-500 mt-1">{event.full_name || event.email || 'System'} · {event.status || ', '} · {formatDate(event.created_at)}</p>
                 {event.message && <p className="text-xs text-gray-600 mt-1">{event.message}</p>}
               </div>
             ))}

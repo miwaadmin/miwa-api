@@ -1,5 +1,5 @@
 /**
- * ClientPortal — mobile-first client-facing portal.
+ * ClientPortal, mobile-first client-facing portal.
  *
  * Rebuilt from scratch for phones. Safe-area aware, iOS-style tab bar
  * at the bottom (Home / Check-ins / Appointments / Messages), large
@@ -7,9 +7,9 @@
  * 600px column) because the underlying structure is mobile-first.
  *
  * Same endpoints as before:
- *   GET  /public/portal/:token            — load portal data
- *   POST /public/portal/:token/message    — send message to therapist
- *   POST /public/portal/:token/checkin    — log a mood entry
+ *   GET  /public/portal/:token           , load portal data
+ *   POST /public/portal/:token/message   , send message to therapist
+ *   POST /public/portal/:token/checkin   , log a mood entry
  *
  * PWA-ready: full-screen, no browser chrome assumptions, tap targets
  * all ≥44px. Clients can add this page to their home screen for quick
@@ -128,7 +128,7 @@ export default function ClientPortal() {
 
   return (
     <Shell>
-      {/* Top header — client name + therapist name */}
+      {/* Top header, client name + therapist name */}
       <div className="sticky top-0 z-20 bg-white/95 backdrop-blur border-b border-gray-100 flex items-center gap-3 px-4 h-14"
         style={{ paddingTop: 'env(safe-area-inset-top, 0)', paddingLeft: 'max(16px, env(safe-area-inset-left))', paddingRight: 'max(16px, env(safe-area-inset-right))' }}>
         <div className="w-9 h-9 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0"

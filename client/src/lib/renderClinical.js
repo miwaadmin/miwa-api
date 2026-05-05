@@ -52,7 +52,7 @@ export function renderClinical(text) {
 
   // Numbered section titles like "1. Primary diagnosis" rendered as h3
   // (catches AI output that uses "1.", "2." at line start as section headers,
-  //  but only when the line stands alone and looks like a title — under 80 chars,
+  //  but only when the line stands alone and looks like a title, under 80 chars,
   //  no trailing punctuation besides colons)
   s = s.replace(/^(\d+)\.\s+([A-Z][^\n.!?]{3,80}:?)$/gm,
     '<h3 class="clinical-h3"><span class="clinical-h3-num">$1.</span> $2</h3>')

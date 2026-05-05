@@ -140,7 +140,7 @@ function PatientModal({ patient, onClose, onSave }) {
               <p className="text-xs text-gray-400 mt-1">Miwa creates one automatically if left blank.</p>
             </div>
 
-            {/* Display name — used in UI and by Miwa agent, never sent to AI */}
+            {/* Display name, used in UI and by Miwa agent, never sent to AI */}
             <div>
               <label className="label">
                 {clientType === 'individual' ? 'Preferred name' : clientType === 'couple' ? 'Couple label' : 'Family label'}
@@ -206,7 +206,7 @@ function PatientModal({ patient, onClose, onSave }) {
             )}
           </div>
 
-          {/* Souls — for couple / family */}
+          {/* Souls, for couple / family */}
           {clientType !== 'individual' && (
             <div>
               <label className="label">
@@ -519,7 +519,7 @@ export default function Patients() {
                 )}
               </div>
 
-              {/* Actions — subtle always, vivid on hover */}
+              {/* Actions, subtle always, vivid on hover */}
               <div className="flex items-center gap-1 flex-shrink-0">
                 <button
                   onClick={() => navigate(`/patients/${patient.id}/sessions/new`)}

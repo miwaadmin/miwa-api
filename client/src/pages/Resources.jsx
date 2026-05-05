@@ -133,7 +133,7 @@ export default function Resources() {
             {totalResources} curated evidence-based resources for mental health professionals
           </p>
           <p className="text-base text-gray-500">
-            Assessment tools, treatment protocols, crisis hotlines, and professional development materials — all in one place.
+            Assessment tools, treatment protocols, crisis hotlines, and professional development materials, all in one place.
           </p>
         </div>
       </div>

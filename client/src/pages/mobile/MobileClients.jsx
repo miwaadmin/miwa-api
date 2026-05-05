@@ -1,5 +1,5 @@
 /**
- * MobileClients — streamlined patient list for phone screens.
+ * MobileClients, streamlined patient list for phone screens.
  * Sticky search, fast scroll, tap to navigate to patient detail.
  */
 import { useState, useEffect, useMemo } from 'react'

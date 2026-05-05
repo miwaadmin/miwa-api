@@ -1,5 +1,5 @@
 /**
- * MobileUnsigned — unsigned notes queue, mobile-native.
+ * MobileUnsigned, unsigned notes queue, mobile-native.
  *
  * Stacked list of every session note across the caseload with content
  * but no signed_at. Each tap jumps straight to that session in the
@@ -10,7 +10,7 @@ import { useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
 
 function fmtDate(iso) {
-  if (!iso) return '—'
+  if (!iso) return ', '
   try { return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) }
   catch { return iso }
 }

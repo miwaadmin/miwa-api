@@ -142,7 +142,7 @@ export function MiwaLogo({ size = 40 }) {
       <rect width="40" height="40" rx="11" fill="url(#miwa-inner)" />
       {/* Subtle border */}
       <rect x="0.75" y="0.75" width="38.5" height="38.5" rx="10.25" stroke="white" strokeOpacity="0.15" strokeWidth="1.5" fill="none" />
-      {/* M letterform — two curved arches meeting at center */}
+      {/* M letterform, two curved arches meeting at center */}
       <path
         d="M8 28 L8 16 C8 11 12.5 9 16.5 13.5 L20 19.5 L23.5 13.5 C27.5 9 32 11 32 16 L32 28"
         stroke="white"
@@ -152,7 +152,7 @@ export function MiwaLogo({ size = 40 }) {
         fill="none"
         strokeOpacity="0.95"
       />
-      {/* Teal node at the valley — the "mind spark" */}
+      {/* Teal node at the valley, the "mind spark" */}
       <circle cx="20" cy="19.5" r="3" fill="#2dd4bf" />
       <circle cx="20" cy="19.5" r="5.5" fill="#2dd4bf" fillOpacity="0.2" />
       <circle cx="19.2" cy="18.5" r="1.1" fill="white" fillOpacity="0.6" />
@@ -188,7 +188,7 @@ export default function Sidebar() {
     return () => window.removeEventListener('miwa:alert_dismissed', handler)
   }, [])
 
-  // Practice nav removed — group practice is a separate product.
+  // Practice nav removed, group practice is a separate product.
   // Hours nav is gated to trainees/associates (licensed clinicians don't
   // log practicum hours, so it'd just be clutter for them). Inserted right
   // after Schedule so it sits next to the data it draws from.
@@ -293,7 +293,7 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      {/* Community + Homepage links — Community only renders when
+      {/* Community + Homepage links, Community only renders when
           VITE_COMMUNITY_URL is set, so unconfigured deploys hide it. */}
       <div className="px-4 pb-5">
         <div className="h-px mb-3" style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent)' }} />
@@ -305,7 +305,7 @@ export default function Sidebar() {
             className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-white/45 hover:text-white/85 transition-colors group mb-1"
           >
             <svg className="w-3.5 h-3.5 flex-shrink-0 text-white/30 group-hover:text-white/60 transition-colors" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              {/* Discord-style chat bubble — works for any community URL too */}
+              {/* Discord-style chat bubble, works for any community URL too */}
               <path d="M20.317 4.369A19.79 19.79 0 0 0 16.558 3a13.32 13.32 0 0 0-.69 1.402 18.27 18.27 0 0 0-5.736 0A12.94 12.94 0 0 0 9.43 3a19.74 19.74 0 0 0-3.76 1.37C2.46 9.07 1.7 13.66 2.06 18.18a19.86 19.86 0 0 0 5.99 3.04 14.85 14.85 0 0 0 1.27-2.07c-.7-.26-1.36-.58-1.99-.96.17-.12.33-.25.49-.38a14.18 14.18 0 0 0 12.36 0c.16.13.32.26.49.38-.63.38-1.3.7-2 .96.36.71.79 1.4 1.27 2.07a19.84 19.84 0 0 0 6-3.04c.43-5.27-.74-9.81-3.62-13.81ZM9.55 15.74c-1.18 0-2.16-1.1-2.16-2.45 0-1.34.96-2.45 2.16-2.45 1.21 0 2.18 1.11 2.16 2.45 0 1.35-.96 2.45-2.16 2.45Zm4.92 0c-1.18 0-2.16-1.1-2.16-2.45 0-1.34.96-2.45 2.16-2.45 1.21 0 2.18 1.11 2.16 2.45 0 1.35-.95 2.45-2.16 2.45Z" />
             </svg>
             <span className="flex-1 truncate font-medium">Join {COMMUNITY_LABEL}</span>

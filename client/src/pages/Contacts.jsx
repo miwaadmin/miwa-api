@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { apiFetch } from '../lib/api'
 
 /**
- * Contacts — a therapist's private professional referral network.
+ * Contacts, a therapist's private professional referral network.
  *
  * Each contact is a person (not an organization): detective, psychiatrist,
  * attorney, advocate, supervisor, housing coordinator, another therapist
@@ -316,7 +316,7 @@ export default function Contacts() {
           <div>
             <h1 className="text-2xl font-bold text-gray-900 mb-1">Trusted contacts</h1>
             <p className="text-sm text-gray-500">
-              Your professional referral network — detectives, psychiatrists, attorneys, advocates, supervisors. Private to your account.
+              Your professional referral network, detectives, psychiatrists, attorneys, advocates, supervisors. Private to your account.
             </p>
           </div>
           <button

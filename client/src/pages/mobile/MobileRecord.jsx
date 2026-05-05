@@ -1,5 +1,5 @@
 /**
- * MobileRecord — voice-first session recorder.
+ * MobileRecord, voice-first session recorder.
  * The key mobile screen: select client, record, transcribe, generate note, save.
  */
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -165,7 +165,7 @@ export default function MobileRecord() {
             verbosity: 'standard',
           }),
         })
-        // SSE stream — read the final result
+        // SSE stream, read the final result
         const reader = res.body.getReader()
         const decoder = new TextDecoder()
         let fullText = ''

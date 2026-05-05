@@ -78,7 +78,7 @@ export default function AdminLayout() {
         className="w-60 flex flex-col h-full flex-shrink-0 relative overflow-hidden"
         style={{ background: 'linear-gradient(175deg, #0a0818 0%, #1a1456 45%, #0a0818 100%)' }}
       >
-        {/* Top accent — orange/amber to differentiate from clinician */}
+        {/* Top accent, orange/amber to differentiate from clinician */}
         <div
           className="absolute top-0 left-0 right-0 h-0.5"
           style={{ background: 'linear-gradient(90deg, #f59e0b 0%, #6047EE 50%, #f59e0b 100%)' }}

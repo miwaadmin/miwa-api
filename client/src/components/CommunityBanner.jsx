@@ -1,5 +1,5 @@
 /**
- * CommunityBanner — small dismissable card on the Dashboard inviting users
+ * CommunityBanner, small dismissable card on the Dashboard inviting users
  * to the Discord (or whatever community URL is configured). Renders nothing
  * when VITE_COMMUNITY_URL isn't set, so deploys without a configured
  * community URL show no banner at all.
@@ -53,7 +53,7 @@ export default function CommunityBanner() {
         <p className="text-xs text-gray-600 mt-0.5 leading-relaxed">
           Early-access {COMMUNITY_LABEL.toLowerCase()} for therapists using Miwa. Share workflows, request features, and shape what ships next.
         </p>
-        {/* Plain link — no auto-dismiss. The X button is the only dismissal
+        {/* Plain link, no auto-dismiss. The X button is the only dismissal
             path so a stray click on Join doesn't make the banner vanish for
             good with no way back short of clearing localStorage. */}
         <a

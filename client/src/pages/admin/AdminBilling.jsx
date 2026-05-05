@@ -211,7 +211,7 @@ export default function AdminBilling() {
                       return (
                         <tr key={account.id} className="border-b border-gray-100 hover:bg-gray-50">
                           <td className="py-3 px-3">
-                            <p className="font-medium text-gray-900">{account.full_name || '—'}</p>
+                            <p className="font-medium text-gray-900">{account.full_name || ', '}</p>
                           </td>
                           <td className="py-3 px-3 text-gray-600">{account.email}</td>
                           <td className="py-3 px-3">
@@ -231,14 +231,14 @@ export default function AdminBilling() {
                                 ✓ Connected
                               </span>
                             ) : (
-                              <span className="text-xs text-gray-400">—</span>
+                              <span className="text-xs text-gray-400">, </span>
                             )}
                           </td>
                           <td className="py-3 px-3 text-gray-600">
                             {trialsRemaining !== null ? (
                               <span>{trialsRemaining}</span>
                             ) : (
-                              <span className="text-gray-400">—</span>
+                              <span className="text-gray-400">, </span>
                             )}
                           </td>
                         </tr>

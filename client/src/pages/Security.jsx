@@ -20,8 +20,8 @@ function Nav() {
       </Link>
       <div className="hidden md:flex items-center gap-6 text-sm text-white/55">
         <Link to="/features" className="hover:text-white transition-colors">Features</Link>
-        <Link to="/for-trainees" className="hover:text-white transition-colors">For Trainees</Link>
-        <Link to="/for-practices" className="hover:text-white transition-colors">For Practices</Link>
+        <Link to="/for-trainees" className="hover:text-white transition-colors">Trainees</Link>
+        <Link to="/for-practices" className="hover:text-white transition-colors">Practices</Link>
         <Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link>
       </div>
       <div className="flex items-center gap-3">
@@ -45,7 +45,7 @@ function ScrubberDemo() {
           <div className="w-2.5 h-2.5 rounded-full bg-yellow-400/60" />
           <div className="w-2.5 h-2.5 rounded-full bg-green-400/60" />
         </div>
-        <span className="text-xs text-white/25 ml-2">Miwa PHI Scrubber — live preview</span>
+        <span className="text-xs text-white/25 ml-2">Miwa PHI Scrubber, live preview</span>
       </div>
       <div className="p-5 space-y-4">
         {/* Before */}
@@ -135,7 +135,7 @@ export default function Security() {
             <div>
               <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full mb-5"
                 style={{ background: 'rgba(96,71,238,0.12)', color: PURPLE, border: '1px solid rgba(96,71,238,0.2)' }}>
-                Layer 1 — PHI Scrubbing
+                Layer 1, PHI Scrubbing
               </span>
               <h2 className="text-3xl font-extrabold text-white mb-5 leading-tight">
                 Names, dates, and identifiers are minimized before AI processing
@@ -178,7 +178,7 @@ export default function Security() {
         <div className="max-w-5xl mx-auto">
           <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest px-3 py-1.5 rounded-full mb-5"
             style={{ background: 'rgba(45,212,191,0.08)', color: TEAL, border: '1px solid rgba(45,212,191,0.15)' }}>
-            Layer 2 — Model Selection Policy
+            Layer 2, Model Selection Policy
           </span>
           <div className="grid lg:grid-cols-2 gap-12 items-start">
             <div>
@@ -210,7 +210,7 @@ export default function Security() {
                   style={{ borderColor: '#cc785c55' }}>
                   "Miwa routes AI requests through its Azure OpenAI deployment rather than consumer AI products."
                 </blockquote>
-                <p className="text-[10px] text-white/25 mt-2">— Miwa model routing policy</p>
+                <p className="text-[10px] text-white/25 mt-2">,  Miwa model routing policy</p>
               </div>
 
               {/* PHI routing card */}
@@ -227,7 +227,7 @@ export default function Security() {
                   style={{ borderColor: '#10a37f55' }}>
                   "Miwa blocks direct model-provider calls from the backend and centralizes AI access through one approved client."
                 </blockquote>
-                <p className="text-[10px] text-white/25 mt-2">— PHI routing Terms of Service (verified)</p>
+                <p className="text-[10px] text-white/25 mt-2">,  PHI routing Terms of Service (verified)</p>
               </div>
 
               <div className="rounded-xl px-4 py-3 text-xs text-white/40 leading-relaxed"
@@ -298,7 +298,7 @@ export default function Security() {
                 <ul className="space-y-2">
                   {col.points.map(pt => (
                     <li key={pt} className="flex items-start gap-2">
-                      <span className="text-xs mt-0.5 flex-shrink-0">{col.bad ? '✗' : '✓'}</span>
+                      <span className="text-xs mt-0.5 flex-shrink-0">{col.bad ? '�-' : '✓'}</span>
                       <span className="text-xs leading-relaxed" style={{ color: col.bad ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.65)' }}>{pt}</span>
                     </li>
                   ))}
@@ -344,7 +344,7 @@ export default function Security() {
             {[
               { icon: '🔐', title: 'Encrypted at rest', desc: 'Production clinical data is protected by Azure-managed database and storage encryption.' },
               { icon: '🌐', title: 'HTTPS only', desc: 'All traffic between your browser and our servers is TLS-encrypted.' },
-              { icon: '🗑️', title: 'You control your data', desc: 'Export or delete your account data at any time from Settings.' },
+              { icon: '�-�️', title: 'You control your data', desc: 'Export or delete your account data at any time from Settings.' },
               { icon: '📋', title: 'HIPAA-aligned controls', desc: 'Designed to avoid PHI in URLs, reduce sensitive logging, and support clinical retention workflows.' },
             ].map(item => (
               <div key={item.title} className="rounded-xl p-5" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>

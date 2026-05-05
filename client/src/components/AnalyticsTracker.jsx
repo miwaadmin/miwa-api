@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import { useLocation } from 'react-router-dom'
 
 /**
- * AnalyticsTracker — privacy-scoped Umami pageview tracking.
+ * AnalyticsTracker, privacy-scoped Umami pageview tracking.
  *
  * The Umami script in index.html is loaded with data-auto-track="false",
  * which means it does NOT record pageviews on its own. This component
@@ -40,8 +40,8 @@ const PUBLIC_EXACT = new Set([
   '/reset-password',
 ])
 
-// Prefix-match paths — anything starting with these is tracked.
-// (None right now — all public routes above are exact-match. Leave as
+// Prefix-match paths, anything starting with these is tracked.
+// (None right now, all public routes above are exact-match. Leave as
 // scaffolding in case we add e.g. /blog/:slug later.)
 const PUBLIC_PREFIXES = []
 
@@ -51,7 +51,7 @@ function isPublicPath(pathname) {
 }
 
 /**
- * Fire umami.track() with a small retry loop — on first paint after a
+ * Fire umami.track() with a small retry loop, on first paint after a
  * cold reload, the deferred Umami script may not have attached window.umami
  * yet. Retry a few times at 200ms intervals rather than losing the event.
  */

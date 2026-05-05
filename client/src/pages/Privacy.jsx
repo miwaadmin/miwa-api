@@ -19,8 +19,8 @@ function Nav() {
       </Link>
       <div className="hidden md:flex items-center gap-6 text-base text-white/55">
         <Link to="/features" className="hover:text-white transition-colors">Features</Link>
-        <Link to="/for-trainees" className="hover:text-white transition-colors">For Trainees</Link>
-        <Link to="/for-practices" className="hover:text-white transition-colors">For Practices</Link>
+        <Link to="/for-trainees" className="hover:text-white transition-colors">Trainees</Link>
+        <Link to="/for-practices" className="hover:text-white transition-colors">Practices</Link>
         <Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link>
       </div>
       <div className="flex items-center gap-3">
@@ -72,7 +72,7 @@ export default function Privacy() {
           </h1>
           <p className="text-lg text-zinc-600 leading-relaxed">
             Plain-English notice of what we collect, why, how it's protected, and your rights. Miwa is built for
-            licensed mental health therapists — we treat patient information as Protected Health Information (PHI)
+            licensed mental health therapists, we treat patient information as Protected Health Information (PHI)
             under HIPAA and handle it with the care that standard requires.
           </p>
           <p className="text-base text-zinc-500 mt-6">
@@ -110,7 +110,7 @@ export default function Privacy() {
             <SubHeading>Patients and clients of those therapists</SubHeading>
             <p>
               Individuals who receive care from a Miwa-using therapist. We act as a <em>HIPAA Business Associate</em> to the
-              therapist — the therapist remains the Covered Entity and primary owner of patient Protected Health Information (PHI).
+              therapist, the therapist remains the Covered Entity and primary owner of patient Protected Health Information (PHI).
               We process PHI only under the therapist's direction and, for covered workflows, under the applicable Business
               Associate Agreement (BAA) and cloud service terms.
             </p>
@@ -152,7 +152,7 @@ export default function Privacy() {
           <Section title="4. How we use information" id="use">
             <ul className="space-y-2">
               <Bullet>Provide, maintain, and improve the Miwa platform and its clinical features.</Bullet>
-              <Bullet>Generate AI-assisted clinical documentation, treatment-plan suggestions, and progress analytics — always under the therapist's direction and review.</Bullet>
+              <Bullet>Generate AI-assisted clinical documentation, treatment-plan suggestions, and progress analytics, always under the therapist's direction and review.</Bullet>
               <Bullet>Deliver secure assessment and portal links when requested by the therapist. SMS delivery is disabled until a messaging BAA, consent workflow, and launch controls are in place.</Bullet>
               <Bullet>Process billing and subscription management via Stripe.</Bullet>
               <Bullet>Detect and prevent security incidents, fraud, and abuse.</Bullet>
@@ -166,7 +166,7 @@ export default function Privacy() {
 
           <Section title="5. How we share information" id="share">
             <p>
-              We disclose information only in the following limited circumstances, and — when PHI is involved — only to
+              We disclose information only in the following limited circumstances, and, when PHI is involved, only to
               vendors (subprocessors) operating under a signed Business Associate Agreement (BAA):
             </p>
 
@@ -189,7 +189,7 @@ export default function Privacy() {
                   <tr>
                     <td className="px-4 py-3 font-medium">Google Workspace</td>
                     <td className="px-4 py-3 text-zinc-600">Business email, document storage, calendar</td>
-                    <td className="px-4 py-3 text-zinc-600">Yes — under BAA</td>
+                    <td className="px-4 py-3 text-zinc-600">Yes, under BAA</td>
                   </tr>
                   <tr>
                     <td className="px-4 py-3 font-medium">SMS provider</td>
@@ -199,7 +199,7 @@ export default function Privacy() {
                   <tr>
                     <td className="px-4 py-3 font-medium">Stripe</td>
                     <td className="px-4 py-3 text-zinc-600">Payment processing</td>
-                    <td className="px-4 py-3 text-zinc-600">No — billing only, never PHI</td>
+                    <td className="px-4 py-3 text-zinc-600">No, billing only, never PHI</td>
                   </tr>
                 </tbody>
               </table>
@@ -232,7 +232,7 @@ export default function Privacy() {
             <p className="mt-4">
               A <strong>Business Associate Agreement</strong> is required before Miwa is used as a Business Associate for covered PHI workflows.
               Patients seeking to exercise HIPAA rights (access, amendment, accounting of disclosures) should contact
-              their therapist directly — the therapist is the Covered Entity and holds the primary relationship.
+              their therapist directly, the therapist is the Covered Entity and holds the primary relationship.
             </p>
           </Section>
 
@@ -257,7 +257,7 @@ export default function Privacy() {
           <Section title="8. Data retention" id="retention">
             <ul className="space-y-2">
               <Bullet><strong>Therapist account data:</strong> Retained for the life of the account plus 30 days after deletion, to allow for recovery and billing reconciliation.</Bullet>
-              <Bullet><strong>PHI (session notes, assessments, patient records):</strong> Retained according to the therapist's clinical record-keeping obligations — typically 7 years after the last date of service, longer for minors. PHI is not deleted by Miwa without explicit therapist direction, to preserve the clinical record.</Bullet>
+              <Bullet><strong>PHI (session notes, assessments, patient records):</strong> Retained according to the therapist's clinical record-keeping obligations, typically 7 years after the last date of service, longer for minors. PHI is not deleted by Miwa without explicit therapist direction, to preserve the clinical record.</Bullet>
               <Bullet><strong>Audit and operational logs:</strong> Retained according to Miwa's audit log policy and legal obligations.</Bullet>
               <Bullet><strong>Voice recordings:</strong> Retained only as needed for transcription, troubleshooting, or therapist-requested storage.</Bullet>
               <Bullet><strong>Backups:</strong> Encrypted backup and retention practices are maintained as part of the Miwa backup/retention plan.</Bullet>
@@ -323,7 +323,7 @@ export default function Privacy() {
           <Section title="13. Contact us" id="contact">
             <p>Questions, requests, or complaints:</p>
             <div className="mt-4 p-5 rounded-xl" style={{ background: '#f8fafc', border: '1px solid rgba(0,0,0,0.06)' }}>
-              <p className="font-semibold text-zinc-900">Valdrex B.A. Philippe — Privacy Officer</p>
+              <p className="font-semibold text-zinc-900">Valdrex B.A. Philippe, Privacy Officer</p>
               <p className="text-zinc-700 mt-1">Miwa</p>
               <p className="text-zinc-700">
                 Email: <a href="mailto:admin@miwa.care" className="font-semibold" style={{ color: PURPLE }}>admin@miwa.care</a>

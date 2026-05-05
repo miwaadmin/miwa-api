@@ -1,5 +1,5 @@
 /**
- * MobileSchedule — mobile-first schedule / day agenda.
+ * MobileSchedule, mobile-first schedule / day agenda.
  *
  * Built from scratch for phone screens, NOT a cramped version of the
  * desktop calendar grid. The desktop Schedule.jsx uses a week grid that
@@ -102,7 +102,7 @@ export default function MobileSchedule() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
-  // Day picker — 7 days centered on today
+  // Day picker, 7 days centered on today
   const dayStrip = useMemo(() => {
     const today = new Date(); today.setHours(0, 0, 0, 0)
     return Array.from({ length: 7 }, (_, i) => {

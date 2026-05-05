@@ -27,7 +27,7 @@ Go to Patients → click "+ New Patient". Enter a client ID (e.g., CLT-001), opt
 **Step 3: Start a session note**
 Click into your client → "New Session". Choose your note format (SOAP, BIRP, or DAP). You can either:
 - **Type** bullet-point session notes and Miwa will expand them into polished clinical language
-- **Dictate** a 3-minute recap using the microphone button — Miwa generates all three note formats simultaneously
+- **Dictate** a 3-minute recap using the microphone button, Miwa generates all three note formats simultaneously
 
 **Step 4: Review and sign**
 Miwa generates the note with AI-suggested diagnosis codes and a CPT code. Review, edit if needed, and click "Sign & Lock."
@@ -48,7 +48,7 @@ From the client's profile, click "Send Assessment" -> choose PHQ-9, GAD-7, or PC
 
 **How it works:**
 1. Click the mic icon (or press the keyboard shortcut)
-2. Speak naturally — describe the session as you would to a colleague
+2. Speak naturally, describe the session as you would to a colleague
 3. Miwa transcribes your audio in real-time
 4. When you stop, Miwa generates SOAP, BIRP, and DAP notes simultaneously
 5. Review, edit, and sign
@@ -56,7 +56,7 @@ From the client's profile, click "Send Assessment" -> choose PHQ-9, GAD-7, or PC
 **Tips for best results:**
 - Speak in complete thoughts, not one word at a time
 - Include the client's mood, what you worked on, their response, and your plan
-- You don't need to structure it — Miwa handles the formatting
+- You don't need to structure it, Miwa handles the formatting
 - Sessions under 5 minutes work best for dictation accuracy
 - Avoid background noise when possible`,
       },
@@ -64,11 +64,11 @@ From the client's profile, click "Send Assessment" -> choose PHQ-9, GAD-7, or PC
         heading: 'Multi-Format Output',
         body: `Every dictation produces three note formats at once:
 
-- **SOAP** — Subjective, Objective, Assessment, Plan
-- **BIRP** — Behavior, Intervention, Response, Plan
-- **DAP** — Data, Assessment, Plan
+- **SOAP**, Subjective, Objective, Assessment, Plan
+- **BIRP**, Behavior, Intervention, Response, Plan
+- **DAP**, Data, Assessment, Plan
 
-Switch between formats instantly using the tabs at the top of the note. Each format uses the same clinical content but structures it according to the format's conventions. Your practice or supervisor may require a specific format — Miwa generates all three so you never have to re-dictate.`,
+Switch between formats instantly using the tabs at the top of the note. Each format uses the same clinical content but structures it according to the format's conventions. Your practice or supervisor may require a specific format, Miwa generates all three so you never have to re-dictate.`,
       },
     ],
   },
@@ -81,9 +81,9 @@ Switch between formats instantly using the tabs at the top of the note. Each for
         heading: 'Supported Assessments',
         body: `Miwa supports three validated screening instruments:
 
-- **PHQ-9** — Patient Health Questionnaire (depression severity, 0–27)
-- **GAD-7** — Generalized Anxiety Disorder scale (anxiety severity, 0–21)
-- **PCL-5** — PTSD Checklist (trauma symptom severity, 0–80)
+- **PHQ-9**, Patient Health Questionnaire (depression severity, 0–27)
+- **GAD-7**, Generalized Anxiety Disorder scale (anxiety severity, 0–21)
+- **PCL-5**, PTSD Checklist (trauma symptom severity, 0–80)
 
 All instruments are scored automatically using official scoring algorithms. Severity levels (minimal, mild, moderate, moderately severe, severe) are assigned based on published clinical cutoffs.`,
       },
@@ -120,16 +120,16 @@ Use this data in supervision, treatment planning, and when writing progress repo
     content: [
       {
         heading: 'What Miwa Can Do',
-        body: `Miwa is an agentic copilot — it doesn't just answer questions, it takes action. You can ask Miwa to:
+        body: `Miwa is an agentic copilot, it doesn't just answer questions, it takes action. You can ask Miwa to:
 
-- **Schedule appointments** — "Book AX-7812 for next Tuesday at 2pm"
-- **Send assessments** — "Send PHQ-9 to all my anxiety clients"
-- **Generate reports** — "Write a court progress report for CM-1055 covering January through March"
-- **Answer clinical questions** — "What's the evidence for EMDR with complex trauma?"
-- **Review caseloads** — "Who on my caseload is deteriorating?"
-- **Draft documentation** — "Prepare a case presentation for supervision on BK-3290"
+- **Schedule appointments**, "Book AX-7812 for next Tuesday at 2pm"
+- **Send assessments**, "Send PHQ-9 to all my anxiety clients"
+- **Generate reports**, "Write a court progress report for CM-1055 covering January through March"
+- **Answer clinical questions**, "What's the evidence for EMDR with complex trauma?"
+- **Review caseloads**, "Who on my caseload is deteriorating?"
+- **Draft documentation**, "Prepare a case presentation for supervision on BK-3290"
 
-Miwa has full context on your caseload — assessment scores, session notes, risk flags, and treatment history. You don't need to repeat information it already knows.`,
+Miwa has full context on your caseload, assessment scores, session notes, risk flags, and treatment history. You don't need to repeat information it already knows.`,
       },
       {
         heading: 'Caseload Context',
@@ -141,7 +141,7 @@ Miwa has full context on your caseload — assessment scores, session notes, ris
 - Risk flags and alerts
 - Treatment modalities and diagnoses
 
-This means you can ask natural questions like "How is Sarah doing?" and Miwa will pull up the right client, their recent scores, and any concerns — without you having to look anything up first.`,
+This means you can ask natural questions like "How is Sarah doing?" and Miwa will pull up the right client, their recent scores, and any concerns, without you having to look anything up first.`,
       },
     ],
   },
@@ -183,9 +183,9 @@ Set up your telehealth link: Settings → Telehealth URL → paste your video pl
         heading: 'How Research Briefs Work',
         body: `Miwa generates weekly research briefs tailored to your caseload. Sources include:
 
-- **PubMed** — peer-reviewed clinical journals
-- **OpenAlex** — 200M+ open-access academic works
-- **Brave Search** — recent clinical news and guidelines (if configured)
+- **PubMed**, peer-reviewed clinical journals
+- **OpenAlex**, 200M+ open-access academic works
+- **Brave Search**, recent clinical news and guidelines (if configured)
 
 Miwa analyzes your caseload's presenting concerns (anxiety, depression, trauma, etc.) and searches for the most relevant recent research. The AI synthesizes findings into a readable brief with clinical takeaways.
 
@@ -193,7 +193,7 @@ Research briefs are generated automatically every Monday. You can also generate 
       },
       {
         heading: 'Mental Health News',
-        body: `The News tab on the Briefs page shows the latest mental health news from trusted sources. Each article includes a full AI-generated summary written for a clinician audience — not just a headline.
+        body: `The News tab on the Briefs page shows the latest mental health news from trusted sources. Each article includes a full AI-generated summary written for a clinician audience, not just a headline.
 
 News refreshes automatically every 6 hours. You can also refresh manually. Articles are sourced from psychiatry.org, apa.org, NIMH, NAMI, and major clinical news outlets.`,
       },
@@ -208,9 +208,9 @@ News refreshes automatically every 6 hours. You can also refresh manually. Artic
         heading: 'Available Report Types',
         body: `Ask Miwa to generate any of these report types through the Consult chat:
 
-- **Court / legal progress reports** — Formatted for attorneys, probation officers, or judges. Includes attendance, assessment trends, clinical progress, and treatment recommendations.
-- **Insurance summaries** — Clinical summaries formatted for managed care authorization or utilization review.
-- **Supervision reports** — Case presentations, supervisee progress notes, and training documentation.
+- **Court / legal progress reports**, Formatted for attorneys, probation officers, or judges. Includes attendance, assessment trends, clinical progress, and treatment recommendations.
+- **Insurance summaries**, Clinical summaries formatted for managed care authorization or utilization review.
+- **Supervision reports**, Case presentations, supervisee progress notes, and training documentation.
 
 All reports pull from the client's actual session data, assessment scores, and clinical trajectory. Miwa cites specific data points rather than generating generic language.`,
       },
@@ -236,9 +236,9 @@ Miwa will pull the relevant data, generate the report, and give you options to c
         body: `Your profile includes your name, email, credential type, and license number. Miwa uses your name in greetings and your credential type to tailor its interaction style.
 
 **Clinician Role** controls how Miwa communicates with you:
-- **Trainee** — Socratic questioning, more explanations, supervision-oriented
-- **Associate** — Balanced, collaborative approach
-- **Licensed** — Direct, concise, peer-level communication`,
+- **Trainee**, Socratic questioning, more explanations, supervision-oriented
+- **Associate**, Balanced, collaborative approach
+- **Licensed**, Direct, concise, peer-level communication`,
       },
       {
         heading: 'Telehealth URL',
@@ -251,9 +251,9 @@ The same link is used for all telehealth sessions. If you use different links pe
       {
         heading: 'Themes',
         body: `Miwa supports three visual themes:
-- **Default** — Light purple gradient with brand colors
-- **Dark** — Dark navy/slate theme for low-light environments
-- **Pink** — Warm pink theme
+- **Default**, Light purple gradient with brand colors
+- **Dark**, Dark navy/slate theme for low-light environments
+- **Pink**, Warm pink theme
 
 Change your theme in Settings → Appearance.`,
       },

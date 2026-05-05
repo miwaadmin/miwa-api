@@ -133,7 +133,7 @@ export default function OutreachSettings() {
                 <div key={entry.id} className="flex items-center gap-2 text-xs text-gray-500 py-1 px-2 rounded-lg bg-gray-50">
                   <span className="font-mono text-gray-400">{new Date(entry.created_at).toLocaleDateString()}</span>
                   <span className="font-medium text-gray-700">{entry.patient_name || 'Client'}</span>
-                  <span>—</span>
+                  <span>, </span>
                   <span>{entry.outreach_type}</span>
                   <span className={`ml-auto font-medium ${entry.status === 'sent' ? 'text-emerald-600' : 'text-gray-400'}`}>
                     {entry.status}

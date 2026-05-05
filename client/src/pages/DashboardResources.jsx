@@ -205,7 +205,7 @@ export default function DashboardResources() {
           <h1 className="text-xl font-bold text-gray-900">Clinical Resources</h1>
           <p className="text-sm text-gray-500 mt-1">
             {totalResources} curated resources across assessment guides, treatment protocols, and crisis services.
-            {' '}Bookmark frequently used tools — they persist across sessions.
+            {' '}Bookmark frequently used tools, they persist across sessions.
           </p>
         </div>
         <div className="flex items-center gap-2">

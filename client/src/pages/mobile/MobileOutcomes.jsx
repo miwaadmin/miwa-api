@@ -1,5 +1,5 @@
 /**
- * MobileOutcomes — caseload-wide outcome trends, mobile-first.
+ * MobileOutcomes, caseload-wide outcome trends, mobile-first.
  *
  * The desktop Outcomes.jsx is a dashboard with multi-column grids,
  * per-template score tables, alert tables, and MBC adherence bars.

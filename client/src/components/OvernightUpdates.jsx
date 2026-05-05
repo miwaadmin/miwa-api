@@ -4,14 +4,14 @@ import { apiFetch } from '../lib/api'
 import { patientInitials } from '../lib/avatar'
 
 /**
- * OvernightUpdates — Dashboard card showing recent patient-submitted
+ * OvernightUpdates, Dashboard card showing recent patient-submitted
  * assessments grouped by patient with trend context.
  *
  * Replaces the old flat-list markdown rendering where each row read like
  *   "↓ David Nguyen completed PHQ-9: score 7 (Mild)"
  * which was dense, repeated names across rows, buried severe scores, and
  * never showed the previous value (the only thing a therapist actually
- * cares about — is this getting better or worse?).
+ * cares about, is this getting better or worse?).
  *
  * Now each patient = one card. Severity drives color. Each score shows
  * previous → current with an explicit "worsening" / "improved" label.
@@ -183,7 +183,7 @@ export default function OvernightUpdates({ onEmpty }) {
   useEffect(() => { load() }, [load])
 
   if (updates === null) {
-    // Loading state — subtle skeleton
+    // Loading state, subtle skeleton
     return (
       <div className="space-y-3">
         {[0, 1].map(i => (

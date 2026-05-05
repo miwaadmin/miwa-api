@@ -199,7 +199,7 @@ function ResearchTab() {
         <StatCard label="Total Briefs" value={briefs.length} sub="all time" accent="violet" />
         <StatCard
           label="Last Generated"
-          value={latestDate || '—'}
+          value={latestDate || ', '}
           sub={latestBrief ? typeLabel[latestBrief.brief_type] + ' brief' : 'No briefs yet'}
           accent="brand"
         />
@@ -367,7 +367,7 @@ function ResearchTab() {
                             : 'text-gray-500 hover:text-amber-600 hover:bg-amber-50'
                         }`}
                       >
-                        {brief.saved ? '★ Saved — won\'t expire' : '☆ Save this brief'}
+                        {brief.saved ? '★ Saved, won\'t expire' : '☆ Save this brief'}
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDelete(brief.id) }}
@@ -454,7 +454,7 @@ function NewsTab() {
         <StatCard label="Articles" value={articles.length} sub="in feed" accent="amber" />
         <StatCard
           label="Last Refreshed"
-          value={articles[0] ? timeSince(articles[0].fetched_at) : '—'}
+          value={articles[0] ? timeSince(articles[0].fetched_at) : ', '}
           sub="refreshes daily"
           accent="brand"
         />

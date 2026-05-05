@@ -90,7 +90,7 @@ function DictationPanel({ onApply, onClose }) {
           </div>
           <div>
             <div className="text-sm font-semibold text-gray-900">Dictate Session Note</div>
-            <div className="text-xs text-gray-500">Speak your session summary — Miwa will fill in all note fields</div>
+            <div className="text-xs text-gray-500">Speak your session summary, Miwa will fill in all note fields</div>
           </div>
         </div>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-600 p-1 rounded-lg hover:bg-gray-100">
@@ -103,7 +103,7 @@ function DictationPanel({ onApply, onClose }) {
       {phase === 'idle' && (
         <div className="text-center py-4">
           <p className="text-xs text-gray-500 mb-4">
-            Briefly describe what happened in the session — the client's mood, what you worked on, how they responded, and your next steps.
+            Briefly describe what happened in the session, the client's mood, what you worked on, how they responded, and your next steps.
           </p>
           <button
             onClick={startRecording}
@@ -167,7 +167,7 @@ function DictationPanel({ onApply, onClose }) {
             </details>
           )}
           <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3">
-            <p className="text-xs font-semibold text-green-800 mb-1">✓ Note fields ready — all formats populated</p>
+            <p className="text-xs font-semibold text-green-800 mb-1">✓ Note fields ready, all formats populated</p>
             <p className="text-xs text-green-700">Miwa has parsed your dictation into SOAP, BIRP, DAP, GIRP, and DMH SIR fields. Review and edit before saving.</p>
           </div>
           <button
@@ -312,32 +312,32 @@ const NOTE_FORMATS = ['SOAP', 'BIRP', 'DAP', 'GIRP', 'DMH_SIR']
 
 const FORMAT_FIELDS = {
   SOAP: [
-    { key: 'subjective', label: 'S — Subjective', placeholder: "Client's self-report: What did the client say? How did they describe their week, symptoms, mood? Direct quotes when relevant.", color: 'border-l-blue-400' },
-    { key: 'objective',  label: 'O — Objective',  placeholder: "Clinician's observations: Mental status, affect, behavior, appearance, cognition, insight, judgment, any screening scores.", color: 'border-l-green-400' },
-    { key: 'assessment', label: 'A — Assessment', placeholder: "Clinical interpretation: Progress toward goals, diagnostic impressions, functional status, risk assessment, clinical formulation.", color: 'border-l-amber-400' },
-    { key: 'plan',       label: 'P — Plan',       placeholder: "Next steps: Interventions used, homework assigned, next session plan, referrals, medication coordination, crisis plan if indicated.", color: 'border-l-purple-400' },
+    { key: 'subjective', label: 'S, Subjective', placeholder: "Client's self-report: What did the client say? How did they describe their week, symptoms, mood? Direct quotes when relevant.", color: 'border-l-blue-400' },
+    { key: 'objective',  label: 'O, Objective',  placeholder: "Clinician's observations: Mental status, affect, behavior, appearance, cognition, insight, judgment, any screening scores.", color: 'border-l-green-400' },
+    { key: 'assessment', label: 'A, Assessment', placeholder: "Clinical interpretation: Progress toward goals, diagnostic impressions, functional status, risk assessment, clinical formulation.", color: 'border-l-amber-400' },
+    { key: 'plan',       label: 'P, Plan',       placeholder: "Next steps: Interventions used, homework assigned, next session plan, referrals, medication coordination, crisis plan if indicated.", color: 'border-l-purple-400' },
   ],
   BIRP: [
-    { key: 'subjective', label: 'B — Behavior',     placeholder: "Client's behavior and presentation: mood, affect, appearance, reported symptoms, functioning since last session.", color: 'border-l-blue-400' },
-    { key: 'objective',  label: 'I — Intervention', placeholder: "What you did as the clinician: techniques used, topics addressed, modalities applied (CBT, DBT, EMDR, etc.), therapeutic exercises.", color: 'border-l-green-400' },
-    { key: 'assessment', label: 'R — Response',     placeholder: "Client's response to interventions: engagement, insight gained, emotional shifts, resistance, progress toward treatment goals.", color: 'border-l-amber-400' },
-    { key: 'plan',       label: 'P — Plan',         placeholder: "Next steps: homework assigned, next session focus, referrals, medication coordination, safety planning if indicated.", color: 'border-l-purple-400' },
+    { key: 'subjective', label: 'B, Behavior',     placeholder: "Client's behavior and presentation: mood, affect, appearance, reported symptoms, functioning since last session.", color: 'border-l-blue-400' },
+    { key: 'objective',  label: 'I, Intervention', placeholder: "What you did as the clinician: techniques used, topics addressed, modalities applied (CBT, DBT, EMDR, etc.), therapeutic exercises.", color: 'border-l-green-400' },
+    { key: 'assessment', label: 'R, Response',     placeholder: "Client's response to interventions: engagement, insight gained, emotional shifts, resistance, progress toward treatment goals.", color: 'border-l-amber-400' },
+    { key: 'plan',       label: 'P, Plan',         placeholder: "Next steps: homework assigned, next session focus, referrals, medication coordination, safety planning if indicated.", color: 'border-l-purple-400' },
   ],
   DAP: [
-    { key: 'subjective', label: 'D — Data',       placeholder: "All observable and reported information: client's self-report, clinician observations, mental status, affect, behavior, screening scores.", color: 'border-l-blue-400' },
-    { key: 'assessment', label: 'A — Assessment', placeholder: "Clinical interpretation of the data: diagnostic impressions, progress toward goals, risk assessment, clinical formulation, functional status.", color: 'border-l-amber-400' },
-    { key: 'plan',       label: 'P — Plan',       placeholder: "Next steps: interventions, homework, next session plan, referrals, crisis planning if indicated.", color: 'border-l-purple-400' },
+    { key: 'subjective', label: 'D, Data',       placeholder: "All observable and reported information: client's self-report, clinician observations, mental status, affect, behavior, screening scores.", color: 'border-l-blue-400' },
+    { key: 'assessment', label: 'A, Assessment', placeholder: "Clinical interpretation of the data: diagnostic impressions, progress toward goals, risk assessment, clinical formulation, functional status.", color: 'border-l-amber-400' },
+    { key: 'plan',       label: 'P, Plan',       placeholder: "Next steps: interventions, homework, next session plan, referrals, crisis planning if indicated.", color: 'border-l-purple-400' },
   ],
   GIRP: [
-    { key: 'goals',        label: 'G — Goals',        placeholder: "Treatment goals addressed in this session: what is the client working toward? How do goals connect to the treatment plan?", color: 'border-l-indigo-400' },
-    { key: 'intervention', label: 'I — Intervention', placeholder: "Clinician interventions: techniques used, topics addressed, therapeutic modalities applied, exercises aligned with treatment goals.", color: 'border-l-green-400' },
-    { key: 'response',     label: 'R — Response',     placeholder: "Client's response to interventions: engagement level, progress toward goals, insight gained, emotional shifts, barriers encountered.", color: 'border-l-amber-400' },
-    { key: 'plan',         label: 'P — Plan',         placeholder: "Next steps: homework assigned, goals for next session, referrals, adjustments to treatment approach, crisis planning if indicated.", color: 'border-l-purple-400' },
+    { key: 'goals',        label: 'G, Goals',        placeholder: "Treatment goals addressed in this session: what is the client working toward? How do goals connect to the treatment plan?", color: 'border-l-indigo-400' },
+    { key: 'intervention', label: 'I, Intervention', placeholder: "Clinician interventions: techniques used, topics addressed, therapeutic modalities applied, exercises aligned with treatment goals.", color: 'border-l-green-400' },
+    { key: 'response',     label: 'R, Response',     placeholder: "Client's response to interventions: engagement level, progress toward goals, insight gained, emotional shifts, barriers encountered.", color: 'border-l-amber-400' },
+    { key: 'plan',         label: 'P, Plan',         placeholder: "Next steps: homework assigned, goals for next session, referrals, adjustments to treatment approach, crisis planning if indicated.", color: 'border-l-purple-400' },
   ],
   DMH_SIR: [
-    { key: 'situation', label: 'S — Situation / Presentation', placeholder: "Why this session was clinically necessary today: client's presentation, symptoms, stressors, stated concerns, observed behavior, and treatment focus.", color: 'border-l-blue-400' },
-    { key: 'interventions', label: 'I — Interventions Used', placeholder: "Specific clinician interventions: modality, skills practiced, psychoeducation, safety planning, collateral/linkage, therapeutic stance, and clinical rationale.", color: 'border-l-green-400' },
-    { key: 'response', label: 'R — Client Response', placeholder: "How the client responded: engagement, insight, affective shift, regulation, resistance, skill use, progress, or barriers.", color: 'border-l-amber-400' },
+    { key: 'situation', label: 'S, Situation / Presentation', placeholder: "Why this session was clinically necessary today: client's presentation, symptoms, stressors, stated concerns, observed behavior, and treatment focus.", color: 'border-l-blue-400' },
+    { key: 'interventions', label: 'I, Interventions Used', placeholder: "Specific clinician interventions: modality, skills practiced, psychoeducation, safety planning, collateral/linkage, therapeutic stance, and clinical rationale.", color: 'border-l-green-400' },
+    { key: 'response', label: 'R, Client Response', placeholder: "How the client responded: engagement, insight, affective shift, regulation, resistance, skill use, progress, or barriers.", color: 'border-l-amber-400' },
     { key: 'risk_safety', label: 'Risk / Safety Update', placeholder: "SI/HI/self-harm/substance/DV/abuse updates, protective factors, safety plan changes, crisis resources, and rationale if no acute risk was indicated.", color: 'border-l-red-400' },
     { key: 'functioning_medical_necessity', label: 'Functioning / Medical Necessity', placeholder: "Functional impairments and clinical necessity: home, work/school, relationships, ADLs, symptom impact, level-of-care rationale, and why treatment remains indicated.", color: 'border-l-cyan-400' },
     { key: 'plan_homework', label: 'Plan / Homework / Next Steps', placeholder: "Next session focus, homework, referrals, assessments, collateral tasks, frequency, coordination, and follow-up plan.", color: 'border-l-purple-400' },
@@ -607,7 +607,7 @@ export default function SessionNote() {
         }
         setSessionNotesJson(parsed)
 
-        // Load notes — prefer notes_json, but preserve intake sessions and older records
+        // Load notes, prefer notes_json, but preserve intake sessions and older records
         if (parsed) {
           const generatedFormat = parsed.WORKSPACE?.generatedNoteFormat || 'SOAP'
           if (s.note_format === 'INTAKE') {
@@ -947,7 +947,7 @@ export default function SessionNote() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Save failed')
       // Style-adaptation: compare the last AI draft to what we actually saved,
-      // fire-and-forget to /ai/style/capture. Ignore any errors — style
+      // fire-and-forget to /ai/style/capture. Ignore any errors, style
       // capture must never block the save UX.
       captureStyleSampleIfAny(data?.id || sessionId)
       navigate(`/patients/${patientId}`)
@@ -1128,7 +1128,7 @@ export default function SessionNote() {
                           }}
                           className="block w-full text-left px-3 py-1.5 text-xs text-gray-600 hover:bg-indigo-50 hover:text-indigo-700"
                         >
-                          {v.label} <span className="text-gray-400">— {v.desc}</span>
+                          {v.label} <span className="text-gray-400">,  {v.desc}</span>
                         </button>
                       ))}
                     </div>
@@ -1311,7 +1311,7 @@ export default function SessionNote() {
                 )
               })}
 
-              {/* Active risk-language monitor — non-blocking nudge */}
+              {/* Active risk-language monitor, non-blocking nudge */}
               <RiskMonitorBadge
                 text={Object.values(notes[activeFormat] || {}).filter(v => typeof v === 'string').join('\n\n')}
                 patientId={patientId}
@@ -1397,7 +1397,7 @@ export default function SessionNote() {
               </svg>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-emerald-800">Note signed &amp; locked</p>
-                <p className="text-xs text-emerald-600">Signed {new Date(signedAt).toLocaleString()} — fields are read-only. Click <strong>Unlock</strong> above to edit.</p>
+                <p className="text-xs text-emerald-600">Signed {new Date(signedAt).toLocaleString()}, fields are read-only. Click <strong>Unlock</strong> above to edit.</p>
               </div>
             </div>
           )}
@@ -1410,7 +1410,7 @@ export default function SessionNote() {
                 {totalWords < 30 && <span className="text-amber-500 font-medium">Add more detail for better results</span>}
               </div>
             )}
-            {/* ── Pillar 7: AI Enrichment — prominent placement above Generate ── */}
+            {/* ── Pillar 7: AI Enrichment, prominent placement above Generate ── */}
             {!isNew && sessionId && (
               <NoteEnrichments
                 sessionId={sessionId}
@@ -1605,7 +1605,7 @@ export default function SessionNote() {
                           <tbody className="divide-y divide-gray-50">
                             {sessionAssessments.map(a => (
                               <tr key={a.id} className="hover:bg-gray-50">
-                                <td className="px-3 py-2 text-gray-600">{a.administered_at ? new Date(a.administered_at).toLocaleDateString() : '—'}</td>
+                                <td className="px-3 py-2 text-gray-600">{a.administered_at ? new Date(a.administered_at).toLocaleDateString() : ', '}</td>
                                 <td className="px-3 py-2 font-medium text-gray-700 uppercase">{a.template_type}</td>
                                 <td className="px-3 py-2 text-right font-bold text-gray-900">{a.total_score}</td>
                                 <td className="px-3 py-2 text-right">
@@ -1696,7 +1696,7 @@ export default function SessionNote() {
                                     {isYesNo ? (
                                       <span className="font-bold">{opt.label}</span>
                                     ) : (
-                                      <><span className="font-bold">{opt.value}</span> — {opt.label}</>
+                                      <><span className="font-bold">{opt.value}</span>, {opt.label}</>
                                     )}
                                   </button>
                                 ))}
@@ -1763,7 +1763,7 @@ export default function SessionNote() {
                   {sessionAssessmentResult && (
                     <div className={`rounded-xl border-2 p-4 space-y-2 ${sessionAssessmentResult.risk_flags?.length > 0 ? 'border-red-300 bg-red-50' : 'border-indigo-200 bg-indigo-50'}`}>
                       <p className="text-sm font-bold text-gray-900">
-                        {sessionAssessmentType.toUpperCase()} — Submitted
+                        {sessionAssessmentType.toUpperCase()}, Submitted
                       </p>
                       <div className="flex items-center gap-3">
                         <span className="text-3xl font-bold" style={{ color: sessionAssessmentResult.severity_color || '#6366F1' }}>

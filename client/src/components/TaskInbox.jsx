@@ -9,13 +9,13 @@ function isCapacitorNative() {
 }
 
 /**
- * TaskInbox — floating badge + dropdown showing background agent tasks.
+ * TaskInbox, floating badge + dropdown showing background agent tasks.
  *
  * Subscribes to /api/agent/tasks/stream (SSE) for live updates, with a
  * poll fallback if the stream drops. Three zones in the dropdown:
- *   1. Active  — queued / running
- *   2. Unread  — done / failed / needs_input AND read_at IS NULL
- *   3. History — recent closed-and-read tasks (last 10)
+ *   1. Active , queued / running
+ *   2. Unread , done / failed / needs_input AND read_at IS NULL
+ *   3. History, recent closed-and-read tasks (last 10)
  *
  * Clicking a task expands its result inline. Clicking "View full" opens a
  * modal with the tool-call log + full markdown result.
@@ -199,7 +199,7 @@ export default function TaskInbox({ onOpenDetail }) {
             setTasks(prev => {
               const idx = prev.findIndex(t => t.id === msg.task.id)
               if (idx < 0) {
-                // Task unknown — refetch full list to pick up the new row
+                // Task unknown, refetch full list to pick up the new row
                 fetchTasks()
                 return prev
               }
@@ -231,7 +231,7 @@ export default function TaskInbox({ onOpenDetail }) {
     }
   }, [fetchCounts, fetchTasks, open])
 
-  // Browser notification on task completion — if permission granted.
+  // Browser notification on task completion, if permission granted.
   const lastNotifiedRef = useRef(new Set())
   function maybeNotifyCompletion(task) {
     if (!['done', 'failed', 'needs_input'].includes(task.status)) return

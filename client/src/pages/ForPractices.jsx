@@ -14,7 +14,7 @@ function PracticeDashboardMockup() {
           <div className="w-2 h-2 rounded-full bg-yellow-400/70" />
           <div className="w-2 h-2 rounded-full bg-green-400/70" />
         </div>
-        <span className="text-[10px] text-white/25 ml-2">Practice Dashboard — Sunrise Therapy Group</span>
+        <span className="text-[10px] text-white/25 ml-2">Practice Dashboard, Sunrise Therapy Group</span>
       </div>
       <div className="p-4 space-y-3">
         <div className="grid grid-cols-3 gap-2">
@@ -54,7 +54,7 @@ export default function ForPractices() {
     <PublicPageShell>
       <PublicNav />
 
-      {/* Hero — Notion/Figma style */}
+      {/* Hero, Notion/Figma style */}
       <div className="text-center pt-32 pb-12 px-6 max-w-4xl mx-auto">
         <h1 className="text-5xl md:text-6xl font-extrabold text-gray-900 mb-6 leading-[1.05] tracking-tight">
           One AI assistant.<br />
@@ -63,14 +63,14 @@ export default function ForPractices() {
           </span>
         </h1>
         <p className="text-gray-700 text-xl max-w-2xl mx-auto mb-4 leading-relaxed">
-          Miwa for Teams is built from the ground up for how group practices actually work — trainees, associates, supervisors, and directors in one unified view.
+          Miwa for Teams is built from the ground up for how group practices actually work, trainees, associates, supervisors, and directors in one unified view.
         </p>
         <p className="text-gray-500 text-base max-w-xl mx-auto mb-8">
           Every clinician gets their own AI assistant trained on their documentation style. Directors get caseload-wide visibility into clinical quality and outcomes.
         </p>
         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold text-indigo-700 mb-6"
           style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)' }}>
-          Coming soon — join the waitlist
+          Coming soon, join the waitlist
         </div>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <a href="mailto:hello@miwa.care?subject=Miwa%20for%20Teams%20Waitlist" className="px-10 py-4 rounded-xl text-base font-bold text-white transition-all hover:opacity-90" style={{ background: '#111113' }}>
@@ -94,7 +94,7 @@ export default function ForPractices() {
           <PracticeDashboardMockup />
         </div>
         <p className="text-center text-gray-500 text-sm mt-5 italic">
-          Practice director's dashboard — caseload health across every clinician on the team.
+          Practice director's dashboard, caseload health across every clinician on the team.
         </p>
       </div>
 
@@ -108,10 +108,10 @@ export default function ForPractices() {
         </div>
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[
-            { title: 'Per-clinician AI copilot', desc: 'Every clinician gets their own Miwa — trained on their caseload, their tone, their documentation style. Learns their voice over time.', color: '#6366f1' },
+            { title: 'Per-clinician AI copilot', desc: 'Every clinician gets their own Miwa, trained on their caseload, their tone, their documentation style. Learns their voice over time.', color: '#6366f1' },
             { title: 'Director morning briefing', desc: 'A morning dashboard for practice directors: clinician status, risk flags, new referrals, overdue assessments. Spot issues before they escalate.', color: '#14b8a6' },
-            { title: 'Practice-wide letter generator', desc: 'Generate ESA letters, attorney summaries, insurance pre-auths, school 504 support across every clinician — all from the chart.', color: '#ec4899' },
-            { title: 'Supervisor review workflow', desc: 'Trainees submit notes for supervisor review. Supervisors annotate, approve, or request revisions — all within Miwa.', color: '#f59e0b' },
+            { title: 'Practice-wide letter generator', desc: 'Generate ESA letters, attorney summaries, insurance pre-auths, school 504 support across every clinician, all from the chart.', color: '#ec4899' },
+            { title: 'Supervisor review workflow', desc: 'Trainees submit notes for supervisor review. Supervisors annotate, approve, or request revisions, all within Miwa.', color: '#f59e0b' },
             { title: 'Cross-team risk visibility', desc: 'Supervisors see when a trainee\'s session note contains risk language. Director dashboard surfaces practice-wide safety concerns.', color: '#ef4444' },
             { title: 'Quarterly outcome reports', desc: 'Generate practice-level outcome reports, compliance summaries, and aggregate progress reports in one conversation.', color: '#10b981' },
             { title: 'Trainee & associate management', desc: 'Trainees and associates join your practice with full Miwa access. Supervisors get visibility into their caseload management.', color: '#3b82f6' },
@@ -153,7 +153,7 @@ export default function ForPractices() {
       {/* Pricing callout */}
       <div className="max-w-[1000px] mx-auto px-6 pb-20">
         <div className="rounded-2xl p-8 text-center bg-gray-900">
-          <h3 className="text-2xl font-bold text-white mb-2">Miwa for Teams — Planned Pricing</h3>
+          <h3 className="text-2xl font-bold text-white mb-2">Miwa for Teams, Planned Pricing</h3>
           <div className="flex items-end justify-center gap-1 mb-2">
             <span className="text-4xl font-extrabold text-white">$399</span>
             <span className="text-white/45 text-base mb-1.5">/mo base</span>
@@ -177,7 +177,7 @@ export default function ForPractices() {
       {/* CTA */}
       <div className="text-center pb-24 px-6 pt-12">
         <h2 className="text-2xl font-bold text-gray-900 mb-3">Looking for the solo practitioner app?</h2>
-        <p className="text-gray-500 text-base mb-6">Miwa is available now for individual therapists — trainees, associates, and licensed practitioners.</p>
+        <p className="text-gray-500 text-base mb-6">Miwa is available now for individual therapists, trainees, associates, and licensed practitioners.</p>
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <Link to="/register" className="px-10 py-4 rounded-xl text-base font-bold text-white transition-all hover:opacity-90" style={{ background: '#111113' }}>
             Start free trial (solo)

@@ -1,5 +1,5 @@
 /**
- * MobileForgotPassword — native password-reset request screen.
+ * MobileForgotPassword, native password-reset request screen.
  *
  * Mirrors MobileLogin's visual shell: soft gradient backdrop, safe-area
  * padding, compact back header, big tappable input + submit.

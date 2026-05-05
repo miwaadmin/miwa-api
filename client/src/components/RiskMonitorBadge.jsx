@@ -10,14 +10,14 @@ import { apiFetch } from '../lib/api'
  * already documented for this patient.
  *
  * Props:
- *   text       — concatenated note text being monitored
- *   patientId  — enables screener-coverage lookup
- *   signed     — when true, the component is inert (no scanning, no badges)
+ *   text      , concatenated note text being monitored
+ *   patientId , enables screener-coverage lookup
+ *   signed    , when true, the component is inert (no scanning, no badges)
  *
  * Design notes:
  *   - Debounce: 2s idle after last change (avoids scanning on every keystroke)
  *   - Minimum text length: 50 chars (short drafts aren't worth scanning)
- *   - Dismissals are session-local only — they don't persist across notes
+ *   - Dismissals are session-local only, they don't persist across notes
  *   - The server already handles "covered" screeners; we just display what
  *     comes back. Everything returned has `covered: false` and should show.
  */
@@ -35,7 +35,7 @@ export default function RiskMonitorBadge({ text, patientId, signed }) {
   const abortRef = useRef(null)
 
   useEffect(() => {
-    // Don't scan signed notes — nothing the therapist can do about a flag
+    // Don't scan signed notes, nothing the therapist can do about a flag
     // on a locked record.
     if (signed) return
 
@@ -70,7 +70,7 @@ export default function RiskMonitorBadge({ text, patientId, signed }) {
         setLastScanLen(text.length)
       } catch (err) {
         if (err.name !== 'AbortError') {
-          // Silent — non-blocking. Therapist should not see errors for this.
+          // Silent, non-blocking. Therapist should not see errors for this.
         }
       } finally {
         if (!ctrl.signal.aborted) setScanning(false)

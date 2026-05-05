@@ -11,10 +11,10 @@ const API = API_BASE
 const SOUL_COLORS = ['#6366F1', '#8B5CF6', '#EC4899', '#14B8A6', '#F59E0B', '#10B981']
 
 const RELATIONAL_TEMPLATE_LABELS = {
-  'ras': 'RAS — Relationship Satisfaction',
-  'das-4': 'DAS-4 — Dyadic Adjustment',
-  'score-15': 'SCORE-15 — Family Functioning',
-  'fad-gf': 'FAD-GF — Family Assessment',
+  'ras': 'RAS, Relationship Satisfaction',
+  'das-4': 'DAS-4, Dyadic Adjustment',
+  'score-15': 'SCORE-15, Family Functioning',
+  'fad-gf': 'FAD-GF, Family Assessment',
 }
 
 function clientLabel(row) {
@@ -190,7 +190,7 @@ function AssessmentModal({ patient, onClose, onSubmit }) {
                       >
                         {templateType === 'cssrs'
                           ? <span className="font-bold">{opt.label}</span>
-                          : <><span className="font-bold mr-1">{opt.value}</span> — {opt.label}</>
+                          : <><span className="font-bold mr-1">{opt.value}</span>, {opt.label}</>
                         }
                       </button>
                     ))}
@@ -357,7 +357,7 @@ export default function Outcomes() {
     const data = await res.json()
     if (res.ok) setPracticeStats(data)
     else setPracticeStats({ error: data?.detail || data?.error || 'Practice overview failed to load' })
-    // MBC adherence — non-fatal
+    // MBC adherence, non-fatal
     try {
       const mbcRes = await fetch(`${API}/assessments/mbc-adherence`, { credentials: 'include' })
       if (mbcRes.ok) setMbcAdherence(await mbcRes.json())
@@ -387,7 +387,7 @@ export default function Outcomes() {
     if (res.ok) setCaseloadData(data)
   }, [])
 
-  // Load overdue data — filter out locally dismissed entries (7-day snooze)
+  // Load overdue data, filter out locally dismissed entries (7-day snooze)
   const loadOverdue = useCallback(async () => {
     const res = await fetch(`${API}/assessments/overdue`, { credentials: 'include' })
     const data = await res.json()
@@ -540,7 +540,7 @@ export default function Outcomes() {
   function copyDigest() {
     if (!digestData) return
     const text = [
-      `Miwa Practice Digest — ${digestData.period}`,
+      `Miwa Practice Digest, ${digestData.period}`,
       `Generated: ${new Date(digestData.generatedAt).toLocaleDateString()}`,
       '',
       `Total Patients: ${digestData.stats.totalPatients}`,
@@ -563,7 +563,7 @@ export default function Outcomes() {
   function handlePrintProgress() {
     if (!progressData) return
     const printContent = `
-      <html><head><title>Progress Report — ${clientLabel(progressData)}</title>
+      <html><head><title>Progress Report, ${clientLabel(progressData)}</title>
       <style>
         body { font-family: sans-serif; max-width: 800px; margin: 40px auto; color: #111; }
         h1 { font-size: 1.5rem; margin-bottom: 4px; }
@@ -585,13 +585,13 @@ export default function Outcomes() {
         <div class="score-card">
           <h3>PHQ-9</h3>
           <div class="value">${progressData.phq9.current}</div>
-          <div class="severity">${progressData.phq9.severity} &nbsp; Baseline: ${progressData.phq9.baseline ?? '—'}</div>
+          <div class="severity">${progressData.phq9.severity} &nbsp; Baseline: ${progressData.phq9.baseline ?? ', '}</div>
         </div>` : ''}
         ${progressData.gad7.current !== null ? `
         <div class="score-card">
           <h3>GAD-7</h3>
           <div class="value">${progressData.gad7.current}</div>
-          <div class="severity">${progressData.gad7.severity} &nbsp; Baseline: ${progressData.gad7.baseline ?? '—'}</div>
+          <div class="severity">${progressData.gad7.severity} &nbsp; Baseline: ${progressData.gad7.baseline ?? ', '}</div>
         </div>` : ''}
       </div>
       <h2 style="font-size:1rem;margin-bottom:8px;">Assessment Timeline</h2>
@@ -601,10 +601,10 @@ export default function Outcomes() {
           ${progressData.timeline.map(t => `
           <tr>
             <td>${t.date}</td>
-            <td>${t.phq9 ?? '—'}</td>
-            <td>${t.phq9_severity ?? '—'}</td>
-            <td>${t.gad7 ?? '—'}</td>
-            <td>${t.gad7_severity ?? '—'}</td>
+            <td>${t.phq9 ?? ', '}</td>
+            <td>${t.phq9_severity ?? ', '}</td>
+            <td>${t.gad7 ?? ', '}</td>
+            <td>${t.gad7_severity ?? ', '}</td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -805,7 +805,7 @@ export default function Outcomes() {
                 }}
                 className="flex-1 min-w-[200px] max-w-sm border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-indigo-400 bg-white"
               >
-                <option value="">— Select a client —</option>
+                <option value="">,  Select a client , </option>
                 {patients.map(p => (
                   <option key={p.id} value={p.id}>{clientLabel(p)}</option>
                 ))}
@@ -916,7 +916,7 @@ export default function Outcomes() {
                   <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-6">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-bold text-gray-700">
-                        Progress Timeline — {clientLabel(progressData)}
+                        Progress Timeline, {clientLabel(progressData)}
                       </h3>
                       <button
                         onClick={() => navigate(`/patients/${selectedPatient.id}`)}
@@ -1262,7 +1262,7 @@ export default function Outcomes() {
                 {/* Non-responders callout */}
                 {practiceStats.nonResponders?.length > 0 && (
                   <div className="bg-amber-50 border border-amber-200 rounded-2xl p-5">
-                    <h3 className="text-sm font-bold text-amber-900 mb-3">Non-Responders — Consider treatment adjustment</h3>
+                    <h3 className="text-sm font-bold text-amber-900 mb-3">Non-Responders, Consider treatment adjustment</h3>
                     <div className="space-y-2">
                       {practiceStats.nonResponders.map(nr => (
                         <div key={nr.patient_id} className="flex items-center justify-between bg-white rounded-xl px-4 py-2.5 border border-amber-100">
@@ -1541,7 +1541,7 @@ export default function Outcomes() {
                                 {row.phq9_severity}
                               </span>
                             </div>
-                          ) : <span className="text-gray-300 text-xs">—</span>}
+                          ) : <span className="text-gray-300 text-xs">, </span>}
                         </td>
                         <td className="px-4 py-3 text-center">
                           {row.gad7_latest !== null ? (
@@ -1551,7 +1551,7 @@ export default function Outcomes() {
                                 {row.gad7_severity}
                               </span>
                             </div>
-                          ) : <span className="text-gray-300 text-xs">—</span>}
+                          ) : <span className="text-gray-300 text-xs">, </span>}
                         </td>
                         <td className="px-4 py-3 text-center">
                           {row.last_assessed ? (
@@ -1563,7 +1563,7 @@ export default function Outcomes() {
                                 </div>
                               )}
                             </div>
-                          ) : <span className="text-gray-300 text-xs">—</span>}
+                          ) : <span className="text-gray-300 text-xs">, </span>}
                         </td>
                         <td className="px-4 py-3 text-center">
                           {row.has_critical_alert

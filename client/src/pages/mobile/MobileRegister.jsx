@@ -1,11 +1,11 @@
 /**
- * MobileRegister — native-feeling account creation, 2-step wizard.
+ * MobileRegister, native-feeling account creation, 2-step wizard.
  *
  * Step 1: pick credential type (trainee / associate / licensed) via big
  *   tappable cards. Simpler than desktop's side-by-side layout.
  * Step 2: the form fields that actually apply to the chosen credential.
  *
- * Minimal marketing chrome — the App Store reviewer needs a clean happy
+ * Minimal marketing chrome, the App Store reviewer needs a clean happy
  * path. Post-submit, user lands on the "check your email" screen, same
  * as desktop.
  */
@@ -27,14 +27,14 @@ const CREDENTIAL_TYPES = [
   {
     id: 'associate',
     label: 'Associate',
-    subtitle: 'AMFT, ACSW, APCC — licensed associate',
+    subtitle: 'AMFT, ACSW, APCC, licensed associate',
     note: 'License number required',
     gradient: 'linear-gradient(135deg, #0d9488, #2dd4bf)',
   },
   {
     id: 'licensed',
     label: 'Licensed Therapist',
-    subtitle: 'LMFT, LCSW, LPCC — fully licensed',
+    subtitle: 'LMFT, LCSW, LPCC, fully licensed',
     note: 'Full access, no verification needed',
     gradient: 'linear-gradient(135deg, #7c3aed, #a78bfa)',
   },

@@ -26,7 +26,7 @@ const PLANS = [
     period: '/mo',
     badge: 'Most popular',
     color: '#0d9488',
-    desc: 'AMFT, ACSW, APCC — licensed associate. Full access at associate pricing.',
+    desc: 'AMFT, ACSW, APCC, licensed associate. Full access at associate pricing.',
     features: [
       'Everything in Trainee',
       'Proactive caseload alerts',
@@ -42,7 +42,7 @@ const PLANS = [
     period: '/mo',
     badge: null,
     color: '#7c3aed',
-    desc: 'LMFT, LCSW, LPCC — fully licensed. Full access, no verification needed.',
+    desc: 'LMFT, LCSW, LPCC, fully licensed. Full access, no verification needed.',
     features: [
       'Everything in Associate',
       'No verification required',

@@ -22,10 +22,10 @@ const PLANS = [
       'Full Miwa AI copilot (no feature restrictions)',
       'Unlimited clients & sessions',
       'Voice → clinical notes (SOAP/BIRP/DAP/GIRP)',
-      'Pre-session briefs — 60-second narrative 30 min before each session',
-      'Active risk monitor — SI/HI/self-harm flags as you type',
+      'Pre-session briefs, 60-second narrative 30 min before each session',
+      'Active risk monitor, SI/HI/self-harm flags as you type',
       'Morning dashboard briefing with caseload triage',
-      'Letter generator — ESA, school 504, return-to-work',
+      'Letter generator, ESA, school 504, return-to-work',
       'Learns your voice (style adapts after ~10 edits)',
       'Assessment delivery through secure links',
       'Living treatment plans with goal tracking',
@@ -41,7 +41,7 @@ const PLANS = [
     badge: null,
     monthlyPrice: 69,
     annualPrice: 55,
-    desc: 'AMFT, ACSW, APCC — licensed associate.',
+    desc: 'AMFT, ACSW, APCC, licensed associate.',
     cta: 'Start free trial',
     ctaHref: '/register',
     highlight: true,
@@ -66,7 +66,7 @@ const PLANS = [
     badge: null,
     monthlyPrice: 129,
     annualPrice: 103,
-    desc: 'LMFT, LCSW, LPCC — fully licensed. No verification needed.',
+    desc: 'LMFT, LCSW, LPCC, fully licensed. No verification needed.',
     cta: 'Start free trial',
     ctaHref: '/register',
     highlight: false,
@@ -146,7 +146,7 @@ export default function Pricing() {
           Start free. Upgrade when Miwa saves you more than it costs. Which happens fast.
         </p>
 
-        {/* Pricing is per credential type, not a feature tier — no toggle needed */}
+        {/* Pricing is per credential type, not a feature tier, no toggle needed */}
       </div>
 
       {/* Plan cards */}

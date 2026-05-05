@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react'
 import { apiFetch } from '../lib/api'
 
 /**
- * LetterGenerator — modal for drafting ESA letters, school accommodation
+ * LetterGenerator, modal for drafting ESA letters, school accommodation
  * requests, attorney summaries, insurance pre-auths, and return-to-work
  * letters from a patient's chart.
  *
@@ -14,9 +14,9 @@ import { apiFetch } from '../lib/api'
  *   5. Save as draft OR finalize OR copy/download
  *
  * Props:
- *   isOpen, onClose  — modal controls
- *   patientId        — required
- *   patientName      — for header display
+ *   isOpen, onClose , modal controls
+ *   patientId       , required
+ *   patientName     , for header display
  */
 
 function downloadText(filename, text) {
@@ -277,7 +277,7 @@ export default function LetterGenerator({ isOpen, onClose, patientId, patientNam
           </button>
         </div>
 
-        {/* Body — scrollable */}
+        {/* Body, scrollable */}
         <div className="flex-1 overflow-y-auto p-6">
           {error && (
             <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
@@ -351,7 +351,7 @@ export default function LetterGenerator({ isOpen, onClose, patientId, patientNam
                 className="w-full h-[50vh] rounded-lg border border-gray-200 px-4 py-3 text-sm font-serif leading-relaxed focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400 outline-none"
               />
               <p className="text-[11px] text-gray-400 mt-2 italic">
-                This is a draft generated from your chart data. Review every detail before sending —
+                This is a draft generated from your chart data. Review every detail before sending , 
                 you are responsible for the final content.
               </p>
             </>

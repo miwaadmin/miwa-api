@@ -6,17 +6,17 @@
  * @returns {string} Formatted date string in user's timezone
  */
 export function formatDateInTimezone(dateStr, timezone = 'America/Los_Angeles', options = {}) {
-  if (!dateStr) return '—'
+  if (!dateStr) return ', '
   try {
     const date = typeof dateStr === 'string' ? new Date(dateStr) : dateStr
-    if (isNaN(date.getTime())) return '—'
+    if (isNaN(date.getTime())) return ', '
 
     return date.toLocaleDateString('en-US', {
       timeZone: timezone,
       ...options,
     })
   } catch {
-    return '—'
+    return ', '
   }
 }
 

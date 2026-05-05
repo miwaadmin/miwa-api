@@ -5,7 +5,7 @@
  * (or has errored out), and the manual-entry dropdown is never empty.
  *
  * If this drifts from the server definitions, the SERVER is authoritative
- * — totals + percent calculations come from /api/hours and overlay onto
+ *, totals + percent calculations come from /api/hours and overlay onto
  * this skeleton. The client structure only controls layout and the
  * dropdown options.
  */
@@ -65,14 +65,14 @@ export const CA_BBS_LMFT_BUCKETS = [
 
 export const PROGRAMS = {
   csun_mft:    { id: 'csun_mft',    label: 'CSUN MFT (Practicum)',        buckets: CSUN_MFT_BUCKETS },
-  ca_bbs_lmft: { id: 'ca_bbs_lmft', label: 'CA BBS — LMFT (post-degree)', buckets: CA_BBS_LMFT_BUCKETS },
+  ca_bbs_lmft: { id: 'ca_bbs_lmft', label: 'CA BBS, LMFT (post-degree)', buckets: CA_BBS_LMFT_BUCKETS },
 }
 
 export function getProgramBuckets(programId = 'csun_mft') {
   return PROGRAMS[programId]?.buckets || CSUN_MFT_BUCKETS
 }
 
-// Manual-entry-eligible buckets only — leaves whose source is 'manual' or 'both'.
+// Manual-entry-eligible buckets only, leaves whose source is 'manual' or 'both'.
 export function getManualBuckets(programId = 'csun_mft') {
   return getProgramBuckets(programId)
     .filter(b => b.source === 'manual' || b.source === 'both')

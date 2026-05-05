@@ -1,5 +1,5 @@
 /**
- * API helpers — all requests use credentials:'include' so the HttpOnly auth
+ * API helpers, all requests use credentials:'include' so the HttpOnly auth
  * cookie is sent automatically on web.  On mobile (Capacitor), the
  * Authorization header is used instead (see AuthContext for token storage).
  */
@@ -72,7 +72,7 @@ export function setToken(token) {
 }
 
 /**
- * Admin API fetch — identical to apiFetch but redirects to /admin/login on 401
+ * Admin API fetch, identical to apiFetch but redirects to /admin/login on 401
  * and uses the admin-specific mobile token.
  */
 export async function adminApiFetch(path, options = {}) {

@@ -1,5 +1,5 @@
 /**
- * Community link config — single source of truth for the Discord (or other)
+ * Community link config, single source of truth for the Discord (or other)
  * invite URL used by the sidebar nav, dashboard banner, and public footer.
  *
  * Set `VITE_COMMUNITY_URL` in the build environment to enable the link
@@ -18,7 +18,7 @@ function normalizeUrl(raw) {
   if (!v) return ''
   // Already a real URL → keep as-is.
   if (/^https?:\/\//i.test(v)) return v
-  // Bare host like "discord.gg/abc123" — prepend https://
+  // Bare host like "discord.gg/abc123", prepend https://
   if (/^[a-z0-9.-]+\.[a-z]{2,}/i.test(v)) return `https://${v}`
   return ''
 }
@@ -43,7 +43,7 @@ if (typeof window !== 'undefined') {
   }
 }
 
-// Optional human-readable label override for the link target — useful if you
+// Optional human-readable label override for the link target, useful if you
 // move from Discord to Slack or Circle later. Defaults based on the URL host.
 export const COMMUNITY_LABEL = (() => {
   const override = (import.meta.env.VITE_COMMUNITY_LABEL || '').trim()

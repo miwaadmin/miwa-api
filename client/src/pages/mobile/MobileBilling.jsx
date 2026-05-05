@@ -1,12 +1,12 @@
 /**
- * MobileBilling — native subscription + plans screen.
+ * MobileBilling, native subscription + plans screen.
  *
  * Status lives at the top in a clean card (plan, trial countdown,
  * next-billed amount, manage-subscription button). Plans stack below
  * as big tappable cards with the current plan visually pinned.
  *
  * Hits /billing/status, /billing/create-checkout-session (Stripe
- * Checkout), /billing/portal (Stripe Customer Portal) — same backend
+ * Checkout), /billing/portal (Stripe Customer Portal), same backend
  * as desktop Billing.jsx.
  */
 import { useState, useEffect } from 'react'

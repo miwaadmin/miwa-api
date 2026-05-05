@@ -6,7 +6,7 @@ import PublicFooter from '../components/PublicFooter'
 import { API_BASE } from '../lib/api'
 
 /**
- * PublicNetwork — a public-facing directory of professionals in Miwa's
+ * PublicNetwork, a public-facing directory of professionals in Miwa's
  * extended network. Each person listed has been added by a clinician
  * using Miwa and explicitly flagged as safe to share publicly.
  *
@@ -179,7 +179,7 @@ export default function PublicNetwork() {
               No contacts published yet.
             </p>
             <p className="text-sm text-gray-500">
-              Clinicians using Miwa can mark contacts as public — they'll appear here.
+              Clinicians using Miwa can mark contacts as public, they'll appear here.
             </p>
           </div>
         ) : filtered.length === 0 ? (

@@ -8,12 +8,12 @@ import { RESOURCES } from '../lib/resources'
  * reference into the note.
  *
  * Insertion format (plain text, exports cleanly to PDF/Word/SOAP-style notes):
- *   Resource shared: PHQ-9 (Pfizer) — https://www.phqscreeners.com/
+ *   Resource shared: PHQ-9 (Pfizer), https://www.phqscreeners.com/
  *
  * Props:
- *   query   — the text the user has typed AFTER "/resource " (may be empty).
- *   onPick  — called with the selected catalog item.
- *   onClose — called when the user dismisses without picking (Esc / blur).
+ *   query  , the text the user has typed AFTER "/resource " (may be empty).
+ *   onPick , called with the selected catalog item.
+ *   onClose, called when the user dismisses without picking (Esc / blur).
  */
 export default function ResourceMentionPicker({ query, onPick, onClose }) {
   const [highlight, setHighlight] = useState(0)
@@ -161,7 +161,7 @@ export default function ResourceMentionPicker({ query, onPick, onClose }) {
  */
 export function formatResourceMention(item) {
   const source = item.source ? ` (${item.source})` : ''
-  const url = item.url ? ` — ${item.url}` : ''
+  const url = item.url ? `, ${item.url}` : ''
   return `Resource shared: ${item.name}${source}${url}`
 }
 

@@ -3,8 +3,8 @@ import { useState } from 'react'
 const STATUS_STYLES = {
   completed: { bg: 'bg-emerald-50', border: 'border-emerald-200', text: 'text-emerald-700', icon: '‚úì' },
   running: { bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-700', icon: '‚ü≥' },
-  pending: { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-400', icon: '‚óã' },
-  failed: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', icon: '‚úó' },
+  pending: { bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-400', icon: '‚-ã' },
+  failed: { bg: 'bg-red-50', border: 'border-red-200', text: 'text-red-700', icon: '‚ú-' },
   awaiting_approval: { bg: 'bg-amber-50', border: 'border-amber-200', text: 'text-amber-700', icon: '‚è∏' },
 }
 
@@ -39,7 +39,7 @@ export default function WorkflowProgress({ workflow, onApprove }) {
           ) : workflow.status === 'completed' ? (
             <span className="text-emerald-500 text-lg">‚úì</span>
           ) : (
-            <span className="text-red-500 text-lg">‚úó</span>
+            <span className="text-red-500 text-lg">‚ú-</span>
           )}
         </div>
         <div className="flex-1 min-w-0">
