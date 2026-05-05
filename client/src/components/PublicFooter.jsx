@@ -44,6 +44,12 @@ export default function PublicFooter() {
             Network
           </Link>
           <Link
+            to="/for-practices"
+            className="text-white/60 hover:text-white text-sm font-medium transition-colors"
+          >
+            Practices
+          </Link>
+          <Link
             to="/privacy-and-compliance"
             className="text-white/60 hover:text-white text-sm font-medium transition-colors"
           >

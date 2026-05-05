@@ -67,7 +67,6 @@ export default function PublicNav() {
           <NavLink to="/pricing"                 current={pathname}>Pricing</NavLink>
           <NavLink to="/for-trainees"            current={pathname}>Trainees</NavLink>
           <NavLink to="/for-licensed-clinicians" current={pathname}>Clinicians</NavLink>
-          <NavLink to="/for-practices"           current={pathname}>Practices</NavLink>
           <NavLink to="/resources"               current={pathname}>Resources</NavLink>
           <NavLink to="/privacy-and-compliance"  current={pathname}>Privacy</NavLink>
         </div>
