@@ -33,6 +33,10 @@ const {
   getRuntimeSnapshot,
   recordConversationSignal,
 } = require('../services/assistantRuntime');
+const {
+  createAssistantAction,
+  emitAssistantAction,
+} = require('../lib/assistantActions');
 
 /* ── Embedded data for agent tools ─────────────────────────────────────── */
 const AGENT_RESOURCES = [
@@ -2087,6 +2091,22 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       const patient = await resolvePatient(args.client_id);
       if (!patient) return { error: 'Client not found' };
       const data = await getClientAssessments(db, therapistId, patient.id, args.limit || 5);
+      if (data) {
+        const latest = data.assessments?.[data.assessments.length - 1];
+        emitAssistantAction(send, createAssistantAction('risk_review', {
+          title: `Review ${data.clientName}'s scores`,
+          summary: latest
+            ? `${latest.type || 'Assessment'} ${latest.score ?? 'n/a'}${latest.severity ? ` (${latest.severity})` : ''}`
+            : 'No recent assessment scores available.',
+          status: data.assessments?.length ? 'ready' : 'empty',
+          payload: {
+            patientId: patient.id,
+            clientId: data.clientId,
+            clientName: data.clientName,
+            assessments: data.assessments || [],
+          },
+        }));
+      }
       return data || { error: 'No assessment data found' };
     }
 
@@ -2142,6 +2162,22 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
           notes: args.notes || null,
         },
       });
+      emitAssistantAction(send, createAssistantAction('schedule_picker', {
+        title: 'Schedule appointment',
+        summary: preview,
+        payload: {
+          actionId: action.lastInsertRowid,
+          patientId: patient.id,
+          clientId: patient.client_id,
+          clientName: patient.display_name || patient.client_id,
+          appointmentType: args.appointment_type || inferAppointmentType(patient, ''),
+          scheduledStart: args.scheduled_start || null,
+          durationMinutes: args.duration_minutes || 50,
+          location: args.location || null,
+          notes: args.notes || null,
+        },
+        meta: { actionId: action.lastInsertRowid },
+      }));
 
       return { __requiresApproval: true };
     }
@@ -2257,6 +2293,20 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
           phone: p.phone,
         })),
       });
+      emitAssistantAction(send, createAssistantAction('assessment_batch_preview', {
+        title: `Batch ${args.assessment_type || 'PHQ-9'}`,
+        summary: `${withPhone.length} eligible clients matched ${args.filter || 'all clients'}.`,
+        payload: {
+          assessmentType: args.assessment_type || 'PHQ-9',
+          filter: args.filter || 'all',
+          spreadOption: args.spread_over_hours ? 'spread' : 'now',
+          patients: withPhone.map(p => ({
+            id: p.id,
+            name: p.display_name || p.client_id,
+            clientId: p.client_id,
+          })),
+        },
+      }));
 
       return { __requiresPicker: true };
     }
@@ -2322,6 +2372,17 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
         clientType: args.client_type || 'individual',
         sessionModality: args.session_modality || null,
       });
+      emitAssistantAction(send, createAssistantAction('show_client', {
+        title: 'Client profile created',
+        summary: `${displayName} is ready for scheduling, assessments, and intake documentation.`,
+        payload: {
+          patientId: created?.id,
+          clientId,
+          displayName,
+          clientType: args.client_type || 'individual',
+          sessionModality: args.session_modality || null,
+        },
+      }));
 
       return {
         status: 'created',
@@ -2438,14 +2499,24 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
          ORDER BY a.scheduled_start ASC LIMIT ?`,
         therapistId, daysAhead, limit
       );
-      return { count: rows.length, days_ahead: daysAhead, appointments: rows.map(r => ({
+      const appointments = rows.map(r => ({
         client: r.client_id || r.display_name,
         type: r.appointment_type,
         start: r.scheduled_start,
         duration: r.duration_minutes,
         location: r.location || 'Not specified',
         status: r.status,
-      }))};
+      }));
+      emitAssistantAction(send, createAssistantAction('prepare_session', {
+        title: rows.length ? 'Upcoming sessions' : 'No upcoming sessions',
+        summary: rows.length ? `${rows.length} appointment${rows.length === 1 ? '' : 's'} in the next ${daysAhead} days.` : 'Your schedule is clear for that window.',
+        status: rows.length ? 'ready' : 'empty',
+        payload: {
+          appointments,
+          focusAreas: appointments.slice(0, 3).map(a => `${a.client} · ${a.type || 'session'} · ${a.start ? new Date(a.start).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : 'unscheduled'}`),
+        },
+      }));
+      return { count: rows.length, days_ahead: daysAhead, appointments };
     }
 
     case 'get_app_help': {
@@ -2485,10 +2556,31 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
           if (!briefs.length) return { message: `No pre-session brief found for ${patient.client_id}. Briefs are auto-generated 30 minutes before scheduled appointments.` };
           const brief = briefs[0];
           if (!brief.viewed_at) await db.run("UPDATE session_briefs SET viewed_at = datetime('now') WHERE id = ?", brief.id);
-          return { brief: JSON.parse(brief.brief_json), generated_at: brief.created_at };
+          const parsed = JSON.parse(brief.brief_json);
+          emitAssistantAction(send, createAssistantAction('prepare_session', {
+            title: `Prepare for ${patient.display_name || patient.client_id}`,
+            summary: 'Pre-session brief is ready.',
+            payload: {
+              patientId: patient.id,
+              clientId: patient.client_id,
+              clientName: patient.display_name || patient.client_id,
+              focusAreas: [
+                ...(parsed.keyThemes || parsed.themes || []).slice(0, 2),
+                ...(parsed.suggestedFocus || parsed.focusAreas || []).slice(0, 2),
+              ].filter(Boolean),
+            },
+          }));
+          return { brief: parsed, generated_at: brief.created_at };
         }
         const upcoming = await getUpcomingBriefs(therapistId);
         if (!upcoming.length) return { message: 'No upcoming briefs for today. Briefs are auto-generated 30 minutes before scheduled appointments.' };
+        emitAssistantAction(send, createAssistantAction('prepare_session', {
+          title: 'Today\'s pre-session briefs',
+          summary: `${upcoming.length} brief${upcoming.length === 1 ? '' : 's'} ready.`,
+          payload: {
+            focusAreas: upcoming.slice(0, 4).map(b => b.brief?.clientName || b.brief?.client_id || 'Upcoming session'),
+          },
+        }));
         return { briefs: upcoming.map(b => ({ ...b.brief, generated_at: b.created_at })) };
       } catch (err) {
         return { error: `Brief system: ${err.message}` };
@@ -2856,6 +2948,18 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
         therapistId, args.task_type || 'reminder', args.description,
         args.description, scheduledFor
       );
+      emitAssistantAction(send, createAssistantAction('create_follow_up_task', {
+        title: 'Follow-up scheduled',
+        summary: `Scheduled for ${new Date(scheduledFor).toLocaleString()}.`,
+        status: 'completed',
+        payload: {
+          taskId,
+          description: args.description,
+          scheduledFor,
+          taskType: args.task_type || 'reminder',
+          clientId: args.client_id || null,
+        },
+      }));
 
       return {
         task_id: taskId,

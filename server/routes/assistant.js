@@ -167,4 +167,58 @@ router.get('/audit', async (req, res) => {
   }
 });
 
+router.post('/actions/follow-up-task', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const description = String(req.body?.description || '').trim();
+    const scheduledFor = String(req.body?.scheduledFor || req.body?.scheduled_for || '').trim();
+    const taskType = String(req.body?.taskType || req.body?.task_type || 'follow_up').trim() || 'follow_up';
+    const clientId = req.body?.clientId || req.body?.client_id || null;
+
+    if (!description) return res.status(400).json({ error: 'description is required' });
+    if (description.length > 1000) return res.status(400).json({ error: 'description too long' });
+    if (!scheduledFor || Number.isNaN(new Date(scheduledFor).getTime())) {
+      return res.status(400).json({ error: 'valid scheduledFor is required' });
+    }
+
+    let patient = null;
+    if (clientId) {
+      patient = await db.get(
+        'SELECT id, client_id FROM patients WHERE therapist_id = ? AND client_id = ?',
+        therapistId(req),
+        String(clientId).replace(/[\[\]]/g, '').trim(),
+      );
+      if (!patient) return res.status(404).json({ error: 'Client not found' });
+    }
+
+    const result = await db.insert(
+      'INSERT INTO agent_scheduled_tasks (therapist_id, task_type, description, prompt, scheduled_for) VALUES (?, ?, ?, ?, ?)',
+      therapistId(req),
+      taskType,
+      description,
+      patient ? `${description}\n\nClient: ${patient.client_id}` : description,
+      new Date(scheduledFor).toISOString(),
+    );
+    await auditAction(db, therapistId(req), {
+      tool_name: 'assistant_action.follow_up_task',
+      action_type: 'workflow_action',
+      status: 'completed',
+      request: { task_type: taskType, client_id: patient?.client_id || null },
+      result: { task_id: result.lastInsertRowid },
+    });
+    await persistIfNeeded();
+    res.status(201).json({
+      task: {
+        id: result.lastInsertRowid,
+        description,
+        scheduled_for: new Date(scheduledFor).toISOString(),
+        task_type: taskType,
+        client_id: patient?.client_id || null,
+      },
+    });
+  } catch (err) {
+    sendError(res, err);
+  }
+});
+
 module.exports = router;

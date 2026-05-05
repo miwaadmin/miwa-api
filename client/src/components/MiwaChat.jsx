@@ -7,6 +7,8 @@ import { useLocation } from 'react-router-dom'
 import { apiFetch, apiUpload } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { renderClinical } from '../lib/renderClinical'
+import AssistantActionCard from './AssistantActionCards'
+import { normalizeAssistantAction } from '../lib/assistantActions'
 
 /**
  * Heuristic: should this message be run in the background instead of
@@ -547,6 +549,14 @@ When you're done, I'll save this as your profile and refer back to it in every c
               }
               setPendingAction(data)
             }
+            if (data.type === 'assistant_action' && data.action) {
+              const action = normalizeAssistantAction(data.action)
+              setMessages(m => [...m, {
+                id: action.id || Date.now() + Math.random(),
+                role: 'assistant_action',
+                action,
+              }])
+            }
             if (data.type === 'report_ready') {
               setReportLink(data)
             }
@@ -565,15 +575,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
               })
             }
             if (data.type === 'client_created') {
-              setMessages(m => [...m, {
-                id: Date.now() + 9,
-                role: 'system_action',
-                actionType: 'client_created',
-                clientId: data.clientId,
-                displayName: data.displayName,
-                clientType: data.clientType,
-                sessionModality: data.sessionModality,
-              }])
+              // Superseded by the structured show_client assistant_action card.
             }
             if (data.type === 'batch_assessment_picker' && data.patients?.length) {
               setPendingBatchPicker(data)
@@ -698,6 +700,32 @@ When you're done, I'll save this as your profile and refer back to it in every c
       setError(err.message)
     } finally {
       setPendingAction(null)
+    }
+  }
+
+  const confirmAssistantAction = async (action) => {
+    const actionId = action?.payload?.actionId || action?.meta?.actionId
+    if (!actionId) return
+    try {
+      const res = await apiFetch('/agent/confirm', {
+        method: 'POST',
+        body: JSON.stringify({ actionId, approved: true }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not confirm action')
+      setPendingAction(null)
+      setMessages(m => [...m, {
+        id: Date.now(),
+        role: 'assistant',
+        content: data.appointment
+          ? `Scheduled, ${data.appointment.display_name || data.appointment.client_id} · ${data.appointment.scheduled_start ? new Date(data.appointment.scheduled_start).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'time TBD'} · ${data.appointment.appointment_type}`
+          : 'Done.',
+      }])
+      if (data.appointment) {
+        window.dispatchEvent(new CustomEvent('miwa:appointment_created', { detail: data.appointment }))
+      }
+    } catch (err) {
+      setError(err.message)
     }
   }
 
@@ -1088,6 +1116,16 @@ When you're done, I'll save this as your profile and refer back to it in every c
               <>
                 {messages.map(msg => {
                   const isUser = msg.role === 'user'
+
+                  if (msg.role === 'assistant_action' && msg.action) {
+                    return (
+                      <AssistantActionCard
+                        key={msg.id}
+                        action={msg.action}
+                        onConfirmAction={confirmAssistantAction}
+                      />
+                    )
+                  }
 
                   if (msg.role === 'system_action' && msg.actionType === 'client_created') {
                     return (
