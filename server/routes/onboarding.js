@@ -13,6 +13,82 @@ const { MODELS, callAI } = require('../lib/aiExecutor');
 
 router.use(requireAuth);
 
+const ONBOARDING_STAGES = ['identity', 'clinical_style', 'workflow', 'assistant_style'];
+
+async function getOnboardingAnswers(db, therapistId) {
+  const rows = await db.all(
+    `SELECT category, content, updated_at, created_at
+       FROM assistant_memories
+      WHERE therapist_id = ?
+        AND memory_type = 'onboarding_progress'
+        AND archived_at IS NULL
+      ORDER BY created_at ASC`,
+    therapistId,
+  ).catch(() => []);
+  return rows
+    .map(row => ({
+      stage: String(row.category || '').replace(/^stage_/, ''),
+      response: row.content || '',
+      updated_at: row.updated_at || row.created_at || null,
+    }))
+    .filter(answer => ONBOARDING_STAGES.includes(answer.stage));
+}
+
+router.get('/progress', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    res.json({ answers: await getOnboardingAnswers(db, req.therapist.id) });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/progress', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const stage = String(req.body?.stage || '').trim();
+    const response = String(req.body?.response || '').trim();
+    if (!ONBOARDING_STAGES.includes(stage)) return res.status(400).json({ error: 'valid stage is required' });
+    if (response.length < 2) return res.status(400).json({ error: 'response is required' });
+    if (response.length > 4000) return res.status(400).json({ error: 'response too long' });
+
+    const category = `stage_${stage}`;
+    const existing = await db.get(
+      `SELECT id FROM assistant_memories
+        WHERE therapist_id = ?
+          AND memory_type = 'onboarding_progress'
+          AND category = ?
+          AND archived_at IS NULL`,
+      req.therapist.id,
+      category,
+    );
+
+    if (existing) {
+      await db.run(
+        `UPDATE assistant_memories
+            SET content = ?, last_observed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ?`,
+        response,
+        existing.id,
+      );
+    } else {
+      await db.insert(
+        `INSERT INTO assistant_memories
+          (therapist_id, memory_type, category, content, source, scope_type, surface, confidence, pinned)
+         VALUES (?, 'onboarding_progress', ?, ?, 'explicit', 'clinician', 'miwa_chat', 1, 1)`,
+        req.therapist.id,
+        category,
+        response,
+      );
+    }
+
+    await persistIfNeeded();
+    res.json({ ok: true, answers: await getOnboardingAnswers(db, req.therapist.id) });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // POST /api/onboarding/soul
 // Body: { response: "the therapist's free-form answer to the intro questions" }
 router.post('/soul', async (req, res) => {

@@ -151,6 +151,58 @@ function stripForSpeech(text) {
 // Shared clinical markdown renderer (app-wide styling)
 const renderMarkdown = renderClinical
 
+const ONBOARDING_STEPS = [
+  {
+    id: 'identity',
+    title: 'First, how should I know you?',
+    prompt: `Hi! I'm Miwa, your clinical copilot.
+
+I'll keep this lightweight. A couple questions at a time, and you can skip anything.
+
+First:
+- What should I call you?
+- What kind of license or training role do you have?
+- Who do you usually work with?`,
+  },
+  {
+    id: 'clinical_style',
+    title: 'How do you think clinically?',
+    prompt: `That helps. Next:
+
+- What's your main therapeutic orientation or style?
+- What kinds of cases do you want the most support thinking through?
+- Anything you want me to watch for across your caseload?`,
+  },
+  {
+    id: 'workflow',
+    title: 'How should I help day to day?',
+    prompt: `Got it. Now the workflow side:
+
+- How do you like notes written: SOAP, DAP, BIRP, narrative, something else?
+- What do you most want me to help with: prep, notes, assessments, risk review, admin, outreach?
+- Any documentation habits or pet peeves I should learn?`,
+  },
+  {
+    id: 'assistant_style',
+    title: 'Last bit: how should I show up?',
+    prompt: `Last bit.
+
+- Should I be concise, balanced, or detailed?
+- What tone works best for you: warm, clinical, direct, reflective?
+- Any hard rules? Things I should never do or say?`,
+    final: true,
+  },
+]
+
+function formatOnboardingAnswers(answers) {
+  return answers
+    .map((answer, index) => {
+      const step = ONBOARDING_STEPS.find(s => s.id === answer.stage) || ONBOARDING_STEPS[index]
+      return `Step ${index + 1}: ${step?.title || answer.stage}\n${answer.response || ''}`
+    })
+    .join('\n\n---\n\n')
+}
+
 function TypingDots() {
   return (
     <div className="flex gap-1 items-center py-1">
@@ -193,6 +245,8 @@ export default function MiwaChat() {
   const [pendingBatchPicker, setPendingBatchPicker] = useState(null) // { assessmentType, patients, spreadOption }
   const [batchSelected, setBatchSelected] = useState([]) // selected patient IDs
   const [assistantState, setAssistantState] = useState(null)
+  const [onboardingStage, setOnboardingStage] = useState(null)
+  const [onboardingAnswers, setOnboardingAnswers] = useState([])
 
   const [voiceEnabled, setVoiceEnabled] = useState(false)  // auto-speak mode
   const [listening, setListening] = useState(false)         // recording mic
@@ -338,6 +392,26 @@ export default function MiwaChat() {
       if (sessionStorage.getItem('miwa_onboarding_shown')) return
       sessionStorage.setItem('miwa_onboarding_shown', '1')
 
+      apiFetch('/onboarding/progress').then(r => r.json()).then(progress => {
+        const answers = Array.isArray(progress?.answers) ? progress.answers : []
+        const nextIndex = Math.min(answers.length, ONBOARDING_STEPS.length - 1)
+        const step = ONBOARDING_STEPS[nextIndex]
+        setOnboardingAnswers(answers)
+        setOnboardingStage(step.id)
+        setMessages([
+          { id: `onboarding-${step.id}`, role: 'assistant', content: step.prompt, onboarding: true, onboardingStage: step.id },
+        ])
+        setIsOpen(true)
+      }).catch(() => {
+        const step = ONBOARDING_STEPS[0]
+        setOnboardingStage(step.id)
+        setMessages([
+          { id: `onboarding-${step.id}`, role: 'assistant', content: step.prompt, onboarding: true, onboardingStage: step.id },
+        ])
+        setIsOpen(true)
+      })
+      return
+
       const firstName = therapist?.first_name || therapist?.full_name?.split(' ')[0] || 'there'
       const intro = `Hi ${firstName}! I'm Miwa, your clinical copilot. 👋
 
@@ -480,9 +554,38 @@ When you're done, I'll save this as your profile and refer back to it in every c
     const lastIsOnboarding = messages.length > 0 && messages[messages.length - 1]?.onboarding
     if (lastIsOnboarding) {
       try {
+        const stageId = messages[messages.length - 1]?.onboardingStage || onboardingStage || ONBOARDING_STEPS[0].id
+        const currentIndex = Math.max(0, ONBOARDING_STEPS.findIndex(step => step.id === stageId))
+        const currentStep = ONBOARDING_STEPS[currentIndex] || ONBOARDING_STEPS[0]
+        const saved = await apiFetch('/onboarding/progress', {
+          method: 'POST',
+          body: JSON.stringify({ stage: currentStep.id, response: text }),
+        })
+        const progress = await saved.json()
+        if (!saved.ok) throw new Error(progress.error || 'Could not save onboarding answer')
+        const nextAnswers = Array.isArray(progress.answers)
+          ? progress.answers
+          : [...onboardingAnswers, { stage: currentStep.id, response: text }]
+        setOnboardingAnswers(nextAnswers)
+
+        const nextStep = ONBOARDING_STEPS[currentIndex + 1]
+        if (nextStep) {
+          setOnboardingStage(nextStep.id)
+          setMessages(m => [...m, {
+            id: `onboarding-${nextStep.id}`,
+            role: 'assistant',
+            content: nextStep.prompt,
+            onboarding: true,
+            onboardingStage: nextStep.id,
+          }])
+          setStreaming(false)
+          setStreamingText('')
+          return
+        }
+
         const res = await apiFetch('/onboarding/soul', {
           method: 'POST',
-          body: JSON.stringify({ response: text }),
+          body: JSON.stringify({ response: formatOnboardingAnswers(nextAnswers) }),
         })
         const data = await res.json()
         if (!res.ok) throw new Error(data.error || 'Onboarding failed')
@@ -491,6 +594,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
           role: 'assistant',
           content: data.message || 'Saved. Ready when you are.',
         }])
+        setOnboardingStage(null)
       } catch (err) {
         setError(err.message || 'Could not save onboarding profile')
         setMessages(m => [...m, {
@@ -640,7 +744,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
       setStreaming(false)
       setStreamingText('')
     }
-  }, [streaming, patientId, therapist?.assistant_verbosity, isOpen])
+  }, [streaming, patientId, therapist?.assistant_verbosity, isOpen, onboardingStage, onboardingAnswers])
 
   // External prompt bridge for guided actions from pages like Schedule
   useEffect(() => {
