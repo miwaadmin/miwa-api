@@ -1,362 +1,224 @@
-import { Link } from 'react-router-dom'
-import { MiwaLogo } from '../components/Sidebar'
 import PublicPageShell from '../components/PublicPageShell'
+import PublicNav from '../components/PublicNav'
+import PublicFooter from '../components/PublicFooter'
 
 const PURPLE = '#6047EE'
 const TEAL = '#2dd4bf'
-const GRAD = 'linear-gradient(135deg, #6047EE 0%, #2dd4bf 100%)'
 
-/* ── Sticky Nav ─────────────────────────────────────────────────────────── */
-function Nav() {
-  return (
-    <nav
-      className="fixed top-0 inset-x-0 z-50 flex items-center justify-between px-6 py-3"
-      style={{ background: 'rgba(9,9,11,0.92)', backdropFilter: 'blur(16px)', borderBottom: '1px solid rgba(255,255,255,0.07)' }}
-    >
-      <Link to="/" className="flex items-center gap-2.5">
-        <MiwaLogo size={32} />
-        <span className="text-base font-bold text-white tracking-tight">Miwa</span>
-      </Link>
-      <div className="hidden md:flex items-center gap-6 text-base text-white/55">
-        <Link to="/features" className="hover:text-white transition-colors">Features</Link>
-        <Link to="/for-trainees" className="hover:text-white transition-colors">Trainees</Link>
-        <Link to="/for-practices" className="hover:text-white transition-colors">Practices</Link>
-        <Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link>
-      </div>
-      <div className="flex items-center gap-3">
-        <Link to="/login" className="text-base text-white/60 hover:text-white transition-colors">Sign In</Link>
-        <Link to="/register" className="text-base font-semibold text-white px-4 py-2 rounded-xl transition-all hover:opacity-90"
-          style={{ background: GRAD }}>
-          Start Free
-        </Link>
-      </div>
-    </nav>
-  )
-}
-
-/* ── Section Component ──────────────────────────────────────────────────── */
 function Section({ title, children, id }) {
   return (
-    <section id={id} className="mb-10">
-      <h2 className="text-2xl font-bold text-zinc-900 mb-4" style={{ letterSpacing: '-0.02em' }}>{title}</h2>
-      <div className="space-y-4 text-zinc-700 leading-relaxed">{children}</div>
+    <section id={id} className="mb-11">
+      <h2 className="mb-4 text-2xl font-bold text-zinc-900">{title}</h2>
+      <div className="space-y-4 text-base leading-relaxed text-zinc-700">{children}</div>
     </section>
   )
 }
 
 function SubHeading({ children }) {
-  return <h3 className="text-lg font-semibold text-zinc-900 mt-6 mb-2">{children}</h3>
+  return <h3 className="mb-2 mt-6 text-lg font-semibold text-zinc-900">{children}</h3>
 }
 
 function Bullet({ children }) {
   return (
     <li className="flex gap-3 text-zinc-700">
-      <span className="mt-2 w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: TEAL }} />
+      <span className="mt-2 h-1.5 w-1.5 flex-shrink-0 rounded-full" style={{ background: TEAL }} />
       <span className="leading-relaxed">{children}</span>
     </li>
   )
 }
 
-/* ── Main Page ──────────────────────────────────────────────────────────── */
+function EmailLink({ children = 'privacy@miwa.care' }) {
+  return (
+    <a href="mailto:privacy@miwa.care" className="font-semibold" style={{ color: PURPLE }}>
+      {children}
+    </a>
+  )
+}
+
 export default function Privacy() {
   return (
     <PublicPageShell>
-      <Nav />
+      <PublicNav />
 
-      {/* Hero */}
-      <header className="pt-32 pb-12 px-6" style={{ background: '#fafafa', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
-        <div className="max-w-3xl mx-auto">
-          <p className="text-base font-semibold mb-3" style={{ color: PURPLE, letterSpacing: '0.1em' }}>PRIVACY POLICY</p>
-          <h1 className="text-4xl md:text-5xl font-black text-zinc-900 mb-4" style={{ letterSpacing: '-0.03em' }}>
+      <header className="px-6 pb-12 pt-32" style={{ background: '#fafafa', borderBottom: '1px solid rgba(0,0,0,0.06)' }}>
+        <div className="mx-auto max-w-3xl">
+          <p className="mb-3 text-sm font-bold uppercase tracking-widest" style={{ color: PURPLE }}>Privacy policy</p>
+          <h1 className="mb-4 text-4xl font-black tracking-tight text-zinc-900 md:text-5xl">
             How Miwa handles your data
           </h1>
-          <p className="text-lg text-zinc-600 leading-relaxed">
-            Plain-English notice of what we collect, why, how it's protected, and your rights. Miwa is built for
-            licensed mental health therapists, we treat patient information as Protected Health Information (PHI)
-            under HIPAA and handle it with the care that standard requires.
+          <p className="text-lg leading-relaxed text-zinc-600">
+            Miwa is built for therapists and the sensitive information that comes with clinical work. This policy explains what we collect, how we use it, who we share it with, and how to contact us.
           </p>
-          <p className="text-base text-zinc-500 mt-6">
-            <span className="font-semibold">Effective date:</span> April 16, 2026 &nbsp;·&nbsp;
-            <span className="font-semibold">Last updated:</span> April 30, 2026
+          <p className="mt-6 text-base text-zinc-500">
+            <span className="font-semibold">Effective date:</span> May 5, 2026
+            <span className="px-2">|</span>
+            <span className="font-semibold">Last updated:</span> May 5, 2026
           </p>
         </div>
       </header>
 
-      {/* Content */}
       <main className="px-6 py-16">
-        <div className="max-w-3xl mx-auto">
-
+        <div className="mx-auto max-w-3xl">
           <Section title="1. Who we are" id="who">
             <p>
-              Miwa ("we," "us," "our") is operated by Valdrex B.A. Philippe, based in Los Angeles, California,
-              United States. We publish the Miwa clinical documentation and outcomes-tracking platform at
-              <strong> miwa.care </strong> and through the Miwa Care mobile application available on Google Play.
+              Miwa is operated by Miwa Care LLC. We provide clinical documentation, assessment, scheduling, and workflow tools for mental health professionals.
             </p>
             <p>
-              For any privacy questions, exercise of rights, or HIPAA-related requests, contact our Privacy
-              Officer at <a href="mailto:privacy@miwa.care" className="font-semibold" style={{ color: PURPLE }}>privacy@miwa.care</a>.
+              Privacy questions can be sent to <EmailLink />.
             </p>
           </Section>
 
-          <Section title="2. Scope of this policy" id="scope">
+          <Section title="2. Who this policy covers" id="scope">
             <p>
-              This policy applies to two groups, and the rules differ by role:
+              This policy covers therapists who create a Miwa account and clients whose information is entered into Miwa by their therapist.
             </p>
-            <SubHeading>Therapists (our direct customers)</SubHeading>
             <p>
-              Licensed clinicians who create an account and use Miwa in their practice. We are the <em>data controller</em> for
-              therapist account data.
-            </p>
-            <SubHeading>Patients and clients of those therapists</SubHeading>
-            <p>
-              Individuals who receive care from a Miwa-using therapist. We act as a <em>HIPAA Business Associate</em> to the
-              therapist, the therapist remains the Covered Entity and primary owner of patient Protected Health Information (PHI).
-              We process PHI only under the therapist's direction and, for covered workflows, under the applicable Business
-              Associate Agreement (BAA) and cloud service terms.
+              Therapists are Miwa's direct customers. When a therapist uses Miwa for client care, that therapist or their practice remains responsible for the clinical relationship and the medical record. For covered clinical workflows, Miwa acts as a HIPAA Business Associate under the applicable Business Associate Agreement.
             </p>
           </Section>
 
           <Section title="3. Information we collect" id="collect">
-            <SubHeading>From therapists directly</SubHeading>
+            <SubHeading>Therapist account information</SubHeading>
             <ul className="space-y-2">
-              <Bullet><strong>Account data:</strong> name, email address, password (hashed), professional license information, practice address, phone number, time zone.</Bullet>
-              <Bullet><strong>Billing data:</strong> Stripe customer ID and subscription status. Payment card numbers are handled by Stripe and never touch our servers.</Bullet>
-              <Bullet><strong>Device and usage data:</strong> IP address, browser type, device model, OS version, timestamps of page views, feature usage, and error logs. Used to operate and secure the service.</Bullet>
-              <Bullet><strong>Voice recordings:</strong> if the therapist uses session recording features, audio is processed for transcription and stored only as needed to provide or troubleshoot that workflow unless the therapist explicitly retains it.</Bullet>
+              <Bullet>Name, email address, login credentials, practice information, license details, phone number, time zone, and account settings.</Bullet>
+              <Bullet>Billing status and subscription information. Payment card numbers are handled by our payment processor and are not stored by Miwa.</Bullet>
+              <Bullet>Device, browser, usage, and error information needed to keep the service secure and reliable.</Bullet>
             </ul>
 
-            <SubHeading>Patient information (entered or generated by therapists)</SubHeading>
-            <p>The following constitutes PHI and is handled under HIPAA safeguards:</p>
+            <SubHeading>Client information entered by therapists</SubHeading>
             <ul className="space-y-2">
-              <Bullet>Patient identifiers (name, date of birth, contact information) as entered by the therapist.</Bullet>
-              <Bullet>Session notes, treatment plans, and diagnoses.</Bullet>
-              <Bullet>Assessment scores (PHQ-9, GAD-7, PCL-5, and similar validated instruments).</Bullet>
-              <Bullet>Appointment history and session metadata.</Bullet>
-              <Bullet>Patient-completed assessments submitted via secure links issued by the therapist.</Bullet>
+              <Bullet>Client names, contact details, dates of birth, appointment history, and other identifiers entered by the therapist.</Bullet>
+              <Bullet>Session notes, treatment plans, diagnoses, assessments, scores, and related clinical documentation.</Bullet>
+              <Bullet>Client responses submitted through secure assessment links created by the therapist.</Bullet>
             </ul>
-            <p className="mt-4">
-              We do <strong>not</strong> sell, rent, or monetize patient information under any circumstance.
-            </p>
 
-            <SubHeading>From the mobile app</SubHeading>
+            <SubHeading>Audio and mobile app data</SubHeading>
             <ul className="space-y-2">
-              <Bullet>Microphone access (only when the therapist activates recording for a session).</Bullet>
-              <Bullet>Push notification tokens, if enabled.</Bullet>
-              <Bullet>Device identifiers for session management and security.</Bullet>
+              <Bullet>If a therapist uses recording or transcription features, audio may be processed to create clinical documentation.</Bullet>
+              <Bullet>The mobile app may use microphone access only when the therapist turns on a recording feature.</Bullet>
+              <Bullet>The app does not access contacts, photos, SMS history, or location for clinical documentation.</Bullet>
             </ul>
-            <p className="mt-4">
-              The app does <strong>not</strong> access contacts, SMS history, photos, location, or any data unrelated to clinical workflow.
-            </p>
           </Section>
 
           <Section title="4. How we use information" id="use">
             <ul className="space-y-2">
-              <Bullet>Provide, maintain, and improve the Miwa platform and its clinical features.</Bullet>
-              <Bullet>Generate AI-assisted clinical documentation, treatment-plan suggestions, and progress analytics, always under the therapist's direction and review.</Bullet>
-              <Bullet>Deliver secure assessment and portal links when requested by the therapist. SMS delivery is disabled until a messaging BAA, consent workflow, and launch controls are in place.</Bullet>
-              <Bullet>Process billing and subscription management via Stripe.</Bullet>
-              <Bullet>Detect and prevent security incidents, fraud, and abuse.</Bullet>
-              <Bullet>Comply with legal obligations and maintain security, operational, and administrative logs appropriate to the service.</Bullet>
+              <Bullet>To provide Miwa's clinical documentation, assessment, scheduling, and workflow features.</Bullet>
+              <Bullet>To generate AI-assisted drafts and summaries for therapist review.</Bullet>
+              <Bullet>To manage accounts, billing, support, and product communication.</Bullet>
+              <Bullet>To protect Miwa from abuse, security incidents, and unauthorized access.</Bullet>
+              <Bullet>To meet legal, compliance, accounting, and operational obligations.</Bullet>
             </ul>
-            <p className="mt-4">
-              We do <strong>not</strong> use PHI to train machine-learning models. We do not use any patient or therapist data
-              for advertising, and Miwa does not contain advertisements.
+            <p>
+              Miwa does not sell client data, therapist data, notes, transcripts, assessment results, or clinical datasets. Miwa also does not use protected health information to train AI models.
             </p>
           </Section>
 
-          <Section title="5. How we share information" id="share">
+          <Section title="5. AI-assisted features" id="ai">
             <p>
-              We disclose information only in the following limited circumstances, and, when PHI is involved, only to
-              vendors (subprocessors) operating under a signed Business Associate Agreement (BAA):
+              Miwa uses AI to help therapists draft, organize, summarize, and review clinical material. AI output is a draft for professional review. It does not replace the therapist's judgment, documentation duties, supervision requirements, or client consent obligations.
             </p>
+            <p>
+              Clinical data is handled through approved service paths for covered workflows. Miwa is designed to send only the information needed for the requested task.
+            </p>
+          </Section>
 
-            <SubHeading>Subprocessors</SubHeading>
-            <div className="overflow-x-auto mt-3 rounded-xl border border-zinc-200">
-              <table className="w-full text-base">
-                <thead style={{ background: '#f8fafc' }}>
-                  <tr>
-                    <th className="text-left px-4 py-3 font-semibold text-zinc-900">Vendor</th>
-                    <th className="text-left px-4 py-3 font-semibold text-zinc-900">Purpose</th>
-                    <th className="text-left px-4 py-3 font-semibold text-zinc-900">PHI access</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100">
-                  <tr>
-                    <td className="px-4 py-3 font-medium">Microsoft Azure</td>
-                    <td className="px-4 py-3 text-zinc-600">Application hosting, Azure PostgreSQL, Azure Blob Storage, and Azure OpenAI</td>
-                    <td className="px-4 py-3 text-zinc-600">Yes - under applicable BAA/cloud terms</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 font-medium">Google Workspace</td>
-                    <td className="px-4 py-3 text-zinc-600">Business email, document storage, calendar</td>
-                    <td className="px-4 py-3 text-zinc-600">Yes, under BAA</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 font-medium">SMS provider</td>
-                    <td className="px-4 py-3 text-zinc-600">Planned text-message delivery for reminders and assessment links</td>
-                    <td className="px-4 py-3 text-zinc-600">Not active for PHI until BAA and consent controls are complete</td>
-                  </tr>
-                  <tr>
-                    <td className="px-4 py-3 font-medium">Stripe</td>
-                    <td className="px-4 py-3 text-zinc-600">Payment processing</td>
-                    <td className="px-4 py-3 text-zinc-600">No, billing only, never PHI</td>
-                  </tr>
-                </tbody>
-              </table>
+          <Section title="6. How we share information" id="share">
+            <p>
+              We share information only when needed to run Miwa, support users, protect the service, comply with the law, or complete a business transaction under appropriate protections.
+            </p>
+            <SubHeading>Service providers</SubHeading>
+            <p>
+              Miwa works with service providers for hosting, storage, AI processing, email, payments, security, analytics, support, and other operations. When a provider may handle protected health information for a covered workflow, we require appropriate contractual protections before that use.
+            </p>
+            <SubHeading>Legal and safety reasons</SubHeading>
+            <p>
+              We may disclose information when required by valid legal process, to protect against fraud or abuse, or to help prevent serious and imminent harm, consistent with applicable law.
+            </p>
+            <SubHeading>Business transfers</SubHeading>
+            <p>
+              If Miwa is involved in a merger, acquisition, financing, or sale of assets, information may transfer as part of that transaction. Protected health information would remain subject to required safeguards and notice obligations.
+            </p>
+          </Section>
+
+          <Section title="7. HIPAA and clinical records" id="hipaa">
+            <p>
+              When Miwa processes protected health information for a covered therapist or practice, Miwa acts as a Business Associate. We use that information to provide the service requested by the therapist and to meet obligations in the applicable Business Associate Agreement.
+            </p>
+            <p>
+              Clients who want to access, amend, or receive an accounting of disclosures for their clinical record should contact their therapist directly. The therapist or practice is the Covered Entity and has the primary relationship with the client.
+            </p>
+          </Section>
+
+          <Section title="8. Security" id="security">
+            <p>
+              Miwa uses administrative, technical, and organizational safeguards intended to protect sensitive clinical information. These include encryption, access controls, secure authentication, operational logging, restricted production access, and secure patient links.
+            </p>
+            <p>
+              No internet service can promise perfect security. If you believe you found a vulnerability, email <a href="mailto:security@miwa.care" className="font-semibold" style={{ color: PURPLE }}>security@miwa.care</a>.
+            </p>
+          </Section>
+
+          <Section title="9. Retention" id="retention">
+            <p>
+              Miwa keeps information only as long as needed for the service, legal obligations, account administration, security, backup, or clinical recordkeeping.
+            </p>
+            <ul className="space-y-2">
+              <Bullet>Therapist account data is kept while the account is active and for a limited period after deletion for recovery, billing, legal, and security needs.</Bullet>
+              <Bullet>Clinical records are retained according to the therapist's recordkeeping obligations and the settings or instructions available in Miwa.</Bullet>
+              <Bullet>Operational logs and backups are retained under Miwa's security and retention practices.</Bullet>
+              <Bullet>Audio is retained only as needed for transcription, troubleshooting, or therapist-requested storage.</Bullet>
+            </ul>
+          </Section>
+
+          <Section title="10. Your choices and rights" id="rights">
+            <SubHeading>Therapists</SubHeading>
+            <p>
+              Therapists can request access, correction, export, or deletion of account information by contacting <EmailLink />. Some information may need to be retained for legal, billing, security, or clinical recordkeeping reasons.
+            </p>
+            <SubHeading>Clients</SubHeading>
+            <p>
+              Clients should contact their therapist to exercise HIPAA rights connected to their clinical record. Miwa will assist the therapist as required.
+            </p>
+            <SubHeading>California residents</SubHeading>
+            <p>
+              California residents may have rights to know, access, correct, delete, or limit certain personal information. Some clinical information regulated by HIPAA may be exempt from California consumer privacy law. To make a request, email <EmailLink /> from the address connected to your account or care relationship.
+            </p>
+          </Section>
+
+          <Section title="11. Children" id="children">
+            <p>
+              Miwa is not directed to children under 13, and children do not create Miwa accounts. Therapists may document care involving minors when clinically appropriate and legally permitted.
+            </p>
+          </Section>
+
+          <Section title="12. International use" id="international">
+            <p>
+              Miwa is built for use by clinicians in the United States. If you use Miwa from outside the United States, your information may be processed in the United States.
+            </p>
+          </Section>
+
+          <Section title="13. Changes to this policy" id="changes">
+            <p>
+              We may update this policy when Miwa changes, when our legal obligations change, or when our privacy practices need to be clarified. If a change is material, we will provide notice by email or inside the product before the change takes effect.
+            </p>
+          </Section>
+
+          <Section title="14. Contact" id="contact">
+            <div className="mt-4 rounded-xl p-5" style={{ background: '#f8fafc', border: '1px solid rgba(0,0,0,0.06)' }}>
+              <p className="font-semibold text-zinc-900">Miwa Care LLC</p>
+              <p className="mt-1 text-zinc-700">Los Angeles, California, United States</p>
+              <p className="mt-1 text-zinc-700">Privacy: <EmailLink /></p>
+              <p className="text-zinc-700">Security: <a href="mailto:security@miwa.care" className="font-semibold" style={{ color: PURPLE }}>security@miwa.care</a></p>
             </div>
-
-            <SubHeading>Other disclosures</SubHeading>
-            <ul className="space-y-2">
-              <Bullet><strong>Legal requirements:</strong> We may disclose information if compelled by valid legal process (subpoena, court order), consistent with HIPAA.</Bullet>
-              <Bullet><strong>Safety emergencies:</strong> We may disclose information to prevent imminent and serious harm to a person, consistent with HIPAA § 164.512(j).</Bullet>
-              <Bullet><strong>Business transfers:</strong> If Miwa is acquired or merged, patient PHI transfers only under continued HIPAA-equivalent protections and with required notice.</Bullet>
-            </ul>
-
-            <p className="mt-4">
-              <strong>We never sell personal information.</strong> This has been our position since day one.
+            <p className="mt-6 text-base text-zinc-500">
+              If you believe your HIPAA rights have been violated, you may also file a complaint with the U.S. Department of Health and Human Services, Office for Civil Rights at{' '}
+              <a href="https://www.hhs.gov/hipaa/filing-a-complaint" className="font-semibold" style={{ color: PURPLE }} target="_blank" rel="noopener noreferrer">hhs.gov/hipaa/filing-a-complaint</a>.
             </p>
           </Section>
-
-          <Section title="6. HIPAA notice" id="hipaa">
-            <p>
-              When we process PHI on behalf of a Covered Entity (a therapist or their practice), Miwa operates as a
-              <strong> HIPAA Business Associate</strong>. Our obligations include:
-            </p>
-            <ul className="space-y-2">
-              <Bullet>Using PHI only to perform the services requested by the therapist.</Bullet>
-              <Bullet>Safeguarding PHI with appropriate administrative, physical, and technical controls.</Bullet>
-              <Bullet>Reporting any use or disclosure not permitted by the BAA, including security incidents, within the required timeframes.</Bullet>
-              <Bullet>Ensuring that any subcontractor with PHI access agrees to equivalent BAA restrictions.</Bullet>
-              <Bullet>Returning or destroying PHI upon termination of services, where feasible.</Bullet>
-            </ul>
-            <p className="mt-4">
-              A <strong>Business Associate Agreement</strong> is required before Miwa is used as a Business Associate for covered PHI workflows.
-              Patients seeking to exercise HIPAA rights (access, amendment, accounting of disclosures) should contact
-              their therapist directly, the therapist is the Covered Entity and holds the primary relationship.
-            </p>
-          </Section>
-
-          <Section title="7. Data security" id="security">
-            <p>Summary of our technical and administrative safeguards:</p>
-            <ul className="space-y-2">
-              <Bullet><strong>Encryption in transit:</strong> TLS 1.2+ for all network traffic.</Bullet>
-              <Bullet><strong>Encryption at rest:</strong> Azure-managed database and storage encryption for production data and files.</Bullet>
-              <Bullet><strong>Authentication:</strong> Password hashing with industry-standard algorithms and separate admin authentication controls.</Bullet>
-              <Bullet><strong>Access control:</strong> Least-privilege principle. Therapists see only their own patients; engineering access to production data is logged and restricted.</Bullet>
-              <Bullet><strong>Audit logging:</strong> Security, administrative, and operational events are logged according to Miwa's audit log policy as the product matures.</Bullet>
-              <Bullet><strong>Hosting:</strong> HIPAA-eligible cloud infrastructure under applicable Microsoft cloud terms and BAA coverage.</Bullet>
-              <Bullet><strong>Secure patient links:</strong> Patient-facing assessment and portal links use cryptographically random tokens with expiration.</Bullet>
-              <Bullet><strong>Backups:</strong> Encrypted, geographically isolated, tested for restore integrity.</Bullet>
-            </ul>
-            <p className="mt-4 text-base text-zinc-600">
-              No system is perfectly secure. If you believe you have found a security vulnerability, please disclose
-              responsibly to <a href="mailto:security@miwa.care" className="font-semibold" style={{ color: PURPLE }}>security@miwa.care</a>.
-            </p>
-          </Section>
-
-          <Section title="8. Data retention" id="retention">
-            <ul className="space-y-2">
-              <Bullet><strong>Therapist account data:</strong> Retained for the life of the account plus 30 days after deletion, to allow for recovery and billing reconciliation.</Bullet>
-              <Bullet><strong>PHI (session notes, assessments, patient records):</strong> Retained according to the therapist's clinical record-keeping obligations, typically 7 years after the last date of service, longer for minors. PHI is not deleted by Miwa without explicit therapist direction, to preserve the clinical record.</Bullet>
-              <Bullet><strong>Audit and operational logs:</strong> Retained according to Miwa's audit log policy and legal obligations.</Bullet>
-              <Bullet><strong>Voice recordings:</strong> Retained only as needed for transcription, troubleshooting, or therapist-requested storage.</Bullet>
-              <Bullet><strong>Backups:</strong> Encrypted backup and retention practices are maintained as part of the Miwa backup/retention plan.</Bullet>
-            </ul>
-          </Section>
-
-          <Section title="9. Your rights" id="rights">
-
-            <SubHeading>Therapist rights</SubHeading>
-            <ul className="space-y-2">
-              <Bullet>Access the account data we hold about you.</Bullet>
-              <Bullet>Correct inaccurate information.</Bullet>
-              <Bullet>Delete your account (subject to clinical record-retention obligations attached to PHI).</Bullet>
-              <Bullet>Export your data in a portable format.</Bullet>
-              <Bullet>Withdraw consent where processing is based on consent.</Bullet>
-            </ul>
-
-            <SubHeading>Patient rights (HIPAA)</SubHeading>
-            <p>
-              Patients of a Miwa-using therapist should exercise HIPAA rights through their therapist. The therapist is
-              the Covered Entity. We will assist the therapist in responding to any such request within required timeframes.
-            </p>
-
-            <SubHeading>California residents (CCPA / CPRA)</SubHeading>
-            <p>
-              California residents have the right to know, delete, correct, and limit the use of personal information,
-              and to not be discriminated against for exercising these rights. Note that HIPAA-regulated PHI is exempt
-              from CCPA under Cal. Civ. Code § 1798.145(c)(1). Non-PHI personal information (account data, billing, usage
-              telemetry) remains subject to CCPA.
-            </p>
-            <p>
-              To exercise any of these rights, email <a href="mailto:privacy@miwa.care" className="font-semibold" style={{ color: PURPLE }}>privacy@miwa.care</a> from
-              the address on file. We will respond within 30 days.
-            </p>
-          </Section>
-
-          <Section title="10. Children's privacy" id="children">
-            <p>
-              Miwa is not directed at children under 13. Therapists may document sessions with minor patients (which is
-              common in clinical practice), but minors do not interact with Miwa directly and do not create accounts. No
-              data is knowingly collected from children under 13 without parent or guardian consent via the treating therapist.
-            </p>
-          </Section>
-
-          <Section title="11. International users and data transfers" id="international">
-            <p>
-              Miwa operates from the United States, and all servers and subprocessors are located in or compliant with
-              U.S. data protection standards. If you access Miwa from outside the U.S., your data will be processed in the U.S.
-              At this time, Miwa is built for U.S.-licensed clinicians and is not offered in jurisdictions where its operation
-              would require additional regulatory frameworks (e.g., full GDPR compliance for EU clinical practice).
-            </p>
-          </Section>
-
-          <Section title="12. Changes to this policy" id="changes">
-            <p>
-              We may update this policy to reflect changes in our services, legal obligations, or industry standards.
-              Material changes will be announced at least <strong>30 days before they take effect</strong>, by email to the
-              address on file and by prominent notice within the application. Continued use of Miwa after the effective date
-              of a change constitutes acceptance of the updated policy.
-            </p>
-          </Section>
-
-          <Section title="13. Contact us" id="contact">
-            <p>Questions, requests, or complaints:</p>
-            <div className="mt-4 p-5 rounded-xl" style={{ background: '#f8fafc', border: '1px solid rgba(0,0,0,0.06)' }}>
-              <p className="font-semibold text-zinc-900">Valdrex B.A. Philippe, Privacy Officer</p>
-              <p className="text-zinc-700 mt-1">Miwa</p>
-              <p className="text-zinc-700">
-                Email: <a href="mailto:admin@miwa.care" className="font-semibold" style={{ color: PURPLE }}>admin@miwa.care</a>
-              </p>
-              <p className="text-zinc-700">Web: <a href="https://miwa.care" className="font-semibold" style={{ color: PURPLE }}>miwa.care</a></p>
-              <p className="text-zinc-500 text-base mt-3">Los Angeles, California, United States</p>
-            </div>
-            <p className="text-base text-zinc-500 mt-6">
-              If you believe your rights under HIPAA have been violated, you may also file a complaint with the U.S.
-              Department of Health and Human Services, Office for Civil Rights at
-              <a href="https://www.hhs.gov/hipaa/filing-a-complaint" className="font-semibold ml-1" style={{ color: PURPLE }} target="_blank" rel="noopener noreferrer">hhs.gov/hipaa/filing-a-complaint</a>.
-            </p>
-          </Section>
-
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="px-6 py-10 text-center" style={{ background: '#0a0818', color: 'rgba(255,255,255,0.55)' }}>
-        <div className="max-w-3xl mx-auto">
-          <div className="flex items-center justify-center gap-2 mb-4">
-            <MiwaLogo size={24} />
-            <span className="text-white font-semibold">Miwa</span>
-          </div>
-          <div className="flex items-center justify-center gap-6 text-base">
-            <Link to="/about" className="hover:text-white">About</Link>
-            <Link to="/privacy-and-compliance" className="hover:text-white">Privacy</Link>
-            <Link to="/privacy" className="hover:text-white" style={{ color: 'white' }}>Privacy</Link>
-            <Link to="/sms-policy" className="hover:text-white">SMS Policy</Link>
-          </div>
-          <p className="text-sm mt-6 opacity-60">© 2026 Miwa. All rights reserved.</p>
-        </div>
-      </footer>
+      <PublicFooter />
     </PublicPageShell>
   )
 }
