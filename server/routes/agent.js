@@ -2037,7 +2037,7 @@ const AGENT_TOOLS = [
     type: 'function',
     function: {
       name: 'send_portal_link',
-      description: 'Send a client portal link to a patient. The portal lets them view appointments, complete assessments, do check-ins, and message their therapist. Link is valid for 30 days.',
+      description: 'Send a client portal link to a patient. The portal lets them view appointments, complete assessments, do check-ins, and message their therapist. Link is valid for 7 days.',
       parameters: {
         type: 'object',
         properties: {
@@ -2070,6 +2070,8 @@ const AI_AGENT_TOOLS = AGENT_TOOLS.map(t => ({
   description: t.function.description,
   input_schema: t.function.parameters,
 }));
+
+const PORTAL_LINK_TTL_DAYS = 7;
 
 /**
  * Execute a single tool call from the agent loop.
@@ -3076,7 +3078,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
 
       await db.insert(
         `INSERT INTO client_portal_tokens (token, patient_id, therapist_id, expires_at)
-         VALUES (?, ?, ?, datetime('now', '+30 days'))`,
+         VALUES (?, ?, ?, datetime('now', '+7 days'))`,
         token, patient.id, therapistId,
       );
       await persistIfNeeded();
@@ -3100,7 +3102,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
         client_id: patient.client_id,
         display_name: patient.display_name || patient.client_id,
         delivery: deliveryMethod,
-        expires_in: '30 days',
+        expires_in: `${PORTAL_LINK_TTL_DAYS} days`,
         phone_masked: phone ? phone.replace(/\d(?=\d{4})/g, '\u2022') : null,
       };
     }
@@ -3145,7 +3147,7 @@ router.post('/portal-link', async (req, res) => {
     const token = crypto.randomBytes(24).toString('base64url');
     await db.insert(
       `INSERT INTO client_portal_tokens (token, patient_id, therapist_id, expires_at)
-       VALUES (?, ?, ?, datetime('now', '+30 days'))`,
+       VALUES (?, ?, ?, datetime('now', '+7 days'))`,
       token, patient.id, req.therapist.id,
     );
     await persistIfNeeded();
@@ -3157,7 +3159,7 @@ router.post('/portal-link', async (req, res) => {
       ok: true,
       portal_url: portalUrl,
       token,
-      expires_in: '30 days',
+      expires_in: `${PORTAL_LINK_TTL_DAYS} days`,
       patient_id: patient.id,
       client_id: patient.client_id,
     });
