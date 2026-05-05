@@ -95,19 +95,34 @@ function phiAuditLog(req, res, next) {
 /**
  * Manual PHI access log — for background tasks that don't go through Express routes.
  */
-async function logPhiAccess({ therapistId, action, resource, patientId = null, detail = null }) {
+async function logPhiAccess({
+  therapistId,
+  action,
+  resource,
+  patientId = null,
+  detail = null,
+  method = null,
+  statusCode = 200,
+  ip = 'internal',
+}) {
   try {
     const db = getAsyncDb();
     await db.run(
       `INSERT INTO phi_access_log (therapist_id, action, resource, patient_id, method, status_code, ip, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`,
-      therapistId, action, String(resource).slice(0, 500), patientId, detail || 'SYSTEM', 200, 'internal'
+      therapistId,
+      action,
+      String(resource).slice(0, 500),
+      patientId,
+      method || detail || 'SYSTEM',
+      statusCode,
+      String(ip || 'internal').slice(0, 45)
     );
   } catch (err) {
     logAuditFailure(err, {
       route: String(resource).slice(0, 500),
-      method: detail || 'SYSTEM',
-      statusCode: 200,
+      method: method || detail || 'SYSTEM',
+      statusCode,
     });
   }
 }

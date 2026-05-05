@@ -11,7 +11,27 @@
 const express = require('express');
 const router  = express.Router();
 const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
+const { logPhiAccess } = require('../middleware/auditLog');
 const { TEMPLATES, scoreAssessment, generateAlerts } = require('./assessments');
+
+function requestIp(req) {
+  return (req.headers['x-forwarded-for'] || req.ip || '').split(',')[0].trim();
+}
+
+function logPublicPhi(req, res, { therapistId, patientId, action, resource }) {
+  if (!therapistId) return;
+  res.on('finish', () => {
+    logPhiAccess({
+      therapistId,
+      patientId,
+      action,
+      resource,
+      method: req.method,
+      statusCode: res.statusCode,
+      ip: requestIp(req),
+    });
+  });
+}
 
 // ── GET /api/public/assess/:token ─────────────────────────────────────────────
 router.get('/assess/:token', async (req, res) => {
@@ -25,6 +45,12 @@ router.get('/assess/:token', async (req, res) => {
     if (!link) return res.status(404).json({ error: 'Link not found or has expired.' });
     if (link.completed_at) return res.status(410).json({ error: 'This assessment has already been completed. Thank you!' });
     if (new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'This link has expired. Please contact your clinician for a new one.' });
+    logPublicPhi(req, res, {
+      therapistId: link.therapist_id,
+      patientId: link.patient_id,
+      action: 'public_read',
+      resource: '/api/public/assess',
+    });
 
     const template = TEMPLATES[link.template_type];
     if (!template) return res.status(500).json({ error: 'Assessment type not found.' });
@@ -57,6 +83,12 @@ router.post('/assess/:token', async (req, res) => {
     if (!link) return res.status(404).json({ error: 'Link not found.' });
     if (link.completed_at) return res.status(410).json({ error: 'This assessment has already been completed.' });
     if (new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'This link has expired.' });
+    logPublicPhi(req, res, {
+      therapistId: link.therapist_id,
+      patientId: link.patient_id,
+      action: 'public_write',
+      resource: '/api/public/assess',
+    });
 
     const { responses, worst_event } = req.body;
     if (!responses || !Array.isArray(responses)) {
@@ -189,6 +221,12 @@ router.get('/checkin/:token', async (req, res) => {
     if (!link) return res.status(404).json({ error: 'Check-in link not found or expired.' });
     if (link.completed_at) return res.json({ already_completed: true });
     if (new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'This check-in link has expired.' });
+    logPublicPhi(req, res, {
+      therapistId: link.therapist_id,
+      patientId: link.patient_id,
+      action: 'public_read',
+      resource: '/api/public/checkin',
+    });
     res.json({
       token: link.token,
       message: link.message,
@@ -207,6 +245,12 @@ router.post('/checkin/:token', async (req, res) => {
     if (!link) return res.status(404).json({ error: 'Check-in link not found.' });
     if (link.completed_at) return res.status(409).json({ error: 'Already submitted.' });
     if (new Date(link.expires_at) < new Date()) return res.status(410).json({ error: 'This link has expired.' });
+    logPublicPhi(req, res, {
+      therapistId: link.therapist_id,
+      patientId: link.patient_id,
+      action: 'public_write',
+      resource: '/api/public/checkin',
+    });
 
     const { mood_score, mood_notes } = req.body;
     const score = parseInt(mood_score);
@@ -274,6 +318,12 @@ router.get('/portal/:token', async (req, res) => {
     if (!ctx) return res.status(404).json({ error: 'Portal link not found or has expired. Please contact your therapist for a new link.' });
 
     const { patient, therapist, portalToken } = ctx;
+    logPublicPhi(req, res, {
+      therapistId: therapist.id,
+      patientId: patient.id,
+      action: 'public_read',
+      resource: '/api/public/portal',
+    });
 
     // Upcoming appointments
     const appointments = await db.all(
@@ -363,6 +413,12 @@ router.post('/portal/:token/message', async (req, res) => {
     const db = getAsyncDb();
     const ctx = await resolvePortalToken(db, req.params.token);
     if (!ctx) return res.status(404).json({ error: 'Portal link not found or has expired.' });
+    logPublicPhi(req, res, {
+      therapistId: ctx.therapist.id,
+      patientId: ctx.patient.id,
+      action: 'public_write',
+      resource: '/api/public/portal/message',
+    });
 
     const { message } = req.body;
     if (!message || typeof message !== 'string' || !message.trim()) {
@@ -404,6 +460,12 @@ router.get('/portal/:token/assessments', async (req, res) => {
     const db = getAsyncDb();
     const ctx = await resolvePortalToken(db, req.params.token);
     if (!ctx) return res.status(404).json({ error: 'Portal link not found or has expired.' });
+    logPublicPhi(req, res, {
+      therapistId: ctx.therapist.id,
+      patientId: ctx.patient.id,
+      action: 'public_read',
+      resource: '/api/public/portal/assessments',
+    });
 
     const pending = await db.all(
       `SELECT id, token, template_type, expires_at, created_at
@@ -434,6 +496,12 @@ router.get('/portal/:token/appointments', async (req, res) => {
     const db = getAsyncDb();
     const ctx = await resolvePortalToken(db, req.params.token);
     if (!ctx) return res.status(404).json({ error: 'Portal link not found or has expired.' });
+    logPublicPhi(req, res, {
+      therapistId: ctx.therapist.id,
+      patientId: ctx.patient.id,
+      action: 'public_read',
+      resource: '/api/public/portal/appointments',
+    });
 
     const upcoming = await db.all(
       `SELECT id, appointment_type, scheduled_start, scheduled_end, duration_minutes, location, status
@@ -464,6 +532,12 @@ router.get('/portal/:token/messages', async (req, res) => {
     const db = getAsyncDb();
     const ctx = await resolvePortalToken(db, req.params.token);
     if (!ctx) return res.status(404).json({ error: 'Portal link not found or has expired.' });
+    logPublicPhi(req, res, {
+      therapistId: ctx.therapist.id,
+      patientId: ctx.patient.id,
+      action: 'public_read',
+      resource: '/api/public/portal/messages',
+    });
 
     const messages = await db.all(
       `SELECT id, sender, message, read_at, created_at

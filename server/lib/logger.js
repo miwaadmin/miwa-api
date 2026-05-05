@@ -17,7 +17,7 @@
 
 'use strict';
 
-const { scrubText } = require('./scrubber');
+const { scrubObject, scrubText } = require('./scrubber');
 
 // ── Scrub any value that is (or contains) a string ──────────────────────────
 
@@ -31,13 +31,12 @@ function sanitize(value) {
     return clean;
   }
   if (value && typeof value === 'object') {
-    // Shallow-scrub plain objects (e.g. logged req.body fragments)
+    // Recursively scrub plain objects and arrays, including logged req.body.
+    // Preserve special objects so console formatting still behaves normally.
+    const tag = Object.prototype.toString.call(value);
+    if (tag !== '[object Object]' && tag !== '[object Array]') return value;
     try {
-      const clone = {};
-      for (const [k, v] of Object.entries(value)) {
-        clone[k] = typeof v === 'string' ? scrubText(v) : v;
-      }
-      return clone;
+      return scrubObject(value);
     } catch { return value; }
   }
   return value;
@@ -70,4 +69,4 @@ function patchGlobalConsole() {
   console.debug = makeLogger(console.debug.bind(console));
 }
 
-module.exports = { log, patchGlobalConsole };
+module.exports = { log, patchGlobalConsole, _test: { sanitize } };
