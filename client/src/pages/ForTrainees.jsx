@@ -39,6 +39,35 @@ function SupervisionMockup() {
   )
 }
 
+const PRE_LICENSED_TIERS = [
+  {
+    name: 'Trainees / interns',
+    price: '$39',
+    annual: '$31/mo billed annually',
+    eligibility: 'MFT trainees, practicum interns, ACSW trainees, and LPCC interns still building supervised hours.',
+    details: [
+      'Full Miwa AI copilot',
+      'Unlimited clients and sessions',
+      'Voice to clinical notes',
+      'Pre-session briefs and risk monitor',
+      'Supervision prep and case presentations',
+    ],
+  },
+  {
+    name: 'Associates',
+    price: '$69',
+    annual: '$55/mo billed annually',
+    eligibility: 'AMFT, ACSW, APCC, and other licensed associates practicing under supervision.',
+    details: [
+      'Everything in Trainee',
+      'Proactive caseload alerts',
+      'Batch assessment sender',
+      'Court, insurance, and supervision reports',
+      'Priority support',
+    ],
+  },
+]
+
 export default function ForTrainees() {
   return (
     <PublicPageShell>
@@ -56,7 +85,7 @@ export default function ForTrainees() {
           Whether you're a practicum intern, MFT trainee, AMFT, ACSW, or APCC, Miwa gives you the same AI assistant as fully licensed practitioners. Not a limited version. The full thing.
         </p>
         <p className="text-gray-500 text-base max-w-xl mx-auto mb-8">
-          $39/mo for trainees and associates, with the clinical AI workspace priced for people still accruing hours.
+          Separate pricing for trainees and associates, with the clinical AI workspace priced for people still accruing hours.
         </p>
         <Link to="/register"
           className="inline-flex px-10 py-4 rounded-xl text-base font-bold text-white transition-all hover:opacity-90"
@@ -77,6 +106,39 @@ export default function ForTrainees() {
         <p className="text-center text-gray-500 text-sm mt-5 italic">
           A structured case presentation for supervision, generated from your session notes in seconds.
         </p>
+      </div>
+
+      {/* Pricing split */}
+      <div className="max-w-[1100px] mx-auto px-6 pb-20">
+        <div className="grid md:grid-cols-2 gap-5">
+          {PRE_LICENSED_TIERS.map((tier) => (
+            <section key={tier.name} className="rounded-2xl bg-white p-6 md:p-8" style={{ border: '1px solid rgba(0,0,0,0.08)', boxShadow: '0 18px 50px rgba(15,23,42,0.06)' }}>
+              <div className="flex items-start justify-between gap-5 mb-5">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">{tier.name}</h2>
+                  <p className="text-gray-500 text-sm leading-relaxed mt-2">{tier.eligibility}</p>
+                </div>
+                <div className="text-right flex-shrink-0">
+                  <p className="text-4xl font-extrabold text-gray-900">{tier.price}</p>
+                  <p className="text-gray-500 text-sm">/mo</p>
+                </div>
+              </div>
+              <p className="text-emerald-700 text-sm font-semibold mb-5">{tier.annual}</p>
+              <div className="space-y-3">
+                {tier.details.map((detail) => (
+                  <div key={detail} className="flex items-start gap-3">
+                    <div className="w-5 h-5 rounded-full bg-emerald-500 flex-shrink-0 mt-0.5 flex items-center justify-center">
+                      <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                    <p className="text-gray-700 text-sm leading-relaxed">{detail}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
+        </div>
       </div>
 
       {/* Features, full-width grid */}
@@ -125,10 +187,10 @@ export default function ForTrainees() {
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Why does Miwa offer pre-licensed pricing when nobody else does?</h2>
           <p className="text-gray-500 leading-relaxed mb-6">
             Interns and associates build the foundation of their clinical identity during training. We want that foundation built with the best tools available, not the ones you could afford on a trainee salary.
-            SimplePractice starts at $49/mo without AI notes. TherapyNotes starts at $69/mo without AI notes. With those platforms, adding AI notes means paying $84/mo or $109/mo. Miwa gives you the full AI copilot, AI notes, pre-session briefs, treatment plan tracking, proactive alerts, and more, for $39/mo.
+            SimplePractice starts at $49/mo without AI notes. TherapyNotes starts at $69/mo without AI notes. With those platforms, adding AI notes means paying $84/mo or $109/mo. Miwa starts at $39/mo for trainees and $69/mo for associates, with AI notes, pre-session briefs, treatment plan tracking, proactive alerts, and more built in.
           </p>
           <p className="text-gray-400 text-base">
-            $39/mo (or $31/mo billed annually). Full agentic copilot, no feature restrictions. When you get fully licensed, you can choose to upgrade to Licensed Therapist, or stay as long as you need.
+            Trainees: $39/mo, or $31/mo billed annually. Associates: $69/mo, or $55/mo billed annually. When you get fully licensed, you can choose to upgrade to Licensed Therapist.
           </p>
         </div>
       </div>
@@ -140,7 +202,7 @@ export default function ForTrainees() {
           style={{ background: '#111113' }}>
           Get started free
         </Link>
-        <p className="text-gray-400 text-base mt-4">14-day free trial. $39/mo after. Full agentic copilot, no feature restrictions.</p>
+        <p className="text-gray-400 text-base mt-4">14-day free trial. Trainee and associate pricing shown above.</p>
       </div>
 
       <PublicFooter />
