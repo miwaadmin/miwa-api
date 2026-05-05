@@ -953,7 +953,15 @@ Format the response with clear headings in the same order as above.`;
 // POST /api/ai/chat (SSE streaming)
 router.post('/chat', async (req, res) => {
   try {
-    const { message: _rawMsg, contextType, contextId, responseStyle } = req.body;
+    const {
+      message: _rawMsg,
+      contextType,
+      contextId,
+      responseStyle,
+      conversationId: conversationIdBody,
+      conversation_id,
+    } = req.body;
+    const requestedConversationId = conversationIdBody || conversation_id;
     const message = scrubText(_rawMsg);
     if (!message) return res.status(400).json({ error: 'Message is required' });
 
@@ -978,11 +986,32 @@ router.post('/chat', async (req, res) => {
     const canUsePatientContext = assistantAllows(assistantProfile, 'patient_context');
     const canUseSessionContext = assistantAllows(assistantProfile, 'session_context');
     const canUseDocuments = assistantAllows(assistantProfile, 'documents');
+    const requestedConversationIdInt = parseInt(requestedConversationId, 10);
+    let conversationId = Number.isFinite(requestedConversationIdInt) ? requestedConversationIdInt : null;
+    const titleSeed = message.length > 64 ? `${message.slice(0, 61).trim()}...` : message;
+
+    if (conversationId) {
+      const existingConversation = await db.get(
+        'SELECT id FROM consult_conversations WHERE id = ? AND therapist_id = ?',
+        conversationId, tid,
+      );
+      if (!existingConversation) return res.status(404).json({ error: 'Conversation not found' });
+      await db.run(
+        'UPDATE consult_conversations SET updated_at = CURRENT_TIMESTAMP, context_type = COALESCE(?, context_type), context_id = COALESCE(?, context_id) WHERE id = ? AND therapist_id = ?',
+        contextType || null, contextId || null, conversationId, tid,
+      );
+    } else {
+      const created = await db.insert(
+        'INSERT INTO consult_conversations (therapist_id, title, context_type, context_id) VALUES (?, ?, ?, ?)',
+        tid, titleSeed || 'New consult', contextType || null, contextId || null,
+      );
+      conversationId = created.lastInsertRowid;
+    }
 
     // Save user message
     await db.insert(
-      'INSERT INTO chat_messages (therapist_id, role, content, context_type, context_id) VALUES (?, ?, ?, ?, ?)',
-      tid, 'user', message, contextType || null, contextId || null
+      'INSERT INTO chat_messages (therapist_id, conversation_id, role, content, context_type, context_id) VALUES (?, ?, ?, ?, ?, ?)',
+      tid, conversationId, 'user', message, contextType || null, contextId || null
     );
 
     const requestedContextType = contextType || null;
@@ -998,9 +1027,10 @@ router.post('/chat', async (req, res) => {
       ? await db.all(
           `SELECT role, content FROM chat_messages
             WHERE therapist_id = ?
+              AND conversation_id = ?
               AND (context_type IS NULL OR context_type != 'agent')
             ORDER BY created_at DESC LIMIT 20`,
-          tid
+          tid, conversationId
         )
       : [];
     const history = historyRows.reverse();
@@ -1101,8 +1131,12 @@ router.post('/chat', async (req, res) => {
 
     // Save assistant response
     await db.insert(
-      'INSERT INTO chat_messages (therapist_id, role, content, context_type, context_id) VALUES (?, ?, ?, ?, ?)',
-      tid, 'assistant', fullResponse, contextType || null, contextId || null
+      'INSERT INTO chat_messages (therapist_id, conversation_id, role, content, context_type, context_id) VALUES (?, ?, ?, ?, ?, ?)',
+      tid, conversationId, 'assistant', fullResponse, contextType || null, contextId || null
+    );
+    await db.run(
+      'UPDATE consult_conversations SET updated_at = CURRENT_TIMESTAMP WHERE id = ? AND therapist_id = ?',
+      conversationId, tid,
     );
     await recordConversationSignal(db, tid, {
       surface: 'consult',
@@ -1113,7 +1147,7 @@ router.post('/chat', async (req, res) => {
     }).catch(() => {});
     await persistIfNeeded();
 
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.write(`data: ${JSON.stringify({ done: true, conversation_id: conversationId })}\n\n`);
     res.end();
   } catch (err) {
     if (!res.headersSent) {
@@ -1631,6 +1665,70 @@ ${sessionBlocks || 'No notes yet.'}`;
   }
 });
 
+// GET /api/ai/consult-conversations — left-rail Consult history.
+router.get('/consult-conversations', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const limit = parseInt(req.query.limit, 10) || 40;
+    const conversations = await db.all(
+      `SELECT c.*,
+              p.client_id,
+              p.first_name,
+              p.last_name,
+              (
+                SELECT content FROM chat_messages m
+                 WHERE m.conversation_id = c.id
+                   AND m.therapist_id = c.therapist_id
+                 ORDER BY m.created_at DESC
+                 LIMIT 1
+              ) AS last_message,
+              (
+                SELECT COUNT(*) FROM chat_messages m
+                 WHERE m.conversation_id = c.id
+                   AND m.therapist_id = c.therapist_id
+              ) AS message_count
+         FROM consult_conversations c
+         LEFT JOIN patients p
+           ON c.context_type = 'patient'
+          AND p.id = c.context_id
+          AND p.therapist_id = c.therapist_id
+        WHERE c.therapist_id = ?
+        ORDER BY c.updated_at DESC
+        LIMIT ?`,
+      req.therapist.id, limit,
+    );
+
+    const legacyCount = await db.get(
+      `SELECT COUNT(*) AS count, MAX(created_at) AS updated_at
+         FROM chat_messages
+        WHERE therapist_id = ?
+          AND conversation_id IS NULL
+          AND (context_type IS NULL OR context_type != 'agent')`,
+      req.therapist.id,
+    );
+
+    const rows = conversations;
+    if ((legacyCount?.count || 0) > 0) {
+      rows.push({
+        id: 'legacy',
+        therapist_id: req.therapist.id,
+        title: 'Earlier consult history',
+        context_type: null,
+        context_id: null,
+        created_at: legacyCount.updated_at,
+        updated_at: legacyCount.updated_at,
+        last_message: 'Messages from before consult sessions were added',
+        message_count: legacyCount.count,
+        legacy: true,
+      });
+    }
+
+    res.json(rows);
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
 // GET /api/ai/chat-history — Consult (Supervisor) chat only.
 //
 // chat_messages stores transcripts from multiple surfaces:
@@ -1643,13 +1741,35 @@ router.get('/chat-history', async (req, res) => {
   try {
     const db = getAsyncDb();
     const limit = parseInt(req.query.limit) || 50;
+    const conversationId = req.query.conversationId;
+    const parsedConversationId = parseInt(conversationId, 10);
+    const isLegacy = conversationId === 'legacy';
+    if (conversationId && !isLegacy && !Number.isFinite(parsedConversationId)) {
+      return res.status(400).json({ error: 'Invalid conversationId' });
+    }
+
+    if (conversationId && !isLegacy) {
+      const convo = await db.get(
+        'SELECT id FROM consult_conversations WHERE id = ? AND therapist_id = ?',
+        parsedConversationId, req.therapist.id,
+      );
+      if (!convo) return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    const conversationFilter = conversationId
+      ? (isLegacy ? 'AND conversation_id IS NULL' : 'AND conversation_id = ?')
+      : '';
+    const params = conversationId && !isLegacy
+      ? [req.therapist.id, parsedConversationId, limit]
+      : [req.therapist.id, limit];
     const messages = await db.all(
       `SELECT * FROM chat_messages
         WHERE therapist_id = ?
+          ${conversationFilter}
           AND (context_type IS NULL OR context_type != 'agent')
         ORDER BY created_at ASC
         LIMIT ?`,
-      req.therapist.id, limit
+      params
     );
     res.json(messages);
   } catch (err) {
@@ -1663,12 +1783,36 @@ router.get('/chat-history', async (req, res) => {
 router.delete('/chat-history', async (req, res) => {
   try {
     const db = getAsyncDb();
+    const conversationId = req.query.conversationId;
+    const parsedConversationId = parseInt(conversationId, 10);
+
+    if (conversationId && Number.isFinite(parsedConversationId)) {
+      const convo = await db.get(
+        'SELECT id FROM consult_conversations WHERE id = ? AND therapist_id = ?',
+        parsedConversationId, req.therapist.id,
+      );
+      if (!convo) return res.status(404).json({ error: 'Conversation not found' });
+      await db.run(
+        `DELETE FROM chat_messages
+          WHERE therapist_id = ?
+            AND conversation_id = ?
+            AND (context_type IS NULL OR context_type != 'agent')`,
+        req.therapist.id, parsedConversationId,
+      );
+      await db.run(
+        'DELETE FROM consult_conversations WHERE id = ? AND therapist_id = ?',
+        parsedConversationId, req.therapist.id,
+      );
+      return res.json({ message: 'Conversation deleted' });
+    }
+
     await db.run(
       `DELETE FROM chat_messages
         WHERE therapist_id = ?
           AND (context_type IS NULL OR context_type != 'agent')`,
       req.therapist.id,
     );
+    await db.run('DELETE FROM consult_conversations WHERE therapist_id = ?', req.therapist.id);
     res.json({ message: 'Chat history cleared' });
   } catch (err) {
     sendRouteError(res, err);
