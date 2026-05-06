@@ -47,10 +47,57 @@ function groupLists(html) {
   return html
 }
 
+function splitMarkdownTableRow(line) {
+  return line
+    .trim()
+    .replace(/^\|/, '')
+    .replace(/\|$/, '')
+    .split('|')
+    .map(cell => cell.trim())
+}
+
+function renderMarkdownTables(text) {
+  const lines = text.split('\n')
+  const out = []
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const header = lines[i]
+    const divider = lines[i + 1]
+    const isTableHeader = /^\s*\|.*\|\s*$/.test(header || '')
+      && /^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(divider || '')
+
+    if (!isTableHeader) {
+      if (!/^\s*\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?\s*$/.test(header || '')) out.push(header)
+      continue
+    }
+
+    const headers = splitMarkdownTableRow(header)
+    const rows = []
+    i += 2
+    while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+      rows.push(splitMarkdownTableRow(lines[i]))
+      i += 1
+    }
+    i -= 1
+
+    const headHtml = headers
+      .map(cell => `<th>${cell}</th>`)
+      .join('')
+    const bodyHtml = rows
+      .map(row => `<tr>${headers.map((_, idx) => `<td>${row[idx] || ''}</td>`).join('')}</tr>`)
+      .join('')
+
+    out.push(`<section class="clinical-table-wrap"><table class="clinical-table"><thead><tr>${headHtml}</tr></thead><tbody>${bodyHtml}</tbody></table></section>`)
+  }
+
+  return out.join('\n')
+}
+
 export function renderClinical(text) {
   if (!text) return ''
   let s = escapeHtml(normalizeClinicalDisplayText(text))
 
+  s = renderMarkdownTables(s)
   s = s.replace(/^\s*(?:---|\*\*\*|___)\s*$/gm, '<hr class="clinical-hr" />')
 
   // ── Headings (before inline replacements so $1 content is clean) ─────────
@@ -111,8 +158,8 @@ export function renderClinical(text) {
   // ── Paragraphs: two or more newlines = paragraph break ──────────────────
   // Wrap remaining loose text into paragraphs, but don't wrap block-level tags
   s = s
-    .replace(/(<(?:h[1-6]|ul|ol|blockquote|div)\b[^>]*>)/g, '\n\n$1')
-    .replace(/(<\/(?:h[1-6]|ul|ol|blockquote|div)>)/g, '$1\n\n')
+    .replace(/(<(?:h[1-6]|ul|ol|blockquote|section)\b[^>]*>)/g, '\n\n$1')
+    .replace(/(<\/(?:h[1-6]|ul|ol|blockquote|section)>)/g, '$1\n\n')
     .replace(/(<hr\b[^>]*\/?>)/g, '\n\n$1\n\n')
     .replace(/\*\*/g, '')
     .replace(/^#{1,6}\s*/gm, '')
@@ -122,7 +169,7 @@ export function renderClinical(text) {
     const trimmed = block.trim()
     if (!trimmed) return ''
     // If block starts with a block-level tag, leave it as-is
-    if (/^<(h[1-6]|ul|ol|pre|blockquote|div|hr)\b/i.test(trimmed)) return trimmed
+    if (/^<(h[1-6]|ul|ol|pre|blockquote|section|hr)\b/i.test(trimmed)) return trimmed
     // Otherwise, wrap in <p> and convert single \n to <br/>
     return `<p class="clinical-p">${trimmed.replace(/\n/g, '<br/>')}</p>`
   })
