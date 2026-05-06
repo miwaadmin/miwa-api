@@ -261,6 +261,13 @@ export default function MiwaChat() {
   const prevOpenRef = useRef(false)
   const mediaRecorderRef = useRef(null)
 
+  useEffect(() => {
+    const el = textareaRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = input ? `${Math.min(el.scrollHeight, 112)}px` : '32px'
+  }, [input])
+
   // ── Draggable floating button ────────────────────────────────────────────
   // Persists position per-user in localStorage. null = use default bottom-right.
   // Position stored as {x, y} in px from top-left.
@@ -1510,22 +1517,20 @@ When you're done, I'll save this as your profile and refer back to it in every c
             </div>
           )}
 
-          {/* Input, iMessage-style pill. The textarea sits inside a rounded-full
-              wrapper so the focus ring + visual border shape is the pill, not the
-              underlying multiline element. Send + mic buttons sit outside the pill
-              like Messages.app. */}
+          {/* Composer: one stable rounded surface, with fixed action buttons so
+              long text does not balloon the UI. */}
           <div className="miwa-chat-inputbar flex-shrink-0 px-3 py-3 bg-white border-t border-gray-100">
-            <div className="flex items-end gap-2">
-              <div className="miwa-chat-inputpill flex-1 flex items-end rounded-full border border-gray-200 bg-gray-50 focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-400/20 transition-colors pl-4 pr-1 py-1">
+            <div className="miwa-chat-composer flex items-end gap-2 rounded-2xl border border-gray-200 bg-gray-50 p-2 shadow-sm focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-400/20 transition-colors">
+              <div className="miwa-chat-inputpill flex-1 min-w-0">
                 <textarea
                   ref={textareaRef}
-                  className="flex-1 resize-none bg-transparent border-0 px-0 py-1.5 text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-0"
+                  className="miwa-chat-textarea block w-full resize-none bg-transparent border-0 px-2 py-1.5 text-[13px] leading-relaxed text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-0"
                   placeholder={voiceEnabled ? 'Tap mic to speak, or type here…' : 'Ask Miwa a clinical question…'}
                   value={input}
                   onChange={e => {
                     setInput(e.target.value)
                     e.target.style.height = 'auto'
-                    e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px'
+                    e.target.style.height = Math.min(e.target.scrollHeight, 112) + 'px'
                   }}
                   onKeyDown={handleKeyDown}
                   rows={1}
@@ -1539,7 +1544,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
                   onClick={listening ? stopListening : startListening}
                   disabled={streaming && !listening}
                   title={listening ? 'Tap to stop' : voiceEnabled ? 'Tap to speak' : 'Tap to dictate'}
-                  className={`flex-shrink-0 rounded-full flex flex-col items-center justify-center gap-0.5 transition-all font-semibold ${
+                  className={`flex-shrink-0 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-all font-semibold ${
                     listening
                       ? 'w-10 h-10 bg-red-500 text-white shadow-lg shadow-red-500/40 scale-105'
                       : voiceEnabled
@@ -1568,7 +1573,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
               <button
                 onClick={() => sendText(input.trim())}
                 disabled={!input.trim() || streaming || listening}
-                className="flex-shrink-0 w-10 h-10 rounded-full disabled:opacity-30 disabled:cursor-not-allowed text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95"
+                className="flex-shrink-0 w-10 h-10 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95"
                 style={{ background: 'linear-gradient(180deg, #2A8AFE 0%, #007AFF 100%)' }}
               >
                 {streaming && !listening ? (

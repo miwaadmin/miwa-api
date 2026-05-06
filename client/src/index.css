@@ -452,14 +452,28 @@ html.dark .miwa-chat-inputbar {
   background: #111827 !important;
   border-color: rgba(148,163,184,0.18) !important;
 }
-html.dark .miwa-chat-inputpill {
+html.dark .miwa-chat-composer {
   background: #0f172a !important;
   border-color: rgba(148,163,184,0.30) !important;
 }
-html.dark .miwa-chat-inputpill textarea {
+.miwa-chat-textarea {
+  min-height: 32px;
+  max-height: 112px;
+  overflow-y: auto;
+  border-radius: 0;
+  box-shadow: none !important;
+}
+.miwa-chat-textarea::-webkit-scrollbar {
+  width: 6px;
+}
+.miwa-chat-textarea::-webkit-scrollbar-thumb {
+  background: rgba(148,163,184,0.45);
+  border-radius: 999px;
+}
+html.dark .miwa-chat-textarea {
   color: #f8fafc !important;
 }
-html.dark .miwa-chat-inputpill textarea::placeholder {
+html.dark .miwa-chat-textarea::placeholder {
   color: #94a3b8 !important;
 }
 
