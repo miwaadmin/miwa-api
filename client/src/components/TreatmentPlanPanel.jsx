@@ -34,6 +34,7 @@ function GoalCard({ goal, isExpanded, onToggle }) {
   const style = getStatusStyle(goal.status)
   const pct = progressPercent(goal.baseline, goal.current_value, goal.target_value)
   const notes = goal.progress_notes || goal.notes || []
+  const interventions = goal.interventions || []
 
   return (
     <div className={`rounded-xl border ${style.border} overflow-hidden`}>
@@ -83,31 +84,47 @@ function GoalCard({ goal, isExpanded, onToggle }) {
       </button>
 
       {/* Expanded: progress notes timeline */}
-      {isExpanded && notes.length > 0 && (
+      {isExpanded && (interventions.length > 0 || notes.length > 0) && (
         <div className="px-4 pb-3 border-t border-gray-100">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mt-3 mb-2">Progress Notes</p>
-          <div className="relative pl-4 space-y-2">
-            {/* Timeline line */}
-            <div className="absolute left-[5px] top-1 bottom-1 w-px bg-gray-200" />
-            {notes.map((note, i) => (
-              <div key={i} className="relative flex items-start gap-2.5">
-                <span className={`absolute left-[-11px] top-1.5 w-2 h-2 rounded-full ${i === 0 ? style.dot : 'bg-gray-300'} flex-shrink-0`} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs text-gray-700 leading-relaxed">
-                    {typeof note === 'string' ? note : note.text || note.content}
-                  </p>
-                  {(note.date || note.session_date) && (
-                    <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(note.date || note.session_date)}</p>
-                  )}
-                </div>
+          {interventions.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mt-3 mb-2">Interventions</p>
+              <div className="space-y-1.5">
+                {interventions.map((item, i) => (
+                  <div key={i} className="flex items-start gap-2">
+                    <span className={`w-1.5 h-1.5 rounded-full ${style.dot} mt-1.5 flex-shrink-0`} />
+                    <p className="text-xs text-gray-700 leading-relaxed">{item}</p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          )}
+          {notes.length > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mt-3 mb-2">Progress Notes</p>
+              <div className="relative pl-4 space-y-2">
+                <div className="absolute left-[5px] top-1 bottom-1 w-px bg-gray-200" />
+                {notes.map((note, i) => (
+                  <div key={i} className="relative flex items-start gap-2.5">
+                    <span className={`absolute left-[-11px] top-1.5 w-2 h-2 rounded-full ${i === 0 ? style.dot : 'bg-gray-300'} flex-shrink-0`} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs text-gray-700 leading-relaxed">
+                        {typeof note === 'string' ? note : note.text || note.content}
+                      </p>
+                      {(note.date || note.session_date) && (
+                        <p className="text-[10px] text-gray-400 mt-0.5">{formatDate(note.date || note.session_date)}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
       {/* Expanded: no notes */}
-      {isExpanded && notes.length === 0 && (
+      {isExpanded && interventions.length === 0 && notes.length === 0 && (
         <div className="px-4 pb-3 border-t border-gray-100">
           <p className="text-xs text-gray-400 mt-3">No progress notes recorded yet.</p>
         </div>
@@ -132,8 +149,9 @@ export default function TreatmentPlanPanel({ patientId }) {
         return r.json()
       })
       .then(data => {
-        if (data && (data.goals?.length > 0 || data.plan)) {
-          setPlan(data)
+        const activePlan = data?.plan || data
+        if (activePlan && (activePlan.goals?.length > 0 || activePlan.summary || activePlan.id)) {
+          setPlan(activePlan)
         }
         setLoading(false)
       })
@@ -204,7 +222,7 @@ export default function TreatmentPlanPanel({ patientId }) {
               state: {
                 contextType: 'patient',
                 contextId: parseInt(patientId),
-                prefill: 'Create a treatment plan with measurable goals for this client',
+                initialPrompt: 'Create a treatment plan with measurable goals for this client',
               },
             })}
             className="btn-primary text-xs"
@@ -240,8 +258,8 @@ export default function TreatmentPlanPanel({ patientId }) {
           </div>
           <div>
             <p className="text-xs font-semibold text-gray-900">Treatment Plan</p>
-            {plan.last_reviewed && (
-              <p className="text-[10px] text-gray-400">Last reviewed {formatDate(plan.last_reviewed)}</p>
+            {(plan.last_reviewed_at || plan.last_reviewed) && (
+              <p className="text-[10px] text-gray-400">Last reviewed {formatDate(plan.last_reviewed_at || plan.last_reviewed)}</p>
             )}
           </div>
         </div>
@@ -250,7 +268,7 @@ export default function TreatmentPlanPanel({ patientId }) {
             state: {
               contextType: 'patient',
               contextId: parseInt(patientId),
-              prefill: 'Review and update the treatment plan for this client',
+              initialPrompt: 'Review and update the treatment plan for this client',
             },
           })}
           className="text-[10px] font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg transition-colors"

@@ -7,6 +7,7 @@ const { getSupervisorSystemPrompt, getAnalysisSystemPrompt, getTreatmentPlanSyst
 const { normalizeAssistantProfile } = require('../lib/assistant');
 const { scrubText, scrubObject } = require('../lib/scrubber');
 const { canSendPhiToTextAI } = require('../lib/phiPolicy');
+const { snapshotPlan } = require('../lib/treatmentPlanRevisions');
 const { MODELS, callAI, streamAI, streamAnalyzeNotes } = require('../lib/aiExecutor');
 const { logCostEvent, assertBudgetOk } = require('../services/costTracker');
 const { extractIntakeIdentity } = require('../services/intakeIdentityExtractor');
@@ -73,6 +74,72 @@ function extractJsonObject(text) {
     if (start !== -1 && end > start) jsonStr = jsonStr.slice(start, end + 1);
   }
   return JSON.parse(jsonStr);
+}
+
+function stripInlineMarkdown(text) {
+  return String(text || '')
+    .replace(/\*\*/g, '')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function extractTreatmentPlanGoals(rawText) {
+  const text = String(rawText || '').replace(/\r\n/g, '\n').trim();
+  if (!text) return [];
+
+  const headingRe = /(?:^|\n)\s*(?:#{1,6}\s*)?(?:goal|treatment\s+goal)\s*(\d+)?\s*[:.)-]\s*([^\n]+)/gi;
+  const matches = [...text.matchAll(headingRe)];
+  const goals = [];
+
+  for (let i = 0; i < matches.length; i += 1) {
+    const match = matches[i];
+    const start = match.index + match[0].length;
+    const end = i + 1 < matches.length ? matches[i + 1].index : text.length;
+    const section = text.slice(start, end);
+    const header = stripInlineMarkdown(match[2]);
+    const objective = section.match(/(?:^|\n)\s*(?:[-*]\s*)?(?:objective|short[-\s]?term objective)\s*[:.)-]\s*([^\n]+)/i)?.[1];
+    const target = section.match(/\b(PHQ-9|GAD-7|PCL-5|C-SSRS|AUDIT|DAST|WHODAS|ORS|SRS)\b(?:\s*[<>=]+\s*\d+)?/i)?.[0];
+    const interventionSection = section.split(/\n\s*(?:interventions?|clinical interventions?)\s*[:.)-]?\s*\n/i)[1] || section;
+    const interventions = interventionSection
+      .split('\n')
+      .map(line => stripInlineMarkdown(line.replace(/^\s*[-*•]\s*/, '')))
+      .filter(line => line && !/^(objective|target|clinical reminder|question for you|suggested measures)\b/i.test(line))
+      .slice(0, 6);
+
+    const goalText = objective
+      ? `${header}: ${stripInlineMarkdown(objective)}`
+      : header;
+    if (goalText) {
+      goals.push({
+        goal_text: goalText.slice(0, 500),
+        target_metric: target ? stripInlineMarkdown(target).slice(0, 120) : null,
+        interventions,
+      });
+    }
+  }
+
+  if (goals.length) return goals.slice(0, 12);
+
+  return text
+    .split('\n')
+    .map(line => stripInlineMarkdown(line.replace(/^\s*(?:[-*•]|\d+[.)])\s*/, '')))
+    .filter(line => /goal|objective|within|client will|reduce|increase|improve|strengthen/i.test(line))
+    .slice(0, 8)
+    .map(line => ({
+      goal_text: line.slice(0, 500),
+      target_metric: (line.match(/\b(PHQ-9|GAD-7|PCL-5|C-SSRS|AUDIT|DAST|WHODAS|ORS|SRS)\b(?:\s*[<>=]+\s*\d+)?/i)?.[0] || null),
+      interventions: [],
+    }));
+}
+
+function treatmentPlanSummary(rawText, patient) {
+  const firstMeaningfulLine = String(rawText || '')
+    .split(/\r?\n/)
+    .map(stripInlineMarkdown)
+    .find(line => line && !/^#+\s*/.test(line) && !/^(absolutely|here'?s|treatment plan)\b/i.test(line));
+  return (firstMeaningfulLine || `Treatment plan imported from Consult for ${patient.client_id}`).slice(0, 500);
 }
 
 function normalizeOngoingAudioFields(fields = {}) {
@@ -2352,6 +2419,80 @@ router.get('/treatment-plan/:patientId', async (req, res) => {
         })),
       },
     });
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
+/**
+ * POST /api/ai/treatment-plan/:patientId/import
+ * Save a treatment plan drafted in Consult as the active client treatment plan.
+ */
+router.post('/treatment-plan/:patientId/import', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const patientId = parseInt(req.params.patientId, 10);
+    const content = String(req.body?.content || '').trim();
+    if (!patientId || Number.isNaN(patientId)) return res.status(400).json({ error: 'Valid patient id is required' });
+    if (content.length < 40) return res.status(400).json({ error: 'Treatment plan content is too short to save' });
+
+    const patient = await db.get('SELECT id, client_id FROM patients WHERE id = ? AND therapist_id = ?', patientId, req.therapist.id);
+    if (!patient) return res.status(404).json({ error: 'Client not found' });
+
+    const goals = extractTreatmentPlanGoals(content);
+    if (!goals.length) {
+      return res.status(400).json({ error: 'No treatment goals or objectives were found in this consult response' });
+    }
+
+    const existing = await db.get(
+      "SELECT id FROM treatment_plans WHERE patient_id = ? AND therapist_id = ? AND status = 'active'",
+      patientId, req.therapist.id
+    );
+    if (existing) {
+      await snapshotPlan(db, {
+        planId: existing.id,
+        therapistId: req.therapist.id,
+        changeKind: 'plan_replaced_from_consult',
+        changeDetail: 'Existing active plan was replaced by a Consult draft',
+        authorKind: 'therapist',
+        authorId: req.therapist.id,
+      });
+      await db.run(
+        "UPDATE treatment_plans SET status = 'revised', last_reviewed_at = datetime('now') WHERE id = ? AND therapist_id = ?",
+        existing.id, req.therapist.id
+      );
+    }
+
+    const created = await db.insert(
+      `INSERT INTO treatment_plans (patient_id, therapist_id, status, summary, last_reviewed_at)
+       VALUES (?, ?, 'active', ?, datetime('now'))`,
+      patientId, req.therapist.id, treatmentPlanSummary(content, patient)
+    );
+    const planId = created.lastInsertRowid;
+
+    for (const goal of goals) {
+      await db.run(
+        `INSERT INTO treatment_goals
+           (plan_id, goal_text, target_metric, baseline_value, current_value, status, interventions_json)
+         VALUES (?, ?, ?, NULL, NULL, 'active', ?)`,
+        planId,
+        goal.goal_text,
+        goal.target_metric || null,
+        JSON.stringify(goal.interventions || [])
+      );
+    }
+
+    await snapshotPlan(db, {
+      planId,
+      therapistId: req.therapist.id,
+      changeKind: 'plan_imported_from_consult',
+      changeDetail: `Imported ${goals.length} goals from Consult`,
+      authorKind: 'therapist',
+      authorId: req.therapist.id,
+    });
+    await persistIfNeeded();
+
+    res.json({ ok: true, plan_id: planId, goals_created: goals.length, replaced_existing: Boolean(existing) });
   } catch (err) {
     sendRouteError(res, err);
   }

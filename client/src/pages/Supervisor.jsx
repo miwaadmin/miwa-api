@@ -26,7 +26,11 @@ function TypingIndicator() {
   )
 }
 
-function Message({ msg }) {
+function looksLikeTreatmentPlan(text) {
+  return /treatment plan|treatment goal|goal\s+\d|objective|interventions/i.test(text || '')
+}
+
+function Message({ msg, canSavePlan = false, onSavePlan, savingPlan = false }) {
   const isUser = msg.role === 'user'
   return (
     <div className={`flex items-end gap-3 message-enter ${isUser ? 'flex-row-reverse' : ''}`}>
@@ -47,10 +51,31 @@ function Message({ msg }) {
         {isUser ? (
           <p className="whitespace-pre-wrap">{msg.content}</p>
         ) : (
-          <div
-            className="prose-clinical"
-            dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
-          />
+          <>
+            <div
+              className="prose-clinical"
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+            />
+            {canSavePlan && (
+              <div className="mt-3 pt-3 border-t border-white/10 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => onSavePlan?.(msg)}
+                  disabled={savingPlan}
+                  className="inline-flex items-center gap-2 rounded-lg bg-teal-500 hover:bg-teal-400 disabled:opacity-60 disabled:cursor-not-allowed text-white text-xs font-semibold px-3 py-2 transition-colors"
+                >
+                  {savingPlan ? (
+                    <span className="w-3.5 h-3.5 border-2 border-white/70 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M4.5 19.5h15a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5h-15A1.5 1.5 0 0 0 3 6v12a1.5 1.5 0 0 0 1.5 1.5Z" />
+                    </svg>
+                  )}
+                  Save to client plan
+                </button>
+              </div>
+            )}
+          </>
         )}
         {msg.created_at && (
           <div className={`text-xs mt-1.5 ${isUser ? 'text-brand-200' : 'text-gray-400'}`}>
@@ -197,6 +222,8 @@ export default function Supervisor() {
   const [responseStyle, setResponseStyle] = useState(
     () => therapist?.assistant_verbosity || localStorage.getItem('miwa_response_style') || 'balanced'
   )
+  const [savingPlanId, setSavingPlanId] = useState(null)
+  const [planSaveNotice, setPlanSaveNotice] = useState('')
   const messagesEndRef = useRef(null)
   const textareaRef = useRef(null)
   // Pick 4 random general prompts once per mount
@@ -382,6 +409,29 @@ export default function Supervisor() {
   }, [streaming, activeConversationId, contextType, contextId, responseStyle, loadConversations])
 
   const sendMessage = useCallback(() => sendText(input.trim()), [input, sendText])
+
+  const savePlanToClient = useCallback(async (msg) => {
+    if (!msg?.content || contextType !== 'patient' || !contextId) return
+    const patientId = parseInt(contextId, 10)
+    if (!patientId) return
+    const msgKey = msg.id || msg.created_at || msg.content.slice(0, 24)
+    setSavingPlanId(msgKey)
+    setPlanSaveNotice('')
+    setError('')
+    try {
+      const res = await apiFetch(`/ai/treatment-plan/${patientId}/import`, {
+        method: 'POST',
+        body: JSON.stringify({ content: msg.content, conversationId: activeConversationId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not save treatment plan')
+      setPlanSaveNotice(`Saved to client profile with ${data.goals_created || 0} goals.`)
+    } catch (err) {
+      setError(err.message || 'Could not save treatment plan')
+    } finally {
+      setSavingPlanId(null)
+    }
+  }, [contextType, contextId, activeConversationId])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -608,7 +658,18 @@ export default function Supervisor() {
         ) : (
           <>
             {messages.map(msg => (
-              <Message key={msg.id} msg={msg} />
+              <Message
+                key={msg.id}
+                msg={msg}
+                canSavePlan={
+                  msg.role === 'assistant'
+                  && contextType === 'patient'
+                  && !!contextId
+                  && looksLikeTreatmentPlan(msg.content)
+                }
+                onSavePlan={savePlanToClient}
+                savingPlan={savingPlanId === (msg.id || msg.created_at || msg.content?.slice(0, 24))}
+              />
             ))}
             {streaming && streamingText && (
               <div className="flex items-end gap-3 message-enter">
@@ -642,6 +703,25 @@ export default function Supervisor() {
             <span>{error} <Link to="/settings" className="underline font-medium">Go to Settings</Link></span>
           ) : error}
           <button onClick={() => setError('')} className="ml-auto text-red-400 hover:text-red-600">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {planSaveNotice && (
+        <div className="flex-shrink-0 mx-6 mb-2 rounded-lg bg-teal-50 border border-teal-200 px-4 py-2 text-sm text-teal-800 flex items-center gap-2">
+          <svg className="w-4 h-4 text-teal-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75 11.25 15 15 9.75M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
+          </svg>
+          <span>{planSaveNotice}</span>
+          {contextType === 'patient' && contextId && (
+            <Link to={`/patients/${contextId}`} className="ml-auto text-xs font-semibold text-teal-700 hover:text-teal-900">
+              Open profile
+            </Link>
+          )}
+          <button onClick={() => setPlanSaveNotice('')} className="text-teal-500 hover:text-teal-700">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
