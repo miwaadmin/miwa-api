@@ -2011,7 +2011,7 @@ function ClientPortalPanel({ patient }) {
 
   const status = portal?.status || 'not_invited'
   return (
-    <div className="card p-4 space-y-4">
+    <div className="card p-5 space-y-5">
       <div className="flex items-start justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-gray-900">Client Portal</h3>
@@ -2028,61 +2028,85 @@ function ClientPortalPanel({ patient }) {
         </div>
       )}
       {error && <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">{error}</p>}
-      <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-xs text-gray-700 space-y-1">
-        <p className="font-semibold text-gray-800">What Client Can See</p>
-        <p>Messages: enabled</p>
-        <p>Appointments: {portal?.what_client_can_see?.appointments ? 'enabled' : 'disabled'}</p>
-        <p>Check-ins: enabled</p>
-        <p>Practice: {portal?.what_client_can_see?.homework ? 'enabled' : 'disabled'}</p>
-        <p>Care goals: {portal?.what_client_can_see?.care_goals_shared || 0} shared</p>
-        <p>Notes: never shared</p>
-        <p>AI consult: never shared</p>
-      </div>
-      <Link to={`/client/preview/${patient.id}`} className="btn-secondary w-full justify-center text-xs">Client View Preview</Link>
-      <div className="grid grid-cols-2 gap-2">
-        {['Welcome to Miwa','Appointment reminder','Assessment assigned','Homework assigned','Please complete before next session','I received your message and will respond soon','Miwa is not for emergencies. If this is urgent, call 988, 911, or local emergency services.'].map(t => (
-          <button key={t} onClick={() => setMessage(t)} className="rounded-lg border border-gray-200 bg-white px-2 py-2 text-[11px] font-semibold text-gray-700 text-left">{t}</button>
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-2 text-xs">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 text-xs">
         <PortalStat label="Last login" value={portal?.summary?.last_login ? formatDate(portal.summary.last_login) : 'Not yet'} />
         <PortalStat label="Unread" value={portal?.summary?.unread_client_messages || 0} />
         <PortalStat label="Pending checks" value={portal?.summary?.pending_assessments || 0} />
         <PortalStat label="Homework" value={portal?.summary?.incomplete_homework || 0} />
       </div>
-      <textarea value={message} onChange={e => setMessage(e.target.value)} rows={2} className="textarea text-sm" placeholder="Secure message to client" />
-      <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={2} className="textarea text-sm" placeholder="Private therapist draft, saved locally" />
-      <button onClick={sendMessage} disabled={busy === 'message' || !message.trim()} className="btn-secondary w-full justify-center text-xs">Send secure message</button>
-      <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-2">
-        <p className="text-xs font-semibold text-gray-700">Assign assessment</p>
-        <div className="flex gap-2">
-          <select value={assessmentType} onChange={e => setAssessmentType(e.target.value)} className="flex-1 rounded-lg border border-gray-200 bg-white px-2 py-2 text-xs">
-            <option value="phq-9">PHQ-9</option>
-            <option value="gad-7">GAD-7</option>
-            <option value="pcl-5">PCL-5</option>
-            <option value="cssrs">C-SSRS</option>
-          </select>
-          <button onClick={assignAssessment} disabled={busy === 'assessment'} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white">Assign</button>
-        </div>
-      </div>
-      <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-2">
-        <p className="text-xs font-semibold text-gray-700">Assign homework/resource</p>
-        <input value={homework.title} onChange={e => setHomework(h => ({ ...h, title: e.target.value }))} className="input text-sm py-2" placeholder="Title" />
-        <textarea value={homework.description} onChange={e => setHomework(h => ({ ...h, description: e.target.value }))} className="textarea text-sm py-2" rows={2} placeholder="Description" />
-        <input value={homework.resource_url} onChange={e => setHomework(h => ({ ...h, resource_url: e.target.value }))} className="input text-sm py-2" placeholder="Optional resource URL" />
-        <button onClick={assignHomework} disabled={busy === 'homework' || !homework.title.trim()} className="btn-secondary w-full justify-center text-xs">Assign homework</button>
-      </div>
-      {messages.length > 0 && (
-        <div className="space-y-2">
-          <p className="text-xs font-semibold text-gray-700">Recent thread</p>
-          {messages.slice(-4).map(m => (
-            <div key={m.id} className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
-              <p className="text-[10px] font-semibold uppercase text-gray-400">{m.sender_type}</p>
-              <p className="text-xs text-gray-700">{m.content}</p>
+
+      <div className="grid gap-4 xl:grid-cols-[0.95fr_1.35fr]">
+        <div className="space-y-4">
+          <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-xs text-gray-700">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <p className="font-semibold text-gray-800">What Client Can See</p>
+              <Link to={`/client/preview/${patient.id}`} className="text-xs font-semibold text-indigo-600 hover:text-indigo-700">Preview</Link>
             </div>
-          ))}
+            <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+              <p>Messages: enabled</p>
+              <p>Appointments: {portal?.what_client_can_see?.appointments ? 'enabled' : 'disabled'}</p>
+              <p>Check-ins: enabled</p>
+              <p>Practice: {portal?.what_client_can_see?.homework ? 'enabled' : 'disabled'}</p>
+              <p>Care goals: {portal?.what_client_can_see?.care_goals_shared || 0} shared</p>
+              <p>Notes: never shared</p>
+              <p>AI consult: never shared</p>
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">Message templates</p>
+            <div className="grid grid-cols-2 gap-2">
+              {['Welcome to Miwa','Appointment reminder','Assessment assigned','Homework assigned','Please complete before next session','I received your message and will respond soon','Miwa is not for emergencies. If this is urgent, call 988, 911, or local emergency services.'].map(t => (
+                <button key={t} onClick={() => setMessage(t)} className="rounded-lg border border-gray-200 bg-white px-2.5 py-2 text-[11px] font-semibold text-gray-700 text-left hover:border-indigo-200 hover:bg-indigo-50">{t}</button>
+              ))}
+            </div>
+          </div>
+
+          {messages.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-gray-700">Recent thread</p>
+              {messages.slice(-3).map(m => (
+                <div key={m.id} className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
+                  <p className="text-[10px] font-semibold uppercase text-gray-400">{m.sender_type}</p>
+                  <p className="text-xs text-gray-700">{m.content}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+
+        <div className="space-y-4">
+          <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-2">
+            <div className="grid gap-2 lg:grid-cols-2">
+              <textarea value={message} onChange={e => setMessage(e.target.value)} rows={3} className="textarea text-sm" placeholder="Secure message to client" />
+              <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={3} className="textarea text-sm" placeholder="Private therapist draft, saved locally" />
+            </div>
+            <button onClick={sendMessage} disabled={busy === 'message' || !message.trim()} className="btn-secondary w-full justify-center text-xs">Send secure message</button>
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-2">
+              <p className="text-xs font-semibold text-gray-700">Assign assessment</p>
+              <div className="flex gap-2">
+                <select value={assessmentType} onChange={e => setAssessmentType(e.target.value)} className="flex-1 rounded-lg border border-gray-200 bg-white px-2 py-2 text-xs">
+                  <option value="phq-9">PHQ-9</option>
+                  <option value="gad-7">GAD-7</option>
+                  <option value="pcl-5">PCL-5</option>
+                  <option value="cssrs">C-SSRS</option>
+                </select>
+                <button onClick={assignAssessment} disabled={busy === 'assessment'} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white">Assign</button>
+              </div>
+            </div>
+            <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-2">
+              <p className="text-xs font-semibold text-gray-700">Assign practice/resource</p>
+              <input value={homework.title} onChange={e => setHomework(h => ({ ...h, title: e.target.value }))} className="input text-sm py-2" placeholder="Title" />
+              <textarea value={homework.description} onChange={e => setHomework(h => ({ ...h, description: e.target.value }))} className="textarea text-sm py-2" rows={2} placeholder="Description" />
+              <input value={homework.resource_url} onChange={e => setHomework(h => ({ ...h, resource_url: e.target.value }))} className="input text-sm py-2" placeholder="Optional resource URL" />
+              <button onClick={assignHomework} disabled={busy === 'homework' || !homework.title.trim()} className="btn-secondary w-full justify-center text-xs">Assign practice</button>
+            </div>
+          </div>
+        </div>
+      </div>
       {status !== 'not_invited' && <button onClick={revoke} disabled={busy === 'revoke'} className="text-xs font-semibold text-red-600 hover:text-red-700">Revoke/disable portal access</button>}
     </div>
   )
@@ -2795,8 +2819,6 @@ export default function PatientDetail() {
           <RecordFilesPanel patientId={id} />
 
           <TreatmentPlanPanel patientId={id} />
-
-          <ClientPortalPanel patient={patient} />
         </div>
 
         {/* Right: Living clinical profile (full when no session selected, compact strip when reading one) + session detail */}
@@ -2806,6 +2828,7 @@ export default function PatientDetail() {
           )}
 
           {activeSession ? (
+            <div className="space-y-4">
             <div className="card overflow-hidden flex flex-col" style={{ maxHeight: 'calc(100vh - 180px)' }}>
               {/* Session header */}
               <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between flex-shrink-0">
@@ -2997,20 +3020,25 @@ export default function PatientDetail() {
 
               </div>
             </div>
+            <ClientPortalPanel patient={patient} />
+            </div>
           ) : (
             // No session selected, show the unified Clinical Profile panel.
             // Diagnosis is intentionally omitted here; it lives once in the
             // left-column profile card and is the single source of truth.
-            <ClinicalProfilePanel
-              mode="full"
-              patientId={id}
-              patient={patient}
-              sessions={sessions}
-              clientSummary={clientSummary}
-              summaryLoading={summaryLoading}
-              onGenerateSummary={() => generateClientSummary(patient, sessions)}
-              newSessionHref={`/patients/${id}/sessions/new`}
-            />
+            <div className="space-y-4">
+              <ClinicalProfilePanel
+                mode="full"
+                patientId={id}
+                patient={patient}
+                sessions={sessions}
+                clientSummary={clientSummary}
+                summaryLoading={summaryLoading}
+                onGenerateSummary={() => generateClientSummary(patient, sessions)}
+                newSessionHref={`/patients/${id}/sessions/new`}
+              />
+              <ClientPortalPanel patient={patient} />
+            </div>
           )}
         </div>
       </div>
