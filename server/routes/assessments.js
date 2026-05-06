@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { emit } = require('../services/event-bus');
 
@@ -17,6 +18,80 @@ function scoreTrend(type, baseline, current) {
 
 function clientLabel(patient) {
   return patient?.display_name || patient?.client_id || 'Client';
+}
+
+function clientInviteHash(token) {
+  return crypto.createHash('sha256').update(String(token || '')).digest('hex');
+}
+
+async function sendGenericMiwaEmail(to, { inviteUrl, pendingItem } = {}) {
+  if (!to) return false;
+  try {
+    const { sendMail } = require('../services/mailer');
+    const cta = inviteUrl || (process.env.APP_BASE_URL || process.env.APP_URL || 'https://miwa.care').replace(/\/$/, '') + '/client/login';
+    await sendMail({
+      to,
+      subject: pendingItem ? 'You have a pending item in Miwa' : 'Your secure Miwa portal',
+      text: `You have ${pendingItem ? 'a pending item' : 'a secure invite'} in Miwa. Open Miwa to continue: ${cta}\n\nMiwa is not for emergencies. If you need urgent help, call 988, 911, or local emergency services.`,
+      html: `<p>You have ${pendingItem ? 'a pending item' : 'a secure invite'} in Miwa.</p><p><a href="${cta}">Open Miwa</a></p><p>Miwa is not for emergencies. If you need urgent help, call 988, 911, or local emergency services.</p>`,
+    });
+    return true;
+  } catch (err) {
+    console.error('[assessments/client-portal-email]', err.message);
+    return false;
+  }
+}
+
+async function ensurePortalAccountForPatient(db, patient, therapistId) {
+  const email = String(patient?.email || '').trim().toLowerCase();
+  const phone = String(patient?.phone || '').trim() || null;
+  if (!patient?.id || !therapistId || !email) return null;
+
+  let account = await db.get(
+    'SELECT * FROM client_portal_accounts WHERE patient_id = ? AND therapist_id = ?',
+    patient.id,
+    therapistId,
+  );
+  if (!account) {
+    const inserted = await db.insert(
+      `INSERT INTO client_portal_accounts
+         (patient_id, therapist_id, email, phone, display_name, status)
+       VALUES (?, ?, ?, ?, ?, 'invited')`,
+      patient.id,
+      therapistId,
+      email,
+      phone,
+      patient.display_name || patient.client_id,
+    );
+    account = await db.get('SELECT * FROM client_portal_accounts WHERE id = ?', inserted.lastInsertRowid);
+  }
+
+  const activeInvite = await db.get(
+    `SELECT id FROM client_portal_invites
+     WHERE patient_id = ? AND therapist_id = ? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > datetime('now')
+     ORDER BY created_at DESC LIMIT 1`,
+    patient.id,
+    therapistId,
+  );
+  let inviteUrl = null;
+  if (!account.accepted_terms_at && !activeInvite) {
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    await db.insert(
+      `INSERT INTO client_portal_invites
+         (patient_id, therapist_id, email, phone, token_hash, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      patient.id,
+      therapistId,
+      email,
+      phone,
+      clientInviteHash(token),
+      expiresAt,
+    );
+    const appUrl = (process.env.APP_BASE_URL || process.env.APP_URL || 'https://miwa.care').replace(/\/$/, '');
+    inviteUrl = `${appUrl}/client/accept-invite?token=${token}`;
+  }
+  return { account, inviteUrl };
 }
 
 const normalizedTemplateSql = "LOWER(REPLACE(REPLACE(REPLACE(template_type, '-', ''), '_', ''), ' ', ''))";
@@ -804,8 +879,9 @@ router.post('/', async (req, res) => {
     if (!template) return res.status(400).json({ error: 'Invalid template_type' });
 
     // Verify patient
-    const patient = await db.get('SELECT id, client_id, display_name FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
+    const patient = await db.get('SELECT id, client_id, display_name, email, phone FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
+    const portal = await ensurePortalAccountForPatient(db, patient, tid);
 
     // Score it
     const { total, severityLevel, severityColor } = scoreAssessment(template_type, responses);
@@ -1497,8 +1573,9 @@ router.post('/links', async (req, res) => {
       return res.status(400).json({ error: 'Invalid template_type' });
     }
 
-    const patient = await db.get('SELECT id, client_id, display_name FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
+    const patient = await db.get('SELECT id, client_id, display_name, email, phone FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
+    const portal = await ensurePortalAccountForPatient(db, patient, tid);
 
     // Crypto-random 32-byte hex token
     const { randomBytes } = require('crypto');
@@ -1509,12 +1586,19 @@ router.post('/links', async (req, res) => {
 
     await db.insert(
       `INSERT INTO assessment_links
-         (token, patient_id, therapist_id, template_type, member_label, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      token, patient_id, tid, template_type,
+         (token, patient_id, therapist_id, client_account_id, template_type, member_label, expires_at, assigned_via, assigned_by_therapist_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      token, patient_id, tid,
+      portal?.account?.id || null,
+      template_type,
       member_label || null,
       expiresAt.toISOString(),
+      portal?.account ? 'client_portal' : 'link',
+      tid,
     );
+    if (portal?.account) {
+      await sendGenericMiwaEmail(patient.email, { inviteUrl: portal.inviteUrl, pendingItem: true });
+    }
 
     const appUrl = process.env.APP_URL || 'https://miwa.care';
     res.json({
@@ -1581,8 +1665,9 @@ router.post('/checkin', async (req, res) => {
 
     if (!patient_id) return res.status(400).json({ error: 'patient_id is required' });
 
-    const patient = await db.get('SELECT id, client_id, display_name, phone FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
+    const patient = await db.get('SELECT id, client_id, display_name, phone, email FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
+    const portal = await ensurePortalAccountForPatient(db, patient, tid);
 
     const token = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + Math.min(Math.max(parseInt(expires_days) || 3, 1), 14) * 86400000);
@@ -1596,6 +1681,20 @@ router.post('/checkin', async (req, res) => {
 
     const appUrl = (process.env.APP_BASE_URL || process.env.APP_URL || 'https://miwa.care').replace(/\/$/, '');
     const checkinUrl = `${appUrl}/checkin/${token}`;
+
+    if (portal?.account) {
+      await db.insert(
+        `INSERT INTO client_messages
+           (patient_id, therapist_id, client_account_id, sender_type, content, sender, message, delivered_at)
+         VALUES (?, ?, ?, 'system', ?, 'system', ?, CURRENT_TIMESTAMP)`,
+        patient_id,
+        tid,
+        portal.account.id,
+        'You have a new check-in in Miwa.',
+        'You have a new check-in in Miwa.',
+      );
+      await sendGenericMiwaEmail(patient.email, { inviteUrl: portal.inviteUrl, pendingItem: true });
+    }
 
     // Auto-send via preferred contact method
     let smsSent = false;

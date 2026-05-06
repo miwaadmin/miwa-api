@@ -3060,9 +3060,6 @@ export default function PatientDetail() {
             </div>
           )}
         </div>
-        <div className="lg:col-span-3">
-          <ClientPortalPanel patient={patient} />
-        </div>
       </div>
     </div>
 
