@@ -84,7 +84,16 @@ export default function Login() {
             <MiwaLogo size={56} />
           </Link>
           <h1 className="text-3xl font-extrabold text-gray-900 mt-4 tracking-tight">Welcome back</h1>
-          <p className="text-gray-500 text-base mt-2">Sign in to your Miwa account</p>
+          <p className="text-gray-500 text-base mt-2">Choose your Miwa door</p>
+        </div>
+
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <button className="rounded-2xl bg-gray-950 text-white px-4 py-3 text-sm font-bold shadow-sm">
+            Continue as Clinician
+          </button>
+          <Link to="/client/login" className="rounded-2xl bg-white text-gray-800 border border-gray-200 px-4 py-3 text-sm font-bold text-center shadow-sm hover:bg-gray-50">
+            Continue as Client
+          </Link>
         </div>
 
         {/* Card */}

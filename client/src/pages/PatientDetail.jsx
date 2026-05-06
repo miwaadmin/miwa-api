@@ -1911,6 +1911,187 @@ function OutcomeProgressCard({ patientId, patient }) {
   )
 }
 
+function ClientPortalPanel({ patient }) {
+  const [portal, setPortal] = useState(null)
+  const [messages, setMessages] = useState([])
+  const [inviteLink, setInviteLink] = useState('')
+  const [message, setMessage] = useState('')
+  const [homework, setHomework] = useState({ title: '', description: '', resource_url: '' })
+  const [assessmentType, setAssessmentType] = useState('phq-9')
+  const [draft, setDraft] = useState('')
+  const [busy, setBusy] = useState('')
+  const [error, setError] = useState('')
+
+  const loadPortal = useCallback(async () => {
+    if (!patient?.id) return
+    const res = await apiFetch(`/patients/${patient.id}/client-portal`)
+    const json = await res.json()
+    if (res.ok) setPortal(json)
+  }, [patient?.id])
+
+  const loadMessages = useCallback(async () => {
+    if (!patient?.id) return
+    const res = await apiFetch(`/patients/${patient.id}/client-portal/messages`)
+    const json = await res.json()
+    if (res.ok) setMessages(json.messages || [])
+  }, [patient?.id])
+
+  useEffect(() => { loadPortal(); loadMessages() }, [loadPortal, loadMessages])
+  useEffect(() => {
+    try { setDraft(localStorage.getItem(`miwa_therapist_portal_draft_${patient?.id}`) || '') } catch {}
+  }, [patient?.id])
+  useEffect(() => {
+    try { if (patient?.id) localStorage.setItem(`miwa_therapist_portal_draft_${patient.id}`, draft) } catch {}
+  }, [draft, patient?.id])
+
+  async function action(name, fn) {
+    setBusy(name); setError('')
+    try { await fn(); await loadPortal(); await loadMessages() }
+    catch (err) { setError(err.message || 'Action failed') }
+    finally { setBusy('') }
+  }
+
+  async function invite() {
+    await action('invite', async () => {
+      const res = await apiFetch(`/patients/${patient.id}/client-portal/invite`, {
+        method: 'POST',
+        body: JSON.stringify({ email: patient.email, phone: patient.phone }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Could not create invite')
+      setInviteLink(json.invite_url || '')
+    })
+  }
+
+  async function sendMessage() {
+    if (!message.trim()) return
+    await action('message', async () => {
+      const res = await apiFetch(`/patients/${patient.id}/client-portal/messages`, {
+        method: 'POST',
+        body: JSON.stringify({ content: message.trim() }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Could not send message')
+      setMessage('')
+    })
+  }
+
+  async function assignHomework() {
+    if (!homework.title.trim()) return
+    await action('homework', async () => {
+      const res = await apiFetch(`/patients/${patient.id}/client-portal/homework`, {
+        method: 'POST',
+        body: JSON.stringify(homework),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Could not assign homework')
+      setHomework({ title: '', description: '', resource_url: '' })
+    })
+  }
+
+  async function assignAssessment() {
+    await action('assessment', async () => {
+      const res = await apiFetch(`/patients/${patient.id}/client-portal/assessments`, {
+        method: 'POST',
+        body: JSON.stringify({ template_type: assessmentType }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Could not assign assessment')
+    })
+  }
+
+  async function revoke() {
+    await action('revoke', async () => {
+      const res = await apiFetch(`/patients/${patient.id}/client-portal/revoke`, { method: 'POST' })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || 'Could not disable access')
+      setInviteLink('')
+    })
+  }
+
+  const status = portal?.status || 'not_invited'
+  return (
+    <div className="card p-4 space-y-4">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900">Client Portal</h3>
+          <p className="text-xs text-gray-500">Status: <span className="font-semibold capitalize text-gray-800">{status.replace('_', ' ')}</span></p>
+        </div>
+        <button onClick={invite} disabled={busy === 'invite'} className="text-xs font-semibold rounded-lg bg-indigo-600 text-white px-3 py-2 disabled:opacity-50">
+          {status === 'invited' ? 'Resend invite' : 'Invite client'}
+        </button>
+      </div>
+      {inviteLink && (
+        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
+          <p className="text-xs font-semibold text-emerald-800">Dev invite link</p>
+          <input className="mt-2 w-full rounded-lg border border-emerald-200 px-2 py-1.5 text-xs text-gray-700" readOnly value={inviteLink} />
+        </div>
+      )}
+      {error && <p className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-xs text-red-700">{error}</p>}
+      <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 text-xs text-gray-700 space-y-1">
+        <p className="font-semibold text-gray-800">What Client Can See</p>
+        <p>Messages: enabled</p>
+        <p>Appointments: {portal?.what_client_can_see?.appointments ? 'enabled' : 'disabled'}</p>
+        <p>Check-ins: enabled</p>
+        <p>Practice: {portal?.what_client_can_see?.homework ? 'enabled' : 'disabled'}</p>
+        <p>Care goals: {portal?.what_client_can_see?.care_goals_shared || 0} shared</p>
+        <p>Notes: never shared</p>
+        <p>AI consult: never shared</p>
+      </div>
+      <Link to={`/client/preview/${patient.id}`} className="btn-secondary w-full justify-center text-xs">Client View Preview</Link>
+      <div className="grid grid-cols-2 gap-2">
+        {['Welcome to Miwa','Appointment reminder','Assessment assigned','Homework assigned','Please complete before next session','I received your message and will respond soon','Miwa is not for emergencies. If this is urgent, call 988, 911, or local emergency services.'].map(t => (
+          <button key={t} onClick={() => setMessage(t)} className="rounded-lg border border-gray-200 bg-white px-2 py-2 text-[11px] font-semibold text-gray-700 text-left">{t}</button>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <PortalStat label="Last login" value={portal?.summary?.last_login ? formatDate(portal.summary.last_login) : 'Not yet'} />
+        <PortalStat label="Unread" value={portal?.summary?.unread_client_messages || 0} />
+        <PortalStat label="Pending checks" value={portal?.summary?.pending_assessments || 0} />
+        <PortalStat label="Homework" value={portal?.summary?.incomplete_homework || 0} />
+      </div>
+      <textarea value={message} onChange={e => setMessage(e.target.value)} rows={2} className="textarea text-sm" placeholder="Secure message to client" />
+      <textarea value={draft} onChange={e => setDraft(e.target.value)} rows={2} className="textarea text-sm" placeholder="Private therapist draft, saved locally" />
+      <button onClick={sendMessage} disabled={busy === 'message' || !message.trim()} className="btn-secondary w-full justify-center text-xs">Send secure message</button>
+      <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-2">
+        <p className="text-xs font-semibold text-gray-700">Assign assessment</p>
+        <div className="flex gap-2">
+          <select value={assessmentType} onChange={e => setAssessmentType(e.target.value)} className="flex-1 rounded-lg border border-gray-200 bg-white px-2 py-2 text-xs">
+            <option value="phq-9">PHQ-9</option>
+            <option value="gad-7">GAD-7</option>
+            <option value="pcl-5">PCL-5</option>
+            <option value="cssrs">C-SSRS</option>
+          </select>
+          <button onClick={assignAssessment} disabled={busy === 'assessment'} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white">Assign</button>
+        </div>
+      </div>
+      <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 space-y-2">
+        <p className="text-xs font-semibold text-gray-700">Assign homework/resource</p>
+        <input value={homework.title} onChange={e => setHomework(h => ({ ...h, title: e.target.value }))} className="input text-sm py-2" placeholder="Title" />
+        <textarea value={homework.description} onChange={e => setHomework(h => ({ ...h, description: e.target.value }))} className="textarea text-sm py-2" rows={2} placeholder="Description" />
+        <input value={homework.resource_url} onChange={e => setHomework(h => ({ ...h, resource_url: e.target.value }))} className="input text-sm py-2" placeholder="Optional resource URL" />
+        <button onClick={assignHomework} disabled={busy === 'homework' || !homework.title.trim()} className="btn-secondary w-full justify-center text-xs">Assign homework</button>
+      </div>
+      {messages.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold text-gray-700">Recent thread</p>
+          {messages.slice(-4).map(m => (
+            <div key={m.id} className="rounded-lg bg-gray-50 border border-gray-100 px-3 py-2">
+              <p className="text-[10px] font-semibold uppercase text-gray-400">{m.sender_type}</p>
+              <p className="text-xs text-gray-700">{m.content}</p>
+            </div>
+          ))}
+        </div>
+      )}
+      {status !== 'not_invited' && <button onClick={revoke} disabled={busy === 'revoke'} className="text-xs font-semibold text-red-600 hover:text-red-700">Revoke/disable portal access</button>}
+    </div>
+  )
+}
+
+function PortalStat({ label, value }) {
+  return <div className="rounded-lg border border-gray-100 bg-white px-3 py-2"><p className="text-[10px] uppercase tracking-wide text-gray-400">{label}</p><p className="font-semibold text-gray-800">{value}</p></div>
+}
+
 export default function PatientDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -2614,6 +2795,8 @@ export default function PatientDetail() {
           <RecordFilesPanel patientId={id} />
 
           <TreatmentPlanPanel patientId={id} />
+
+          <ClientPortalPanel patient={patient} />
         </div>
 
         {/* Right: Living clinical profile (full when no session selected, compact strip when reading one) + session detail */}

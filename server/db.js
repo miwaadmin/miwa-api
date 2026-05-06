@@ -1017,16 +1017,119 @@ function createSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_portal_tokens ON client_portal_tokens(token);
 
+    CREATE TABLE IF NOT EXISTS client_portal_accounts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_id INTEGER NOT NULL REFERENCES patients(id),
+      therapist_id INTEGER NOT NULL REFERENCES therapists(id),
+      email TEXT NOT NULL,
+      phone TEXT,
+      display_name TEXT,
+      password_hash TEXT,
+      accepted_terms_at DATETIME,
+      accepted_privacy_at DATETIME,
+      portal_consent_at DATETIME,
+      last_login_at DATETIME,
+      notification_email_enabled INTEGER NOT NULL DEFAULT 1,
+      notification_sms_enabled INTEGER NOT NULL DEFAULT 0,
+      appointment_reminders_enabled INTEGER NOT NULL DEFAULT 1,
+      assessment_reminders_enabled INTEGER NOT NULL DEFAULT 1,
+      homework_reminders_enabled INTEGER NOT NULL DEFAULT 1,
+      appointment_visibility_enabled INTEGER NOT NULL DEFAULT 1,
+      homework_enabled INTEGER NOT NULL DEFAULT 1,
+      resources_enabled INTEGER NOT NULL DEFAULT 1,
+      checklist_json TEXT,
+      terms_version TEXT,
+      privacy_version TEXT,
+      portal_consent_version TEXT,
+      response_window TEXT,
+      office_hours TEXT,
+      emergency_boundary_message TEXT,
+      portal_announcement TEXT,
+      welcome_message_template TEXT,
+      status TEXT NOT NULL DEFAULT 'invited',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(patient_id, therapist_id),
+      UNIQUE(email, therapist_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_portal_accounts_patient ON client_portal_accounts(patient_id, therapist_id);
+
+    CREATE TABLE IF NOT EXISTS client_portal_invites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_id INTEGER NOT NULL REFERENCES patients(id),
+      therapist_id INTEGER NOT NULL REFERENCES therapists(id),
+      email TEXT,
+      phone TEXT,
+      token_hash TEXT UNIQUE NOT NULL,
+      expires_at DATETIME NOT NULL,
+      accepted_at DATETIME,
+      revoked_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_portal_invites_patient ON client_portal_invites(patient_id, therapist_id, created_at);
+
     CREATE TABLE IF NOT EXISTS client_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       patient_id INTEGER NOT NULL REFERENCES patients(id),
       therapist_id INTEGER NOT NULL REFERENCES therapists(id),
+      client_account_id INTEGER REFERENCES client_portal_accounts(id),
+      sender_type TEXT NOT NULL DEFAULT 'client',
+      content TEXT,
+      risk_flag INTEGER NOT NULL DEFAULT 0,
+      risk_reviewed_at DATETIME,
+      delivered_at DATETIME,
+      client_viewed_at DATETIME,
+      therapist_viewed_at DATETIME,
+      attachment_document_id INTEGER REFERENCES documents(id),
       sender TEXT NOT NULL DEFAULT 'client',
       message TEXT NOT NULL,
       read_at DATETIME,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_client_msgs ON client_messages(patient_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS client_homework_assignments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_id INTEGER NOT NULL REFERENCES patients(id),
+      therapist_id INTEGER NOT NULL REFERENCES therapists(id),
+      client_account_id INTEGER REFERENCES client_portal_accounts(id),
+      title TEXT NOT NULL,
+      description TEXT,
+      resource_url TEXT,
+      attachment_document_id INTEGER REFERENCES documents(id),
+      due_at DATETIME,
+      completed_at DATETIME,
+      client_reflection TEXT,
+      therapist_reflection_notes TEXT,
+      therapist_reviewed_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_homework_patient ON client_homework_assignments(patient_id, therapist_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS client_portal_audit_log (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_id INTEGER REFERENCES patients(id),
+      therapist_id INTEGER REFERENCES therapists(id),
+      client_account_id INTEGER REFERENCES client_portal_accounts(id),
+      action TEXT NOT NULL,
+      metadata_json TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_portal_audit ON client_portal_audit_log(client_account_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS client_appointment_requests (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_id INTEGER NOT NULL REFERENCES patients(id),
+      therapist_id INTEGER NOT NULL REFERENCES therapists(id),
+      client_account_id INTEGER REFERENCES client_portal_accounts(id),
+      appointment_id INTEGER REFERENCES appointments(id),
+      request_type TEXT NOT NULL,
+      message TEXT,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      reviewed_at DATETIME
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_appointment_requests ON client_appointment_requests(therapist_id, patient_id, status);
   `);
 }
 
@@ -1557,6 +1660,48 @@ function runMigrations() {
   if (briefCols.length && !briefCols.includes('timezone')) {
     try { db.run('ALTER TABLE research_briefs ADD COLUMN timezone TEXT'); } catch {}
   }
+
+  try { db.run('ALTER TABLE client_messages ADD COLUMN client_account_id INTEGER'); } catch {}
+  try { db.run("ALTER TABLE client_messages ADD COLUMN sender_type TEXT NOT NULL DEFAULT 'client'"); } catch {}
+  try { db.run('ALTER TABLE client_messages ADD COLUMN content TEXT'); } catch {}
+  try { db.run('ALTER TABLE client_messages ADD COLUMN risk_flag INTEGER NOT NULL DEFAULT 0'); } catch {}
+  try { db.run('ALTER TABLE client_messages ADD COLUMN risk_reviewed_at DATETIME'); } catch {}
+  try { db.run('ALTER TABLE client_messages ADD COLUMN delivered_at DATETIME'); } catch {}
+  try { db.run('ALTER TABLE client_messages ADD COLUMN client_viewed_at DATETIME'); } catch {}
+  try { db.run('ALTER TABLE client_messages ADD COLUMN therapist_viewed_at DATETIME'); } catch {}
+  try { db.run('ALTER TABLE client_messages ADD COLUMN attachment_document_id INTEGER'); } catch {}
+  try { db.run('ALTER TABLE assessment_links ADD COLUMN client_account_id INTEGER'); } catch {}
+  try { db.run('ALTER TABLE assessment_links ADD COLUMN assigned_via TEXT'); } catch {}
+  try { db.run('ALTER TABLE assessment_links ADD COLUMN due_at DATETIME'); } catch {}
+  try { db.run('ALTER TABLE assessment_links ADD COLUMN assigned_by_therapist_id INTEGER'); } catch {}
+  try { db.run('ALTER TABLE treatment_goals ADD COLUMN shared_with_client INTEGER DEFAULT 0'); } catch {}
+  try { db.run('ALTER TABLE treatment_goals ADD COLUMN client_visible_label TEXT'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN accepted_privacy_at DATETIME'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN portal_consent_at DATETIME'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN notification_email_enabled INTEGER NOT NULL DEFAULT 1'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN notification_sms_enabled INTEGER NOT NULL DEFAULT 0'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN appointment_reminders_enabled INTEGER NOT NULL DEFAULT 1'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN assessment_reminders_enabled INTEGER NOT NULL DEFAULT 1'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN homework_reminders_enabled INTEGER NOT NULL DEFAULT 1'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN appointment_visibility_enabled INTEGER NOT NULL DEFAULT 1'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN homework_enabled INTEGER NOT NULL DEFAULT 1'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN resources_enabled INTEGER NOT NULL DEFAULT 1'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN checklist_json TEXT'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN terms_version TEXT'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN privacy_version TEXT'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN portal_consent_version TEXT'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN response_window TEXT'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN office_hours TEXT'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN emergency_boundary_message TEXT'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN portal_announcement TEXT'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN welcome_message_template TEXT'); } catch {}
+  try { db.run('ALTER TABLE client_homework_assignments ADD COLUMN attachment_document_id INTEGER'); } catch {}
+  try { db.run('ALTER TABLE client_homework_assignments ADD COLUMN client_reflection TEXT'); } catch {}
+  try { db.run('ALTER TABLE client_homework_assignments ADD COLUMN therapist_reflection_notes TEXT'); } catch {}
+  try { db.run('ALTER TABLE client_homework_assignments ADD COLUMN therapist_reviewed_at DATETIME'); } catch {}
+  try { db.run('ALTER TABLE documents ADD COLUMN client_visible INTEGER NOT NULL DEFAULT 0'); } catch {}
+  try { db.run('ALTER TABLE documents ADD COLUMN client_uploaded INTEGER NOT NULL DEFAULT 0'); } catch {}
+  try { db.run('ALTER TABLE documents ADD COLUMN requested_from_client INTEGER NOT NULL DEFAULT 0'); } catch {}
 
   // Auto-backfill: keep missing names boring and deterministic. Never invent
   // fake human names for clinical records.

@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { AdminAuthProvider, useAdminAuth } from './context/AdminAuthContext'
+import { ClientAuthProvider } from './context/ClientAuthContext'
 import AppErrorBoundary from './components/AppErrorBoundary'
 import Layout from './components/Layout'
 import AdminLayout from './components/AdminLayout'
@@ -84,6 +85,20 @@ import MobileLibrary from './pages/mobile/MobileLibrary'
 import MobileContacts from './pages/mobile/MobileContacts'
 import MobileBriefs from './pages/mobile/MobileBriefs'
 import MobileWorkspace from './pages/mobile/MobileWorkspace'
+import {
+  ClientAcceptInvite,
+  ClientAppointments,
+  ClientAssessments,
+  ClientDocuments,
+  ClientHome,
+  ClientHomework,
+  ClientLogin,
+  ClientMessages,
+  ClientProtectedRoute,
+  ClientPreview,
+  ClientResources,
+  ClientSettings,
+} from './pages/client/ClientPortalPages'
 
 // Detect Capacitor native shell only (mobile web browsers return false)
 const isNative = () => { try { return !!window.Capacitor?.isNativePlatform?.() } catch { return false } }
@@ -153,6 +168,7 @@ export default function App() {
     <BrowserRouter>
       <AuthProvider>
         <AdminAuthProvider>
+          <ClientAuthProvider>
           <AppErrorBoundary>
             <AnalyticsTracker />
             <ScrollToTop />
@@ -184,6 +200,17 @@ export default function App() {
               <Route path="/network" element={<PublicNetwork />} />
               <Route path="/checkin/:token" element={<CheckinForm />} />
               <Route path="/portal/:token" element={<ClientPortal />} />
+              <Route path="/client/login" element={<ClientLogin />} />
+              <Route path="/client/accept-invite" element={<ClientAcceptInvite />} />
+              <Route path="/client/home" element={<ClientProtectedRoute><ClientHome /></ClientProtectedRoute>} />
+              <Route path="/client/messages" element={<ClientProtectedRoute><ClientMessages /></ClientProtectedRoute>} />
+              <Route path="/client/assessments" element={<ClientProtectedRoute><ClientAssessments /></ClientProtectedRoute>} />
+              <Route path="/client/homework" element={<ClientProtectedRoute><ClientHomework /></ClientProtectedRoute>} />
+              <Route path="/client/documents" element={<ClientProtectedRoute><ClientDocuments /></ClientProtectedRoute>} />
+              <Route path="/client/appointments" element={<ClientProtectedRoute><ClientAppointments /></ClientProtectedRoute>} />
+              <Route path="/client/resources" element={<ClientProtectedRoute><ClientResources /></ClientProtectedRoute>} />
+              <Route path="/client/settings" element={<ClientProtectedRoute><ClientSettings /></ClientProtectedRoute>} />
+              <Route path="/client/preview/:patientId" element={<ProtectedRoute><ClientPreview /></ProtectedRoute>} />
 
               {/* Mobile-optimized routes */}
               <Route path="/m" element={<ProtectedRoute><MobileLayout /></ProtectedRoute>}>
@@ -247,6 +274,7 @@ export default function App() {
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
           </AppErrorBoundary>
+          </ClientAuthProvider>
         </AdminAuthProvider>
       </AuthProvider>
     </BrowserRouter>
