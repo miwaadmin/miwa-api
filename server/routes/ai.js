@@ -1182,13 +1182,22 @@ router.post('/chat', async (req, res) => {
     let outputTokens = 0;
     const chatModel = MODELS.GPT_MINI;
 
+    const consultMaxTokens = effectiveResponseStyle === 'detailed'
+      ? 5200
+      : effectiveResponseStyle === 'concise'
+        ? 1800
+        : 3800;
+    const completionGuard = effectiveResponseStyle === 'concise'
+      ? '\n\nFormatting guard: Keep the response brief, but always finish the final sentence.'
+      : '\n\nFormatting guard: If giving objectives, plans, or stepwise recommendations, fully finish each listed item. Do not stop mid-sentence or leave a heading with only a fragment. If the answer is getting long, finish the current section cleanly and end with "I can continue with the remaining sections if you want."';
+
     const result = await generateAIResponseWithUsage([
         {
           role: 'system',
-          content: `${getSupervisorSystemPrompt(userRole, therapistName, effectiveResponseStyle, assistantProfile)}${assistantRuntimePrompt ? `\n\n${assistantRuntimePrompt}` : ''}`,
+          content: `${getSupervisorSystemPrompt(userRole, therapistName, effectiveResponseStyle, assistantProfile)}${assistantRuntimePrompt ? `\n\n${assistantRuntimePrompt}` : ''}${completionGuard}`,
         },
         ...messages,
-      ], { maxTokens: 2000 });
+      ], { maxTokens: consultMaxTokens });
     const text = (result.text || '').replace(/[\u2014\u2013]/g, ' ');
     if (text) {
       fullResponse += text;
