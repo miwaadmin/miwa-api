@@ -6,6 +6,7 @@ const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { getSupervisorSystemPrompt, getAnalysisSystemPrompt, getTreatmentPlanSystemPrompt } = require('../prompts');
 const { normalizeAssistantProfile } = require('../lib/assistant');
 const { scrubText, scrubObject } = require('../lib/scrubber');
+const { canSendPhiToTextAI } = require('../lib/phiPolicy');
 const { MODELS, callAI, streamAI, streamAnalyzeNotes } = require('../lib/aiExecutor');
 const { logCostEvent, assertBudgetOk } = require('../services/costTracker');
 const { extractIntakeIdentity } = require('../services/intakeIdentityExtractor');
@@ -1039,7 +1040,9 @@ router.post('/chat', async (req, res) => {
       conversation_id,
     } = req.body;
     const requestedConversationId = conversationIdBody || conversation_id;
-    const message = scrubText(_rawMsg);
+    const allowPhiInConsult = canSendPhiToTextAI();
+    const protectText = allowPhiInConsult ? (value) => String(value || '') : scrubText;
+    const message = protectText(_rawMsg).trim();
     if (!message) return res.status(400).json({ error: 'Message is required' });
 
     const db = getAsyncDb();
@@ -1131,24 +1134,30 @@ router.post('/chat', async (req, res) => {
         if (docs.length > 0) {
           docBlock = '\n\nUploaded Assessment Documents:\n' + docs.map(d => {
             const label = d.document_label || d.original_name;
-            const safe  = scrubText(d.extracted_text || ''); // scrub doc text before AI
+            const safe  = protectText(d.extracted_text || '');
             const preview = safe.substring(0, 1500);
             return `--- ${label} (${d.file_type}) ---\n${preview}${safe.length > 1500 ? '\n[...truncated]' : ''}`;
           }).join('\n\n');
         }
-        // Scrub all clinical fields before injecting into the Azure AI context block
-        contextBlock = `\n\n[CASE CONTEXT - De-identified]\nClient ID: ${patient.client_id}\nAge: ${patient.age || 'N/A'}\nGender: ${patient.gender || 'N/A'}\nPresenting Concerns: ${scrubText(patient.presenting_concerns || 'N/A')}\nCurrent Diagnoses: ${scrubText(patient.diagnoses || 'N/A')}\n\nRecent Sessions (${sessions.length}):\n${sessions.map(s => `- ${s.session_date}: ${scrubText(s.assessment || 'No assessment')}`).join('\n')}${docBlock}`;
+        const patientName = allowPhiInConsult
+          ? [patient.first_name, patient.last_name].filter(Boolean).join(' ').trim()
+          : '';
+        const contextLabel = allowPhiInConsult ? 'CASE CONTEXT - HIPAA PHI allowed' : 'CASE CONTEXT - De-identified';
+        contextBlock = `\n\n[${contextLabel}]\nClient ID: ${patient.client_id}${patientName ? `\nClient Name: ${patientName}` : ''}\nAge: ${patient.age || 'N/A'}\nGender: ${patient.gender || 'N/A'}\nPresenting Concerns: ${protectText(patient.presenting_concerns || 'N/A')}\nCurrent Diagnoses: ${protectText(patient.diagnoses || 'N/A')}\n\nRecent Sessions (${sessions.length}):\n${sessions.map(s => `- ${s.session_date}: ${protectText(s.assessment || 'No assessment')}`).join('\n')}${docBlock}`;
       }
     } else if (permittedContextType === 'session' && contextId) {
       const session = await db.get(
-        `SELECT s.*, p.client_id, p.age, p.gender, p.presenting_concerns, p.diagnoses
+        `SELECT s.*, p.client_id, p.first_name, p.last_name, p.age, p.gender, p.presenting_concerns, p.diagnoses
          FROM sessions s JOIN patients p ON s.patient_id = p.id
          WHERE s.id = ? AND s.therapist_id = ? AND p.therapist_id = ?`,
         contextId, tid, tid
       );
       if (session) {
-        // Scrub all note fields before injecting into the Azure AI context block
-        contextBlock = `\n\n[SESSION CONTEXT - De-identified]\nClient ID: ${session.client_id}\nAge: ${session.age || 'N/A'}\nGender: ${session.gender || 'N/A'}\nSession Date: ${session.session_date}\nSubjective: ${scrubText(session.subjective || 'N/A')}\nObjective: ${scrubText(session.objective || 'N/A')}\nAssessment: ${scrubText(session.assessment || 'N/A')}\nPlan: ${scrubText(session.plan || 'N/A')}`;
+        const patientName = allowPhiInConsult
+          ? [session.first_name, session.last_name].filter(Boolean).join(' ').trim()
+          : '';
+        const contextLabel = allowPhiInConsult ? 'SESSION CONTEXT - HIPAA PHI allowed' : 'SESSION CONTEXT - De-identified';
+        contextBlock = `\n\n[${contextLabel}]\nClient ID: ${session.client_id}${patientName ? `\nClient Name: ${patientName}` : ''}\nAge: ${session.age || 'N/A'}\nGender: ${session.gender || 'N/A'}\nSession Date: ${session.session_date}\nSubjective: ${protectText(session.subjective || 'N/A')}\nObjective: ${protectText(session.objective || 'N/A')}\nAssessment: ${protectText(session.assessment || 'N/A')}\nPlan: ${protectText(session.plan || 'N/A')}`;
       }
     }
 
@@ -1180,7 +1189,11 @@ router.post('/chat', async (req, res) => {
     let fullResponse = '';
     let inputTokens = 0;
     let outputTokens = 0;
-    const chatModel = MODELS.GPT_MINI;
+    const aiStatus = getAIConfigStatus();
+    const aiProvider = aiStatus.textProvider || 'azure-openai';
+    const chatModel = aiProvider === 'openai-phi-zdr'
+      ? aiStatus.openaiPhi?.model || 'openai-phi'
+      : MODELS.GPT_MINI;
 
     const consultMaxTokens = effectiveResponseStyle === 'detailed'
       ? 5200
@@ -1194,7 +1207,7 @@ router.post('/chat', async (req, res) => {
     const result = await generateAIResponseWithUsage([
         {
           role: 'system',
-          content: `${getSupervisorSystemPrompt(userRole, therapistName, effectiveResponseStyle, assistantProfile)}${assistantRuntimePrompt ? `\n\n${assistantRuntimePrompt}` : ''}${completionGuard}`,
+          content: `${getSupervisorSystemPrompt(userRole, therapistName, effectiveResponseStyle, assistantProfile, { allowPhi: allowPhiInConsult })}${assistantRuntimePrompt ? `\n\n${assistantRuntimePrompt}` : ''}${completionGuard}`,
         },
         ...messages,
       ], { maxTokens: consultMaxTokens });
@@ -1209,7 +1222,7 @@ router.post('/chat', async (req, res) => {
     logCostEvent({
       therapistId: tid,
       kind: 'chat',
-      provider: 'azure-openai',
+      provider: aiProvider,
       model: chatModel,
       inputTokens,
       outputTokens,

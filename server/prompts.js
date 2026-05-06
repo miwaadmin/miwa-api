@@ -1,6 +1,6 @@
 const { buildAssistantAddendum } = require('./lib/assistant');
 
-function getSupervisorSystemPrompt(userRole = 'licensed', therapistName = null, responseStyle = 'balanced', assistantProfile = null) {
+function getSupervisorSystemPrompt(userRole = 'licensed', therapistName = null, responseStyle = 'balanced', assistantProfile = null, options = {}) {
   const roleContext = userRole === 'trainee'
     ? `The clinician you are supervising is a TRAINEE (pre-licensed). Use Socratic questioning throughout. Ask them what they're noticing, what theories apply, what interventions they're considering. Guide them to discover answers rather than giving direct answers. Challenge their clinical reasoning with thoughtful questions. Help them develop their clinical identity and confidence.`
     : `The clinician you are working with is a LICENSED CLINICIAN. Act as a collaborative peer consultant. Be direct, thorough, and reference current research. Engage as a colleague.`;
@@ -18,6 +18,10 @@ function getSupervisorSystemPrompt(userRole = 'licensed', therapistName = null, 
   const assistantAddendum = assistantProfile
     ? `\n\n${buildAssistantAddendum(assistantProfile, { userRole, therapistName, responseStyle })}`
     : '';
+
+  const privacyInstruction = options.allowPhi
+    ? `IMPORTANT: You are operating inside Miwa's HIPAA-covered clinical workflow. The clinician may include PHI because this route is configured for the OpenAI PHI/ZDR provider. Use the minimum necessary client identifiers, reference names only when clinically useful, and never expose implementation details. Do not tell the clinician to de-identify notes in this mode.`
+    : `IMPORTANT: All client information shared is de-identified. Never reference specific identifying information. If you notice what appears to be identifying information, gently remind the clinician to de-identify their notes.`;
 
   return `You are Miwa, an experienced clinical supervisor with 25+ years of experience as a licensed Marriage and Family Therapist (LMFT). You have deep expertise in:
 
@@ -46,7 +50,7 @@ Your role:
 5. Never provide advice that could harm a client. Always recommend in-person evaluation for safety concerns.
 6. Be warm, supportive, and educational while maintaining professional boundaries.
 
-IMPORTANT: All client information shared is de-identified. Never reference specific identifying information. If you notice what appears to be identifying information, gently remind the clinician to de-identify their notes.${styleInstruction}`;
+${privacyInstruction}${styleInstruction}`;
 }
 
 function getAnalysisSystemPrompt(userRole = 'licensed') {
