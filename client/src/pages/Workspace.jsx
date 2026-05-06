@@ -386,6 +386,34 @@ export default function Workspace() {
     setRecordingDuration(0)
   }
 
+  const applyOngoingAudioFields = (data) => {
+    const fields = data.workspaceFields || {}
+    const hasStructuredFields = Object.values(fields).some(value => String(value || '').trim())
+
+    setForm(f => ({
+      ...f,
+      presentingProblem: fields.presentingProblem || f.presentingProblem,
+      treatmentGoal: fields.treatmentGoal || f.treatmentGoal,
+      sessionNotes: fields.sessionNotes || (hasStructuredFields ? f.sessionNotes : data.transcript || f.sessionNotes),
+      ongoingSituation: fields.ongoingSituation || f.ongoingSituation,
+      ongoingInterventions: fields.ongoingInterventions || f.ongoingInterventions,
+      ongoingResponse: fields.ongoingResponse || f.ongoingResponse,
+      ongoingRiskSafety: fields.ongoingRiskSafety || f.ongoingRiskSafety,
+      ongoingFunctioningMedicalNecessity: fields.ongoingFunctioningMedicalNecessity || f.ongoingFunctioningMedicalNecessity,
+      ongoingPlanHomework: fields.ongoingPlanHomework || f.ongoingPlanHomework,
+    }))
+
+    setDraftSections(null)
+    setStagedImportedFields(null)
+    setImportedIntakeName('')
+    setImportedIntakeText('')
+    setImportMessage(
+      hasStructuredFields
+        ? 'Audio transcribed and sorted into structured session fields. Review each section before generating.'
+        : 'Audio transcribed, but Miwa could not confidently sort it into sections. Review the transcript-based session notes before generating.'
+    )
+  }
+
   const discardRecording = () => {
     if (isRecording) stopRecording()
     resetAudioState()
@@ -407,15 +435,7 @@ export default function Workspace() {
     if (sessionType === 'intake') {
       handleImportedDraftPayload(data, fallbackName)
     } else {
-      setForm(f => ({
-        ...f,
-        sessionNotes: data.transcript || f.sessionNotes,
-      }))
-      setDraftSections(null)
-      setStagedImportedFields(null)
-      setImportedIntakeName('')
-      setImportedIntakeText('')
-      setImportMessage('Audio imported and transcribed. Review the transcript-based session notes before generating.')
+      applyOngoingAudioFields(data)
     }
   }
 
@@ -535,15 +555,7 @@ export default function Workspace() {
       if (sessionType === 'intake') {
         handleImportedDraftPayload(data, file.name)
       } else {
-        setForm(f => ({
-          ...f,
-          sessionNotes: data.transcript || f.sessionNotes,
-        }))
-        setDraftSections(null)
-        setStagedImportedFields(null)
-        setImportedIntakeName('')
-        setImportedIntakeText('')
-        setImportMessage('Audio uploaded and transcribed. Review the transcript-based session notes before generating.')
+        applyOngoingAudioFields(data)
       }
     } catch (err) {
       setError(err.message)

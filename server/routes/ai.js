@@ -62,6 +62,75 @@ function uploadImportErrorMessage(err) {
     : 'The uploaded file could not be processed. Please try a different file.';
 }
 
+function extractJsonObject(text) {
+  let jsonStr = (text || '').trim();
+  const fenceMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
+  if (fenceMatch) jsonStr = fenceMatch[1].trim();
+  if (!jsonStr.startsWith('{')) {
+    const start = jsonStr.indexOf('{');
+    const end = jsonStr.lastIndexOf('}');
+    if (start !== -1 && end > start) jsonStr = jsonStr.slice(start, end + 1);
+  }
+  return JSON.parse(jsonStr);
+}
+
+function normalizeOngoingAudioFields(fields = {}) {
+  return {
+    presentingProblem: fields.presentingProblem || '',
+    treatmentGoal: fields.treatmentGoal || '',
+    sessionNotes: fields.sessionNotes || '',
+    ongoingSituation: fields.ongoingSituation || '',
+    ongoingInterventions: fields.ongoingInterventions || '',
+    ongoingResponse: fields.ongoingResponse || '',
+    ongoingRiskSafety: fields.ongoingRiskSafety || '',
+    ongoingFunctioningMedicalNecessity: fields.ongoingFunctioningMedicalNecessity || '',
+    ongoingPlanHomework: fields.ongoingPlanHomework || '',
+  };
+}
+
+async function buildOngoingSessionDraftFromTranscript(transcript, therapistId) {
+  const prompt = `Extract the clinical content from this session transcript into the exact workspace fields below. Do not summarize everything into one field. Put each fact in the most clinically appropriate field. Use professional clinical language and complete sentences. Do not invent information.
+
+Field guidance:
+- presentingProblem: brief presenting concern only if clearly stated.
+- treatmentGoal: treatment goal or therapeutic aim only if clearly stated.
+- sessionNotes: concise source-note summary of session themes, not the full transcript.
+- ongoingSituation: current presentation, symptoms, stressors, session focus, and medical necessity.
+- ongoingInterventions: clinician interventions, modality, psychoeducation, skills practice, safety planning, questions, reframes, validation, or clinical rationale.
+- ongoingResponse: client engagement, affective/behavioral response, insight, resistance, regulation, progress, or barriers.
+- ongoingRiskSafety: SI/HI/self-harm/substance/DV/abuse/safety concerns, protective factors, or state that risk was not assessed in the transcript if absent.
+- ongoingFunctioningMedicalNecessity: impairment across home, school/work, relationships, ADLs, symptom impact, and why treatment is indicated.
+- ongoingPlanHomework: plan, homework, next session focus, referrals, coordination, follow-up, or empty string if not discussed.
+
+Return ONLY valid JSON with these exact keys:
+{
+  "presentingProblem": "",
+  "treatmentGoal": "",
+  "sessionNotes": "",
+  "ongoingSituation": "",
+  "ongoingInterventions": "",
+  "ongoingResponse": "",
+  "ongoingRiskSafety": "",
+  "ongoingFunctioningMedicalNecessity": "",
+  "ongoingPlanHomework": ""
+}
+
+TRANSCRIPT:
+${transcript}`;
+
+  const { getStyleHintsForPrompt } = require('../services/style-adaptation');
+  const styleHints = await getStyleHintsForPrompt(therapistId);
+  const raw = await callAI(
+    MODELS.AZURE_MAIN,
+    'You are a clinical documentation assistant that extracts transcribed psychotherapy session content into structured workspace fields. Keep PHI only inside the returned clinical fields. Never add facts not supported by the transcript.' + styleHints,
+    prompt,
+    2200,
+    { therapistId, kind: 'audio_import_ongoing_parse' }
+  );
+
+  return normalizeOngoingAudioFields(extractJsonObject(raw));
+}
+
 // Use the owner's API key from environment — all users share it, covered by subscription
 // Check if this therapist can use the workspace (subscription or trial)
 async function checkWorkspaceAccess(therapistId) {
@@ -388,9 +457,17 @@ router.post('/audio-import', upload.single('file'), async (req, res) => {
       });
     }
 
+    let workspaceFields = normalizeOngoingAudioFields();
+    try {
+      workspaceFields = await buildOngoingSessionDraftFromTranscript(transcript, req.therapist.id);
+    } catch (parseErr) {
+      console.error('[audio-import] ongoing parse failed:', parseErr.message);
+    }
+
     return res.json({
       fileName: req.file.originalname,
       transcript,
+      workspaceFields,
     });
   } catch (err) {
     sendAudioImportError(res, err);
