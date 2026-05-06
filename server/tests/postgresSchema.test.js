@@ -45,3 +45,19 @@ test('parseCreateTables extracts table definitions from SQLite schema source', (
   assert.match(buildCreateTableSql(tables[0]), /id SERIAL PRIMARY KEY/);
   assert.match(buildCreateTableSql(tables[0]), /created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP/);
 });
+
+test('parseCreateTables preserves nested table constraints', () => {
+  const tables = parseCreateTables(`
+    CREATE TABLE IF NOT EXISTS assistant_skills (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      therapist_id INTEGER REFERENCES therapists(id),
+      skill_key TEXT NOT NULL,
+      name TEXT NOT NULL,
+      UNIQUE(therapist_id, skill_key)
+    );
+  `);
+
+  assert.equal(tables.length, 1);
+  assert.deepEqual(tables[0].definitions.at(-1), 'UNIQUE(therapist_id, skill_key)');
+  assert.match(buildCreateTableSql(tables[0]), /UNIQUE\(therapist_id, skill_key\)/);
+});

@@ -82,20 +82,50 @@ function columnName(definition) {
 function parseCreateTables(source) {
   const clean = stripLineComments(source);
   const tables = [];
-  const regex = /CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(([\s\S]*?)\)\s*;/gi;
+  const regex = /CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(/gi;
   let match;
 
   while ((match = regex.exec(clean)) !== null) {
-    const [, table, body] = match;
-    // Strip trailing template-literal residue. When a CREATE TABLE statement
-    // is wrapped in a JS template literal that closes immediately after the
-    // SQL, the lazy regex above can capture past the SQL's own `)` and
-    // include the closing backtick + outer `)` of the JS expression. Those
-    // characters never legitimately appear in column definitions, so we
-    // strip any trailing `)`s, backticks, or the corresponding whitespace.
-    const trimmedBody = body.replace(/[\s`)]+$/g, '');
+    const [, table] = match;
+    let depth = 1;
+    let quote = null;
+    let end = -1;
+    const bodyStart = regex.lastIndex;
+
+    for (let i = bodyStart; i < clean.length; i += 1) {
+      const ch = clean[i];
+      const next = clean[i + 1];
+
+      if (quote) {
+        if (ch === quote) {
+          if (next === quote) {
+            i += 1;
+          } else {
+            quote = null;
+          }
+        }
+        continue;
+      }
+
+      if (ch === '\'' || ch === '"') {
+        quote = ch;
+        continue;
+      }
+
+      if (ch === '(') depth += 1;
+      if (ch === ')') depth -= 1;
+
+      if (depth === 0) {
+        end = i;
+        break;
+      }
+    }
+
+    if (end === -1) continue;
+    const trimmedBody = clean.slice(bodyStart, end).trim();
     const definitions = splitTopLevelComma(trimmedBody);
     tables.push({ table, definitions });
+    regex.lastIndex = end + 1;
   }
 
   return tables;
