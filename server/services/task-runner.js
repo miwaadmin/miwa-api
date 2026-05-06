@@ -54,11 +54,95 @@ const _running = new Map(); // taskId → { therapistId, startedAt, abortControl
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
-/** Short listener-friendly title from the first ~60 chars of the prompt. */
+function toTitleCase(value) {
+  return String(value || '')
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+function compactTitle(value, max = 64) {
+  const cleaned = String(value || '')
+    .replace(/\s+/g, ' ')
+    .replace(/[?.!,;:]+$/g, '')
+    .trim();
+  if (!cleaned) return 'Background Task';
+  if (cleaned.length <= max) return cleaned;
+  const cut = cleaned.slice(0, max - 3);
+  const lastSpace = cut.lastIndexOf(' ');
+  return `${(lastSpace > 28 ? cut.slice(0, lastSpace) : cut).trim()}...`;
+}
+
+function extractClientName(prompt) {
+  const text = String(prompt || '');
+  const patterns = [
+    /\b(?:for|on|about)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/,
+    /\bclient\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\b/i,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) {
+      const name = match[1].replace(/\b(?:and|or|to|from|with|all|my|the)\b.*$/i, '').trim();
+      if (name && !/^(all|my|the|clients?|patients?|caseload)$/i.test(name)) return name;
+    }
+  }
+  return null;
+}
+
+/**
+ * Short listener-friendly title for a delegated task.
+ * Prefer the work product over the raw user sentence so the task drawer scans
+ * like a queue, not a clipped chat transcript.
+ */
 function deriveTitle(prompt) {
-  const cleaned = (prompt || '').replace(/\s+/g, ' ').trim();
-  if (cleaned.length <= 60) return cleaned || 'Background task';
-  return cleaned.slice(0, 57) + '…';
+  const cleaned = String(prompt || '').replace(/\s+/g, ' ').trim();
+  if (!cleaned) return 'Background Task';
+
+  const lower = cleaned.toLowerCase();
+  const clientName = extractClientName(cleaned);
+  const isCaseload = /\b(all|every)\s+(my\s+)?(clients|patients)\b|\b(my\s+)?caseload\b/.test(lower);
+  const isReport = /\b(report|summary|overview|write[-\s]?up|writeup|analysis)\b/.test(lower);
+  const isBrief = /\b(brief|briefing)\b/.test(lower);
+  const isResearch = /\b(research|studies|evidence|literature)\b/.test(lower);
+  const isOutcomes = /\b(outcomes?|progress|improvement|deteriorat|stalled|status|doing)\b/.test(lower);
+  const isRisk = /\b(risk|safety|suicid|crisis|danger|harm)\b/.test(lower);
+  const isTreatment = /\b(treatment plan|intervention|modality|goals?)\b/.test(lower);
+  const isSchedule = /\b(schedule|appointment|calendar|availability)\b/.test(lower);
+  const isDraft = /\b(draft|write|generate|create|prepare)\b/.test(lower);
+
+  if (isCaseload && isReport && isOutcomes) return 'Caseload Progress Report';
+  if (isCaseload && isReport && isRisk) return 'Caseload Risk Report';
+  if (isCaseload && isReport) return 'Caseload Report';
+  if (isCaseload && isOutcomes) return 'Caseload Progress Review';
+  if (isCaseload) return 'Caseload Review';
+
+  if (clientName && isReport && isTreatment) return `${clientName} Treatment Plan Report`;
+  if (clientName && isReport && isRisk) return `${clientName} Risk Review`;
+  if (clientName && isReport && isOutcomes) return `${clientName} Progress Report`;
+  if (clientName && isReport) return `${clientName} Report`;
+  if (clientName && isTreatment) return `${clientName} Treatment Plan Review`;
+  if (clientName && isRisk) return `${clientName} Risk Review`;
+  if (clientName) return `${clientName} Client Review`;
+
+  if (isResearch && isBrief) return 'Research Brief';
+  if (isResearch && isReport) return 'Research Report';
+  if (isResearch) return 'Research Review';
+  if (isRisk && isReport) return 'Risk Review Report';
+  if (isRisk) return 'Risk Review';
+  if (isTreatment && isReport) return 'Treatment Plan Report';
+  if (isTreatment) return 'Treatment Plan Review';
+  if (isSchedule) return 'Scheduling Task';
+  if (isDraft && isReport) return 'Report Draft';
+
+  const withoutChatFiller = cleaned
+    .replace(/^(hey|hi|hello|yo|ok|okay)[,\s]+/i, '')
+    .replace(/^(can|could|would)\s+(you|u)\s+/i, '')
+    .replace(/^(can|could|would)\s+i\s+(please\s+)?(have|get)\s+/i, '')
+    .replace(/^(please\s+)?(make|create|generate|write|draft|prepare|run|do)\s+(me\s+)?/i, '')
+    .trim();
+  return compactTitle(toTitleCase(withoutChatFiller || cleaned));
 }
 
 /** Count how many tasks a therapist currently has running. */
