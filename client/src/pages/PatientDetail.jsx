@@ -2177,7 +2177,7 @@ export default function PatientDetail() {
 
   return (
     <>
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="patient-detail-page p-6 max-w-6xl mx-auto">
       {/* Session-in-progress banner, shown when the clinician launched a telehealth
           session from Schedule. Gives them a one-click path to write the note when
           they come back to this tab after ending the Meet. */}

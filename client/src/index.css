@@ -500,6 +500,122 @@ html.dark .dashboard-pulse-card.bg-sky-50 .text-gray-600 {
   color: #e0f2fe !important;
 }
 
+/* Patient profile dark mode: keep clinical cards readable on near-black.
+   Target WCAG AA contrast by using light foregrounds and restrained tints
+   instead of saturated purple/orange text on dark panels. */
+html.dark .patient-detail-page .card,
+html.dark .patient-detail-page .bg-white {
+  background-color: #1f2937 !important;
+  border-color: rgba(148,163,184,0.22) !important;
+}
+html.dark .patient-detail-page .bg-gray-50,
+html.dark .patient-detail-page .bg-gray-100 {
+  background-color: #111827 !important;
+}
+html.dark .patient-detail-page .border-gray-50,
+html.dark .patient-detail-page .border-gray-100,
+html.dark .patient-detail-page .border-gray-200 {
+  border-color: rgba(148,163,184,0.22) !important;
+}
+html.dark .patient-detail-page .text-gray-900,
+html.dark .patient-detail-page .text-gray-800 {
+  color: #f8fafc !important;
+}
+html.dark .patient-detail-page .text-gray-700,
+html.dark .patient-detail-page .text-gray-600 {
+  color: #dbeafe !important;
+}
+html.dark .patient-detail-page .text-gray-500 {
+  color: #b6c2d1 !important;
+}
+html.dark .patient-detail-page .text-gray-400 {
+  color: #93a4b8 !important;
+}
+html.dark .patient-detail-page .bg-brand-50,
+html.dark .patient-detail-page .bg-indigo-50,
+html.dark .patient-detail-page .bg-violet-50,
+html.dark .patient-detail-page .bg-purple-50 {
+  background-color: rgba(79,70,229,0.22) !important;
+  border-color: rgba(165,180,252,0.52) !important;
+}
+html.dark .patient-detail-page .text-brand-900,
+html.dark .patient-detail-page .text-brand-800,
+html.dark .patient-detail-page .text-brand-700,
+html.dark .patient-detail-page .text-brand-600,
+html.dark .patient-detail-page .text-indigo-700,
+html.dark .patient-detail-page .text-violet-700,
+html.dark .patient-detail-page .text-purple-700 {
+  color: #c7d2fe !important;
+}
+html.dark .patient-detail-page .bg-teal-50,
+html.dark .patient-detail-page .bg-emerald-50,
+html.dark .patient-detail-page .bg-green-50 {
+  background-color: rgba(6,95,70,0.28) !important;
+  border-color: rgba(94,234,212,0.45) !important;
+}
+html.dark .patient-detail-page .text-teal-800,
+html.dark .patient-detail-page .text-teal-700,
+html.dark .patient-detail-page .text-teal-600,
+html.dark .patient-detail-page .text-emerald-900,
+html.dark .patient-detail-page .text-emerald-800,
+html.dark .patient-detail-page .text-emerald-700,
+html.dark .patient-detail-page .text-emerald-600 {
+  color: #99f6e4 !important;
+}
+html.dark .patient-detail-page .bg-amber-50,
+html.dark .patient-detail-page .bg-orange-50 {
+  background-color: rgba(120,53,15,0.36) !important;
+  border-color: rgba(253,186,116,0.62) !important;
+}
+html.dark .patient-detail-page .text-amber-900,
+html.dark .patient-detail-page .text-amber-800,
+html.dark .patient-detail-page .text-amber-700,
+html.dark .patient-detail-page .text-amber-600,
+html.dark .patient-detail-page .text-orange-900,
+html.dark .patient-detail-page .text-orange-800,
+html.dark .patient-detail-page .text-orange-700,
+html.dark .patient-detail-page .text-orange-600 {
+  color: #fed7aa !important;
+}
+html.dark .patient-detail-page .bg-red-50,
+html.dark .patient-detail-page .bg-rose-50 {
+  background-color: rgba(127,29,29,0.35) !important;
+  border-color: rgba(252,165,165,0.58) !important;
+}
+html.dark .patient-detail-page .text-red-900,
+html.dark .patient-detail-page .text-red-800,
+html.dark .patient-detail-page .text-red-700,
+html.dark .patient-detail-page .text-red-600,
+html.dark .patient-detail-page .text-rose-900,
+html.dark .patient-detail-page .text-rose-800,
+html.dark .patient-detail-page .text-rose-700,
+html.dark .patient-detail-page .text-rose-600 {
+  color: #fecaca !important;
+}
+html.dark .patient-detail-page input,
+html.dark .patient-detail-page textarea,
+html.dark .patient-detail-page select {
+  background-color: #111827 !important;
+  color: #f8fafc !important;
+  border-color: rgba(148,163,184,0.36) !important;
+}
+html.dark .patient-detail-page input::placeholder,
+html.dark .patient-detail-page textarea::placeholder {
+  color: #93a4b8 !important;
+}
+html.dark .patient-detail-page details[open] > summary,
+html.dark .patient-detail-page summary:hover,
+html.dark .patient-detail-page .hover\:bg-gray-50:hover,
+html.dark .patient-detail-page .hover\:bg-gray-100:hover,
+html.dark .patient-detail-page .hover\:bg-gray-200:hover {
+  background-color: rgba(51,65,85,0.78) !important;
+}
+html.dark .patient-detail-page .prose-clinical,
+html.dark .patient-detail-page .prose-clinical p,
+html.dark .patient-detail-page .prose-clinical li {
+  color: #dbeafe !important;
+}
+
 /* Pink theme */
 html.pink body {
   background-color: #fdf7fa;
