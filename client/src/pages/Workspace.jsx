@@ -371,9 +371,11 @@ export default function Workspace() {
     )
     const staged = Object.fromEntries(Object.entries(normalizedFields).filter(([, value]) => value))
     setStagedImportedFields(staged)
+    applyImportedFields(staged)
+    const hasDraftSections = data.draftSections && Object.values(data.draftSections).some(Boolean)
     setImportMessage(
-      data.draftSections && Object.values(data.draftSections).some(Boolean)
-        ? 'Source imported. Review the intake draft below, then apply it into Miwa’s structure.'
+      hasDraftSections
+        ? 'Source imported and sorted into the intake fields. Review the draft and fields before generating.'
         : 'Source imported, but the AI could not assemble a strong intake draft. Review the extracted text below or try a cleaner source document.'
     )
   }
@@ -1154,17 +1156,17 @@ export default function Workspace() {
                 <div className="rounded-xl bg-white border border-gray-200 px-3 py-3 space-y-3">
                   <div>
                     <p className="text-sm font-medium text-gray-800">Imported source: {importedIntakeName || uploadedAudioName}</p>
-                    <p className="text-xs text-gray-500">Miwa turns the uploaded intake or audio summary into a readable intake draft first. Review it, then apply the draft into the intake form.</p>
+                    <p className="text-xs text-gray-500">Miwa turns the uploaded intake or audio summary into a readable draft and fills the intake form fields automatically.</p>
                   </div>
                   {draftSections && Object.values(draftSections).some(Boolean) && (
                     <div className="space-y-3">
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div>
                           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Intake draft</p>
-                          <p className="text-xs text-gray-400 mt-1">Readable therapist-facing summary first. This is the review flow we are using.</p>
+                          <p className="text-xs text-gray-400 mt-1">Readable therapist-facing summary with mapped fields already placed into the form.</p>
                         </div>
                         <button type="button" onClick={handleApplyAllImportedFields} className="btn-secondary text-xs">
-                          Apply Draft to Intake Form
+                          Reapply Fields to Intake Form
                         </button>
                       </div>
                       <div className="space-y-3 max-h-[32rem] overflow-y-auto pr-1">
