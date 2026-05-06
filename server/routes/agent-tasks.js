@@ -25,7 +25,7 @@ const { enqueueTask, cancelRunning } = require('../services/task-runner');
 // ── POST / — create a new background task ───────────────────────────────────
 router.post('/', async (req, res) => {
   try {
-    const { prompt, title } = req.body || {};
+    const { prompt, title, context } = req.body || {};
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
       return res.status(400).json({ error: 'prompt is required' });
     }
@@ -37,6 +37,7 @@ router.post('/', async (req, res) => {
       therapistId: req.therapist.id,
       prompt,
       title,
+      context: context && typeof context === 'object' ? context : null,
     });
     res.status(202).json(task);
   } catch (err) {

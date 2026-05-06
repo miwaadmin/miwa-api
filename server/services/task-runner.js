@@ -188,6 +188,25 @@ function buildSystemPrompt({ therapist, caseloadSummary, dateContext }) {
   ].join('\n');
 }
 
+function formatPageContext(context) {
+  if (!context || typeof context !== 'object') return '';
+  const parts = [];
+  if (context.surface || context.label || context.path) {
+    parts.push(`Current Miwa surface: ${context.label || context.surface || context.path}`);
+  }
+  if (context.path) parts.push(`Path: ${context.path}`);
+  if (context.patientName || context.patientId) {
+    parts.push(`Focused client: ${context.patientName || context.patientId}`);
+  }
+  if (Array.isArray(context.visibleClients) && context.visibleClients.length) {
+    parts.push(`Visible clients: ${context.visibleClients.slice(0, 12).join(', ')}`);
+  }
+  if (Array.isArray(context.suggestedActions) && context.suggestedActions.length) {
+    parts.push(`Relevant page actions: ${context.suggestedActions.slice(0, 8).join(', ')}`);
+  }
+  return parts.length ? `\n\nCurrent UI context:\n${parts.map(p => `- ${p}`).join('\n')}` : '';
+}
+
 /**
  * Build a brief caseload summary for context injection (mirrors agent.js).
  */
@@ -271,7 +290,9 @@ async function runTask(taskId) {
   const dateContext = `Today is ${localDate}. Current time: ${localTime} (${tz}).`;
 
   const caseloadSummary = await buildCaseloadSummary(db, therapist.id);
-  const systemPrompt = buildSystemPrompt({ therapist, caseloadSummary, dateContext });
+  let pageContext = null;
+  try { pageContext = task.context_json ? JSON.parse(task.context_json) : null; } catch {}
+  const systemPrompt = buildSystemPrompt({ therapist, caseloadSummary, dateContext }) + formatPageContext(pageContext);
 
   // Scrub prompt for PHI (same approach as sync agent — conservative default)
   const scrubbed = scrubText(task.prompt || '');
@@ -478,17 +499,18 @@ function cancelRunning(taskId) {
  * Insert a new queued task and nudge the worker to pick it up.
  * Returns the full task row.
  */
-async function enqueueTask({ therapistId, prompt, title }) {
+async function enqueueTask({ therapistId, prompt, title, context }) {
   if (!therapistId) throw new Error('therapistId required');
   if (!prompt || !prompt.trim()) throw new Error('prompt required');
 
   const db = getAsyncDb();
   const insert = await db.insert(
-    `INSERT INTO agent_tasks (therapist_id, title, prompt, status)
-     VALUES (?, ?, ?, 'queued')`,
+    `INSERT INTO agent_tasks (therapist_id, title, prompt, context_json, status)
+     VALUES (?, ?, ?, ?, 'queued')`,
     therapistId,
     (title && title.trim()) || deriveTitle(prompt),
     prompt.trim(),
+    context ? JSON.stringify(context) : null,
   );
   await persistIfNeeded();
 

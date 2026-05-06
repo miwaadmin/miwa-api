@@ -11,6 +11,7 @@ const pageMeta = {
   '/patients':   { title: 'Patients' },
   '/consult': { title: 'Consult' },
   '/workspace':  { title: 'Session Workspace' },
+  '/inbox':      { title: 'Inbox' },
   '/billing':    { title: 'Billing' },
   '/settings':   { title: 'Settings' },
 }

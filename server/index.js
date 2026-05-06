@@ -156,6 +156,7 @@ app.use('/api/patients/:patientId/sessions',  apiLimiter, requireAuth, phiAuditL
 app.use('/api/patients/:patientId/documents', apiLimiter, requireAuth, phiAuditLog, require('./routes/documents'));
 app.use('/api/agent/tasks',                   apiLimiter, requireAuth, phiAuditLog, require('./routes/agent-tasks'));
 app.use('/api/assistant',                     apiLimiter, requireAuth, phiAuditLog, require('./routes/assistant'));
+app.use('/api/inbox',                         apiLimiter, requireAuth, phiAuditLog, require('./routes/inbox'));
 app.use('/api/agent',                         aiLimiter,  requireAuth, phiAuditLog, require('./routes/agent'));
 app.use('/api/ai',                            aiLimiter,  requireAuth, phiAuditLog, require('./routes/ai'));
 app.use('/api/assessments',                   apiLimiter, requireAuth, phiAuditLog, require('./routes/assessments'));

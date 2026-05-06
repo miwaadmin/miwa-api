@@ -40,6 +40,7 @@ import CheckinForm from './pages/CheckinForm'
 import ClientPortal from './pages/ClientPortal'
 import Briefs from './pages/Briefs'
 import Contacts from './pages/Contacts'
+import Inbox from './pages/Inbox'
 import FeaturesPage from './pages/FeaturesPage'
 import ForTrainees from './pages/ForTrainees'
 import ForLicensedClinicians from './pages/ForLicensedClinicians'
@@ -217,6 +218,7 @@ export default function App() {
                 <Route path="/patients/:id/sessions/:sessionId" element={<SessionNote />} />
                 <Route path="/consult" element={<Supervisor />} />
                 <Route path="/briefs" element={<Briefs />} />
+                <Route path="/inbox" element={<Inbox />} />
                 <Route path="/library" element={<DashboardResources />} />
                 <Route path="/contacts" element={<Contacts />} />
                 <Route path="/billing" element={<Billing />} />

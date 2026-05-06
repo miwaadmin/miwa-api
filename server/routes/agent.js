@@ -3745,7 +3745,7 @@ router.post('/batch-assessments-confirm', async (req, res) => {
 router.post('/chat', async (req, res) => {
   try {
     const db = getAsyncDb();
-    const { message: rawMessage, contextType, contextId } = req.body || {};
+    const { message: rawMessage, contextType, contextId, pageContext } = req.body || {};
     if (!rawMessage) return res.status(400).json({ error: 'Message is required' });
 
     // Build name map — all patients for PHI substitution
@@ -3827,6 +3827,16 @@ router.post('/chat', async (req, res) => {
     const localTime = now.toLocaleTimeString('en-US', { timeZone: therapistTz, hour: 'numeric', minute: '2-digit', hour12: true });
     const localISO = now.toLocaleString('sv-SE', { timeZone: therapistTz }).replace(' ', 'T'); // sv-SE gives YYYY-MM-DD HH:MM:SS
     const dateContext = `Today is ${localDate}. Current time: ${localTime} (${therapistTz}). Local ISO: ${localISO}. When the clinician says "today", use the date ${localISO.slice(0, 10)} — never use the UTC date.`;
+    const pageContextPrompt = (() => {
+      if (!pageContext || typeof pageContext !== 'object') return '';
+      const lines = [];
+      if (pageContext.surface || pageContext.label || pageContext.path) lines.push(`- Surface: ${pageContext.label || pageContext.surface || pageContext.path}`);
+      if (pageContext.path) lines.push(`- Path: ${pageContext.path}`);
+      if (pageContext.patientName || pageContext.patientId) lines.push(`- Focused client: ${pageContext.patientName || pageContext.patientId}`);
+      if (Array.isArray(pageContext.visibleClients) && pageContext.visibleClients.length) lines.push(`- Visible clients: ${pageContext.visibleClients.slice(0, 12).join(', ')}`);
+      if (Array.isArray(pageContext.suggestedActions) && pageContext.suggestedActions.length) lines.push(`- Relevant actions: ${pageContext.suggestedActions.slice(0, 8).join(', ')}`);
+      return lines.length ? `CURRENT MIWA PAGE CONTEXT:\n${lines.join('\n')}\nUse this to choose helpful actions and avoid asking what page the clinician is on.\n` : '';
+    })();
 
     // Detect new users for onboarding
     const patientCount = (await db.get('SELECT COUNT(*) as c FROM patients WHERE therapist_id = ?', req.therapist.id))?.c || 0;
@@ -3837,6 +3847,7 @@ router.post('/chat', async (req, res) => {
 You are concise, efficient, and action-oriented. Use your tools proactively.${therapistName ? ` The clinician is ${therapistName}.` : ''}
 
 ${dateContext}
+${pageContextPrompt ? `${pageContextPrompt}\n` : ''}
 When scheduling: resolve relative dates like "tomorrow", "next Monday", "Friday" using today's date above. Always confirm the exact date in your response so the clinician can verify.
 ${isNewUser ? `
 NEW USER ONBOARDING:

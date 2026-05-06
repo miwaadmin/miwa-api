@@ -2,7 +2,7 @@
  * MiwaChat, floating chat panel available on every protected page.
  * Opens as a compact panel (bottom-right). Auto-detects patient context from URL.
  */
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
 import { apiFetch, apiUpload } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
@@ -224,11 +224,70 @@ function usePatientContext() {
   return match ? match[1] : null
 }
 
+function pageSurface(pathname) {
+  if (pathname === '/dashboard') return { surface: 'dashboard', label: 'Dashboard' }
+  if (pathname === '/schedule' || pathname === '/calendar') return { surface: 'schedule', label: 'Schedule' }
+  if (pathname === '/patients') return { surface: 'patients', label: 'Patients' }
+  if (pathname.match(/^\/patients\/\d+/)) return { surface: 'patient_detail', label: 'Client chart' }
+  if (pathname === '/workspace' || pathname.includes('/sessions/')) return { surface: 'workspace', label: 'Workspace' }
+  if (pathname === '/inbox') return { surface: 'inbox', label: 'Inbox' }
+  if (pathname === '/briefs') return { surface: 'briefs', label: 'Briefs' }
+  if (pathname === '/outcomes') return { surface: 'outcomes', label: 'Outcomes' }
+  if (pathname === '/billing') return { surface: 'billing', label: 'Billing' }
+  if (pathname === '/contacts') return { surface: 'contacts', label: 'Contacts' }
+  if (pathname === '/settings') return { surface: 'settings', label: 'Settings' }
+  return { surface: 'miwa', label: 'Miwa' }
+}
+
+const PAGE_ACTIONS = {
+  dashboard: [
+    ['Morning cockpit', 'Do a morning clinical cockpit check: review today, documentation debt, risk watch, overdue assessments, and the next best action. Ask me before creating anything permanent.'],
+    ['Risk watch', 'Review my caseload for risk signals and tell me who needs attention first.'],
+    ['Documentation cleanup', 'Show me what documentation needs signing or cleanup and suggest the fastest order to handle it.'],
+  ],
+  schedule: [
+    ['Prep my day', 'Prep my day from the schedule: summarize priorities per session, forms or notes to review, and any risk or assessment reminders.'],
+    ['Find open slots', 'Look at my schedule and help me find available time slots for follow-ups or documentation.'],
+    ['Unscheduled clients', 'Which active clients may need to be scheduled or followed up with?'],
+  ],
+  patients: [
+    ['Rank urgency', 'Review the clients on this Patients page and rank who needs clinical attention first, including risk, assessments, and follow-up needs.'],
+    ['Overdue assessments', 'Find clients who may be overdue for PHQ-9, GAD-7, PCL-5, or risk check-ins and show a batch preview before creating anything.'],
+    ['Draft outreach', 'Help me draft warm outreach for clients who may need follow-up. Ask me before sending anything.'],
+  ],
+  patient_detail: [
+    ['Prepare session', 'Prepare me for this client: summarize themes, recent risk or assessment concerns, likely focus, and follow-up tasks.'],
+    ['Risk review', 'Review this client for risk language, assessment concerns, and protective factors.'],
+    ['Draft message', 'Draft a warm secure portal message for this client and ask me before sending.'],
+  ],
+  workspace: [
+    ['Draft note', 'Help me turn the current session material into a concise clinical note.'],
+    ['Treatment plan', 'Review the current session context and suggest treatment-plan updates or measurable goals.'],
+    ['Follow-up tasks', 'Identify follow-up tasks from the current workspace context.'],
+  ],
+  inbox: [
+    ['Triage unread', 'Summarize unread secure client messages, flag risk language, and suggest follow-up tasks.'],
+    ['Draft replies', 'Help me draft replies to recent secure client messages. Ask me before sending anything.'],
+    ['Create tasks', 'Turn the current inbox into follow-up tasks for anything clinically or administratively important.'],
+  ],
+  briefs: [
+    ['Summarize latest', 'Summarize the latest clinical brief and tell me what is actionable for my practice.'],
+    ['Find evidence', 'Help me find relevant clinical resources or research for a current client concern.'],
+    ['Apply to caseload', 'Connect the latest brief to my caseload and suggest who it might help.'],
+  ],
+  outcomes: [
+    ['Outcomes review', 'Review outcomes across my caseload and identify improvement, deterioration, and assessment gaps.'],
+    ['Assessment catch-up', 'Find which clients need fresh measures and suggest a batch plan.'],
+    ['Supervision summary', 'Create a supervision-style outcomes summary from the current data.'],
+  ],
+}
+
 // Floating Miwa is always the agent, action-first, concise.
 // Deep clinical analysis lives on the Consult page (/consult).
 
 export default function MiwaChat() {
   const { therapist } = useAuth()
+  const location = useLocation()
   const patientId = usePatientContext()
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState([])
@@ -255,6 +314,23 @@ export default function MiwaChat() {
   const [voiceSupported] = useState(() =>
     typeof window !== 'undefined' && !!window.MediaRecorder && !!window.speechSynthesis
   )
+
+  const currentPageContext = useMemo(() => {
+    const meta = pageSurface(location.pathname)
+    const visibleClients = meta.surface === 'patients'
+      ? patients.slice(0, 12).map(p => p.display_name || p.client_id).filter(Boolean)
+      : []
+    return {
+      ...meta,
+      path: location.pathname,
+      patientId: patientId ? Number(patientId) : null,
+      patientName,
+      visibleClients,
+      suggestedActions: (PAGE_ACTIONS[meta.surface] || []).map(([label]) => label),
+    }
+  }, [location.pathname, patientId, patientName, patients])
+
+  const contextActions = PAGE_ACTIONS[currentPageContext.surface] || PAGE_ACTIONS.dashboard
 
   const messagesEndRef = useRef(null)
   const textareaRef = useRef(null)
@@ -534,7 +610,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
         try {
           const res = await apiFetch('/agent/tasks', {
             method: 'POST',
-            body: JSON.stringify({ prompt: text }),
+            body: JSON.stringify({ prompt: text, context: currentPageContext }),
           })
           if (res.ok) {
             const task = await res.json()
@@ -626,6 +702,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
         message: text,
         contextType: effectiveContextType,
         contextId: effectivePatientId,
+        pageContext: currentPageContext,
         responseStyle: therapist?.assistant_verbosity || 'balanced',
       }
 
@@ -751,7 +828,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
       setStreaming(false)
       setStreamingText('')
     }
-  }, [streaming, patientId, therapist?.assistant_verbosity, isOpen, onboardingStage, onboardingAnswers])
+  }, [streaming, patientId, therapist?.assistant_verbosity, isOpen, onboardingStage, onboardingAnswers, currentPageContext])
 
   // External prompt bridge for guided actions from pages like Schedule
   useEffect(() => {
@@ -1209,8 +1286,20 @@ When you're done, I'll save this as your profile and refer back to it in every c
                 <p className="miwa-chat-empty-copy text-xs text-gray-500 mt-1 max-w-[260px]">
                   {patientName
                     ? `I can schedule, send an assessment, pull a report, or find resources for ${patientName}.`
-                    : 'I can schedule sessions, send assessments, generate reports, search clinical resources, check your billing, or help you learn any feature. Just ask!'}
+                    : `I can see you're on ${currentPageContext.label}. I can help with the actions that fit this page, or you can ask anything.`}
                 </p>
+                <div className="mt-3 grid w-full max-w-[290px] gap-1.5">
+                  {contextActions.slice(0, 3).map(([label, prompt]) => (
+                    <button
+                      type="button"
+                      key={label}
+                      onClick={() => sendText(prompt)}
+                      className="rounded-xl border border-brand-100 bg-white px-3 py-2 text-left text-[11px] font-semibold text-gray-700 shadow-sm transition-colors hover:border-brand-300 hover:bg-brand-50"
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
                 <p className="miwa-chat-empty-copy text-[10px] text-gray-400 mt-2 max-w-[260px] leading-relaxed">
                   💡 <strong className="text-gray-500">Found a bug or wishing for a feature?</strong> Just tell me, I'll send your feedback straight to the Miwa team.
                 </p>
@@ -1514,6 +1603,26 @@ When you're done, I'll save this as your profile and refer back to it in every c
             <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 bg-red-50 border-t border-red-100">
               <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
               <span className="text-xs text-red-600 font-medium flex-1">Listening… tap mic to stop</span>
+            </div>
+          )}
+
+          {messages.length > 0 && !streaming && !pendingAction && !pendingBatchPicker && (
+            <div className="flex-shrink-0 border-t border-gray-100 bg-white px-3 py-2">
+              <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gray-400">
+                {currentPageContext.label} actions
+              </div>
+              <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+                {contextActions.slice(0, 3).map(([label, prompt]) => (
+                  <button
+                    type="button"
+                    key={label}
+                    onClick={() => sendText(prompt)}
+                    className="flex-shrink-0 rounded-full border border-gray-200 bg-gray-50 px-3 py-1.5 text-[11px] font-semibold text-gray-600 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-700"
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 

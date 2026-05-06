@@ -81,6 +81,16 @@ const navItems = [
     ),
   },
   {
+    to: '/inbox',
+    label: 'Inbox',
+    activeColor: 'text-teal-300',
+    icon: (
+      <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8m-18 8h18a2 2 0 002-2V8a2 2 0 00-2-2H3a2 2 0 00-2 2v6a2 2 0 002 2z" />
+      </svg>
+    ),
+  },
+  {
     to: '/library',
     label: 'Resources',
     activeColor: 'text-orange-300',

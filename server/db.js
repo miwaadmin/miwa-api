@@ -295,6 +295,7 @@ function createSchema() {
       therapist_id INTEGER NOT NULL REFERENCES therapists(id),
       title TEXT NOT NULL,                   -- short label for UI chip
       prompt TEXT NOT NULL,                  -- user's original message
+      context_json TEXT,                     -- current UI surface/context when the task was queued
       status TEXT NOT NULL DEFAULT 'queued', -- queued|running|done|failed|cancelled
       result_text TEXT,                      -- final assistant response
       result_json TEXT,                      -- optional structured payload
@@ -1238,6 +1239,7 @@ function runMigrations() {
   // "worker picks up next queued task globally."
   try { db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_therapist ON agent_tasks(therapist_id, created_at DESC)`); } catch {}
   try { db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_status ON agent_tasks(status, created_at)`); } catch {}
+  try { db.run(`ALTER TABLE agent_tasks ADD COLUMN context_json TEXT`); } catch {}
 
   // Opt-out flag on therapists — default enabled
   if (!therapistCols.includes('training_data_opt_out')) {
