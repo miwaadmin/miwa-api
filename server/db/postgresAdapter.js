@@ -43,7 +43,7 @@ function translateSqlitePlaceholders(sql) {
   return out;
 }
 
-const TEXT_DATE_COLUMNS = [
+const DATE_LIKE_COLUMNS = [
   'session_date',
   'scheduled_start',
   'scheduled_end',
@@ -51,12 +51,12 @@ const TEXT_DATE_COLUMNS = [
   'first_session_date',
 ];
 
-function textDateColumnPattern() {
-  return `((?:[A-Za-z_][A-Za-z0-9_]*\\.)?(?:${TEXT_DATE_COLUMNS.join('|')}))`;
+function dateLikeColumnPattern() {
+  return `((?:[A-Za-z_][A-Za-z0-9_]*\\.)?(?:(?:[A-Za-z_][A-Za-z0-9_]*_(?:at|date))|(?:${DATE_LIKE_COLUMNS.join('|')})))`;
 }
 
-function castTextDateColumn(column) {
-  return `NULLIF(${column}, '')::timestamp`;
+function castDateLikeColumn(column) {
+  return `NULLIF(${column}::text, '')::timestamp`;
 }
 
 function castTimestampParam(value) {
@@ -64,18 +64,18 @@ function castTimestampParam(value) {
   return value;
 }
 
-function normalizeTextDateComparisons(sql) {
-  const column = textDateColumnPattern();
+function normalizeDateLikeComparisons(sql) {
+  const column = dateLikeColumnPattern();
   const relativeDateExpr = String.raw`\((?:[^()]|\([^()]*\))*\b(?:CURRENT_TIMESTAMP|CURRENT_DATE)\b(?:[^()]|\([^()]*\))*\)|CURRENT_TIMESTAMP|CURRENT_DATE|date_trunc\('month', CURRENT_DATE\)|\$\d+(?:::timestamp)?`;
   const comparison = new RegExp(`\\b${column}\\s*(>=|<=|>|<)\\s*(${relativeDateExpr})`, 'gi');
   const between = new RegExp(`\\b${column}\\s+BETWEEN\\s+(${relativeDateExpr})\\s+AND\\s+(${relativeDateExpr})`, 'gi');
 
   return String(sql || '')
     .replace(between, (_match, col, left, right) => {
-      return `${castTextDateColumn(col)} BETWEEN ${castTimestampParam(left)} AND ${castTimestampParam(right)}`;
+      return `${castDateLikeColumn(col)} BETWEEN ${castTimestampParam(left)} AND ${castTimestampParam(right)}`;
     })
     .replace(comparison, (_match, col, op, right) => {
-      return `${castTextDateColumn(col)} ${op} ${castTimestampParam(right)}`;
+      return `${castDateLikeColumn(col)} ${op} ${castTimestampParam(right)}`;
     });
 }
 
@@ -112,7 +112,7 @@ function translateSqliteSql(sql) {
     .replace(/\bDATE\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/g, '($1::date)')
     .replace(/\bdatetime\s*\(\s*'now'\s*\)/gi, 'CURRENT_TIMESTAMP')
     .replace(/\bCURRENT_TIMESTAMP\b/gi, 'CURRENT_TIMESTAMP');
-  return normalizeTextDateComparisons(translated);
+  return normalizeDateLikeComparisons(translated);
 }
 
 function appendReturningId(sql) {
