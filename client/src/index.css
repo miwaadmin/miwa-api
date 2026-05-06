@@ -75,45 +75,66 @@
   .prose-clinical {
     @apply text-gray-700;
     font-size: 0.93rem;
-    line-height: 1.7;
+    line-height: 1.75;
+    max-width: 78ch;
   }
 
   /* Headers with colored left accents so sections pop visually */
   .prose-clinical .clinical-h1 {
-    @apply text-lg font-bold text-gray-900 mt-6 mb-3 pl-3 uppercase tracking-wide;
+    @apply text-lg font-bold text-gray-900 mt-7 mb-3.5 pl-3 uppercase tracking-wide;
     border-left: 4px solid #6047ee;
-    font-size: 0.95rem;
-    letter-spacing: 0.05em;
-  }
-  .prose-clinical .clinical-h2 {
-    @apply text-sm font-bold text-gray-900 mt-5 mb-2.5 pl-3 uppercase tracking-wide;
-    border-left: 3px solid #0ac5a2;
+    font-size: 1rem;
+    line-height: 1.35;
     letter-spacing: 0.04em;
   }
+  .prose-clinical .clinical-h2 {
+    @apply text-sm font-bold text-gray-900 mt-6 mb-3 pl-3 uppercase tracking-wide;
+    border-left: 3px solid #0ac5a2;
+    line-height: 1.4;
+    letter-spacing: 0.035em;
+  }
   .prose-clinical .clinical-h3 {
-    @apply text-sm font-bold text-gray-900 mt-4 mb-2 pl-3;
+    @apply text-sm font-bold text-gray-900 mt-5 mb-2.5 pl-3;
     border-left: 3px solid #8b5cf6;
+    line-height: 1.45;
   }
   .prose-clinical .clinical-h3 .clinical-h3-num {
     @apply text-brand-500 font-bold mr-1;
   }
   .prose-clinical .clinical-h4 {
-    @apply text-xs font-bold text-gray-700 uppercase tracking-wider mt-3 mb-1.5;
-    letter-spacing: 0.06em;
+    @apply text-xs font-bold text-gray-700 uppercase tracking-wider mt-4 mb-2;
+    letter-spacing: 0.055em;
   }
 
   /* Paragraphs */
-  .prose-clinical .clinical-p { @apply mb-3; }
+  .prose-clinical .clinical-p {
+    @apply mb-4;
+    max-width: 76ch;
+  }
+  .prose-clinical .clinical-label {
+    @apply font-bold text-gray-900;
+  }
+  .prose-clinical .clinical-quote {
+    @apply my-4 pl-4 pr-3 py-3 rounded-r-xl text-gray-700 italic;
+    border-left: 4px solid #8b5cf6;
+    background: rgba(99,78,240,0.06);
+  }
+  .prose-clinical .clinical-hr {
+    @apply my-5 border-0;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(96,71,238,0.35), rgba(10,197,162,0.22), transparent);
+  }
 
   /* Lists with accent bullets */
   .prose-clinical .clinical-list {
-    @apply mb-3 space-y-1.5 ml-2;
+    @apply mb-4 space-y-2 ml-2;
     list-style: none;
     padding-left: 0;
   }
   .prose-clinical .clinical-list--bullet li {
     @apply relative pl-5;
     font-size: 0.93rem;
+    line-height: 1.7;
   }
   .prose-clinical .clinical-list--bullet li::before {
     content: '';
@@ -128,13 +149,14 @@
   .prose-clinical .clinical-list--numbered li {
     @apply pl-1;
     font-size: 0.93rem;
+    line-height: 1.7;
   }
   .prose-clinical .clinical-num {
     @apply font-semibold text-brand-500 mr-1;
   }
 
   /* Inline emphasis */
-  .prose-clinical .clinical-strong { @apply font-semibold text-gray-900; }
+  .prose-clinical .clinical-strong { @apply font-bold text-gray-900; }
   .prose-clinical .clinical-em { @apply italic text-gray-700; }
 
   /* ICD-10 code pill */
@@ -210,7 +232,16 @@
     @apply text-xs font-bold uppercase tracking-wider mt-2 mb-1;
     color: rgba(255,255,255,0.75);
   }
-  .prose-clinical-hero .clinical-p { @apply mb-2.5; }
+  .prose-clinical-hero .clinical-p { @apply mb-3; }
+  .prose-clinical-hero .clinical-label { color: #ffffff; font-weight: 800; }
+  .prose-clinical-hero .clinical-quote {
+    background: rgba(255,255,255,0.08);
+    border-left-color: #5eead4;
+    color: rgba(255,255,255,0.86);
+  }
+  .prose-clinical-hero .clinical-hr {
+    background: linear-gradient(90deg, rgba(94,234,212,0.45), rgba(255,255,255,0.18), transparent);
+  }
   .prose-clinical-hero .clinical-list { @apply mb-3 space-y-1 ml-2; list-style: none; padding-left: 0; }
   .prose-clinical-hero .clinical-list--bullet li { @apply relative pl-5; font-size: 0.9rem; color: rgba(255,255,255,0.85); }
   .prose-clinical-hero .clinical-list--bullet li::before {
@@ -403,6 +434,15 @@ html.dark .prose-clinical .clinical-h3,
 html.dark .prose-clinical .clinical-h4 { color: #f1f5f9; }
 html.dark .prose-clinical strong,
 html.dark .prose-clinical .clinical-strong { color: #e2e8f0; }
+html.dark .prose-clinical .clinical-label { color: #f8fafc; }
+html.dark .prose-clinical .clinical-quote {
+  background: rgba(99,102,241,0.12);
+  border-left-color: #818cf8;
+  color: #dbeafe;
+}
+html.dark .prose-clinical .clinical-hr {
+  background: linear-gradient(90deg, rgba(129,140,248,0.45), rgba(45,212,191,0.22), transparent);
+}
 html.dark .prose-clinical li { color: #cbd5e1; }
 html.dark .prose-clinical code { background-color: #334155; color: #a5b4fc; }
 html.dark .prose-clinical .clinical-icd {
@@ -704,6 +744,12 @@ html.pink .prose-clinical h2,
 html.pink .prose-clinical h3,
 html.pink .prose-clinical h4,
 html.pink .prose-clinical strong { color: #5f4d56; }
+html.pink .prose-clinical .clinical-label { color: #5f4d56; }
+html.pink .prose-clinical .clinical-quote {
+  background: rgba(250,180,221,0.16);
+  border-left-color: #f49acc;
+  color: #6c5a63;
+}
 html.pink .prose-clinical li { color: #7b6871; }
 html.pink .prose-clinical code { background-color: #f4f4f4; color: #9d5c7f; }
 html.pink .hover\:bg-gray-50:hover { background-color: #f4f4f4 !important; }

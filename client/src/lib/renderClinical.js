@@ -44,11 +44,22 @@ export function renderClinical(text) {
   if (!text) return ''
   let s = escapeHtml(text)
 
+  s = s.replace(/^\s*(?:---|\*\*\*|___)\s*$/gm, '<hr class="clinical-hr" />')
+
   // ── Headings (before inline replacements so $1 content is clean) ─────────
   s = s.replace(/^####\s+(.+)$/gm, '<h4 class="clinical-h4">$1</h4>')
   s = s.replace(/^###\s+(.+)$/gm,  '<h3 class="clinical-h3">$1</h3>')
   s = s.replace(/^##\s+(.+)$/gm,   '<h2 class="clinical-h2">$1</h2>')
   s = s.replace(/^#\s+(.+)$/gm,    '<h1 class="clinical-h1">$1</h1>')
+
+  s = s.replace(/^([A-Z][A-Za-z0-9 /&'()\-]{3,72}):\s*$/gm,
+    '<h3 class="clinical-h3">$1</h3>')
+  s = s.replace(/^([A-Z][A-Za-z0-9 /&'()\-]{3,72})\s*$/gm, (match, title) => {
+    const trimmed = title.trim()
+    const words = trimmed.split(/\s+/).length
+    const looksLikeTitle = words <= 8 && !/\b(is|are|was|were|has|have|had|will|would|should|could|can|may|might)\b/i.test(trimmed)
+    return looksLikeTitle ? `<h3 class="clinical-h3">${trimmed}</h3>` : match
+  })
 
   // Numbered section titles like "1. Primary diagnosis" rendered as h3
   // (catches AI output that uses "1.", "2." at line start as section headers,
@@ -63,6 +74,7 @@ export function renderClinical(text) {
 
   // ── Numbered lists (that weren't already caught as headings above) ───────
   s = s.replace(/^\s*(\d+)\.\s+(.+)$/gm, '<li data-kind="ol"><span class="clinical-num">$1.</span> $2</li>')
+  s = s.replace(/^\s*&gt;\s+(.+)$/gm, '<blockquote class="clinical-quote">$1</blockquote>')
 
   // Group runs of <li> into <ul>/<ol>
   s = groupLists(s)
@@ -75,6 +87,11 @@ export function renderClinical(text) {
     '$1<em class="clinical-em">$2</em>')
 
   // ── ICD-10-CM codes: F33.1, G47.00, etc. ────────────────────────────────
+  s = s.replace(
+    /(^|>|\n)([A-Z][A-Za-z0-9 /&'()\-]{2,54})(:| - | – )\s+(?=\S)/g,
+    '$1<span class="clinical-label">$2$3</span> '
+  )
+
   s = s.replace(/\b([A-TV-Z]\d{2}(?:\.\d{1,4})?[A-Z]?)\b(?![^<]*<\/code>|[^<]*<\/h[1-6])/g,
     '<code class="clinical-icd">$1</code>')
 
@@ -86,12 +103,17 @@ export function renderClinical(text) {
 
   // ── Paragraphs: two or more newlines = paragraph break ──────────────────
   // Wrap remaining loose text into paragraphs, but don't wrap block-level tags
+  s = s
+    .replace(/(<(?:h[1-6]|ul|ol|blockquote|div)\b[^>]*>)/g, '\n\n$1')
+    .replace(/(<\/(?:h[1-6]|ul|ol|blockquote|div)>)/g, '$1\n\n')
+    .replace(/(<hr\b[^>]*\/?>)/g, '\n\n$1\n\n')
+
   const blocks = s.split(/\n{2,}/)
   const wrapped = blocks.map(block => {
     const trimmed = block.trim()
     if (!trimmed) return ''
     // If block starts with a block-level tag, leave it as-is
-    if (/^<(h[1-6]|ul|ol|pre|blockquote|div)\b/i.test(trimmed)) return trimmed
+    if (/^<(h[1-6]|ul|ol|pre|blockquote|div|hr)\b/i.test(trimmed)) return trimmed
     // Otherwise, wrap in <p> and convert single \n to <br/>
     return `<p class="clinical-p">${trimmed.replace(/\n/g, '<br/>')}</p>`
   })
