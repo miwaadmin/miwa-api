@@ -26,6 +26,8 @@ const renderMarkdown = renderClinical
 // Strip markdown, bullets, numbers, normalize smart quotes → plain prose string
 function cleanToPlain(text) {
   return text
+    .replace(/[\u2013\u2014]/g, ' - ')
+    .replace(/â€“|â€”/g, ' - ')
     .replace(/\*\*(.*?)\*\*/g, '$1').replace(/\*(.*?)\*/g, '$1')
     .replace(/^#{1,4}\s*/gm, '')
     .replace(/^[-–, •*]\s*/gm, '')

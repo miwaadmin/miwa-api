@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch, apiUpload } from '../lib/api'
+import { renderClinical } from '../lib/renderClinical'
 
 
 const ORIENTATIONS = [
@@ -28,30 +29,7 @@ function getIntakeTabs() {
 
 function renderClinicalDocument(text) {
   if (!text) return ''
-  return text
-    // H1 headers, major section titles (bold, larger, with colored left border)
-    .replace(/^# (.*)/gm, '<div class="mt-6 mb-3 pl-3 border-l-4 border-indigo-500"><h2 class="text-base font-bold text-gray-900 uppercase tracking-wide">$1</h2></div>')
-    // H2 headers, subsection titles
-    .replace(/^## (.*)/gm, '<div class="mt-5 mb-2 pl-3 border-l-3 border-teal-400"><h3 class="text-sm font-bold text-gray-900 uppercase tracking-wide">$1</h3></div>')
-    // H3 headers, sub-subsections
-    .replace(/^### (.*)/gm, '<h4 class="text-sm font-semibold text-gray-800 mt-4 mb-1.5">$1</h4>')
-    // Bold text, section labels within paragraphs
-    .replace(/\*\*(.*?)\*\*/g, '<strong class="font-semibold text-gray-900">$1</strong>')
-    // Italic
-    .replace(/\*(.*?)\*/g, '<em class="text-gray-600">$1</em>')
-    // Bullet lists, clean, professional
-    .replace(/^[-•]\s+(.*)/gm, '<div class="flex gap-2 ml-4 mb-1"><span class="text-indigo-400 mt-0.5">&#8226;</span><span class="text-sm text-gray-700 leading-relaxed">$1</span></div>')
-    // Numbered lists
-    .replace(/^(\d+)\.\s+(.*)/gm, '<div class="flex gap-2 ml-4 mb-1"><span class="text-sm font-medium text-indigo-500 mt-0.5 min-w-[1.2rem]">$1.</span><span class="text-sm text-gray-700 leading-relaxed">$2</span></div>')
-    // Suggestion tags
-    .replace(/\[SUGGESTION: (.*?)\]/g, '<span class="inline-flex items-center gap-1 bg-amber-50 border border-amber-200 text-amber-800 text-xs px-2 py-1 rounded-lg my-1">💡 $1</span>')
-    // Observed from transcript tags
-    .replace(/\[observed from transcript\]/gi, '<span class="inline-flex items-center bg-blue-50 border border-blue-200 text-blue-700 text-[10px] px-1.5 py-0.5 rounded ml-1">from transcript</span>')
-    // ICD-10 codes, highlight them
-    .replace(/\b([A-Z]\d{2}(?:\.\d{1,4})?)\b/g, '<code class="bg-indigo-50 text-indigo-700 text-xs px-1 py-0.5 rounded font-mono">$1</code>')
-    // Paragraphs, proper spacing
-    .replace(/\n\n/g, '</p><p class="mb-3 text-sm text-gray-700 leading-relaxed">')
-    .replace(/\n/g, '<br/>')
+  return renderClinical(text)
 }
 
 const CLIENT_TYPE_DEFAULT_MEMBERS = {
@@ -120,6 +98,8 @@ function extractIcdCodes(text) {
 
 function cleanPlainText(text) {
   return (text || '')
+    .replace(/[\u2013\u2014]/g, ' - ')
+    .replace(/â€“|â€”/g, ' - ')
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/\*(.*?)\*/g, '$1')
     .replace(/^#{1,4}\s*/gm, '')
@@ -1991,7 +1971,7 @@ export default function Workspace() {
                       ) : (
                         <div
                           className="prose-clinical bg-white rounded-xl border border-gray-100 p-5 min-h-[340px] text-sm text-gray-700 leading-relaxed"
-                          dangerouslySetInnerHTML={{ __html: '<p class="mb-3 text-sm text-gray-700 leading-relaxed">' + renderClinicalDocument(displaySections?.[activeTab] || '') + '</p>' }}
+                          dangerouslySetInnerHTML={{ __html: renderClinicalDocument(displaySections?.[activeTab] || '') }}
                         />
                       )}
                     </div>

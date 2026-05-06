@@ -25,6 +25,13 @@ function escapeHtml(s) {
     .replace(/>/g, '&gt;')
 }
 
+function normalizeClinicalDisplayText(text) {
+  return String(text || '')
+    .replace(/[\u2013\u2014]/g, ' - ')
+    .replace(/â€“|â€”/g, ' - ')
+    .replace(/[ \t]{2,}/g, ' ')
+}
+
 // Group consecutive <li> elements of the same kind into a proper <ul>/<ol>
 function groupLists(html) {
   // Unordered lists
@@ -42,7 +49,7 @@ function groupLists(html) {
 
 export function renderClinical(text) {
   if (!text) return ''
-  let s = escapeHtml(text)
+  let s = escapeHtml(normalizeClinicalDisplayText(text))
 
   s = s.replace(/^\s*(?:---|\*\*\*|___)\s*$/gm, '<hr class="clinical-hr" />')
 
@@ -107,6 +114,8 @@ export function renderClinical(text) {
     .replace(/(<(?:h[1-6]|ul|ol|blockquote|div)\b[^>]*>)/g, '\n\n$1')
     .replace(/(<\/(?:h[1-6]|ul|ol|blockquote|div)>)/g, '$1\n\n')
     .replace(/(<hr\b[^>]*\/?>)/g, '\n\n$1\n\n')
+    .replace(/\*\*/g, '')
+    .replace(/^#{1,6}\s*/gm, '')
 
   const blocks = s.split(/\n{2,}/)
   const wrapped = blocks.map(block => {
@@ -124,7 +133,7 @@ export function renderClinical(text) {
 // For places that want the content as plain text (copy-to-clipboard, search, etc.)
 export function clinicalToPlain(text) {
   if (!text) return ''
-  return String(text)
+  return normalizeClinicalDisplayText(text)
     .replace(/\*\*(.*?)\*\*/g, '$1')
     .replace(/\*(.*?)\*/g, '$1')
     .replace(/^#{1,4}\s*/gm, '')
