@@ -42,29 +42,16 @@ async function sendGenericMiwaEmail(to, { inviteUrl, pendingItem } = {}) {
   }
 }
 
-async function ensurePortalAccountForPatient(db, patient, therapistId) {
+async function preparePortalInviteForPatient(db, patient, therapistId) {
   const email = String(patient?.email || '').trim().toLowerCase();
   const phone = String(patient?.phone || '').trim() || null;
   if (!patient?.id || !therapistId || !email) return null;
 
-  let account = await db.get(
+  const account = await db.get(
     'SELECT * FROM client_portal_accounts WHERE patient_id = ? AND therapist_id = ?',
     patient.id,
     therapistId,
   );
-  if (!account) {
-    const inserted = await db.insert(
-      `INSERT INTO client_portal_accounts
-         (patient_id, therapist_id, email, phone, display_name, status)
-       VALUES (?, ?, ?, ?, ?, 'invited')`,
-      patient.id,
-      therapistId,
-      email,
-      phone,
-      patient.display_name || patient.client_id,
-    );
-    account = await db.get('SELECT * FROM client_portal_accounts WHERE id = ?', inserted.lastInsertRowid);
-  }
 
   const activeInvite = await db.get(
     `SELECT id FROM client_portal_invites
@@ -74,7 +61,7 @@ async function ensurePortalAccountForPatient(db, patient, therapistId) {
     therapistId,
   );
   let inviteUrl = null;
-  if (!account.accepted_terms_at && !activeInvite) {
+  if (!account && !activeInvite) {
     const token = crypto.randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     await db.insert(
@@ -879,9 +866,8 @@ router.post('/', async (req, res) => {
     if (!template) return res.status(400).json({ error: 'Invalid template_type' });
 
     // Verify patient
-    const patient = await db.get('SELECT id, client_id, display_name, email, phone FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
+    const patient = await db.get('SELECT id, client_id, display_name FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
-    const portal = await ensurePortalAccountForPatient(db, patient, tid);
 
     // Score it
     const { total, severityLevel, severityColor } = scoreAssessment(template_type, responses);
@@ -1575,7 +1561,7 @@ router.post('/links', async (req, res) => {
 
     const patient = await db.get('SELECT id, client_id, display_name, email, phone FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
-    const portal = await ensurePortalAccountForPatient(db, patient, tid);
+    const portal = await preparePortalInviteForPatient(db, patient, tid);
 
     // Crypto-random 32-byte hex token
     const { randomBytes } = require('crypto');
@@ -1596,7 +1582,7 @@ router.post('/links', async (req, res) => {
       portal?.account ? 'client_portal' : 'link',
       tid,
     );
-    if (portal?.account) {
+    if (portal?.account || portal?.inviteUrl) {
       await sendGenericMiwaEmail(patient.email, { inviteUrl: portal.inviteUrl, pendingItem: true });
     }
 
@@ -1667,7 +1653,7 @@ router.post('/checkin', async (req, res) => {
 
     const patient = await db.get('SELECT id, client_id, display_name, phone, email FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
-    const portal = await ensurePortalAccountForPatient(db, patient, tid);
+    const portal = await preparePortalInviteForPatient(db, patient, tid);
 
     const token = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + Math.min(Math.max(parseInt(expires_days) || 3, 1), 14) * 86400000);
@@ -1693,6 +1679,8 @@ router.post('/checkin', async (req, res) => {
         'You have a new check-in in Miwa.',
         'You have a new check-in in Miwa.',
       );
+    }
+    if (portal?.account || portal?.inviteUrl) {
       await sendGenericMiwaEmail(patient.email, { inviteUrl: portal.inviteUrl, pendingItem: true });
     }
 

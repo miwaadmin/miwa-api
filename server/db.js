@@ -1068,6 +1068,16 @@ function createSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_client_portal_invites_patient ON client_portal_invites(patient_id, therapist_id, created_at);
 
+    CREATE TABLE IF NOT EXISTS client_portal_password_resets (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      client_account_id INTEGER NOT NULL REFERENCES client_portal_accounts(id),
+      token_hash TEXT UNIQUE NOT NULL,
+      expires_at DATETIME NOT NULL,
+      used_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_portal_password_resets_account ON client_portal_password_resets(client_account_id, created_at);
+
     CREATE TABLE IF NOT EXISTS client_messages (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       patient_id INTEGER NOT NULL REFERENCES patients(id),

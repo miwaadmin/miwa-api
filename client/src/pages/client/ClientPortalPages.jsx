@@ -73,6 +73,10 @@ export function ClientLogin() {
             {loading ? 'Signing in...' : 'Continue as Client'}
           </button>
         </form>
+        <div className="mt-4 flex justify-center gap-4 text-sm font-semibold">
+          <Link className="text-indigo-700" to="/client/join">Create account</Link>
+          <Link className="text-indigo-700" to="/client/reset-password">Reset password</Link>
+        </div>
         <Link className="mt-4 block text-center text-sm font-semibold text-indigo-700" to="/login">Continue as Clinician</Link>
       </div>
     </ClientShell>
@@ -83,7 +87,7 @@ export function ClientAcceptInvite() {
   const [params] = useSearchParams()
   const { login } = useClientAuth()
   const navigate = useNavigate()
-  const [form, setForm] = useState({ display_name: '', password: '', accepted_terms: true })
+  const [form, setForm] = useState({ code: '', display_name: '', password: '', accepted_terms: true })
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const token = params.get('token') || ''
@@ -96,7 +100,7 @@ export function ClientAcceptInvite() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ token, ...form }),
+        body: JSON.stringify({ token: token || form.code.trim(), ...form }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Unable to accept invite.')
@@ -114,6 +118,7 @@ export function ClientAcceptInvite() {
       <div className="w-full max-w-sm px-5">
         <HeaderMark title="Set up Miwa" subtitle="Create your private client portal sign-in." />
         <form onSubmit={submit} className="mt-7 rounded-2xl bg-white border border-gray-200 p-5 space-y-4 shadow-sm">
+          {!token && <Field label="Invite code" value={form.code} onChange={code => setForm(f => ({ ...f, code }))} placeholder="Paste the code from your clinician" autoFocus />}
           <Field label="Display name" value={form.display_name} onChange={display_name => setForm(f => ({ ...f, display_name }))} placeholder="What should we call you?" />
           <Field label="Password" type="password" value={form.password} onChange={password => setForm(f => ({ ...f, password }))} />
           <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700 space-y-2">
@@ -127,10 +132,61 @@ export function ClientAcceptInvite() {
             <span>I accept the portal terms, privacy notice, and consent information.</span>
           </label>
           {error && <p className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{error}</p>}
-          <button className="w-full rounded-xl bg-gray-950 text-white font-semibold py-3 disabled:opacity-50" disabled={loading || !token}>
+          <button className="w-full rounded-xl bg-gray-950 text-white font-semibold py-3 disabled:opacity-50" disabled={loading || (!token && !form.code.trim())}>
             {loading ? 'Creating portal...' : 'Accept Invite'}
           </button>
         </form>
+      </div>
+    </ClientShell>
+  )
+}
+
+export function ClientResetPassword() {
+  const [params] = useSearchParams()
+  const navigate = useNavigate()
+  const token = params.get('token') || ''
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [message, setMessage] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  async function submit(e) {
+    e.preventDefault()
+    setLoading(true); setError(''); setMessage('')
+    try {
+      const res = await fetch(`${API_BASE}/client-auth/${token ? 'reset-password' : 'forgot-password'}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(token ? { token, password } : { email }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Unable to continue.')
+      setMessage(data.message || 'Check your email for the next step.')
+      if (token) setTimeout(() => navigate('/client/login'), 1200)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <ClientShell centered>
+      <div className="w-full max-w-sm px-5">
+        <HeaderMark title="Reset password" subtitle={token ? 'Choose a new client portal password.' : 'Get a secure recovery link.'} />
+        <form onSubmit={submit} className="mt-7 rounded-2xl bg-white border border-gray-200 p-5 space-y-4 shadow-sm">
+          {token
+            ? <Field label="New password" type="password" value={password} onChange={setPassword} autoFocus />
+            : <Field label="Email" type="email" value={email} onChange={setEmail} autoFocus />}
+          {message && <p className="rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm text-emerald-800">{message}</p>}
+          {error && <p className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700">{error}</p>}
+          <button className="w-full rounded-xl bg-gray-950 text-white font-semibold py-3 disabled:opacity-50" disabled={loading || (token ? !password : !email)}>
+            {loading ? 'Working...' : token ? 'Update Password' : 'Send Recovery Link'}
+          </button>
+        </form>
+        <Link className="mt-4 block text-center text-sm font-semibold text-indigo-700" to="/client/login">Back to client login</Link>
       </div>
     </ClientShell>
   )

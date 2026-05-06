@@ -74,11 +74,29 @@ async function audit(db, account, action, metadata = null) {
   } catch {}
 }
 
-router.post('/accept-invite', async (req, res) => {
+async function sendClientRecoveryEmail(to, resetUrl) {
+  if (!to || !resetUrl) return false;
+  try {
+    const { sendMail } = require('../services/mailer');
+    await sendMail({
+      to,
+      subject: 'Reset your Miwa client portal password',
+      text: `Reset your Miwa client portal password: ${resetUrl}\n\nIf you did not request this, you can ignore this email. Miwa is not for emergencies.`,
+      html: `<p>Reset your Miwa client portal password.</p><p><a href="${resetUrl}">Reset password</a></p><p>If you did not request this, you can ignore this email. Miwa is not for emergencies.</p>`,
+    });
+    return true;
+  } catch (err) {
+    console.error('[client-auth/recovery-email]', err.message);
+    return false;
+  }
+}
+
+async function acceptInviteHandler(req, res) {
   try {
     const db = getAsyncDb();
-    const { token, password, display_name, accepted_terms } = req.body || {};
-    if (!token || !password) return res.status(400).json({ error: 'Invite token and password are required.' });
+    const { token, code, password, display_name, accepted_terms } = req.body || {};
+    const inviteToken = token || code;
+    if (!inviteToken || !password) return res.status(400).json({ error: 'Invite code and password are required.' });
     if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
     if (!accepted_terms) return res.status(400).json({ error: 'Please accept the portal terms to continue.' });
 
@@ -86,8 +104,8 @@ router.post('/accept-invite', async (req, res) => {
       `SELECT cpi.*, p.display_name AS patient_display_name, p.client_id, p.phone AS patient_phone
        FROM client_portal_invites cpi
        JOIN patients p ON p.id = cpi.patient_id AND p.therapist_id = cpi.therapist_id
-       WHERE cpi.token_hash = ?`,
-      hashToken(token),
+      WHERE cpi.token_hash = ?`,
+      hashToken(inviteToken),
     );
     if (!invite || invite.revoked_at) return res.status(404).json({ error: 'This invite is invalid or has been revoked.' });
     if (invite.accepted_at) return res.status(409).json({ error: 'This invite has already been accepted. Please sign in.' });
@@ -170,7 +188,10 @@ router.post('/accept-invite', async (req, res) => {
     console.error('[client-auth/accept-invite]', err);
     return res.status(500).json({ error: 'Invite could not be accepted.' });
   }
-});
+}
+
+router.post('/accept-invite', acceptInviteHandler);
+router.post('/join-code', acceptInviteHandler);
 
 router.post('/login', async (req, res) => {
   try {
@@ -227,10 +248,52 @@ router.post('/forgot-password', async (req, res) => {
       "SELECT * FROM client_portal_accounts WHERE lower(email) = lower(?) AND status = 'active'",
       String(email).trim(),
     ) : null;
-    if (account) await audit(db, account, 'client_recovery_requested');
+    if (account) {
+      const raw = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
+      await db.run('UPDATE client_portal_password_resets SET used_at = CURRENT_TIMESTAMP WHERE client_account_id = ? AND used_at IS NULL', account.id);
+      await db.insert(
+        `INSERT INTO client_portal_password_resets (client_account_id, token_hash, expires_at)
+         VALUES (?, ?, ?)`,
+        account.id,
+        hashToken(raw),
+        expiresAt,
+      );
+      const appUrl = (process.env.APP_BASE_URL || process.env.APP_URL || 'https://miwa.care').replace(/\/$/, '');
+      await sendClientRecoveryEmail(account.email, `${appUrl}/client/reset-password?token=${raw}`);
+      await audit(db, account, 'client_recovery_requested');
+    }
     await persistIfNeeded();
   } catch {}
   return res.json({ ok: true, message: 'If a client portal account exists for that email, we sent a secure recovery link.' });
+});
+
+router.post('/reset-password', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const { token, password } = req.body || {};
+    if (!token || !password) return res.status(400).json({ error: 'Reset token and password are required.' });
+    if (String(password).length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    const row = await db.get(
+      `SELECT cpr.id AS reset_id, cpr.client_account_id, cpr.expires_at, cpa.*
+       FROM client_portal_password_resets cpr
+       JOIN client_portal_accounts cpa ON cpa.id = cpr.client_account_id
+       WHERE cpr.token_hash = ? AND cpr.used_at IS NULL`,
+      hashToken(token),
+    );
+    if (!row || new Date(row.expires_at) < new Date()) {
+      return res.status(410).json({ error: 'This reset link is invalid or expired.' });
+    }
+    const passwordHash = await bcrypt.hash(String(password), 12);
+    await db.run('UPDATE client_portal_accounts SET password_hash = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', passwordHash, row.client_account_id);
+    await db.run('UPDATE client_portal_password_resets SET used_at = CURRENT_TIMESTAMP WHERE id = ?', row.reset_id);
+    await audit(db, row, 'client_password_reset');
+    await persistIfNeeded();
+    return res.json({ ok: true, message: 'Password updated. You can sign in now.' });
+  } catch (err) {
+    console.error('[client-auth/reset-password]', err);
+    return res.status(500).json({ error: 'Password could not be reset.' });
+  }
 });
 
 router.post('/magic-link', async (req, res) => {

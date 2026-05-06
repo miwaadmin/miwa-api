@@ -459,16 +459,6 @@ if (fs.existsSync(CLIENT_DIST)) {
 if (require.main === module) {
   initAsyncDb().then(() => {
     try {
-      const { backfillClientPortalAccounts } = require('./services/clientPortalBackfill');
-      backfillClientPortalAccounts(getAsyncDb())
-        .then(({ prepared }) => {
-          if (prepared > 0) console.log(`[client-portal] prepared ${prepared} existing client accounts`);
-        })
-        .catch(err => console.error('[client-portal] backfill failed:', err.message));
-    } catch (err) {
-      console.error('Client portal backfill failed to start:', err.message);
-    }
-    try {
       const { startScheduler } = require('./services/scheduler');
       startScheduler();
     } catch (err) {

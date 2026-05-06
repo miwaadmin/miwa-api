@@ -250,8 +250,6 @@ router.post('/', async (req, res) => {
       tid
     );
     const patient = await db.get('SELECT * FROM patients WHERE id = ?', result.lastInsertRowid);
-    await ensureClientPortalInvite(db, patient, tid, { sendNotification: true });
-    await persistIfNeeded();
     res.status(201).json(patient);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -360,10 +358,6 @@ router.put('/:id', async (req, res) => {
       req.params.id, req.therapist.id
     );
     const updated = await db.get('SELECT * FROM patients WHERE id = ?', req.params.id);
-    await ensureClientPortalInvite(db, updated, req.therapist.id, {
-      sendNotification: email !== undefined && !!updated.email,
-    });
-    await persistIfNeeded();
     res.json(updated);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -681,89 +675,6 @@ function clientInviteHash(token) {
   return crypto.createHash('sha256').update(String(token || '')).digest('hex')
 }
 
-async function sendGenericPortalEmail(to, inviteUrl) {
-  if (!to || !inviteUrl) return false
-  try {
-    const { sendMail } = require('../services/mailer')
-    await sendMail({
-      to,
-      subject: 'Your secure Miwa portal',
-      text: `You have a secure Miwa portal invite. Open Miwa to continue: ${inviteUrl}\n\nMiwa is not for emergencies. If you need urgent help, call 988, 911, or local emergency services.`,
-      html: `<p>You have a secure Miwa portal invite.</p><p><a href="${inviteUrl}">Open Miwa</a></p><p>Miwa is not for emergencies. If you need urgent help, call 988, 911, or local emergency services.</p>`,
-    })
-    return true
-  } catch (err) {
-    console.error('[client-portal/email]', err.message)
-    return false
-  }
-}
-
-async function ensureClientPortalInvite(db, patient, therapistId, { sendNotification = false } = {}) {
-  const email = String(patient?.email || '').trim().toLowerCase()
-  const phone = String(patient?.phone || '').trim() || null
-  if (!patient?.id || !therapistId || !email) return null
-
-  let account = await db.get(
-    'SELECT * FROM client_portal_accounts WHERE patient_id = ? AND therapist_id = ?',
-    patient.id,
-    therapistId,
-  )
-  if (!account) {
-    const inserted = await db.insert(
-      `INSERT INTO client_portal_accounts
-         (patient_id, therapist_id, email, phone, display_name, status)
-       VALUES (?, ?, ?, ?, ?, 'invited')`,
-      patient.id,
-      therapistId,
-      email,
-      phone,
-      patient.display_name || patient.client_id,
-    )
-    account = await db.get('SELECT * FROM client_portal_accounts WHERE id = ?', inserted.lastInsertRowid)
-  } else {
-    await db.run(
-      `UPDATE client_portal_accounts
-       SET email = ?, phone = COALESCE(?, phone), display_name = COALESCE(?, display_name),
-           status = CASE WHEN status = 'disabled' THEN status ELSE status END,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`,
-      email,
-      phone,
-      patient.display_name || patient.client_id,
-      account.id,
-    )
-  }
-
-  let invite = await db.get(
-    `SELECT * FROM client_portal_invites
-     WHERE patient_id = ? AND therapist_id = ? AND accepted_at IS NULL AND revoked_at IS NULL AND expires_at > datetime('now')
-     ORDER BY created_at DESC LIMIT 1`,
-    patient.id,
-    therapistId,
-  )
-  let rawToken = null
-  if (!invite) {
-    rawToken = crypto.randomBytes(32).toString('hex')
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-    await db.insert(
-      `INSERT INTO client_portal_invites
-         (patient_id, therapist_id, email, phone, token_hash, expires_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      patient.id,
-      therapistId,
-      email,
-      phone,
-      clientInviteHash(rawToken),
-      expiresAt,
-    )
-  }
-
-  const appUrl = (process.env.APP_URL || process.env.APP_BASE_URL || 'https://miwa.care').replace(/\/$/, '')
-  const inviteUrl = rawToken ? `${appUrl}/client/accept-invite?token=${rawToken}` : null
-  if (sendNotification && inviteUrl) await sendGenericPortalEmail(email, inviteUrl)
-  return { account, invite_url: inviteUrl }
-}
-
 async function getPortalPatient(db, patientId, therapistId) {
   return db.get(
     'SELECT id, client_id, display_name, email, phone, therapist_id FROM patients WHERE id = ? AND therapist_id = ?',
@@ -881,28 +792,6 @@ router.post('/:id/client-portal/invite', async (req, res) => {
       clientInviteHash(token),
       expiresAt,
     )
-    const existing = await db.get('SELECT id FROM client_portal_accounts WHERE patient_id = ? AND therapist_id = ?', patient.id, req.therapist.id)
-    if (!existing) {
-      await db.insert(
-        `INSERT INTO client_portal_accounts
-           (patient_id, therapist_id, email, phone, display_name, status)
-         VALUES (?, ?, ?, ?, ?, 'invited')`,
-        patient.id,
-        req.therapist.id,
-        email || `${patient.client_id}@pending.local`,
-        phone,
-        patient.display_name || patient.client_id,
-      )
-    } else {
-      await db.run(
-        `UPDATE client_portal_accounts
-         SET email = COALESCE(?, email), phone = COALESCE(?, phone), updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-        email || null,
-        phone,
-        existing.id,
-      )
-    }
     await persistIfNeeded()
     const appUrl = process.env.APP_URL || process.env.APP_BASE_URL || 'http://localhost:3000'
     const invite_url = `${appUrl.replace(/\/$/, '')}/client/accept-invite?token=${token}`

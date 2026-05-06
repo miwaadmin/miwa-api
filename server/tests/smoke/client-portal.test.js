@@ -16,6 +16,9 @@ test('client portal auth boundary and vertical slice', async (t) => {
   }, therapistCookie);
   assert.equal(created.status, 201);
   const patientId = created.body.id;
+  const db = require('../../db/asyncDb').getAsyncDb();
+  const automaticAccount = await db.get('SELECT id FROM client_portal_accounts WHERE patient_id = ?', patientId);
+  assert.equal(automaticAccount, undefined);
 
   const invite = await api('POST', `/api/patients/${patientId}/client-portal/invite`, {
     email: 'client.portal@example.com',
@@ -26,7 +29,7 @@ test('client portal auth boundary and vertical slice', async (t) => {
   assert.ok(inviteToken);
 
   const accepted = await api('POST', '/api/client-auth/accept-invite', {
-    token: inviteToken,
+    code: inviteToken,
     password: 'client-password-1234',
     display_name: 'Client',
     accepted_terms: true,
@@ -100,6 +103,18 @@ test('client portal auth boundary and vertical slice', async (t) => {
   const documents = await api('GET', '/api/client-portal/documents', null, clientCookie);
   assert.equal(documents.status, 200);
   assert.deepEqual(documents.body.documents, []);
+
+  const recovery = await api('POST', '/api/client-auth/forgot-password', {
+    email: 'client.portal@example.com',
+  });
+  assert.equal(recovery.status, 200);
+  const resetRow = await db.get(
+    `SELECT * FROM client_portal_password_resets
+     WHERE client_account_id = ? AND used_at IS NULL
+     ORDER BY created_at DESC LIMIT 1`,
+    accepted.body.client.id,
+  );
+  assert.ok(resetRow);
 });
 
 test('client portal invite invalidation paths', async (t) => {
@@ -149,34 +164,4 @@ test('client portal invite invalidation paths', async (t) => {
     accepted_terms: true,
   });
   assert.equal(expiredAccept.status, 410);
-});
-
-test('client portal backfill prepares existing emailed patients', async (t) => {
-  await startTestServer();
-  t.after(stopTestServer);
-
-  const { cookie: therapistCookie } = await bootstrapAdminAndLogin();
-  const created = await api('POST', '/api/patients', {
-    first_name: 'Existing',
-    last_name: 'Client',
-    display_name: 'Existing Client',
-    email: 'existing.client@example.com',
-  }, therapistCookie);
-  assert.equal(created.status, 201);
-
-  const db = require('../../db/asyncDb').getAsyncDb();
-  await db.run('DELETE FROM client_portal_invites WHERE patient_id = ?', created.body.id);
-  await db.run('DELETE FROM client_portal_accounts WHERE patient_id = ?', created.body.id);
-
-  const { backfillClientPortalAccounts } = require('../../services/clientPortalBackfill');
-  const result = await backfillClientPortalAccounts(db);
-  assert.ok(result.prepared >= 1);
-
-  const account = await db.get('SELECT * FROM client_portal_accounts WHERE patient_id = ?', created.body.id);
-  assert.equal(account.email, 'existing.client@example.com');
-  assert.equal(account.status, 'invited');
-
-  const invite = await db.get('SELECT * FROM client_portal_invites WHERE patient_id = ?', created.body.id);
-  assert.ok(invite.token_hash);
-  assert.equal(invite.accepted_at, null);
 });
