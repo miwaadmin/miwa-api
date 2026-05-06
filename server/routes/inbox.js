@@ -16,8 +16,8 @@ function cleanMessage(value) {
 
 async function loadMessage(db, therapistId, messageId) {
   return db.get(
-    `SELECT cm.id, cm.patient_id, cm.therapist_id, cm.sender, cm.message,
-            cm.read_at, cm.created_at,
+    `SELECT cm.id, cm.patient_id, cm.therapist_id, cm.sender, cm.sender_type, cm.message, cm.content,
+            cm.risk_flag, cm.read_at, cm.created_at,
             p.client_id, p.display_name, p.client_type
        FROM client_messages cm
        JOIN patients p ON p.id = cm.patient_id
@@ -32,13 +32,14 @@ router.get('/summary', async (req, res) => {
     const db = getAsyncDb();
     const row = await db.get(
       `SELECT
-         SUM(CASE WHEN sender = 'client' AND read_at IS NULL THEN 1 ELSE 0 END) AS unread,
+         SUM(CASE WHEN COALESCE(sender_type, sender) = 'client' AND read_at IS NULL THEN 1 ELSE 0 END) AS unread,
+         SUM(CASE WHEN risk_flag = 1 AND read_at IS NULL THEN 1 ELSE 0 END) AS risk_unread,
          COUNT(*) AS total
        FROM client_messages
       WHERE therapist_id = ?`,
       req.therapist.id,
     );
-    res.json({ unread: row?.unread || 0, total: row?.total || 0 });
+    res.json({ unread: row?.unread || 0, risk_unread: row?.risk_unread || 0, total: row?.total || 0 });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }
@@ -58,17 +59,17 @@ router.get('/messages', async (req, res) => {
       params.push(patientId);
     }
     if (unreadOnly) {
-      where.push("cm.sender = 'client'");
+      where.push("COALESCE(cm.sender_type, cm.sender) = 'client'");
       where.push('cm.read_at IS NULL');
     }
 
     const rows = await db.all(
-      `SELECT cm.id, cm.patient_id, cm.sender, cm.message, cm.read_at, cm.created_at,
+      `SELECT cm.id, cm.patient_id, cm.sender, cm.sender_type, cm.message, cm.content, cm.risk_flag, cm.read_at, cm.created_at,
               p.client_id, p.display_name, p.client_type
          FROM client_messages cm
          JOIN patients p ON p.id = cm.patient_id
         WHERE ${where.join(' AND ')}
-        ORDER BY cm.created_at DESC, cm.id DESC
+        ORDER BY cm.risk_flag DESC, cm.created_at DESC, cm.id DESC
         LIMIT ?`,
       ...params,
       limit,
@@ -78,8 +79,9 @@ router.get('/messages', async (req, res) => {
       messages: rows.map(row => ({
         id: row.id,
         patient_id: row.patient_id,
-        sender: row.sender,
-        message: row.message,
+        sender: row.sender_type || row.sender,
+        message: row.content || row.message,
+        risk_flag: !!row.risk_flag,
         read_at: row.read_at || null,
         created_at: row.created_at,
         patient: {
@@ -112,10 +114,11 @@ router.post('/messages', async (req, res) => {
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
     const insert = await db.insert(
-      `INSERT INTO client_messages (patient_id, therapist_id, sender, message)
-       VALUES (?, ?, 'therapist', ?)`,
+      `INSERT INTO client_messages (patient_id, therapist_id, sender, sender_type, message, content)
+       VALUES (?, ?, 'therapist', 'therapist', ?, ?)`,
       patient.id,
       req.therapist.id,
+      message,
       message,
     );
     await persistIfNeeded();
@@ -153,7 +156,7 @@ router.post('/read-all', async (req, res) => {
       `UPDATE client_messages
           SET read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
         WHERE therapist_id = ?
-          AND sender = 'client'
+          AND COALESCE(sender_type, sender) = 'client'
           AND read_at IS NULL`,
       req.therapist.id,
     );

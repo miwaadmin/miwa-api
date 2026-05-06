@@ -112,13 +112,23 @@ const publicLimiter = rateLimit({
   message: { error: 'Too many requests. Please try again in a few minutes.' },
 });
 
+function clientPortalEnabled(req, res, next) {
+  if (String(process.env.CLIENT_PORTAL_ENABLED || 'true').toLowerCase() === 'false') {
+    return res.status(404).json({ error: 'Client portal is not enabled.' });
+  }
+  return next();
+}
+
 // ── Public routes ────────────────────────────────────────────────────────────
 app.use('/api/auth/login',            authLimiter);
 app.use('/api/auth/register',         authLimiter);
 app.use('/api/auth/admin-login',      authLimiter);
 app.use('/api/auth/forgot-password',  authLimiter);
 app.use('/api/auth/reset-password',   authLimiter);
+app.use('/api/client-auth/login',     authLimiter);
+app.use('/api/client-auth/accept-invite', authLimiter);
 app.use('/api/auth', require('./routes/auth'));
+app.use('/api/client-auth', clientPortalEnabled, require('./routes/client-auth'));
 app.use('/api/public', publicLimiter, require('./routes/public')); // client-facing assessment links
 app.use('/api/public', require('./routes/public-lethality')); // anonymous LAP-MD submit (has its own rate limiter)
 app.use('/api/public', publicLimiter, require('./routes/public-network')); // public professional directory
@@ -160,6 +170,7 @@ app.use('/api/inbox',                         apiLimiter, requireAuth, phiAuditL
 app.use('/api/agent',                         aiLimiter,  requireAuth, phiAuditLog, require('./routes/agent'));
 app.use('/api/ai',                            aiLimiter,  requireAuth, phiAuditLog, require('./routes/ai'));
 app.use('/api/assessments',                   apiLimiter, requireAuth, phiAuditLog, require('./routes/assessments'));
+app.use('/api/client-portal',                 apiLimiter, clientPortalEnabled, require('./routes/client-portal'));
 app.use('/api/contacts',                      apiLimiter, requireAuth, require('./routes/contacts'));
 app.use('/api/digest',                        apiLimiter, requireAuth, require('./routes/emaildigest'));
 app.use('/api/seed',                          apiLimiter, requireAuth, require('./routes/demo'));

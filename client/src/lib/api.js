@@ -101,6 +101,33 @@ export async function adminApiFetch(path, options = {}) {
   return res
 }
 
+function mobileClientBearerHeader() {
+  try {
+    const t = localStorage.getItem('miwa_client_token')
+    return t ? { Authorization: `Bearer ${t}` } : {}
+  } catch { return {} }
+}
+
+export async function clientApiFetch(path, options = {}) {
+  const { headers: extraHeaders, ...rest } = options
+  const mobile = isCapacitor()
+  const res = await fetch(`${BASE}${path}`, {
+    ...rest,
+    credentials: mobile ? 'omit' : 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(mobile ? mobileClientBearerHeader() : {}),
+      ...(extraHeaders || {}),
+    },
+  })
+  if (res.status === 401) {
+    if (mobile) try { localStorage.removeItem('miwa_client_token') } catch {}
+    window.location.href = '/client/login'
+    return res
+  }
+  return res
+}
+
 /** @deprecated */
 export function authHeaders(extra = {}) {
   return { 'Content-Type': 'application/json', ...extra }

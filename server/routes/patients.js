@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { calculateRetention, isRetentionExpired } = require('../lib/retentionPolicy');
 const { buildCaseIntelligence } = require('../services/case-intelligence');
@@ -664,6 +665,454 @@ router.post('/alerts/run', async (req, res) => {
 
     await persistIfNeeded()
     res.json({ ok: true, alerts_created: alertsCreated, patients_checked: patients.length })
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+function clientInviteHash(token) {
+  return crypto.createHash('sha256').update(String(token || '')).digest('hex')
+}
+
+async function getPortalPatient(db, patientId, therapistId) {
+  return db.get(
+    'SELECT id, client_id, display_name, email, phone, therapist_id FROM patients WHERE id = ? AND therapist_id = ?',
+    patientId,
+    therapistId,
+  )
+}
+
+async function getPortalSummary(db, patientId, therapistId) {
+  const patient = await getPortalPatient(db, patientId, therapistId)
+  if (!patient) return null
+  const account = await db.get('SELECT * FROM client_portal_accounts WHERE patient_id = ? AND therapist_id = ?', patientId, therapistId)
+  const invite = await db.get(
+    `SELECT id, email, phone, expires_at, accepted_at, revoked_at, created_at
+     FROM client_portal_invites
+     WHERE patient_id = ? AND therapist_id = ?
+     ORDER BY created_at DESC LIMIT 1`,
+    patientId,
+    therapistId,
+  )
+  const unread = await db.get(
+    `SELECT COUNT(*) AS c FROM client_messages
+     WHERE patient_id = ? AND therapist_id = ? AND sender_type = 'client' AND read_at IS NULL`,
+    patientId,
+    therapistId,
+  )
+  const pendingAssessments = await db.get(
+    `SELECT COUNT(*) AS c FROM assessment_links
+     WHERE patient_id = ? AND therapist_id = ? AND completed_at IS NULL AND expires_at > datetime('now')`,
+    patientId,
+    therapistId,
+  )
+  const incompleteHomework = await db.get(
+    `SELECT COUNT(*) AS c FROM client_homework_assignments
+     WHERE patient_id = ? AND therapist_id = ? AND completed_at IS NULL`,
+    patientId,
+    therapistId,
+  )
+  const status = account?.status === 'active'
+    ? 'active'
+    : account?.status === 'disabled'
+      ? 'disabled'
+      : invite && !invite.revoked_at && !invite.accepted_at && new Date(invite.expires_at) > new Date()
+        ? 'invited'
+        : 'not_invited'
+  return {
+    status,
+    account: account ? {
+      id: account.id,
+      email: account.email,
+      display_name: account.display_name,
+      last_login_at: account.last_login_at,
+      status: account.status,
+    } : null,
+    latest_invite: invite || null,
+    summary: {
+      last_login: account?.last_login_at || null,
+      unread_client_messages: unread?.c || 0,
+      pending_assessments: pendingAssessments?.c || 0,
+      incomplete_homework: incompleteHomework?.c || 0,
+    },
+    what_client_can_see: {
+      messages: true,
+      appointments: !!(account?.appointment_visibility_enabled ?? 1),
+      assessments: true,
+      homework: !!(account?.homework_enabled ?? 1),
+      resources: !!(account?.resources_enabled ?? 1),
+      care_goals_shared: 0,
+      notes: false,
+      ai_consult: false,
+      diagnosis: false,
+    },
+    controls: account ? {
+      appointment_visibility_enabled: !!account.appointment_visibility_enabled,
+      homework_enabled: !!account.homework_enabled,
+      resources_enabled: !!account.resources_enabled,
+    } : {
+      appointment_visibility_enabled: true,
+      homework_enabled: true,
+      resources_enabled: true,
+    },
+  }
+}
+
+router.get('/:id/client-portal', async (req, res) => {
+  try {
+    const db = getAsyncDb()
+    const summary = await getPortalSummary(db, req.params.id, req.therapist.id)
+    if (!summary) return res.status(404).json({ error: 'Patient not found' })
+    res.json(summary)
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+router.post('/:id/client-portal/invite', async (req, res) => {
+  try {
+    const db = getAsyncDb()
+    const patient = await getPortalPatient(db, req.params.id, req.therapist.id)
+    if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    const email = String(req.body?.email || patient.email || '').trim().toLowerCase()
+    const phone = String(req.body?.phone || patient.phone || '').trim() || null
+    if (!email && !phone) return res.status(400).json({ error: 'Email or phone is required to invite a client.' })
+
+    const token = crypto.randomBytes(32).toString('hex')
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+    await db.insert(
+      `INSERT INTO client_portal_invites
+         (patient_id, therapist_id, email, phone, token_hash, expires_at)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      patient.id,
+      req.therapist.id,
+      email || null,
+      phone,
+      clientInviteHash(token),
+      expiresAt,
+    )
+    const existing = await db.get('SELECT id FROM client_portal_accounts WHERE patient_id = ? AND therapist_id = ?', patient.id, req.therapist.id)
+    if (!existing) {
+      await db.insert(
+        `INSERT INTO client_portal_accounts
+           (patient_id, therapist_id, email, phone, display_name, status)
+         VALUES (?, ?, ?, ?, ?, 'invited')`,
+        patient.id,
+        req.therapist.id,
+        email || `${patient.client_id}@pending.local`,
+        phone,
+        patient.display_name || patient.client_id,
+      )
+    } else {
+      await db.run(
+        `UPDATE client_portal_accounts
+         SET email = COALESCE(?, email), phone = COALESCE(?, phone), updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        email || null,
+        phone,
+        existing.id,
+      )
+    }
+    await persistIfNeeded()
+    const appUrl = process.env.APP_URL || process.env.APP_BASE_URL || 'http://localhost:3000'
+    const invite_url = `${appUrl.replace(/\/$/, '')}/client/accept-invite?token=${token}`
+    res.json({
+      ok: true,
+      invite_url,
+      expires_at: expiresAt,
+      notification_preview: 'You have a secure Miwa invite from your clinician. Please open Miwa to continue.',
+      portal: await getPortalSummary(db, patient.id, req.therapist.id),
+    })
+  } catch (err) {
+    console.error('[patients/client-portal/invite]', err)
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+router.post('/:id/client-portal/revoke', async (req, res) => {
+  try {
+    const db = getAsyncDb()
+    const patient = await getPortalPatient(db, req.params.id, req.therapist.id)
+    if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    await db.run('UPDATE client_portal_invites SET revoked_at = CURRENT_TIMESTAMP WHERE patient_id = ? AND therapist_id = ? AND accepted_at IS NULL', patient.id, req.therapist.id)
+    await db.run("UPDATE client_portal_accounts SET status = 'disabled', updated_at = CURRENT_TIMESTAMP WHERE patient_id = ? AND therapist_id = ?", patient.id, req.therapist.id)
+    await persistIfNeeded()
+    res.json({ ok: true, portal: await getPortalSummary(db, patient.id, req.therapist.id) })
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+router.post('/:id/client-portal/enable', async (req, res) => {
+  try {
+    const db = getAsyncDb()
+    const patient = await getPortalPatient(db, req.params.id, req.therapist.id)
+    if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    await db.run("UPDATE client_portal_accounts SET status = 'active', updated_at = CURRENT_TIMESTAMP WHERE patient_id = ? AND therapist_id = ?", patient.id, req.therapist.id)
+    await db.insert(
+      `INSERT INTO client_portal_audit_log (patient_id, therapist_id, action, metadata_json)
+       VALUES (?, ?, 'therapist_portal_access_changed', ?)`,
+      patient.id,
+      req.therapist.id,
+      JSON.stringify({ status: 'active' }),
+    )
+    await persistIfNeeded()
+    res.json({ ok: true, portal: await getPortalSummary(db, patient.id, req.therapist.id) })
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+router.post('/:id/client-portal/reset', async (req, res) => {
+  try {
+    const db = getAsyncDb()
+    const patient = await getPortalPatient(db, req.params.id, req.therapist.id)
+    if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    await db.run(
+      `UPDATE client_portal_accounts
+       SET password_hash = NULL, status = 'invited', updated_at = CURRENT_TIMESTAMP
+       WHERE patient_id = ? AND therapist_id = ?`,
+      patient.id,
+      req.therapist.id,
+    )
+    await persistIfNeeded()
+    res.json({ ok: true, portal: await getPortalSummary(db, patient.id, req.therapist.id) })
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+router.put('/:id/client-portal/controls', async (req, res) => {
+  try {
+    const db = getAsyncDb()
+    const patient = await getPortalPatient(db, req.params.id, req.therapist.id)
+    if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    const account = await db.get('SELECT id FROM client_portal_accounts WHERE patient_id = ? AND therapist_id = ?', patient.id, req.therapist.id)
+    if (!account) return res.status(404).json({ error: 'Client portal account not found' })
+    const bit = (v, fallback = true) => v === undefined ? (fallback ? 1 : 0) : (v ? 1 : 0)
+    await db.run(
+      `UPDATE client_portal_accounts
+       SET appointment_visibility_enabled = ?,
+           homework_enabled = ?,
+           resources_enabled = ?,
+           response_window = COALESCE(?, response_window),
+           office_hours = COALESCE(?, office_hours),
+           emergency_boundary_message = COALESCE(?, emergency_boundary_message),
+           portal_announcement = COALESCE(?, portal_announcement),
+           welcome_message_template = COALESCE(?, welcome_message_template),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      bit(req.body?.appointment_visibility_enabled),
+      bit(req.body?.homework_enabled),
+      bit(req.body?.resources_enabled),
+      req.body?.response_window || null,
+      req.body?.office_hours || null,
+      req.body?.emergency_boundary_message || null,
+      req.body?.portal_announcement || null,
+      req.body?.welcome_message_template || null,
+      account.id,
+    )
+    await db.insert(
+      `INSERT INTO client_portal_audit_log
+         (patient_id, therapist_id, client_account_id, action, metadata_json)
+       VALUES (?, ?, ?, 'therapist_portal_access_changed', ?)`,
+      patient.id,
+      req.therapist.id,
+      account.id,
+      JSON.stringify(req.body || {}),
+    )
+    await persistIfNeeded()
+    res.json({ ok: true, portal: await getPortalSummary(db, patient.id, req.therapist.id) })
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+router.get('/:id/client-portal/preview', async (req, res) => {
+  try {
+    const db = getAsyncDb()
+    const patient = await getPortalPatient(db, req.params.id, req.therapist.id)
+    if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    const portal = await getPortalSummary(db, patient.id, req.therapist.id)
+    const messages = await db.all(
+      `SELECT id, sender_type, content, sender, message, risk_flag, created_at
+       FROM client_messages
+       WHERE patient_id = ? AND therapist_id = ?
+       ORDER BY created_at ASC LIMIT 20`,
+      patient.id,
+      req.therapist.id,
+    )
+    const homework = await db.all(
+      `SELECT id, title, description, resource_url, due_at, completed_at, client_reflection
+       FROM client_homework_assignments
+       WHERE patient_id = ? AND therapist_id = ?
+       ORDER BY COALESCE(due_at, created_at) ASC LIMIT 20`,
+      patient.id,
+      req.therapist.id,
+    )
+    const appointments = portal?.controls?.appointment_visibility_enabled ? await db.all(
+      `SELECT id, appointment_type, scheduled_start, scheduled_end, location, meet_url, status
+       FROM appointments WHERE patient_id = ? AND therapist_id = ? ORDER BY scheduled_start ASC LIMIT 20`,
+      patient.id,
+      req.therapist.id,
+    ) : []
+    const activity = await db.all(
+      `SELECT id, action, metadata_json, created_at
+       FROM client_portal_audit_log
+       WHERE patient_id = ? AND therapist_id = ?
+       ORDER BY created_at DESC LIMIT 30`,
+      patient.id,
+      req.therapist.id,
+    )
+    res.json({
+      preview: true,
+      label: 'Client View Preview',
+      read_only: true,
+      portal,
+      client: { display_name: patient.display_name || patient.client_id },
+      messages: messages.map(m => ({ ...m, sender_type: m.sender_type || m.sender, content: m.content || m.message })),
+      homework,
+      appointments,
+      activity,
+    })
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+router.put('/:id/client-portal/care-goals', async (req, res) => {
+  try {
+    const db = getAsyncDb()
+    const patient = await getPortalPatient(db, req.params.id, req.therapist.id)
+    if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    const sharedIds = new Set((req.body?.shared_goal_ids || []).map(Number).filter(Number.isFinite))
+    let goals = []
+    try {
+      goals = await db.all(
+        `SELECT tg.id
+         FROM treatment_goals tg
+         JOIN treatment_plans tp ON tp.id = tg.plan_id
+         WHERE tp.patient_id = ? AND tp.therapist_id = ?`,
+        patient.id,
+        req.therapist.id,
+      )
+    } catch {}
+    for (const goal of goals) {
+      await db.run('UPDATE treatment_goals SET shared_with_client = ? WHERE id = ?', sharedIds.has(Number(goal.id)) ? 1 : 0, goal.id)
+    }
+    await persistIfNeeded()
+    res.json({ ok: true })
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+router.get('/:id/client-portal/messages', async (req, res) => {
+  try {
+    const db = getAsyncDb()
+    const patient = await getPortalPatient(db, req.params.id, req.therapist.id)
+    if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    const messages = await db.all(
+      `SELECT id, sender_type, content, sender, message, risk_flag, read_at, created_at
+       FROM client_messages
+       WHERE patient_id = ? AND therapist_id = ?
+       ORDER BY created_at ASC LIMIT 100`,
+      patient.id,
+      req.therapist.id,
+    )
+    await db.run(
+      "UPDATE client_messages SET read_at = COALESCE(read_at, CURRENT_TIMESTAMP) WHERE patient_id = ? AND therapist_id = ? AND sender_type = 'client'",
+      patient.id,
+      req.therapist.id,
+    )
+    await persistIfNeeded()
+    res.json({ messages: messages.map(m => ({ ...m, sender_type: m.sender_type || m.sender, content: m.content || m.message, risk_flag: !!m.risk_flag })) })
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+router.post('/:id/client-portal/messages', async (req, res) => {
+  try {
+    const db = getAsyncDb()
+    const patient = await getPortalPatient(db, req.params.id, req.therapist.id)
+    if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    const content = String(req.body?.content || '').trim().slice(0, 2000)
+    if (!content) return res.status(400).json({ error: 'Message is required.' })
+    const account = await db.get('SELECT id FROM client_portal_accounts WHERE patient_id = ? AND therapist_id = ?', patient.id, req.therapist.id)
+    const result = await db.insert(
+      `INSERT INTO client_messages
+         (patient_id, therapist_id, client_account_id, sender_type, content, sender, message)
+       VALUES (?, ?, ?, 'therapist', ?, 'therapist', ?)`,
+      patient.id,
+      req.therapist.id,
+      account?.id || null,
+      content,
+      content,
+    )
+    await persistIfNeeded()
+    res.json({ ok: true, message_id: result.lastInsertRowid })
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+router.post('/:id/client-portal/homework', async (req, res) => {
+  try {
+    const db = getAsyncDb()
+    const patient = await getPortalPatient(db, req.params.id, req.therapist.id)
+    if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    const title = String(req.body?.title || '').trim()
+    if (!title) return res.status(400).json({ error: 'Title is required.' })
+    const account = await db.get('SELECT id FROM client_portal_accounts WHERE patient_id = ? AND therapist_id = ?', patient.id, req.therapist.id)
+    const result = await db.insert(
+      `INSERT INTO client_homework_assignments
+         (patient_id, therapist_id, client_account_id, title, description, resource_url, attachment_document_id, due_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      patient.id,
+      req.therapist.id,
+      account?.id || null,
+      title,
+      req.body?.description || null,
+      req.body?.resource_url || null,
+      req.body?.attachment_document_id || null,
+      req.body?.due_at || null,
+    )
+    await persistIfNeeded()
+    res.status(201).json({ ok: true, id: result.lastInsertRowid, portal: await getPortalSummary(db, patient.id, req.therapist.id) })
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' })
+  }
+})
+
+router.post('/:id/client-portal/assessments', async (req, res) => {
+  try {
+    const db = getAsyncDb()
+    const patient = await getPortalPatient(db, req.params.id, req.therapist.id)
+    if (!patient) return res.status(404).json({ error: 'Patient not found' })
+    const { template_type, member_label, expires_days = 7 } = req.body || {}
+    if (!template_type) return res.status(400).json({ error: 'Assessment type is required.' })
+    const { TEMPLATES } = require('./assessments')
+    if (!TEMPLATES[template_type]) return res.status(400).json({ error: 'Invalid assessment type.' })
+    const token = crypto.randomBytes(32).toString('hex')
+    const expiresAt = new Date(Date.now() + Math.min(Math.max(Number(expires_days) || 7, 1), 30) * 24 * 60 * 60 * 1000).toISOString()
+    const account = await db.get('SELECT id FROM client_portal_accounts WHERE patient_id = ? AND therapist_id = ?', patient.id, req.therapist.id)
+    await db.insert(
+      `INSERT INTO assessment_links
+         (token, patient_id, therapist_id, template_type, member_label, expires_at, due_at, client_account_id, assigned_by_therapist_id, assigned_via)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'client_portal')`,
+      token,
+      patient.id,
+      req.therapist.id,
+      template_type,
+      member_label || null,
+      expiresAt,
+      req.body?.due_at || expiresAt,
+      account?.id || null,
+      req.therapist.id,
+    )
+    await persistIfNeeded()
+    res.json({ ok: true, token, url: `/client/assessments?token=${token}`, expires_at: expiresAt })
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' })
   }
