@@ -27,7 +27,7 @@ function PatientModal({ patient, onClose, onSave }) {
     }
   })()
   const [form, setForm] = useState(
-    patient || { client_id: '', first_name: '', last_name: '', age: '', gender: '', presenting_concerns: '', diagnoses: '', notes: '', client_type: 'individual', display_name: '', phone: '' }
+    patient || { client_id: '', first_name: '', last_name: '', age: '', gender: '', presenting_concerns: '', diagnoses: '', notes: '', client_type: 'individual', display_name: '', phone: '', email: '' }
   )
   const [members, setMembers] = useState(defaultMembers)
   const [saving, setSaving] = useState(false)
@@ -169,6 +169,24 @@ function PatientModal({ patient, onClose, onSave }) {
                 placeholder="(555) 123-4567"
               />
               <p className="text-xs text-gray-400 mt-1">Used for contact records and future SMS only after BAA and consent controls are complete.</p>
+            </div>
+            <div className="col-span-2">
+              <label className="label">
+                Email
+                <span className="ml-1 text-xs font-normal text-gray-400">(portal, assessments, check-ins)</span>
+              </label>
+              <input
+                className="input"
+                type="email"
+                inputMode="email"
+                autoCapitalize="none"
+                autoCorrect="off"
+                autoComplete="email"
+                value={form.email || ''}
+                onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+                placeholder="client@example.com"
+              />
+              <p className="text-xs text-gray-400 mt-1">Used for portal invites, assessment links, intake forms, and secure email notifications.</p>
             </div>
             {clientType === 'individual' && (
               <>
