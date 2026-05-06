@@ -53,15 +53,15 @@ test('translateSqliteSql converts sqlite start-of-month helper', () => {
 test('translateSqliteSql converts parameterized relative datetime helpers', () => {
   assert.equal(
     translateSqliteSql("SELECT * FROM appointments WHERE scheduled_start BETWEEN datetime('now', '+' || ? || ' minutes') AND datetime('now', '+' || ? || ' minutes')"),
-    "SELECT * FROM appointments WHERE scheduled_start BETWEEN (CURRENT_TIMESTAMP + ($1::int * INTERVAL '1 minute')) AND (CURRENT_TIMESTAMP + ($2::int * INTERVAL '1 minute'))"
+    "SELECT * FROM appointments WHERE NULLIF(scheduled_start, '')::timestamp BETWEEN (CURRENT_TIMESTAMP + ($1::int * INTERVAL '1 minute')) AND (CURRENT_TIMESTAMP + ($2::int * INTERVAL '1 minute'))"
   );
   assert.equal(
     translateSqliteSql("SELECT * FROM patients WHERE last_session_date < datetime('now', '-' || ? || ' days')"),
-    "SELECT * FROM patients WHERE last_session_date < (CURRENT_TIMESTAMP - ($1::int * INTERVAL '1 day'))"
+    "SELECT * FROM patients WHERE NULLIF(last_session_date, '')::timestamp < (CURRENT_TIMESTAMP - ($1::int * INTERVAL '1 day'))"
   );
   assert.equal(
     translateSqliteSql("SELECT * FROM sessions WHERE session_date >= date('now', ?)"),
-    "SELECT * FROM sessions WHERE session_date >= (CURRENT_DATE + ($1::text)::interval)"
+    "SELECT * FROM sessions WHERE NULLIF(session_date, '')::timestamp >= (CURRENT_DATE + ($1::text)::interval)"
   );
   assert.equal(
     translateSqliteSql("SELECT * FROM sessions WHERE created_at >= datetime('now', ?)"),
@@ -77,6 +77,17 @@ test('translateSqliteSql converts concrete relative datetime helpers', () => {
   assert.equal(
     translateSqliteSql("SELECT * FROM research_briefs WHERE created_at > datetime('now', '-24 hours')"),
     "SELECT * FROM research_briefs WHERE created_at > (CURRENT_TIMESTAMP - INTERVAL '24 hours')"
+  );
+});
+
+test('translateSqliteSql casts text appointment date ranges for Postgres', () => {
+  assert.equal(
+    translateSqliteSql("SELECT * FROM appointments a WHERE a.scheduled_start >= datetime('now') AND a.scheduled_start <= datetime('now', '+' || ? || ' days')"),
+    "SELECT * FROM appointments a WHERE NULLIF(a.scheduled_start, '')::timestamp >= CURRENT_TIMESTAMP AND NULLIF(a.scheduled_start, '')::timestamp <= (CURRENT_TIMESTAMP + ($1::int * INTERVAL '1 day'))"
+  );
+  assert.equal(
+    translateSqliteSql('SELECT * FROM sessions s WHERE s.session_date >= ? ORDER BY s.session_date DESC'),
+    "SELECT * FROM sessions s WHERE NULLIF(s.session_date, '')::timestamp >= $1::timestamp ORDER BY s.session_date DESC"
   );
 });
 

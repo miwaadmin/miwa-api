@@ -43,8 +43,44 @@ function translateSqlitePlaceholders(sql) {
   return out;
 }
 
+const TEXT_DATE_COLUMNS = [
+  'session_date',
+  'scheduled_start',
+  'scheduled_end',
+  'last_session_date',
+  'first_session_date',
+];
+
+function textDateColumnPattern() {
+  return `((?:[A-Za-z_][A-Za-z0-9_]*\\.)?(?:${TEXT_DATE_COLUMNS.join('|')}))`;
+}
+
+function castTextDateColumn(column) {
+  return `NULLIF(${column}, '')::timestamp`;
+}
+
+function castTimestampParam(value) {
+  if (/^\$\d+$/.test(value)) return `${value}::timestamp`;
+  return value;
+}
+
+function normalizeTextDateComparisons(sql) {
+  const column = textDateColumnPattern();
+  const relativeDateExpr = String.raw`\((?:[^()]|\([^()]*\))*\b(?:CURRENT_TIMESTAMP|CURRENT_DATE)\b(?:[^()]|\([^()]*\))*\)|CURRENT_TIMESTAMP|CURRENT_DATE|date_trunc\('month', CURRENT_DATE\)|\$\d+(?:::timestamp)?`;
+  const comparison = new RegExp(`\\b${column}\\s*(>=|<=|>|<)\\s*(${relativeDateExpr})`, 'gi');
+  const between = new RegExp(`\\b${column}\\s+BETWEEN\\s+(${relativeDateExpr})\\s+AND\\s+(${relativeDateExpr})`, 'gi');
+
+  return String(sql || '')
+    .replace(between, (_match, col, left, right) => {
+      return `${castTextDateColumn(col)} BETWEEN ${castTimestampParam(left)} AND ${castTimestampParam(right)}`;
+    })
+    .replace(comparison, (_match, col, op, right) => {
+      return `${castTextDateColumn(col)} ${op} ${castTimestampParam(right)}`;
+    });
+}
+
 function translateSqliteSql(sql) {
-  return translateSqlitePlaceholders(String(sql || ''))
+  const translated = translateSqlitePlaceholders(String(sql || ''))
     .replace(/\s+COLLATE\s+NOCASE/gi, '')
     .replace(/\bCOALESCE\s*\(([^)]*),\s*""\s*\)/gi, "COALESCE($1, '')")
     .replace(/\bORDER\s+BY\s+COALESCE\s*\(\s*((?:[A-Za-z_][A-Za-z0-9_]*\.)?session_date)\s*,\s*((?:[A-Za-z_][A-Za-z0-9_]*\.)?created_at)\s*\)/gi, "ORDER BY COALESCE(NULLIF($1, '')::timestamp, $2::timestamp)")
@@ -76,6 +112,7 @@ function translateSqliteSql(sql) {
     .replace(/\bDATE\s*\(\s*([A-Za-z_][A-Za-z0-9_.]*)\s*\)/g, '($1::date)')
     .replace(/\bdatetime\s*\(\s*'now'\s*\)/gi, 'CURRENT_TIMESTAMP')
     .replace(/\bCURRENT_TIMESTAMP\b/gi, 'CURRENT_TIMESTAMP');
+  return normalizeTextDateComparisons(translated);
 }
 
 function appendReturningId(sql) {
