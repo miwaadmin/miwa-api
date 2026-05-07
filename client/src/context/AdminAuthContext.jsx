@@ -4,13 +4,13 @@
  * admin and clinician sessions can coexist.
  */
 import { createContext, useContext, useState, useEffect } from 'react'
-import { API_BASE } from '../lib/api'
+import { API_BASE, isNativeApp } from '../lib/api'
 
 const BASE = API_BASE
 const AdminAuthContext = createContext(null)
 
 function isCapacitor() {
-  try { return !!(window.Capacitor?.isNativePlatform?.()) } catch { return false }
+  return isNativeApp()
 }
 
 export function AdminAuthProvider({ children }) {

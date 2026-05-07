@@ -1,15 +1,20 @@
+import { Capacitor } from '@capacitor/core'
+
 /**
  * API helpers, all requests use credentials:'include' so the HttpOnly auth
  * cookie is sent automatically on web.  On mobile (Capacitor), the
  * Authorization header is used instead (see AuthContext for token storage).
  */
+export function isNativeApp() {
+  try { return Capacitor.isNativePlatform() } catch { return false }
+}
+
 // On web: relative /api. On Capacitor native: full API URL (no local server on phone)
 export const API_BASE = (() => {
-  if (import.meta.env.VITE_API_URL) return import.meta.env.VITE_API_URL
-  try {
-    if (window.Capacitor?.isNativePlatform?.()) return 'https://api.miwa.care/api'
-  } catch {}
-  return '/api'
+  const configured = import.meta.env.VITE_API_URL
+  if (configured && configured !== '/api') return configured
+  if (isNativeApp()) return 'https://api.miwa.care/api'
+  return configured || '/api'
 })()
 
 const BASE = API_BASE
@@ -22,7 +27,7 @@ function mobileBearerHeader() {
 }
 
 function isCapacitor() {
-  try { return !!(window.Capacitor?.isNativePlatform?.()) } catch { return false }
+  return isNativeApp()
 }
 
 export async function apiFetch(path, options = {}) {

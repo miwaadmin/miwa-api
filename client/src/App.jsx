@@ -56,6 +56,7 @@ import AnalyticsTracker from './components/AnalyticsTracker'
 import ScrollToTop from './components/ScrollToTop'
 import Resources from './pages/Resources'
 import DashboardResources from './pages/DashboardResources'
+import { isNativeApp } from './lib/api'
 // Practice pages removed — group practice is a separate product (practice.miwa.care)
 
 // Mobile-optimized experience
@@ -102,7 +103,7 @@ import {
 } from './pages/client/ClientPortalPages'
 
 // Detect Capacitor native shell only (mobile web browsers return false)
-const isNative = () => { try { return !!window.Capacitor?.isNativePlatform?.() } catch { return false } }
+const isNative = isNativeApp
 // Detect *actual* mobile devices: native shell, OR touch-primary device with a
 // narrow viewport. A desktop browser whose window happens to be < 768px wide
 // (tabs, devtools, narrow display) is NOT mobile — it has a fine pointer (mouse

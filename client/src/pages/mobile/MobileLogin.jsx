@@ -8,13 +8,16 @@
 import { useState } from 'react'
 import { useNavigate, Link, Navigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
-import { API_BASE } from '../../lib/api'
+import { useClientAuth } from '../../context/ClientAuthContext'
+import { API_BASE, isNativeApp } from '../../lib/api'
 
 const API = API_BASE
 
 export default function MobileLogin() {
-  const { therapist, login } = useAuth()
+  const { therapist, login: loginTherapist } = useAuth()
+  const { client, login: loginClient } = useClientAuth()
   const navigate = useNavigate()
+  const [mode, setMode] = useState('clinician')
   const [form, setForm] = useState({ email: '', password: '' })
   const [error, setError] = useState('')
   const [unverified, setUnverified] = useState(false)
@@ -22,7 +25,8 @@ export default function MobileLogin() {
   const [loading, setLoading] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
 
-  if (therapist) return <Navigate to="/m" replace />
+  if (therapist && mode === 'clinician') return <Navigate to="/m" replace />
+  if (client && mode === 'client') return <Navigate to="/client/home" replace />
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
@@ -33,9 +37,10 @@ export default function MobileLogin() {
       const res = await fetch(`${API}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        credentials: isNativeApp() ? 'omit' : 'include',
         body: JSON.stringify(form),
       })
-      const data = await res.json()
+      const data = await readJson(res)
       if (!res.ok) {
         if (data.code === 'EMAIL_UNVERIFIED') {
           setUnverified(true)
@@ -45,8 +50,29 @@ export default function MobileLogin() {
         }
         return
       }
-      login(data.token, data.therapist)
+      loginTherapist(data.token, data.therapist)
       navigate('/m', { replace: true })
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleClientSubmit = async (e) => {
+    e.preventDefault()
+    setLoading(true); setError(''); setUnverified(false)
+    try {
+      const res = await fetch(`${API}/client-auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: isNativeApp() ? 'omit' : 'include',
+        body: JSON.stringify(form),
+      })
+      const data = await readJson(res)
+      if (!res.ok) throw new Error(data.error || 'Unable to sign in.')
+      loginClient(data.token, data.client)
+      navigate('/client/home', { replace: true })
     } catch (err) {
       setError(err.message)
     } finally {
@@ -89,12 +115,31 @@ export default function MobileLogin() {
           M
         </div>
         <h1 className="text-2xl font-bold text-gray-900 mt-5">Welcome back</h1>
-        <p className="text-sm text-gray-500 mt-1">Sign in to your clinical workspace</p>
+        <p className="text-sm text-gray-500 mt-1">
+          {mode === 'clinician' ? 'Sign in to your clinical workspace' : 'Sign in to your client portal'}
+        </p>
       </div>
 
       {/* Form */}
       <div className="flex-1 px-6 pt-8">
-        <form onSubmit={handleSubmit} className="space-y-4 max-w-sm mx-auto">
+        <div className="max-w-sm mx-auto mb-5 grid grid-cols-2 gap-2 rounded-2xl bg-white p-1.5 border border-gray-200 shadow-sm">
+          <button
+            type="button"
+            onClick={() => { setMode('clinician'); setError(''); setUnverified(false) }}
+            className={`rounded-xl py-2.5 text-sm font-bold transition-colors ${mode === 'clinician' ? 'bg-gray-950 text-white' : 'text-gray-500 active:bg-gray-50'}`}
+          >
+            Clinician
+          </button>
+          <button
+            type="button"
+            onClick={() => { setMode('client'); setError(''); setUnverified(false) }}
+            className={`rounded-xl py-2.5 text-sm font-bold transition-colors ${mode === 'client' ? 'bg-gray-950 text-white' : 'text-gray-500 active:bg-gray-50'}`}
+          >
+            Client
+          </button>
+        </div>
+
+        <form onSubmit={mode === 'clinician' ? handleSubmit : handleClientSubmit} className="space-y-4 max-w-sm mx-auto">
           <div>
             <label className="block text-sm font-semibold text-gray-700 mb-1.5">Email</label>
             <input
@@ -114,7 +159,7 @@ export default function MobileLogin() {
           <div>
             <label className="flex items-center justify-between text-sm font-semibold text-gray-700 mb-1.5">
               Password
-              <Link to="/forgot-password" className="text-xs font-medium text-brand-600 active:text-brand-800">
+              <Link to={mode === 'clinician' ? '/forgot-password' : '/client/reset-password'} className="text-xs font-medium text-brand-600 active:text-brand-800">
                 Forgot?
               </Link>
             </label>
@@ -151,7 +196,7 @@ export default function MobileLogin() {
           {error && (
             <div className={`rounded-xl border p-3 text-sm ${unverified ? 'bg-amber-50 border-amber-200 text-amber-900' : 'bg-red-50 border-red-200 text-red-800'}`}>
               {error}
-              {unverified && (
+              {mode === 'clinician' && unverified && (
                 <div className="mt-2">
                   <button
                     type="button"
@@ -172,15 +217,15 @@ export default function MobileLogin() {
             className="w-full rounded-xl py-4 text-base font-bold text-white active:opacity-90 disabled:opacity-60 shadow-sm transition-opacity"
             style={{ background: 'linear-gradient(135deg, #6047EE, #2dd4bf)' }}
           >
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? 'Signing in...' : mode === 'clinician' ? 'Sign in as Clinician' : 'Sign in as Client'}
           </button>
         </form>
 
         <div className="max-w-sm mx-auto mt-6 text-center">
           <p className="text-sm text-gray-500">
             New to Miwa?{' '}
-            <Link to="/register" className="font-bold text-brand-600 active:text-brand-800">
-              Create account
+            <Link to={mode === 'clinician' ? '/register' : '/client/join'} className="font-bold text-brand-600 active:text-brand-800">
+              {mode === 'clinician' ? 'Create account' : 'Accept invite'}
             </Link>
           </p>
         </div>
@@ -194,4 +239,12 @@ export default function MobileLogin() {
       </div>
     </div>
   )
+}
+
+async function readJson(res) {
+  const text = await res.text()
+  if (!text) return {}
+  try { return JSON.parse(text) } catch {
+    throw new Error('Miwa could not reach the API. Please check your connection and try again.')
+  }
 }

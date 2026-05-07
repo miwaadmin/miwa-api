@@ -1,10 +1,10 @@
 import { createContext, useContext, useEffect, useState } from 'react'
-import { API_BASE } from '../lib/api'
+import { API_BASE, isNativeApp } from '../lib/api'
 
 const ClientAuthContext = createContext(null)
 
 function isCapacitor() {
-  try { return !!(window.Capacitor?.isNativePlatform?.()) } catch { return false }
+  return isNativeApp()
 }
 
 export function ClientAuthProvider({ children }) {

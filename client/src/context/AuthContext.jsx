@@ -6,14 +6,14 @@
  * a Bearer header since cookies don't work cross-origin in WebViews.
  */
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
-import { API_BASE } from '../lib/api'
+import { API_BASE, isNativeApp } from '../lib/api'
 
 const BASE = API_BASE
 const AuthContext = createContext(null)
 
 // Detect Capacitor native runtime — false on web browsers
 function isCapacitor() {
-  try { return !!(window.Capacitor?.isNativePlatform?.()) } catch { return false }
+  return isNativeApp()
 }
 
 export function AuthProvider({ children }) {
@@ -70,7 +70,13 @@ export function AuthProvider({ children }) {
 
   function refreshTherapist(updatedData, _newToken) {
     if (updatedData) { setTherapist(updatedData); return }
-    fetch(`${BASE}/auth/me`, { credentials: 'include' })
+    const opts = { credentials: 'include' }
+    if (isCapacitor()) {
+      const t = localStorage.getItem('miwa_token')
+      opts.credentials = 'omit'
+      if (t) opts.headers = { Authorization: `Bearer ${t}` }
+    }
+    fetch(`${BASE}/auth/me`, opts)
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setTherapist(data) })
       .catch(() => {})
