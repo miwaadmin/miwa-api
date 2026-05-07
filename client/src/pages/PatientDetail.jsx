@@ -3065,21 +3065,21 @@ export default function PatientDetail() {
 
     {/* ── Edit Profile Modal ── */}
     {editingProfile && (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}>
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+      <div className="fixed inset-0 z-50 flex items-stretch justify-center p-3 sm:items-center sm:p-4" style={{ background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(4px)' }}>
+        <div className="flex w-full max-w-lg max-h-[calc(100vh-1.5rem)] sm:max-h-[calc(100vh-2rem)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl dark:bg-slate-900">
+          <div className="flex-shrink-0 px-6 py-4 border-b border-gray-100 dark:border-white/10 flex items-center justify-between bg-white dark:bg-slate-900">
             <div>
-              <h2 className="text-base font-bold text-gray-900">Edit Client Profile</h2>
-              <p className="text-xs text-gray-400 mt-0.5 font-mono">{patient.client_id}</p>
+              <h2 className="text-base font-bold text-gray-900 dark:text-slate-100">Edit Client Profile</h2>
+              <p className="text-xs text-gray-400 dark:text-slate-500 mt-0.5 font-mono">{patient.client_id}</p>
             </div>
-            <button onClick={() => setEditingProfile(false)} className="p-2 rounded-xl hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors">
+            <button onClick={() => setEditingProfile(false)} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/10 text-gray-400 hover:text-gray-600 dark:hover:text-slate-200 transition-colors">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
             </button>
           </div>
 
-          <div className="px-6 py-5 space-y-4">
+          <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-6 py-5 space-y-4">
             {profileError && (
               <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
                 {profileError}
@@ -3258,8 +3258,8 @@ export default function PatientDetail() {
             </div>
           </div>
 
-          <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
-            <button onClick={() => setEditingProfile(false)} className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 hover:bg-gray-200 transition-colors">
+          <div className="flex-shrink-0 px-6 py-4 bg-gray-50 dark:bg-slate-950 border-t border-gray-100 dark:border-white/10 flex items-center justify-end gap-3">
+            <button onClick={() => setEditingProfile(false)} className="px-4 py-2 rounded-xl text-sm font-semibold text-gray-600 dark:text-slate-300 hover:bg-gray-200 dark:hover:bg-white/10 transition-colors">
               Cancel
             </button>
             <button
