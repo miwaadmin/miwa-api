@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { RESOURCES } from '../lib/resources'
 
 
@@ -177,7 +177,113 @@ function BookmarkedPanel({ bookmarks, onToggleBookmark }) {
 }
 
 /* ── Main Page ─────────────────────────────────────────────────────────── */
+function SearchDirectory({ resources, bookmarks, onToggleBookmark, onClose }) {
+  const [query, setQuery] = useState('')
+  const [activeCategory, setActiveCategory] = useState('all')
+
+  const categories = useMemo(() => [
+    { id: 'all', label: 'All' },
+    ...resources.map(cat => ({ id: cat.id, label: cat.category })),
+  ], [resources])
+
+  const allItems = useMemo(() => {
+    const items = []
+    for (const category of resources) {
+      for (const item of category.items) {
+        items.push({ ...item, categoryId: category.id, categoryName: category.category, color: category.color })
+      }
+    }
+    return items
+  }, [resources])
+
+  const normalizedQuery = query.trim().toLowerCase()
+  const matches = useMemo(() => {
+    return allItems
+      .filter(item => activeCategory === 'all' || item.categoryId === activeCategory)
+      .filter(item => {
+        if (!normalizedQuery) return true
+        const haystack = [item.name, item.type, item.description, item.source, item.categoryName]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+        return normalizedQuery.split(/\s+/).every(term => haystack.includes(term))
+      })
+      .slice(0, 24)
+  }, [allItems, activeCategory, normalizedQuery])
+
+  return (
+    <div className="rounded-2xl border border-indigo-100 bg-white p-5 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-bold text-gray-900">Search Directory</p>
+          <p className="mt-1 text-xs text-gray-500">Search by concern, tool, population, source, or service type.</p>
+        </div>
+        <button onClick={onClose} className="rounded-lg px-2 py-1 text-xs font-semibold text-gray-400 hover:bg-gray-100 hover:text-gray-700">
+          Close
+        </button>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div className="relative flex-1">
+          <svg className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 110-15 7.5 7.5 0 010 15z" />
+          </svg>
+          <input
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            autoFocus
+            className="w-full rounded-xl border border-gray-200 bg-gray-50 py-3 pl-10 pr-3 text-sm text-gray-900 placeholder-gray-400 outline-none transition-colors focus:border-indigo-300 focus:bg-white focus:ring-2 focus:ring-indigo-100"
+            placeholder="Search trauma, housing, PHQ, IPV, child abuse, legal aid..."
+          />
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {categories.slice(0, 6).map(category => (
+            <button
+              key={category.id}
+              onClick={() => setActiveCategory(category.id)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                activeCategory === category.id
+                  ? 'border-indigo-500 bg-indigo-600 text-white'
+                  : 'border-gray-200 bg-white text-gray-600 hover:border-indigo-300 hover:text-indigo-700'
+              }`}
+            >
+              {category.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center justify-between gap-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-gray-400">
+          {matches.length} result{matches.length === 1 ? '' : 's'}
+        </p>
+        <p className="text-xs text-gray-400">For nuanced searches, ask Miwa and bookmark what you use.</p>
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+        {matches.map(item => (
+          <ResourceCard
+            key={item.id}
+            item={item}
+            color={item.color}
+            isBookmarked={bookmarks.includes(item.id)}
+            onToggleBookmark={onToggleBookmark}
+          />
+        ))}
+      </div>
+
+      {matches.length === 0 && (
+        <div className="mt-4 rounded-xl border border-gray-100 bg-gray-50 px-4 py-6 text-center">
+          <p className="text-sm font-semibold text-gray-700">No resources found</p>
+          <p className="mt-1 text-xs text-gray-500">Try a broader phrase, or ask Miwa to search by client need.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DashboardResources() {
+  const [searchOpen, setSearchOpen] = useState(false)
   const [bookmarks, setBookmarks] = useState(() => {
     try {
       const saved = localStorage.getItem('miwa_bookmarked_resources')
@@ -209,6 +315,15 @@ export default function DashboardResources() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setSearchOpen(open => !open)}
+            className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-indigo-700"
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 110-15 7.5 7.5 0 010 15z" />
+            </svg>
+            Search directory
+          </button>
           {bookmarks.length > 0 && (
             <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
               <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
@@ -219,6 +334,15 @@ export default function DashboardResources() {
           )}
         </div>
       </div>
+
+      {searchOpen && (
+        <SearchDirectory
+          resources={RESOURCES}
+          bookmarks={bookmarks}
+          onToggleBookmark={toggleBookmark}
+          onClose={() => setSearchOpen(false)}
+        />
+      )}
 
       {/* Bookmarks panel (if any) */}
       <BookmarkedPanel bookmarks={bookmarks} onToggleBookmark={toggleBookmark} />
