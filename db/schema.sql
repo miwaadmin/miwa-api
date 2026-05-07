@@ -327,11 +327,15 @@ CREATE TABLE IF NOT EXISTS assessment_links (
   token           TEXT UNIQUE NOT NULL,
   patient_id      BIGINT NOT NULL REFERENCES patients(id),
   therapist_id    BIGINT NOT NULL REFERENCES therapists(id),
+  client_account_id BIGINT,
   template_type   TEXT NOT NULL,
   member_label    TEXT,
   expires_at      TIMESTAMPTZ NOT NULL,
+  due_at          TIMESTAMPTZ,
   completed_at    TIMESTAMPTZ,
   assessment_id   BIGINT REFERENCES assessments(id),
+  assigned_via    TEXT,
+  assigned_by_therapist_id BIGINT REFERENCES therapists(id),
   created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

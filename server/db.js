@@ -339,11 +339,15 @@ function createSchema() {
       token TEXT UNIQUE NOT NULL,
       patient_id INTEGER NOT NULL REFERENCES patients(id),
       therapist_id INTEGER NOT NULL REFERENCES therapists(id),
+      client_account_id INTEGER,
       template_type TEXT NOT NULL,
       member_label TEXT,
       expires_at DATETIME NOT NULL,
+      due_at DATETIME,
       completed_at DATETIME,
       assessment_id INTEGER REFERENCES assessments(id),
+      assigned_via TEXT,
+      assigned_by_therapist_id INTEGER REFERENCES therapists(id),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 

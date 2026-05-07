@@ -7,6 +7,8 @@ const {
   splitTopLevelComma,
   transformColumnDefinition,
 } = require('../db/postgresSchema');
+const fs = require('fs');
+const path = require('path');
 
 test('splitTopLevelComma ignores commas inside defaults and constraints', () => {
   assert.deepEqual(
@@ -60,4 +62,16 @@ test('parseCreateTables preserves nested table constraints', () => {
   assert.equal(tables.length, 1);
   assert.deepEqual(tables[0].definitions.at(-1), 'UNIQUE(therapist_id, skill_key)');
   assert.match(buildCreateTableSql(tables[0]), /UNIQUE\(therapist_id, skill_key\)/);
+});
+
+test('assessment_links schema includes client portal delivery columns', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'db.js'), 'utf8');
+  const assessmentLinks = parseCreateTables(source).find((table) => table.table === 'assessment_links');
+  assert.ok(assessmentLinks, 'assessment_links table should be parsed from db.js');
+
+  const definitionText = assessmentLinks.definitions.join('\n');
+  assert.match(definitionText, /\bclient_account_id\b/);
+  assert.match(definitionText, /\bassigned_via\b/);
+  assert.match(definitionText, /\bdue_at\b/);
+  assert.match(definitionText, /\bassigned_by_therapist_id\b/);
 });
