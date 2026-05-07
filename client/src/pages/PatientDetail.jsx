@@ -1348,17 +1348,40 @@ function OutcomeProgressCard({ patientId, patient }) {
   const members = (() => { try { return patient?.members ? JSON.parse(patient.members) : [] } catch { return [] } })()
   const isRelational = clientType !== 'individual' && members.length > 0
 
-  const loadProgress = useCallback(() => {
+  const loadProgress = useCallback((options = {}) => {
     if (!patientId) return
-    setLoading(true)
+    const { silent = false } = options
+    if (!silent) setLoading(true)
     fetch(`${API_BASE}/assessments/progress/${patientId}`, { credentials: 'include' })
       .then(r => r.json()).then(d => {
         if (d && !d.error) setProgress(d)
-        setLoading(false)
-      }).catch(() => setLoading(false))
+        if (!silent) setLoading(false)
+      }).catch(() => { if (!silent) setLoading(false) })
   }, [patientId])
 
   useEffect(() => { loadProgress() }, [loadProgress])
+
+  useEffect(() => {
+    if (!patientId) return undefined
+
+    const refreshQuietly = () => {
+      loadProgress({ silent: true })
+      loadCheckins()
+    }
+    const handleVisibilityChange = () => {
+      if (!document.hidden) refreshQuietly()
+    }
+
+    const interval = window.setInterval(refreshQuietly, 15000)
+    window.addEventListener('focus', refreshQuietly)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('focus', refreshQuietly)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [patientId, loadProgress, loadCheckins])
 
   // Build merged chart data for a given instrument across all souls
   const buildSoulChartData = (byMember, templateType) => {
@@ -1394,6 +1417,50 @@ function OutcomeProgressCard({ patientId, patient }) {
     (progress?.pcl5?.count || 0) > 0
   const hasMemberedData =
     !!progress?.byMember && Object.keys(progress.byMember).length > 0
+
+  const renderCheckinHistory = () => {
+    if (checkins.length === 0) return null
+
+    return (
+      <div className="mt-4">
+        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Between-Session Check-ins</p>
+        <div className="space-y-1.5">
+          {checkins.slice(0, 5).map(c => (
+            <div key={c.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
+              {c.completed_at ? (
+                <>
+                  <span className="text-lg font-bold w-10 text-center flex-shrink-0"
+                    style={{ color: c.mood_score <= 4 ? '#ef4444' : c.mood_score <= 6 ? '#eab308' : '#22c55e' }}>
+                    {c.mood_score}/10
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    {c.mood_notes && <p className="text-xs text-gray-600 truncate">"{c.mood_notes}"</p>}
+                    <p className="text-[11px] text-gray-400">{new Date(c.completed_at).toLocaleDateString()}</p>
+                  </div>
+                  <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex-shrink-0">Completed</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-lg text-gray-300 w-10 text-center flex-shrink-0">...</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs text-gray-500 truncate">{c.message?.slice(0, 60)}</p>
+                    <p className="text-[11px] text-gray-400">Sent {new Date(c.created_at).toLocaleDateString()}</p>
+                  </div>
+                  <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                    new Date(c.expires_at) < new Date()
+                      ? 'text-gray-400 bg-gray-100'
+                      : 'text-amber-600 bg-amber-50'
+                  }`}>
+                    {new Date(c.expires_at) < new Date() ? 'Expired' : 'Pending'}
+                  </span>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   if (loading) return (
     <div>
@@ -1434,6 +1501,7 @@ function OutcomeProgressCard({ patientId, patient }) {
       {showCheckinModal && patient && (
         <CheckinSendModal patient={patient} onClose={() => { setShowCheckinModal(false); loadCheckins() }} />
       )}
+      {renderCheckinHistory()}
     </div>
   )
 
@@ -1888,7 +1956,7 @@ function OutcomeProgressCard({ patientId, patient }) {
                   </>
                 ) : (
                   <>
-                    <span className="text-lg text-gray-300 w-10 text-center flex-shrink-0">, </span>
+                    <span className="text-lg text-gray-300 w-10 text-center flex-shrink-0">...</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-xs text-gray-500 truncate">{c.message?.slice(0, 60)}</p>
                       <p className="text-[11px] text-gray-400">Sent {new Date(c.created_at).toLocaleDateString()}</p>
