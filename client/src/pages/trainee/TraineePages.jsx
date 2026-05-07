@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
 import { useAuth } from '../../context/AuthContext'
+import { renderClinical } from '../../lib/renderClinical'
 import Patients from '../Patients'
 import Hours from '../Hours'
 import Supervisor from '../Supervisor'
@@ -70,9 +71,23 @@ function useTraineeData() {
 export function TraineeToday() {
   const { therapist } = useAuth()
   const { loading, stats, sessions, patients, hours, error } = useTraineeData()
+  const [brief, setBrief] = useState(null)
+  const [briefLoading, setBriefLoading] = useState(false)
   const navigate = useNavigate()
   const firstName = therapist?.first_name || therapist?.full_name?.split(' ')[0] || 'there'
-  const totalHours = Number(hours?.totals?.overall?.hours || hours?.grandTotal || 0)
+  const totalBucket = Array.isArray(hours?.buckets) ? hours.buckets.find(bucket => bucket.id === 'total' || bucket.parent == null) : null
+  const totalHours = Number(totalBucket?.hours || 0)
+
+  useEffect(() => {
+    let cancelled = false
+    setBriefLoading(true)
+    apiFetch('/agent/trainee/daily-brief')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => { if (!cancelled) setBrief(data?.markdown || null) })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setBriefLoading(false) })
+    return () => { cancelled = true }
+  }, [])
 
   if (loading) {
     return (
@@ -165,6 +180,36 @@ export function TraineeToday() {
           </div>
         </section>
       </div>
+
+      <section className="rounded-2xl border border-brand-100 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <div>
+            <h2 className="text-sm font-bold text-gray-950">Miwa's trainee brief</h2>
+            <p className="text-xs text-gray-500">Generated across cases, drafts, supervision needs, hours, and risk/ethics signals.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => {
+              setBriefLoading(true)
+              apiFetch('/agent/trainee/daily-brief')
+                .then(r => r.ok ? r.json() : null)
+                .then(data => setBrief(data?.markdown || null))
+                .catch(() => {})
+                .finally(() => setBriefLoading(false))
+            }}
+            className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-50"
+          >
+            Refresh
+          </button>
+        </div>
+        {briefLoading ? (
+          <div className="text-sm text-gray-500">Reading the trainee workspace...</div>
+        ) : brief ? (
+          <div className="prose-clinical text-sm" dangerouslySetInnerHTML={{ __html: renderClinical(brief) }} />
+        ) : (
+          <div className="text-sm text-gray-500">Ask Miwa for a daily brief once you have cases, notes, hours, or appointments.</div>
+        )}
+      </section>
     </div>
   )
 }
@@ -225,7 +270,44 @@ function DraftQueue() {
 }
 
 export function TraineeSupervision() {
-  return <Supervisor />
+  const [agenda, setAgenda] = useState('')
+  const [loading, setLoading] = useState(false)
+  const loadAgenda = () => {
+    setLoading(true)
+    apiFetch('/agent/trainee/supervision-agenda')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => setAgenda(data?.markdown || ''))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => {
+    loadAgenda()
+  }, [])
+
+  return (
+    <div className="h-full min-h-0 flex flex-col">
+      <div className="flex-shrink-0 border-b border-gray-200 bg-white px-6 py-4">
+        <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center gap-3">
+          <div className="flex-1">
+            <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Supervision agent</p>
+            <h1 className="text-xl font-bold text-gray-950">Weekly supervision agenda</h1>
+          </div>
+          <button onClick={loadAgenda} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white hover:bg-brand-700">
+            {loading ? 'Preparing...' : 'Prepare agenda'}
+          </button>
+        </div>
+        {agenda && (
+          <div className="max-w-6xl mx-auto mt-3 rounded-2xl border border-brand-100 bg-brand-50 p-4 text-sm text-gray-800 whitespace-pre-wrap max-h-56 overflow-y-auto">
+            {agenda}
+          </div>
+        )}
+      </div>
+      <div className="flex-1 min-h-0">
+        <Supervisor />
+      </div>
+    </div>
+  )
 }
 
 export function TraineeHours() {

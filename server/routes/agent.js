@@ -34,6 +34,13 @@ const {
   recordConversationSignal,
 } = require('../services/assistantRuntime');
 const {
+  collectTraineeWorkspaceState,
+  formatTraineeWorkspaceState,
+  generateCaseSnapshot,
+  generateSupervisionAgenda,
+  generateTraineeDailyBrief,
+} = require('../services/traineeIntelligence');
+const {
   createAssistantAction,
   emitAssistantAction,
 } = require('../lib/assistantActions');
@@ -172,6 +179,23 @@ function isInternalModelQuestion(text = '') {
 
 function internalModelDisclosureReply() {
   return "I'm Miwa, your clinical assistant. I can help with scheduling, documentation, assessments, and practice workflows.";
+}
+
+function normalizeImageAttachments(attachments = []) {
+  if (!Array.isArray(attachments)) return [];
+  return attachments.slice(0, 3).map((attachment, index) => {
+    const dataUrl = String(attachment?.dataUrl || attachment?.image_url || '').trim();
+    const mime = String(attachment?.mimeType || '').toLowerCase();
+    if (!dataUrl.startsWith('data:image/')) return null;
+    if (!/^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(dataUrl)) return null;
+    if (dataUrl.length > 8_000_000) return null;
+    return {
+      type: 'input_image',
+      image_url: dataUrl,
+      detail: 'auto',
+      _safeName: `image-${index + 1}.${mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg'}`,
+    };
+  }).filter(Boolean);
 }
 
 function inferAppointmentType(patient, overrideType = '') {
@@ -3743,11 +3767,49 @@ router.post('/batch-assessments-confirm', async (req, res) => {
   }
 });
 
+router.get('/trainee/daily-brief', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const therapist = await db.get('SELECT preferred_timezone FROM therapists WHERE id = ?', req.therapist.id);
+    const result = await generateTraineeDailyBrief(db, req.therapist.id, {
+      timezone: therapist?.preferred_timezone || req.therapist.preferred_timezone || 'America/Los_Angeles',
+    });
+    res.json(result);
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
+router.get('/trainee/cases/:patientId/snapshot', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const result = await generateCaseSnapshot(db, req.therapist.id, Number(req.params.patientId));
+    if (!result) return res.status(404).json({ error: 'Case not found' });
+    res.json(result);
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
+router.get('/trainee/supervision-agenda', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const therapist = await db.get('SELECT preferred_timezone FROM therapists WHERE id = ?', req.therapist.id);
+    const result = await generateSupervisionAgenda(db, req.therapist.id, {
+      timezone: therapist?.preferred_timezone || req.therapist.preferred_timezone || 'America/Los_Angeles',
+    });
+    res.json(result);
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
 router.post('/chat', async (req, res) => {
   try {
     const db = getAsyncDb();
-    const { message: rawMessage, contextType, contextId, pageContext } = req.body || {};
+    const { message: rawMessage, contextType, contextId, pageContext, imageAttachments } = req.body || {};
     if (!rawMessage) return res.status(400).json({ error: 'Message is required' });
+    const imageInputs = normalizeImageAttachments(imageAttachments);
 
     // Build name map — all patients for PHI substitution
     const allPatients = await db.all(
@@ -3809,7 +3871,12 @@ router.post('/chat', async (req, res) => {
     const patientDossier = patientId ? await buildPatientDossier(db, req.therapist.id, patientId) : null;
 
     // Build system context
-    const therapistRow = await db.get('SELECT full_name, first_name, preferred_timezone FROM therapists WHERE id = ?', req.therapist.id);
+    const therapistRow = await db.get(
+      `SELECT full_name, first_name, preferred_timezone, credential_type, workspace_mode,
+              agency_name, agency_ehr_name, training_program
+       FROM therapists WHERE id = ?`,
+      req.therapist.id
+    );
     const therapistName = therapistRow?.first_name || therapistRow?.full_name?.split(' ')[0] || null;
     const therapistTz = therapistRow?.preferred_timezone || 'America/Los_Angeles';
     const caseloadSummary = await buildCaseloadSummary(db, req.therapist.id);
@@ -3820,6 +3887,10 @@ router.post('/chat', async (req, res) => {
       context_id: patientId || null,
     });
     const assistantRuntimePrompt = formatRuntimeForPrompt(assistantRuntime);
+    const traineeWorkspaceState = therapistRow?.workspace_mode === 'agency_companion'
+      ? await collectTraineeWorkspaceState(db, req.therapist.id, { timezone: therapistTz }).catch(() => null)
+      : null;
+    const traineeWorkspacePrompt = traineeWorkspaceState ? formatTraineeWorkspaceState(traineeWorkspaceState) : '';
 
     // Build date context in the CLINICIAN'S timezone — critical for "today at 6pm" to
     // resolve to the right calendar date (server runs in UTC in production).
@@ -3843,11 +3914,22 @@ router.post('/chat', async (req, res) => {
     const patientCount = (await db.get('SELECT COUNT(*) as c FROM patients WHERE therapist_id = ?', req.therapist.id))?.c || 0;
     const sessionCount = (await db.get('SELECT COUNT(*) as c FROM sessions WHERE therapist_id = ?', req.therapist.id))?.c || 0;
     const isNewUser = patientCount === 0 && sessionCount === 0;
+    const modePrompt = therapistRow?.workspace_mode === 'agency_companion'
+      ? `MODE: Trainee / Agency Companion.
+Behave as an agentic trainee clinical copilot, not a static dashboard. Proactively surface supervision prep, note drafts, agency-EHR copy status, clinical reasoning, hours gaps, risk/ethics prompts, and learning opportunities.
+Use Socratic teaching when helpful, without being patronizing. Remember that ${therapistRow?.agency_ehr_name || 'the agency EHR'} is usually the official record and Miwa is the HIPAA-ready companion workspace. If agency PHI or uploaded agency images are involved, remind the trainee to use only site-authorized minimum necessary content.`
+      : `MODE: Private Practice.
+Behave as an AI-native clinical practice copilot. Emphasize charting, scheduling, billing, treatment plans, client portal, documentation completeness, risk monitoring, and caseload operations.`;
+    const imagePrompt = imageInputs.length
+      ? `IMAGE INPUT: The clinician attached ${imageInputs.length} image(s). Interpret only visible content. Do not log, quote, or infer hidden PHI. If an image appears to include agency/client PHI in Agency Companion Mode, remind the clinician to use site-authorized minimum necessary content.`
+      : '';
 
     const systemPrompt = `You are Miwa, an AI clinical operations agent for a therapy practice platform.
 You are concise, efficient, and action-oriented. Use your tools proactively.${therapistName ? ` The clinician is ${therapistName}.` : ''}
 
 ${dateContext}
+${modePrompt}
+${imagePrompt ? `${imagePrompt}\n` : ''}
 ${pageContextPrompt ? `${pageContextPrompt}\n` : ''}
 When scheduling: resolve relative dates like "tomorrow", "next Monday", "Friday" using today's date above. Always confirm the exact date in your response so the clinician can verify.
 ${isNewUser ? `
@@ -3859,7 +3941,7 @@ This therapist just created their account and has no clients or sessions yet. Be
 - If they ask "how do I..." or seem lost, use get_app_help to find the answer
 - Keep it encouraging — this is their first experience with Miwa
 ` : ''}
-${assistantRuntimePrompt ? `${assistantRuntimePrompt}\n\n` : ''}${soulProfile ? `${soulProfile}\n\n` : ''}${caseloadSummary ? `CASELOAD:\n${caseloadSummary}\n` : ''}${patientDossier ? `\n${patientDossier}\n\nUse the dossier above to answer questions about this client — you already have their full picture. Only call tools when you need data NOT in the dossier (e.g. session-by-session full notes, data on OTHER clients).\n` : patientSummary ? `\nCURRENT CLIENT:\n${patientSummary}\n` : ''}
+${assistantRuntimePrompt ? `${assistantRuntimePrompt}\n\n` : ''}${soulProfile ? `${soulProfile}\n\n` : ''}${traineeWorkspacePrompt ? `${traineeWorkspacePrompt}\n\n` : ''}${caseloadSummary ? `CASELOAD:\n${caseloadSummary}\n` : ''}${patientDossier ? `\n${patientDossier}\n\nUse the dossier above to answer questions about this client — you already have their full picture. Only call tools when you need data NOT in the dossier (e.g. session-by-session full notes, data on OTHER clients).\n` : patientSummary ? `\nCURRENT CLIENT:\n${patientSummary}\n` : ''}
 CAPABILITIES — You have 27 tools. Use them proactively. Here is every tool you can call:
 
 CLIENT DATA:
@@ -3997,7 +4079,12 @@ RULES:
     for (const h of history) {
       messages.push({ role: h.role, content: h.content });
     }
-    messages.push({ role: 'user', content: message });
+    messages.push({
+      role: 'user',
+      content: imageInputs.length
+        ? [{ type: 'input_text', text: message }, ...imageInputs.map(({ _safeName, ...image }) => image)]
+        : message,
+    });
 
     const MAX_ITERATIONS = 12;
     let fullResponse = '';

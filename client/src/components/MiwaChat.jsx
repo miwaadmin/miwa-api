@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import { renderClinical } from '../lib/renderClinical'
 import AssistantActionCard from './AssistantActionCards'
 import { normalizeAssistantAction } from '../lib/assistantActions'
+import { isAgencyCompanionMode } from '../lib/workspaceMode'
 
 /**
  * Heuristic: should this message be run in the background instead of
@@ -225,6 +226,12 @@ function usePatientContext() {
 }
 
 function pageSurface(pathname) {
+  if (pathname.startsWith('/t/today')) return { surface: 'trainee_today', label: 'Trainee Today' }
+  if (pathname.startsWith('/t/cases')) return { surface: 'trainee_cases', label: 'Cases' }
+  if (pathname.startsWith('/t/drafts')) return { surface: 'trainee_drafts', label: 'Note Drafts' }
+  if (pathname.startsWith('/t/supervision')) return { surface: 'trainee_supervision', label: 'Supervision' }
+  if (pathname.startsWith('/t/hours')) return { surface: 'trainee_hours', label: 'Hours' }
+  if (pathname.startsWith('/t/learning')) return { surface: 'trainee_learning', label: 'Learning' }
   if (pathname === '/dashboard') return { surface: 'dashboard', label: 'Dashboard' }
   if (pathname === '/schedule' || pathname === '/calendar') return { surface: 'schedule', label: 'Schedule' }
   if (pathname === '/patients') return { surface: 'patients', label: 'Patients' }
@@ -240,6 +247,36 @@ function pageSurface(pathname) {
 }
 
 const PAGE_ACTIONS = {
+  trainee_today: [
+    ['Daily brief', 'Tell me what I need to handle today as a trainee, including notes, supervision, risk/ethics, hours, and agency EHR copy status.'],
+    ['Supervision prep', 'What should I bring to supervision this week? Focus on stuck cases, documentation questions, risk/ethics, and hours.'],
+    ['Hours gaps', 'Review what hours I may need to log or reconcile from recent scheduled sessions.'],
+  ],
+  trainee_cases: [
+    ['Supervision cases', 'Which cases should I bring to supervision, and what should I ask?'],
+    ['Quiet cases', 'Which cases have gone quiet or may need follow-up?'],
+    ['Case snapshots', 'Help me create concise case snapshots for supervision prep.'],
+  ],
+  trainee_drafts: [
+    ['Draft queue', 'Which note drafts still need review or copying to the agency EHR?'],
+    ['Clean note', 'Help me make the current note more concise, clinical, and ready to copy into the agency EHR.'],
+    ['Documentation gaps', 'What documentation gaps might my supervisor notice?'],
+  ],
+  trainee_supervision: [
+    ['Agenda', 'Generate a supervision agenda from my cases, risk/ethics items, documentation questions, and hours issues.'],
+    ['Case presentation', 'Help me prepare a concise case presentation for supervision.'],
+    ['Supervisor questions', 'What should I ask my supervisor based on my current cases and notes?'],
+  ],
+  trainee_hours: [
+    ['Hours review', 'Review my hours progress and tell me what needs logging or reconciliation.'],
+    ['Supervisor export', 'Help me prepare a clear hours summary for my supervisor or program.'],
+    ['Category check', 'Which hour categories need attention based on my current progress?'],
+  ],
+  trainee_learning: [
+    ['Teach why', 'Teach me why an intervention fits a case, using Socratic questions where helpful.'],
+    ['Compare modalities', 'Compare CBT, DBT, EFT, and family systems lenses for a trainee case.'],
+    ['Risk documentation', 'Teach me what to document if risk comes up in session.'],
+  ],
   dashboard: [
     ['Morning cockpit', 'Do a morning clinical cockpit check: review today, documentation debt, risk watch, overdue assessments, and the next best action. Ask me before creating anything permanent.'],
     ['Risk watch', 'Review my caseload for risk signals and tell me who needs attention first.'],
@@ -287,6 +324,7 @@ const PAGE_ACTIONS = {
 
 export default function MiwaChat() {
   const { therapist } = useAuth()
+  const agencyMode = isAgencyCompanionMode(therapist)
   const location = useLocation()
   const patientId = usePatientContext()
   const [isOpen, setIsOpen] = useState(false)
@@ -306,6 +344,7 @@ export default function MiwaChat() {
   const [assistantState, setAssistantState] = useState(null)
   const [onboardingStage, setOnboardingStage] = useState(null)
   const [onboardingAnswers, setOnboardingAnswers] = useState([])
+  const [imageAttachments, setImageAttachments] = useState([])
 
   const [voiceEnabled, setVoiceEnabled] = useState(false)  // auto-speak mode
   const [listening, setListening] = useState(false)         // recording mic
@@ -334,8 +373,46 @@ export default function MiwaChat() {
 
   const messagesEndRef = useRef(null)
   const textareaRef = useRef(null)
+  const fileInputRef = useRef(null)
   const prevOpenRef = useRef(false)
   const mediaRecorderRef = useRef(null)
+
+  const addImageFiles = useCallback((files) => {
+    const list = Array.from(files || []).filter(file => file.type?.startsWith('image/')).slice(0, 3)
+    if (!list.length) return
+    list.forEach(file => {
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image is too large. Please use an image under 5 MB.')
+        return
+      }
+      const reader = new FileReader()
+      reader.onload = () => {
+        setImageAttachments(prev => [
+          ...prev,
+          {
+            id: `${Date.now()}-${Math.random()}`,
+            name: file.name || 'image',
+            mimeType: file.type,
+            dataUrl: reader.result,
+          },
+        ].slice(0, 3))
+      }
+      reader.onerror = () => setError('Could not read that image.')
+      reader.readAsDataURL(file)
+    })
+  }, [])
+
+  const handlePaste = useCallback((e) => {
+    const files = Array.from(e.clipboardData?.files || []).filter(file => file.type?.startsWith('image/'))
+    if (files.length) addImageFiles(files)
+  }, [addImageFiles])
+
+  const handleDrop = useCallback((e) => {
+    const files = Array.from(e.dataTransfer?.files || []).filter(file => file.type?.startsWith('image/'))
+    if (!files.length) return
+    e.preventDefault()
+    addImageFiles(files)
+  }, [addImageFiles])
 
   useEffect(() => {
     const el = textareaRef.current
@@ -579,7 +656,12 @@ When you're done, I'll save this as your profile and refer back to it in every c
     setPendingBatchPicker(null)
     setBatchSelected([])
 
-    const userMsg = { id: Date.now(), role: 'user', content: text }
+    const attachmentsToSend = imageAttachments
+    const userMsg = {
+      id: Date.now(),
+      role: 'user',
+      content: attachmentsToSend.length ? `${text}\n\n[Attached ${attachmentsToSend.length} image${attachmentsToSend.length === 1 ? '' : 's'}]` : text,
+    }
     setMessages(m => [...m, userMsg])
     setStreaming(true)
     setStreamingText('')
@@ -604,7 +686,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
     // Compute here because the existing onboarding branch below uses the
     // same check; we want to respect it but not depend on ordering.
     const lastMsgIsOnboarding = messages.length > 0 && messages[messages.length - 1]?.onboarding
-    if (!lastMsgIsOnboarding && !contextOverride && !pendingAction && !pendingBatchPicker && !pendingDisambiguation) {
+    if (!attachmentsToSend.length && !lastMsgIsOnboarding && !contextOverride && !pendingAction && !pendingBatchPicker && !pendingDisambiguation) {
       const shouldRunAsTask = looksLikeBackgroundTask(text)
       if (shouldRunAsTask) {
         try {
@@ -704,7 +786,9 @@ When you're done, I'll save this as your profile and refer back to it in every c
         contextId: effectivePatientId,
         pageContext: currentPageContext,
         responseStyle: therapist?.assistant_verbosity || 'balanced',
+        imageAttachments: attachmentsToSend.map(({ name: _name, id: _id, ...attachment }) => attachment),
       }
+      setImageAttachments([])
 
       const res = await apiFetch(endpoint, {
         method: 'POST',
@@ -1629,12 +1713,62 @@ When you're done, I'll save this as your profile and refer back to it in every c
           {/* Composer: one stable rounded surface, with fixed action buttons so
               long text does not balloon the UI. */}
           <div className="miwa-chat-inputbar flex-shrink-0 px-3 py-3 bg-white border-t border-gray-100">
-            <div className="miwa-chat-composer flex items-end gap-2 rounded-2xl border border-gray-200 bg-gray-50 p-2 shadow-sm focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-400/20 transition-colors">
+            {imageAttachments.length > 0 && (
+              <div className="mb-2 flex gap-2 overflow-x-auto">
+                {imageAttachments.map(img => (
+                  <div key={img.id} className="relative flex-shrink-0 rounded-xl border border-gray-200 bg-gray-50 p-1">
+                    <img src={img.dataUrl} alt="" className="h-14 w-14 rounded-lg object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => setImageAttachments(prev => prev.filter(item => item.id !== img.id))}
+                      className="absolute -right-1.5 -top-1.5 h-5 w-5 rounded-full bg-gray-900 text-white text-[10px] flex items-center justify-center"
+                      title="Remove image"
+                    >
+                      x
+                    </button>
+                  </div>
+                ))}
+                {agencyMode && (
+                  <div className="min-w-[180px] rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] leading-snug text-amber-800">
+                    Only attach agency PHI if your site permits Miwa alongside the official EHR.
+                  </div>
+                )}
+              </div>
+            )}
+            <div
+              className="miwa-chat-composer flex items-end gap-2 rounded-2xl border border-gray-200 bg-gray-50 p-2 shadow-sm focus-within:border-brand-400 focus-within:ring-2 focus-within:ring-brand-400/20 transition-colors"
+              onPaste={handlePaste}
+              onDragOver={e => e.preventDefault()}
+              onDrop={handleDrop}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                className="hidden"
+                onChange={e => {
+                  addImageFiles(e.target.files)
+                  e.target.value = ''
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={streaming || listening}
+                className="flex-shrink-0 w-10 h-10 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center transition-colors"
+                title="Attach image"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5V7.5A2.5 2.5 0 015.5 5h13A2.5 2.5 0 0121 7.5v9A2.5 2.5 0 0118.5 19h-13A2.5 2.5 0 013 16.5z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.5 11a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM21 15l-4.5-4.5L8 19" />
+                </svg>
+              </button>
               <div className="miwa-chat-inputpill flex-1 min-w-0">
                 <textarea
                   ref={textareaRef}
                   className="miwa-chat-textarea block w-full resize-none bg-transparent border-0 px-2 py-1.5 text-[13px] leading-relaxed text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-0"
-                  placeholder={voiceEnabled ? 'Tap mic to speak, or type here…' : 'Ask Miwa a clinical question…'}
+                  placeholder={voiceEnabled ? 'Tap mic to speak, or type here...' : 'Ask Miwa, or paste/drop an image...'}
                   value={input}
                   onChange={e => {
                     setInput(e.target.value)
@@ -1707,3 +1841,4 @@ When you're done, I'll save this as your profile and refer back to it in every c
     </>
   )
 }
+

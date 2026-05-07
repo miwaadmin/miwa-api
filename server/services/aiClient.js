@@ -358,6 +358,24 @@ function normalizeMessageContent(content) {
   if (typeof content === 'string') return content;
   if (!Array.isArray(content)) return String(content || '');
 
+  const hasVisionInput = content.some((block) =>
+    block?.type === 'input_image'
+    || block?.type === 'image_url'
+    || block?.image_url
+  );
+
+  if (hasVisionInput) {
+    return content.map((block) => {
+      if (!block) return null;
+      if (typeof block === 'string') return { type: 'input_text', text: block };
+      if (block.type === 'input_text' || block.type === 'input_image') return block;
+      if (block.type === 'text') return { type: 'input_text', text: block.text || '' };
+      if (block.type === 'image_url' && block.image_url?.url) return { type: 'input_image', image_url: block.image_url.url };
+      if (typeof block.image_url === 'string') return { type: 'input_image', image_url: block.image_url };
+      return { type: 'input_text', text: JSON.stringify(block) };
+    }).filter(Boolean);
+  }
+
   return content.map((block) => {
     if (!block) return '';
     if (block.type === 'text') return block.text || '';

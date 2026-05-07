@@ -17,6 +17,10 @@ const {
   recordConversationSignal,
 } = require('../services/assistantRuntime');
 const {
+  collectTraineeWorkspaceState,
+  formatTraineeWorkspaceState,
+} = require('../services/traineeIntelligence');
+const {
   generateAIResponse,
   generateAIResponseWithUsage,
   transcribeAudioBuffer,
@@ -1116,7 +1120,11 @@ router.post('/chat', async (req, res) => {
     const userRole = req.therapist.user_role || 'licensed';
 
     const tid = req.therapist.id;
-    const therapistRow = await db.get('SELECT full_name, first_name, last_name FROM therapists WHERE id = ?', tid);
+    const therapistRow = await db.get(
+      `SELECT full_name, first_name, last_name, workspace_mode, agency_ehr_name, preferred_timezone
+         FROM therapists WHERE id = ?`,
+      tid,
+    );
     // Use first_name so Miwa addresses the therapist by first name only
     const therapistName = therapistRow?.first_name
       || (therapistRow?.full_name ? therapistRow.full_name.split(' ')[0] : null)
@@ -1128,6 +1136,10 @@ router.post('/chat', async (req, res) => {
     });
     const assistantProfile = assistantRuntime.profile || await loadAssistantProfile(tid);
     const assistantRuntimePrompt = formatRuntimeForPrompt(assistantRuntime);
+    const traineeWorkspaceState = therapistRow?.workspace_mode === 'agency_companion'
+      ? await collectTraineeWorkspaceState(db, tid, { timezone: therapistRow?.preferred_timezone || req.therapist?.preferred_timezone || 'America/Los_Angeles' }).catch(() => null)
+      : null;
+    const traineeWorkspacePrompt = traineeWorkspaceState ? formatTraineeWorkspaceState(traineeWorkspaceState) : '';
     const effectiveResponseStyle = responseStyle || assistantProfile.verbosity;
     const canUseHistory = assistantAllows(assistantProfile, 'history');
     const canUsePatientContext = assistantAllows(assistantProfile, 'patient_context');
@@ -1271,10 +1283,14 @@ router.post('/chat', async (req, res) => {
       ? '\n\nFormatting guard: Keep the response brief, but always finish the final sentence.'
       : '\n\nFormatting guard: If giving objectives, plans, or stepwise recommendations, fully finish each listed item. Do not stop mid-sentence or leave a heading with only a fragment. If the answer is getting long, finish the current section cleanly and end with "I can continue with the remaining sections if you want."';
 
+    const modeGuard = therapistRow?.workspace_mode === 'agency_companion'
+      ? `\n\nWorkspace mode: Trainee / Agency Companion. Respond as a trainee clinical copilot: supervision-aware, educational, note-drafting oriented, risk/ethics attentive, and mindful that ${therapistRow?.agency_ehr_name || 'the agency EHR'} is usually the official record. Use Socratic teaching when helpful without being patronizing.${traineeWorkspacePrompt ? `\n\n${traineeWorkspacePrompt}` : ''}`
+      : '\n\nWorkspace mode: Private Practice. Respond as a licensed clinician practice copilot focused on charting, scheduling, billing, treatment planning, portal workflows, documentation completeness, and caseload operations.';
+
     const result = await generateAIResponseWithUsage([
         {
           role: 'system',
-          content: `${getSupervisorSystemPrompt(userRole, therapistName, effectiveResponseStyle, assistantProfile, { allowPhi: allowPhiInConsult })}${assistantRuntimePrompt ? `\n\n${assistantRuntimePrompt}` : ''}${completionGuard}`,
+          content: `${getSupervisorSystemPrompt(userRole, therapistName, effectiveResponseStyle, assistantProfile, { allowPhi: allowPhiInConsult })}${assistantRuntimePrompt ? `\n\n${assistantRuntimePrompt}` : ''}${modeGuard}${completionGuard}`,
         },
         ...messages,
       ], { maxTokens: consultMaxTokens });
