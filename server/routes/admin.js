@@ -162,19 +162,15 @@ function stripePriceReviewReason(price) {
 }
 
 function configuredSmsProvider() {
-  const enabled = String(process.env.SMS_ENABLED || '').toLowerCase() === 'true';
+  const enabled = String(process.env.SMS_CLOSED_BETA_ENABLED || '').toLowerCase() === 'true';
   const twilioHasAuth = hasEnv('TWILIO_AUTH_TOKEN')
     || (hasEnv('TWILIO_API_KEY_SID') && hasEnv('TWILIO_API_KEY_SECRET'));
   const twilioConfigured = hasEnv('TWILIO_ACCOUNT_SID')
     && twilioHasAuth
     && (hasEnv('TWILIO_PHONE_NUMBER') || hasEnv('TWILIO_MESSAGING_SERVICE_SID'));
-  const vonageConfigured = hasEnv('VONAGE_API_KEY')
-    && hasEnv('VONAGE_API_SECRET')
-    && hasEnv('VONAGE_FROM_NUMBER');
   const providers = [];
   if (twilioConfigured) providers.push('twilio');
-  if (vonageConfigured) providers.push('vonage');
-  return { enabled, configured: providers.length > 0, providers };
+  return { enabled, configured: providers.length > 0, providers, closedBetaOnly: true, baaStatus: 'pending' };
 }
 
 function buildReadinessChecks() {
@@ -320,10 +316,10 @@ function buildReadinessChecks() {
       'SMS delivery provider',
       !sms.enabled || sms.configured ? 'pass' : 'warn',
       !sms.enabled
-        ? 'SMS is intentionally disabled until BAA and consent controls are complete'
+        ? 'SMS closed beta is disabled. Keep disabled unless SMS_CLOSED_BETA_ENABLED=true is intentionally set for consented beta clients; Twilio BAA is pending.'
         : (sms.configured
-            ? `Configured SMS provider: ${sms.providers.join(', ')}`
-            : 'Configure Twilio or Vonage before relying on SMS links/reminders')
+            ? `Closed-beta SMS provider configured: ${sms.providers.join(', ')}. Twilio BAA is pending; do not treat SMS as HIPAA-covered.`
+            : 'Configure Twilio before relying on closed-beta SMS links/reminders')
     ),
     check(
       'stripe_secret',

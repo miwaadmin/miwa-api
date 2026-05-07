@@ -1240,7 +1240,7 @@ function CheckinSendModal({ patient, onClose }) {
             <>
               <div className={`rounded-xl p-3 text-xs ${hasPhone ? 'bg-teal-50 text-teal-800 border border-teal-100' : 'bg-amber-50 text-amber-800 border border-amber-100'}`}>
                 {hasPhone
-                  ? `Miwa will create a secure mood check-in link for ${patient.phone}. SMS sending is disabled until BAA and consent controls are complete.`
+                  ? `Miwa will create a secure check-in link for ${patient.phone}. SMS sending is closed beta only, requires recorded client consent, and remains non-HIPAA-covered while the Twilio BAA is pending.`
                   : 'A check-in link will be generated. Copy and share it through your approved client communication process.'}
               </div>
 
@@ -3132,8 +3132,8 @@ export default function PatientDetail() {
                     onChange={e => setProfileForm(f => ({ ...f, sms_consent: e.target.checked }))}
                   />
                   <span className="text-xs text-gray-700 leading-relaxed">
-                    I have obtained this client's consent to receive SMS messages from Miwa in the future for assessments,
-                    check-ins, and appointment-related communication. SMS remains disabled until Miwa completes BAA and operational review.
+                    I have obtained this client's explicit consent to receive closed-beta SMS messages from Miwa for assessments,
+                    check-ins, portal messages, and appointment updates. I offered a non-SMS alternative, explained STOP opt-out, and understand SMS is not HIPAA-covered while the Twilio BAA is pending.
                     {' '}<a href="/sms-policy" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-600 hover:underline">Learn more</a>
                   </span>
                 </label>

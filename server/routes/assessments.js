@@ -1694,12 +1694,12 @@ router.post('/checkin', async (req, res) => {
       // Try SMS — requires recorded SMS consent
       if (patientFull?.phone && patientFull?.sms_consent && (preferredMethod === 'sms' || preferredMethod === 'ask')) {
         try {
-          const { sendAssessmentSms } = require('../services/twilio');
-          // sendAssessmentSms appends STOP/HELP language; pass the bare message + link
-          const smsText = `${checkinMessage}\n\n${checkinUrl}`;
-          await sendAssessmentSms(patientFull.phone, token, 'checkin', smsText);
-          await db.run('UPDATE checkin_links SET sent_at = CURRENT_TIMESTAMP WHERE token = ?', token);
-          smsSent = true;
+          const { sendCheckinSms } = require('../services/twilio');
+          const result = await sendCheckinSms(patientFull.phone, checkinUrl);
+          if (result.status !== 'skipped') {
+            await db.run('UPDATE checkin_links SET sent_at = CURRENT_TIMESTAMP WHERE token = ?', token);
+            smsSent = true;
+          }
         } catch (smsErr) {
           console.error('[checkin] SMS send error:', smsErr.message);
         }
@@ -1834,13 +1834,12 @@ router.post('/send', async (req, res) => {
     } else if (sendMethod === 'sms' && send_now && patient.phone && patient.sms_consent) {
       try {
         const { sendAssessmentSms } = require('../services/twilio');
-        const smsText = custom_message
-          ? `${custom_message}\n\n${assessmentUrl}`
-          : `Your therapist sent you a ${templateName}. Complete it here: ${assessmentUrl}`;
-        await sendAssessmentSms(patient.phone, token, template_type, smsText);
-        await db.run('UPDATE assessment_links SET sent_at = CURRENT_TIMESTAMP WHERE token = ?', token);
-        sent = true;
-        sentVia = 'sms';
+        const result = await sendAssessmentSms(patient.phone, token);
+        if (result.status !== 'skipped') {
+          await db.run('UPDATE assessment_links SET sent_at = CURRENT_TIMESTAMP WHERE token = ?', token);
+          sent = true;
+          sentVia = 'sms';
+        }
       } catch (smsErr) {
         console.error('[assessment] SMS send error:', smsErr.message);
       }

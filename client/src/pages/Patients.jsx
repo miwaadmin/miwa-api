@@ -168,7 +168,7 @@ function PatientModal({ patient, onClose, onSave }) {
                 onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
                 placeholder="(555) 123-4567"
               />
-              <p className="text-xs text-gray-400 mt-1">Used for contact records and future SMS only after BAA and consent controls are complete.</p>
+              <p className="text-xs text-gray-400 mt-1">Used for contact records and closed-beta SMS only with explicit consent; Twilio BAA is pending.</p>
             </div>
             <div className="col-span-2">
               <label className="label">

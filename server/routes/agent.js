@@ -20,7 +20,7 @@ const {
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 const { scrubText } = require('../lib/scrubber');
-const { normalisePhone, sendTelehealthSms } = require('../services/twilio');
+const { normalisePhone, sendAppointmentSms, sendPortalSms } = require('../services/twilio');
 
 const router = express.Router();
 const REPORTS_DIR = path.join(__dirname, '..', 'generated_reports');
@@ -98,7 +98,7 @@ const AGENT_RESOURCES = [
 
 const APP_HELP_KB = [
   { id: 'getting-started', title: 'Getting Started', content: [
-    { heading: 'Your First 5 Minutes with Miwa', body: 'Step 1: Create your account at miwa.care/register. Step 2: Go to Patients and click "+ New Patient" to add a client. Step 3: Click into your client, then "New Session" to start a note. Choose SOAP, BIRP, or DAP. You can type bullet-point notes or dictate a recap using the mic button. Step 4: Review the AI-generated note with diagnosis codes, edit if needed, and click "Sign & Lock". Step 5: Share an assessment (PHQ-9, GAD-7, or PCL-5) through a secure link from the client profile. SMS remains disabled until the messaging BAA and consent workflow are complete.' },
+    { heading: 'Your First 5 Minutes with Miwa', body: 'Step 1: Create your account at miwa.care/register. Step 2: Go to Patients and click "+ New Patient" to add a client. Step 3: Click into your client, then "New Session" to start a note. Choose SOAP, BIRP, or DAP. You can type bullet-point notes or dictate a recap using the mic button. Step 4: Review the AI-generated note with diagnosis codes, edit if needed, and click "Sign & Lock". Step 5: Share an assessment (PHQ-9, GAD-7, or PCL-5) through a secure link from the client profile. SMS is closed beta only, requires explicit consent, and is not HIPAA-covered while the Twilio BAA is pending.' },
   ]},
   { id: 'voice-notes', title: 'Voice Notes & Dictation', content: [
     { heading: 'Voice Dictation', body: 'Click the mic icon on any session note page. Speak naturally — describe the session as you would to a colleague. Miwa transcribes your audio and generates SOAP, BIRP, DAP, and GIRP notes simultaneously. Tips: speak in complete thoughts, include the client mood, what you worked on, their response, and your plan. Sessions under 5 minutes work best.' },
@@ -106,7 +106,7 @@ const APP_HELP_KB = [
   ]},
   { id: 'assessments', title: 'Assessments', content: [
     { heading: 'Supported Assessments', body: 'Miwa supports PHQ-9 (depression, 0-27), GAD-7 (anxiety, 0-21), and PCL-5 (PTSD, 0-80). All scored automatically with severity levels based on published clinical cutoffs.' },
-    { heading: 'Assessment Delivery', body: 'Assessments are delivered through secure links. Open a client profile, click "Send Assessment", select type, generate the link, and share it through your approved communication workflow. The client completes the form on mobile and scores appear instantly in their chart. SMS remains disabled until the messaging BAA and consent workflow are complete.' },
+    { heading: 'Assessment Delivery', body: 'Assessments are delivered through secure links. Open a client profile, click "Send Assessment", select type, generate the link, and share it through your approved communication workflow. The client completes the form on mobile and scores appear instantly in their chart. SMS is closed beta only, requires explicit consent, and is not HIPAA-covered while the Twilio BAA is pending.' },
     { heading: 'Outcome Tracking', body: 'Visit the Outcomes page to see score trends across your caseload. Each client shows a timeline with score values, severity changes, improvement/deterioration flags, and time since last assessment.' },
   ]},
   { id: 'copilot', title: 'Miwa Copilot Chat', content: [
@@ -695,7 +695,7 @@ async function runBackgroundTask(db, taskId, therapistId, taskType, params) {
  */
 async function findPatientsForBatchAssessment(db, therapistId, filter = null) {
   let patients = await db.all(
-    'SELECT id, display_name, client_id, diagnoses, presenting_concerns FROM patients WHERE therapist_id = ?',
+    'SELECT id, display_name, client_id, diagnoses, presenting_concerns, phone, sms_consent FROM patients WHERE therapist_id = ?',
     therapistId
   );
 
@@ -941,7 +941,7 @@ Rules:
   * durationMinutes: use SCHEDULING DEFAULTS.duration_minutes (typically 50). Never ask.
   * location: use SCHEDULING DEFAULTS.location if set. If not set, omit it entirely — do NOT ask.
 - The ONLY thing you should clarify for scheduling is the date/time if it was not provided.
-- If the clinician asks to send an assessment, questionnaire, or screener to a client, create a secure assessment link. Do not claim SMS was sent; SMS remains disabled until BAA and consent controls are complete.
+- If the clinician asks to send an assessment, questionnaire, or screener to a client, create a secure assessment link. SMS may only be sent in closed beta for clients with recorded SMS consent; do not claim SMS is HIPAA-covered while the Twilio BAA is pending.
   Fill assessmentSms.assessmentType with the type name (PHQ-9, GAD-7, PCL-5, etc.).
   Fill assessmentSms.sendAt with an ISO datetime string — if the clinician says "the day before" an appointment, calculate it; if they say "now" use current time.
   If no assessment type is specified, default to "PHQ-9".
@@ -1115,7 +1115,7 @@ async function maybeSendTelehealthSms(db, therapistId, patient, scheduledStart, 
       } catch {}
     }
 
-    await sendTelehealthSms(phone, videoUrl, apptTime);
+    await sendAppointmentSms(phone, videoUrl);
   } catch (err) {
     // Non-fatal — log and continue
     console.error('[telehealth-sms] Failed to send:', err.message);
@@ -1677,14 +1677,14 @@ const AGENT_TOOLS = [
     type: 'function',
     function: {
       name: 'send_assessment_sms',
-      description: 'Create a PHQ-9, GAD-7, or PCL-5 secure assessment link for a client. SMS delivery is disabled until BAA and consent controls are complete.',
+      description: 'Create a PHQ-9, GAD-7, or PCL-5 secure assessment link for a client. SMS delivery is closed beta only, requires recorded consent, and is not HIPAA-covered while the Twilio BAA is pending.',
       parameters: {
         type: 'object',
         properties: {
           client_id: { type: 'string', description: 'Client code.' },
           assessment_type: { type: 'string', enum: ['PHQ-9', 'GAD-7', 'PCL-5'], description: 'Assessment to send.' },
           send_at: { type: 'string', description: 'ISO datetime to schedule. Omit for immediate.' },
-          custom_message: { type: 'string', description: 'Optional custom message prefix.' },
+          custom_message: { type: 'string', description: 'Ignored for SMS closed beta; SMS uses fixed category templates only.' },
         },
         required: ['client_id', 'assessment_type'],
       },
@@ -2248,6 +2248,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
 
       const phone = normalisePhone(patient.phone);
       if (!phone) return { error: `${patient.client_id} has no mobile number on file` };
+      if (!patient.sms_consent) return { error: `${patient.client_id} does not have recorded SMS consent` };
 
       const ASSESSMENT_TEMPLATES = { 'PHQ-9': 'phq9', 'GAD-7': 'gad7', 'PCL-5': 'pcl5' };
       const asmtType = args.assessment_type || 'PHQ-9';
@@ -2263,7 +2264,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       await db.insert(
         `INSERT INTO scheduled_sends (therapist_id, patient_id, assessment_type, token, phone, send_at, custom_message)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        therapistId, patient.id, asmtType, token, phone, sendAt, args.custom_message || null
+        therapistId, patient.id, asmtType, token, phone, sendAt, null
       );
       await persistIfNeeded();
 
@@ -2279,9 +2280,9 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
 
     case 'batch_send_assessments': {
       const candidates = await findPatientsForBatchAssessment(db, therapistId, args.filter || null);
-      const withPhone = candidates.filter(p => p.phone && normalisePhone(p.phone));
+      const withPhone = candidates.filter(p => p.phone && p.sms_consent && normalisePhone(p.phone));
 
-      if (withPhone.length === 0) return { error: 'No clients with mobile numbers match that filter' };
+      if (withPhone.length === 0) return { error: 'No clients with mobile numbers and recorded SMS consent match that filter' };
 
       send({
         type: 'batch_assessment_picker',
@@ -3089,11 +3090,10 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       // Try text delivery only when SMS is explicitly enabled and configured
       const phone = patient.phone ? normalisePhone(patient.phone) : null;
       let deliveryMethod = 'link_only';
-      if (phone) {
+      if (phone && patient.sms_consent) {
         try {
-          const clientName = patient.display_name || patient.client_id;
-          sendTelehealthSms(phone, `Hi ${clientName}, your therapist has given you access to your client portal. View your appointments, questionnaires, and send messages: ${portalUrl}`);
-          deliveryMethod = 'sms';
+          const result = await sendPortalSms(phone, portalUrl);
+          if (result.status !== 'skipped') deliveryMethod = 'sms';
         } catch {}
       }
 
@@ -3692,6 +3692,7 @@ router.post('/batch-assessments-confirm', async (req, res) => {
 
       const phone = normalisePhone(patient.phone);
       if (!phone) continue; // Skip if no valid phone
+      if (!patient.sms_consent) continue; // Closed beta SMS requires explicit consent
 
       // Generate assessment token
       const token = crypto.randomBytes(24).toString('base64url');
@@ -3873,7 +3874,7 @@ SCHEDULING:
 - get_schedule: View upcoming appointments for the next N days
 
 ASSESSMENTS:
-- send_assessment_sms: Create a PHQ-9, GAD-7, or PCL-5 secure assessment link. SMS delivery remains disabled until BAA and consent controls are complete.
+- send_assessment_sms: Create a PHQ-9, GAD-7, or PCL-5 secure assessment link. SMS delivery is closed beta only, requires recorded consent, and is not HIPAA-covered while the Twilio BAA is pending.
 - batch_send_assessments: Send assessments to multiple clients at once (shows picker for clinician to confirm)
 
 CLIENT MANAGEMENT:

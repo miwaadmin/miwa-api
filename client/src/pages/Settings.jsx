@@ -633,7 +633,7 @@ export default function Settings() {
           </div>
           <div>
             <h2 className="text-sm font-semibold text-gray-900">Telehealth</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Paste your video platform link (Zoom, Doxy.me, Google Meet, etc.). Miwa stores it for appointment workflows and shows a "Start Session" button on your calendar. SMS delivery is disabled until BAA and consent controls are complete.</p>
+            <p className="text-xs text-gray-500 mt-0.5">Paste your video platform link (Zoom, Doxy.me, Google Meet, etc.). Miwa stores it for appointment workflows and shows a "Start Session" button on your calendar. SMS delivery is closed beta only, requires explicit client consent, and is not HIPAA-covered while the Twilio BAA is pending.</p>
           </div>
         </div>
 
@@ -866,7 +866,7 @@ export default function Settings() {
             <div>
               <p className="text-sm font-semibold text-gray-900">Auto-send assessments before sessions</p>
               <p className="text-xs text-gray-500 mt-0.5">
-                PHQ-9 and GAD-7 can be queued for secure-link delivery before scheduled appointments. SMS automation is disabled until the messaging BAA and consent workflow are complete.
+                Assessments can be queued for secure-link delivery before scheduled appointments. SMS automation is closed beta only, requires explicit client consent, and is not HIPAA-covered while the Twilio BAA is pending.
               </p>
             </div>
           </div>

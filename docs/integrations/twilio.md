@@ -1,35 +1,39 @@
-# Twilio setup for Miwa
+# Twilio setup for Miwa closed-beta SMS
 
-Miwa can send SMS assessment links through Twilio.
+Miwa can send closed-beta SMS category reminders through Twilio. Twilio toll-free verification is approved for
++1 855 806 4294, but the Twilio BAA is pending. Do not treat SMS as HIPAA-covered until the BAA is signed.
 
 ## Environment variables
 
-Set these in the server environment:
+SMS is disabled by default. To send in production closed beta, set:
 
-- TWILIO_ACCOUNT_SID
-- TWILIO_API_KEY_SID
-- TWILIO_API_KEY_SECRET
-- TWILIO_PHONE_NUMBER
-- APP_BASE_URL
+- `SMS_CLOSED_BETA_ENABLED=true`
+- `TWILIO_ACCOUNT_SID`
+- `TWILIO_API_KEY_SID`
+- `TWILIO_API_KEY_SECRET`
+- `TWILIO_PHONE_NUMBER`
+- `APP_BASE_URL`
 
 Optional:
 
-- TWILIO_AUTH_TOKEN — only needed if you are not using API key auth
-- TWILIO_MESSAGING_SERVICE_SID — use this if you want Twilio to route from a messaging service instead of a single sender number
+- `TWILIO_AUTH_TOKEN` - only needed if you are not using API key auth
+- `TWILIO_MESSAGING_SERVICE_SID` - use this if Twilio should route from a messaging service instead of a single sender number
 
-## Recommended auth mode
+## Required gates
 
-Use API key auth:
+SMS cannot send unless all of these are true:
 
-- TWILIO_ACCOUNT_SID
-- TWILIO_API_KEY_SID
-- TWILIO_API_KEY_SECRET
+- `SMS_CLOSED_BETA_ENABLED=true`
+- Twilio credentials and sender are configured
+- The patient has a phone number
+- The patient has `sms_consent=1`
 
-Miwa will fall back to TWILIO_AUTH_TOKEN if API key values are not present.
+## Allowed message templates
 
-## Notes
+- `Miwa: You have an assessment to complete. [secure link] Reply STOP to opt out.`
+- `Miwa: You have a check-in to complete. [secure link] Reply STOP to opt out.`
+- `Miwa: You have a secure portal message or update. [secure link] Reply STOP to opt out.`
+- `Miwa: You have an appointment update. [secure link if needed] Reply STOP to opt out.`
 
-- TWILIO_PHONE_NUMBER should be in E.164 format, e.g. +15551234567.
-- Keep messages PHI-light. Miwa sends secure assessment links rather than clinical details.
-- If the account is still on Twilio trial, sending may be restricted to verified destination numbers.
-- For future international expansion, TWILIO_MESSAGING_SERVICE_SID is a good path to support multiple senders and channel routing.
+SMS must not include client names, clinician names, assessment names, diagnoses, symptoms, scores, crisis details,
+clinical notes, treatment details, or therapist custom free text.

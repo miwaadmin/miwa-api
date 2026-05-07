@@ -63,13 +63,12 @@ export default function SmsPolicy() {
             SMS messaging &amp; consent
           </h1>
           <p className="text-lg text-zinc-600 leading-relaxed">
-            Miwa SMS is not active for production clinical messaging yet. This page documents the consent and privacy rules
-            that will apply before text messaging is enabled, including client
-            consent, and opt-out controls.
+            Miwa SMS is limited to closed beta testing for explicitly consented clients while the Twilio BAA is pending.
+            SMS is not a HIPAA-covered messaging lane yet, and clients must always have a non-SMS alternative.
           </p>
           <p className="text-base text-zinc-500 mt-6">
             <span className="font-semibold">Effective date:</span> April 17, 2026 &nbsp;·&nbsp;
-            <span className="font-semibold">Last updated:</span> April 30, 2026
+            <span className="font-semibold">Last updated:</span> May 6, 2026
           </p>
         </div>
       </header>
@@ -79,8 +78,8 @@ export default function SmsPolicy() {
 
           <Section title="1. Who sends Miwa SMS messages" id="who">
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
-              Launch status: SMS is disabled until Miwa completes consent, safety, and
-              safety review. Current production use should rely on in-app actions and secure links instead.
+              Launch status: SMS is closed beta only. Twilio toll-free verification is approved for +1 855 806 4294,
+              but the Twilio BAA is pending. Do not use SMS broadly or describe SMS as HIPAA-covered.
             </p>
             <p>
               Miwa is a clinical documentation platform used by licensed mental health therapists in the United States.
@@ -88,8 +87,8 @@ export default function SmsPolicy() {
               clients, Miwa transmits that message via Twilio from a verified toll-free number on the therapist's behalf.
             </p>
             <p>
-              The therapist remains the originator of the communication and the HIPAA Covered Entity for any client
-              data referenced in the message. Miwa acts as a Business Associate handling delivery.
+              The therapist remains the originator of the communication. Until the Twilio BAA is signed, SMS content
+              must stay limited to consented category reminders and secure links.
             </p>
           </Section>
 
@@ -112,10 +111,10 @@ export default function SmsPolicy() {
             </ul>
             <p className="mt-4">
               Before saving a client's mobile number into Miwa, the therapist must affirmatively check a confirmation
-              box stating: <em>"I have obtained this client's consent to receive SMS messages from Miwa on my behalf
-              for assessments, check-ins, and appointment-related communication."</em> Miwa records the timestamp of
-              that confirmation alongside the phone number. SMS to that number is blocked until the confirmation is on
-              file.
+              box stating that they obtained explicit consent for closed-beta SMS, offered a non-SMS alternative,
+              explained STOP opt-out, and understand SMS is not HIPAA-covered while the Twilio BAA is pending. Miwa
+              records the timestamp of that confirmation alongside the phone number. SMS to that number is blocked
+              until the confirmation is on file.
             </p>
             <p>
               Mobile phone numbers and SMS consent records are never sold, rented, shared with third parties for
@@ -127,25 +126,24 @@ export default function SmsPolicy() {
             <p>Clients only receive messages their therapist initiates. Miwa does not send marketing, promotional, or
               automated content to clients on its own. The categories of messages are:</p>
             <ul className="space-y-2 mt-4">
-              <Bullet><strong>Assessment links</strong>, a short message with a secure link to complete a clinical
-                instrument the therapist has assigned (PHQ-9, GAD-7, PCL-5, and similar).</Bullet>
-              <Bullet><strong>Mood check-ins</strong>, a short prompt with a secure link to log how the client is
-                feeling between sessions.</Bullet>
+              <Bullet><strong>Assessment links</strong>, a short category message with a secure link.</Bullet>
+              <Bullet><strong>Check-ins</strong>, a short category prompt with a secure link.</Bullet>
+              <Bullet><strong>Portal messages or updates</strong>, a short category message with a secure portal link.</Bullet>
               <Bullet><strong>Appointment-related messages</strong>, telehealth links and reminders the therapist
                 chooses to send.</Bullet>
             </ul>
             <p className="mt-6"><strong>Sample messages:</strong></p>
             <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 text-base text-zinc-800 leading-relaxed mt-2">
-              Your clinician has sent you a PHQ-9 questionnaire. Please complete it when you have a few quiet
-              minutes:<br />
-              https://miwa.care/assess/abc123<br />
-              Reply STOP to opt out, HELP for help. Msg &amp; data rates may apply.
+              Miwa: You have an assessment to complete. https://miwa.care/assess/abc123 Reply STOP to opt out.
             </div>
             <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 text-base text-zinc-800 leading-relaxed mt-2">
-              Hi, checking in. How are things going since our last session? Tap here to share a quick
-              update:<br />
-              https://miwa.care/checkin/xyz789<br />
-              Reply STOP to opt out, HELP for help. Msg &amp; data rates may apply.
+              Miwa: You have a check-in to complete. https://miwa.care/checkin/xyz789 Reply STOP to opt out.
+            </div>
+            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 text-base text-zinc-800 leading-relaxed mt-2">
+              Miwa: You have a secure portal message or update. https://miwa.care/portal/abc123 Reply STOP to opt out.
+            </div>
+            <div className="bg-zinc-50 border border-zinc-200 rounded-xl p-4 text-base text-zinc-800 leading-relaxed mt-2">
+              Miwa: You have an appointment update. https://miwa.care/portal/abc123 Reply STOP to opt out.
             </div>
           </Section>
 
@@ -194,9 +192,9 @@ export default function SmsPolicy() {
           <Section title="7. Privacy of message content" id="privacy">
             <p>
               SMS messages from Miwa are intentionally minimal. They contain only the secure link a client needs to
-              act on, the therapist's optional one-line note (if any), the required STOP/HELP/rate language, and the
-              Miwa identifier. They never include diagnoses, scores, session content, or other Protected Health
-              Information.
+              act on, the required STOP opt-out language, and the Miwa identifier. They never include client names,
+              clinician names, assessment names, diagnoses, symptoms, scores, crisis details, session content,
+              treatment details, clinical notes, or other clinical specifics.
             </p>
             <p>
               See our full <Link to="/privacy" className="font-semibold" style={{ color: PURPLE }}>Privacy Policy</Link>

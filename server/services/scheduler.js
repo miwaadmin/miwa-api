@@ -35,9 +35,11 @@ function startScheduler() {
     let pending
     try {
       pending = await db.all(
-        `SELECT * FROM scheduled_sends
-         WHERE status = 'pending' AND send_at <= ?
-         ORDER BY send_at ASC
+        `SELECT ss.*, p.sms_consent, p.phone AS current_phone
+         FROM scheduled_sends ss
+         JOIN patients p ON p.id = ss.patient_id
+         WHERE ss.status = 'pending' AND ss.send_at <= ?
+         ORDER BY ss.send_at ASC
          LIMIT 20`,
         now
       )
@@ -49,7 +51,29 @@ function startScheduler() {
 
     for (const row of pending) {
       try {
-        const result = await sendAssessmentSms(row.phone, row.token, row.assessment_type)
+        const phone = normalisePhone(row.current_phone || row.phone)
+        if (!phone || !row.sms_consent) {
+          await db.run(
+            `UPDATE scheduled_sends
+             SET status = 'failed', error = ?
+             WHERE id = ?`,
+            'SMS consent or phone number missing at delivery time',
+            row.id
+          )
+          continue
+        }
+
+        const result = await sendAssessmentSms(phone, row.token)
+        if (result.status === 'skipped') {
+          await db.run(
+            `UPDATE scheduled_sends
+             SET status = 'failed', error = ?
+             WHERE id = ?`,
+            result.reason || 'SMS closed beta disabled or Twilio not configured',
+            row.id
+          )
+          continue
+        }
 
         await db.run(
           `UPDATE scheduled_sends
@@ -250,10 +274,10 @@ async function detectAlertsForPatient(db, therapistId, patientId) {
 async function autoSendOverdueAssessment(db, therapistId, patientId) {
   try {
     const patient = await db.get(
-      'SELECT id, client_id, display_name, phone FROM patients WHERE id = ? AND therapist_id = ?',
+      'SELECT id, client_id, display_name, phone, sms_consent FROM patients WHERE id = ? AND therapist_id = ?',
       patientId, therapistId
     )
-    if (!patient?.phone) return null
+    if (!patient?.phone || !patient.sms_consent) return null
 
     const phone = normalisePhone(patient.phone)
     if (!phone) return null
@@ -289,7 +313,7 @@ async function autoSendOverdueAssessment(db, therapistId, patientId) {
       `INSERT INTO scheduled_sends (therapist_id, patient_id, assessment_type, token, phone, send_at, custom_message)
        VALUES (?, ?, ?, ?, ?, datetime('now'), ?)`,
       therapistId, patientId, assessmentType, token, phone,
-      `Miwa auto-sent: ${assessmentType} was overdue for ${patient.display_name || patient.client_id}`
+      'Miwa auto-sent an assessment reminder.'
     )
 
     console.log(`[auto-send] Queued ${assessmentType} for ${patient.client_id} (overdue)`)
@@ -560,10 +584,10 @@ function startAlertsScheduler() {
 
         // Check patient has valid phone
         const patient = await db.get(
-          'SELECT id, client_id, phone FROM patients WHERE id = ?',
+          'SELECT id, client_id, phone, sms_consent FROM patients WHERE id = ?',
           appt.patient_id
         )
-        if (!patient?.phone) continue
+        if (!patient?.phone || !patient.sms_consent) continue
         const phone = normalisePhone(patient.phone)
         if (!phone) continue
 
