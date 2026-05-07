@@ -98,6 +98,13 @@ function safeProfile(row) {
     assistant_memory: assistant.memory,
     assistant_permissions: assistant.permissions,
     preferred_timezone: row.preferred_timezone || 'America/Los_Angeles',
+    workspace_mode: row.workspace_mode || null,
+    client_record_mode: row.client_record_mode || 'miwa_system_of_record',
+    agency_name: row.agency_name || null,
+    agency_ehr_name: row.agency_ehr_name || null,
+    training_program: row.training_program || null,
+    site_policy_acknowledged_at: row.site_policy_acknowledged_at || null,
+    workspace_mode_selected_at: row.workspace_mode_selected_at || null,
     last_login_at: row.last_login_at || null,
     last_seen_at: row.last_seen_at || null,
     created_at: row.created_at,
@@ -551,6 +558,12 @@ router.put('/me', requireAuth, async (req, res) => {
       telehealth_url,
       auto_send_overdue,
       auto_mbc_enabled,
+      workspace_mode,
+      client_record_mode,
+      agency_name,
+      agency_ehr_name,
+      training_program,
+      site_policy_acknowledged,
     } = req.body;
     const row = await db.get('SELECT * FROM therapists WHERE id = ?', req.therapist.id);
     if (!row) return res.status(404).json({ error: 'Account not found.' });
@@ -594,12 +607,31 @@ router.put('/me', requireAuth, async (req, res) => {
         ? [newFirstName, newLastName].filter(Boolean).join(' ')
         : row.full_name;
 
+    const validWorkspaceModes = new Set(['agency_companion', 'private_practice', 'group_practice_future']);
+    const validRecordModes = new Set(['agency_ehr_companion', 'miwa_system_of_record']);
+    const nextWorkspaceMode = workspace_mode !== undefined
+      ? (validWorkspaceModes.has(workspace_mode) ? workspace_mode : row.workspace_mode)
+      : row.workspace_mode;
+    const nextClientRecordMode = client_record_mode !== undefined
+      ? (validRecordModes.has(client_record_mode) ? client_record_mode : row.client_record_mode)
+      : row.client_record_mode;
+    const shouldStampWorkspaceMode = workspace_mode !== undefined && workspace_mode && workspace_mode !== row.workspace_mode;
+    const sitePolicyAt = site_policy_acknowledged
+      ? (row.site_policy_acknowledged_at || new Date().toISOString())
+      : row.site_policy_acknowledged_at;
+    const workspaceModeSelectedAt = shouldStampWorkspaceMode
+      ? new Date().toISOString()
+      : row.workspace_mode_selected_at;
+
     await db.run(
       `UPDATE therapists
        SET full_name = ?, first_name = ?, last_name = ?, user_role = ?, api_key = ?, avatar_url = ?, password_hash = ?,
            assistant_action_mode = ?, assistant_tone = ?, assistant_orientation = ?,
            assistant_verbosity = ?, assistant_memory = ?, assistant_permissions_json = ?,
-           telehealth_url = ?, preferred_timezone = ?
+           telehealth_url = ?, preferred_timezone = ?,
+           workspace_mode = ?, client_record_mode = ?, agency_name = ?, agency_ehr_name = ?,
+           training_program = ?, site_policy_acknowledged_at = ?,
+           workspace_mode_selected_at = ?
        WHERE id = ?`,
       newFullName,
       newFirstName,
@@ -616,6 +648,13 @@ router.put('/me', requireAuth, async (req, res) => {
       updatedAssistant.assistant_permissions_json,
       telehealth_url !== undefined ? (telehealth_url || null) : row.telehealth_url,
       req.body.preferred_timezone !== undefined ? req.body.preferred_timezone : row.preferred_timezone,
+      nextWorkspaceMode,
+      nextClientRecordMode || 'miwa_system_of_record',
+      agency_name !== undefined ? (agency_name || null) : row.agency_name,
+      agency_ehr_name !== undefined ? (agency_ehr_name || null) : row.agency_ehr_name,
+      training_program !== undefined ? (training_program || null) : row.training_program,
+      sitePolicyAt,
+      workspaceModeSelectedAt,
       req.therapist.id
     );
 

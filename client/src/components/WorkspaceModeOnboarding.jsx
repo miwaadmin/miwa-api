@@ -1,0 +1,169 @@
+import { useState } from 'react'
+import { useAuth } from '../context/AuthContext'
+import { apiFetch } from '../lib/api'
+import { needsWorkspaceModeOnboarding } from '../lib/workspaceMode'
+
+const EHR_OPTIONS = ['Exym', 'Welligent', 'Credible', 'SimplePractice', 'TherapyNotes', 'Other']
+const PROGRAM_OPTIONS = [
+  ['csun_mft', 'CSUN MFT Practicum'],
+  ['ca_bbs_lmft', 'CA BBS LMFT Associate'],
+  ['other', 'Other / future'],
+]
+
+export default function WorkspaceModeOnboarding() {
+  const { therapist, refreshTherapist } = useAuth()
+  const [mode, setMode] = useState(
+    therapist?.credential_type === 'trainee' ? 'agency_companion' : 'private_practice'
+  )
+  const [agencyName, setAgencyName] = useState('')
+  const [ehrName, setEhrName] = useState('Exym')
+  const [trainingProgram, setTrainingProgram] = useState(
+    therapist?.credential_type === 'associate' ? 'ca_bbs_lmft' : 'csun_mft'
+  )
+  const [sitePolicyAck, setSitePolicyAck] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  if (!needsWorkspaceModeOnboarding(therapist)) return null
+
+  const agencyMode = mode === 'agency_companion'
+
+  async function handleContinue() {
+    setSaving(true)
+    setError('')
+    try {
+      const payload = {
+        workspace_mode: mode,
+        client_record_mode: agencyMode ? 'agency_ehr_companion' : 'miwa_system_of_record',
+        agency_name: agencyMode ? agencyName.trim() || null : null,
+        agency_ehr_name: agencyMode ? ehrName : null,
+        training_program: agencyMode ? trainingProgram : null,
+        site_policy_acknowledged: agencyMode ? sitePolicyAck : false,
+      }
+      const res = await apiFetch('/auth/me', {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not save workspace mode')
+      refreshTherapist(data.therapist, data.token)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-[70] bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="w-full max-w-3xl max-h-[92vh] overflow-y-auto rounded-2xl bg-white shadow-2xl border border-white/20">
+        <div className="p-6 md:p-7 border-b border-gray-100">
+          <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Set up your workspace</p>
+          <h1 className="mt-2 text-2xl font-bold text-gray-950">What are you using Miwa for right now?</h1>
+          <p className="mt-2 text-sm text-gray-600">
+            Miwa can be your private-practice system, or the HIPAA-ready clinical workspace you use alongside a required agency EHR.
+          </p>
+        </div>
+
+        <div className="p-6 md:p-7 space-y-5">
+          <div className="grid md:grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setMode('agency_companion')}
+              className={`text-left rounded-2xl border p-4 transition-colors ${
+                agencyMode ? 'border-brand-500 bg-brand-50' : 'border-gray-200 hover:border-brand-200 hover:bg-gray-50'
+              }`}
+            >
+              <div className="text-sm font-bold text-gray-950">Agency / internship companion</div>
+              <p className="mt-1 text-xs leading-relaxed text-gray-600">
+                For trainees or associates using Miwa alongside Exym, Welligent, Credible, SimplePractice, TherapyNotes, or another required EHR.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode('private_practice')}
+              className={`text-left rounded-2xl border p-4 transition-colors ${
+                !agencyMode ? 'border-brand-500 bg-brand-50' : 'border-gray-200 hover:border-brand-200 hover:bg-gray-50'
+              }`}
+            >
+              <div className="text-sm font-bold text-gray-950">My private practice</div>
+              <p className="mt-1 text-xs leading-relaxed text-gray-600">
+                For clinicians using Miwa as their main client chart, documentation, scheduling, billing, and client portal system.
+              </p>
+            </button>
+          </div>
+
+          {agencyMode && (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-4">
+              <div>
+                <p className="text-sm font-bold text-amber-950">Agency companion setup</p>
+                <p className="mt-1 text-xs leading-relaxed text-amber-800">
+                  Miwa is HIPAA-ready. Your ability to enter agency client PHI depends on your site's policies and authorization.
+                </p>
+              </div>
+
+              <div className="grid md:grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-xs font-semibold text-amber-900">Site / agency name</span>
+                  <input
+                    className="mt-1 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm focus:border-brand-400 focus:ring-brand-200"
+                    value={agencyName}
+                    onChange={e => setAgencyName(e.target.value)}
+                    placeholder="e.g. community clinic"
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-amber-900">Required EHR</span>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm focus:border-brand-400 focus:ring-brand-200"
+                    value={ehrName}
+                    onChange={e => setEhrName(e.target.value)}
+                  >
+                    {EHR_OPTIONS.map(option => <option key={option} value={option}>{option}</option>)}
+                  </select>
+                </label>
+                <label className="block md:col-span-2">
+                  <span className="text-xs font-semibold text-amber-900">Hours framework</span>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm focus:border-brand-400 focus:ring-brand-200"
+                    value={trainingProgram}
+                    onChange={e => setTrainingProgram(e.target.value)}
+                  >
+                    {PROGRAM_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </label>
+              </div>
+
+              <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-white p-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5 rounded border-amber-300 text-brand-600 focus:ring-brand-500"
+                  checked={sitePolicyAck}
+                  onChange={e => setSitePolicyAck(e.target.checked)}
+                />
+                <span className="text-xs leading-relaxed text-amber-900">
+                  I understand I should only enter agency client PHI if my site allows Miwa alongside the official EHR, and I will use minimum necessary details where appropriate.
+                </span>
+              </label>
+            </div>
+          )}
+
+          {error && (
+            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
+          )}
+
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={handleContinue}
+              disabled={saving}
+              className="rounded-xl bg-brand-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-brand-700 disabled:opacity-60"
+            >
+              {saving ? 'Saving...' : 'Continue'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

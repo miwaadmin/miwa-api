@@ -4,6 +4,7 @@ import Header from './Header'
 import BottomNav from './BottomNav'
 import MiwaChat from './MiwaChat'
 import AppTour from './AppTour'
+import WorkspaceModeOnboarding from './WorkspaceModeOnboarding'
 import { TourProvider } from '../context/TourContext'
 
 export default function Layout() {
@@ -34,6 +35,8 @@ export default function Layout() {
 
         {/* Spotlight tour overlay */}
         <AppTour />
+
+        <WorkspaceModeOnboarding />
       </div>
     </TourProvider>
   )

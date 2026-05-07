@@ -57,6 +57,15 @@ import ScrollToTop from './components/ScrollToTop'
 import Resources from './pages/Resources'
 import DashboardResources from './pages/DashboardResources'
 import { isNativeApp } from './lib/api'
+import { isAgencyCompanionMode, needsWorkspaceModeOnboarding } from './lib/workspaceMode'
+import {
+  TraineeCases,
+  TraineeDrafts,
+  TraineeHours,
+  TraineeLearning,
+  TraineeSupervision,
+  TraineeToday,
+} from './pages/trainee/TraineePages'
 // Practice pages removed — group practice is a separate product (practice.miwa.care)
 
 // Mobile-optimized experience
@@ -165,6 +174,14 @@ function MobileDashboardRedirect() {
   return <Dashboard />
 }
 
+function DashboardRedirect() {
+  const { therapist } = useAuth()
+  if (!isMobileDevice() && therapist && !needsWorkspaceModeOnboarding(therapist) && isAgencyCompanionMode(therapist)) {
+    return <Navigate to="/t/today" replace />
+  }
+  return <MobileDashboardRedirect />
+}
+
 export default function App() {
   return (
     <BrowserRouter>
@@ -241,7 +258,14 @@ export default function App() {
 
               {/* Protected clinician routes */}
               <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
-                <Route path="/dashboard" element={<MobileDashboardRedirect />} />
+                <Route path="/dashboard" element={<DashboardRedirect />} />
+                <Route path="/t" element={<Navigate to="/t/today" replace />} />
+                <Route path="/t/today" element={<TraineeToday />} />
+                <Route path="/t/cases" element={<TraineeCases />} />
+                <Route path="/t/drafts" element={<TraineeDrafts />} />
+                <Route path="/t/supervision" element={<TraineeSupervision />} />
+                <Route path="/t/hours" element={<TraineeHours />} />
+                <Route path="/t/learning" element={<TraineeLearning />} />
                 <Route path="/workspace" element={<Workspace />} />
                 <Route path="/patients" element={<Patients />} />
                 <Route path="/patients/:id" element={<PatientDetail />} />

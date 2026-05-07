@@ -97,6 +97,13 @@ function createSchema() {
       assistant_verbosity TEXT,
       assistant_memory TEXT,
       assistant_permissions_json TEXT,
+      workspace_mode TEXT,
+      client_record_mode TEXT DEFAULT 'miwa_system_of_record',
+      agency_name TEXT,
+      agency_ehr_name TEXT,
+      training_program TEXT,
+      site_policy_acknowledged_at DATETIME,
+      workspace_mode_selected_at DATETIME,
       last_login_at DATETIME,
       last_seen_at  DATETIME,
       created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -155,6 +162,15 @@ function createSchema() {
       preferred_contact_method TEXT DEFAULT 'ask',
       sms_consent INTEGER DEFAULT 0,
       sms_consent_at DATETIME,
+      record_mode TEXT DEFAULT 'miwa_system_of_record',
+      agency_client_id TEXT,
+      agency_note_status TEXT,
+      supervision_priority TEXT,
+      last_copied_to_ehr_at DATETIME,
+      case_conceptualization TEXT,
+      modality_lens TEXT,
+      supervision_questions TEXT,
+      private_reflection TEXT,
       therapist_id INTEGER REFERENCES therapists(id),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -178,6 +194,11 @@ function createSchema() {
       cpt_code TEXT,
       signed_at DATETIME,
       full_note TEXT,
+      trainee_note_status TEXT,
+      copied_to_ehr_at DATETIME,
+      copied_to_ehr_name TEXT,
+      needs_supervision INTEGER DEFAULT 0,
+      supervision_question TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(patient_id) REFERENCES patients(id)
     );
@@ -1197,6 +1218,13 @@ function runMigrations() {
     ['assistant_verbosity',  'TEXT'],
     ['assistant_memory',     'TEXT'],
     ['assistant_permissions_json', 'TEXT'],
+    ['workspace_mode',       'TEXT'],
+    ['client_record_mode',   "TEXT DEFAULT 'miwa_system_of_record'"],
+    ['agency_name',          'TEXT'],
+    ['agency_ehr_name',      'TEXT'],
+    ['training_program',     'TEXT'],
+    ['site_policy_acknowledged_at', 'DATETIME'],
+    ['workspace_mode_selected_at', 'DATETIME'],
     ['last_login_at',        'DATETIME'],
     ['last_seen_at',         'DATETIME'],
     ['first_name',           'TEXT'],
@@ -1455,6 +1483,18 @@ function runMigrations() {
   if (!sessionCols.includes('full_note')) {
     try { db.run('ALTER TABLE sessions ADD COLUMN full_note TEXT'); } catch {}
   }
+  const trainingSessionAdditions = [
+    ['trainee_note_status', "TEXT"],
+    ['copied_to_ehr_at', 'DATETIME'],
+    ['copied_to_ehr_name', 'TEXT'],
+    ['needs_supervision', 'INTEGER DEFAULT 0'],
+    ['supervision_question', 'TEXT'],
+  ];
+  for (const [col, def] of trainingSessionAdditions) {
+    if (!sessionCols.includes(col)) {
+      try { db.run(`ALTER TABLE sessions ADD COLUMN ${col} ${def}`); } catch {}
+    }
+  }
 
   const patientCols = [];
   const pStmt = db.prepare('PRAGMA table_info(patients)');
@@ -1501,6 +1541,15 @@ function runMigrations() {
     ['archived_at', 'DATETIME'],
     ['legal_hold', 'INTEGER DEFAULT 0'],
     ['legal_hold_reason', 'TEXT'],
+    ['record_mode', "TEXT DEFAULT 'miwa_system_of_record'"],
+    ['agency_client_id', 'TEXT'],
+    ['agency_note_status', 'TEXT'],
+    ['supervision_priority', 'TEXT'],
+    ['last_copied_to_ehr_at', 'DATETIME'],
+    ['case_conceptualization', 'TEXT'],
+    ['modality_lens', 'TEXT'],
+    ['supervision_questions', 'TEXT'],
+    ['private_reflection', 'TEXT'],
   ];
   for (const [col, def] of patientAdditions) {
     if (!patientCols.includes(col)) {
@@ -1510,6 +1559,7 @@ function runMigrations() {
   // Backfill existing rows — SQLite ALTER TABLE ADD COLUMN does NOT apply DEFAULT to existing rows
   try { db.run("UPDATE patients SET client_type = 'individual' WHERE client_type IS NULL OR client_type = ''"); } catch {}
   try { db.run("UPDATE patients SET status = 'active' WHERE status IS NULL OR status = ''"); } catch {}
+  try { db.run("UPDATE patients SET record_mode = 'miwa_system_of_record' WHERE record_mode IS NULL OR record_mode = ''"); } catch {}
 
   // ── practice_hours — trainee/associate hour tracking (CSUN MFT first) ─────
   // Manual log entries only. Direct-service hours are computed on the fly

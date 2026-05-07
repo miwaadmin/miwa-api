@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { apiFetch } from '../lib/api'
 import { COMMUNITY_URL, COMMUNITY_LABEL, HAS_COMMUNITY } from '../lib/community'
+import { isAgencyCompanionMode } from '../lib/workspaceMode'
 
 const navItems = [
   {
@@ -204,6 +205,7 @@ export default function Sidebar() {
   // after Schedule so it sits next to the data it draws from.
   const cred = therapist?.credential_type || 'licensed'
   const showHours = cred === 'trainee' || cred === 'associate'
+  const agencyMode = isAgencyCompanionMode(therapist)
   const HOURS_ITEM = {
     to: '/hours',
     label: 'Hours',
@@ -223,6 +225,52 @@ export default function Sidebar() {
         return out
       })()
     : navItems
+  const traineeNavItems = [
+    {
+      to: '/t/today',
+      label: 'Today',
+      end: true,
+      activeColor: 'text-teal-300',
+      icon: navItems[0].icon,
+    },
+    {
+      to: '/t/cases',
+      label: 'Cases',
+      activeColor: 'text-sky-300',
+      icon: navItems.find(i => i.to === '/patients')?.icon,
+    },
+    {
+      to: '/t/drafts',
+      label: 'Note Drafts',
+      activeColor: 'text-amber-300',
+      icon: navItems.find(i => i.to === '/briefs')?.icon,
+    },
+    {
+      to: '/t/supervision',
+      label: 'Supervision',
+      activeColor: 'text-violet-300',
+      icon: navItems.find(i => i.to === '/consult')?.icon,
+    },
+    ...(showHours ? [{
+      to: '/t/hours',
+      label: 'Hours',
+      activeColor: 'text-fuchsia-300',
+      icon: HOURS_ITEM.icon,
+    }] : []),
+    {
+      to: '/t/learning',
+      label: 'Learning',
+      activeColor: 'text-orange-300',
+      icon: navItems.find(i => i.to === '/library')?.icon,
+    },
+    {
+      to: '/settings',
+      label: 'Settings',
+      activeColor: 'text-gray-300',
+      icon: navItems.find(i => i.to === '/settings')?.icon,
+    },
+  ]
+  const renderedNavItems = agencyMode ? traineeNavItems : visibleNavItems
 
   return (
     <aside
@@ -247,7 +295,9 @@ export default function Sidebar() {
         <MiwaLogo size={40} />
         <div>
           <div className="text-[17px] font-bold text-white tracking-tight leading-none">Miwa</div>
-          <div className="text-[13px] text-indigo-300/80 mt-0.5 font-medium tracking-wider uppercase">Therapist Copilot</div>
+          <div className="text-[13px] text-indigo-300/80 mt-0.5 font-medium tracking-wider uppercase">
+            {agencyMode ? 'Agency Companion' : 'Therapist Copilot'}
+          </div>
         </div>
       </div>
 
@@ -255,7 +305,7 @@ export default function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 px-2.5 py-3 space-y-0.5">
-        {visibleNavItems.map(item => (
+        {renderedNavItems.map(item => (
           <NavLink
             key={item.to}
             to={item.to}

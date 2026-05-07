@@ -33,7 +33,7 @@ async function requireAuth(req, res, next) {
     // formats dates in the user's local time. Reading them here once keeps
     // each handler from having to re-fetch the therapist row.
     const row = await db.get(
-      'SELECT id, email, user_role, is_admin, account_status, credential_type, preferred_timezone FROM therapists WHERE id = ?',
+      'SELECT id, email, user_role, is_admin, account_status, credential_type, preferred_timezone, workspace_mode FROM therapists WHERE id = ?',
       decoded.sub,
     );
     if (!row) return res.status(401).json({ error: 'Account not found.' });
@@ -56,6 +56,7 @@ async function requireAuth(req, res, next) {
       account_status: row.account_status,
       credential_type: row.credential_type || 'licensed',
       preferred_timezone: row.preferred_timezone || 'America/Los_Angeles',
+      workspace_mode: row.workspace_mode || null,
     };
     await db.run('UPDATE therapists SET last_seen_at = CURRENT_TIMESTAMP WHERE id = ?', decoded.sub);
     await persistIfNeeded();
