@@ -1550,7 +1550,7 @@ router.post('/links', async (req, res) => {
   try {
     const db = getAsyncDb();
     const tid    = req.therapist.id;
-    const { patient_id, template_type, member_label, expires_days = 7 } = req.body;
+    const { patient_id, template_type, member_label, expires_days = 7, send_now = true, method } = req.body;
 
     if (!patient_id || !template_type) {
       return res.status(400).json({ error: 'patient_id and template_type are required' });
@@ -1559,7 +1559,11 @@ router.post('/links', async (req, res) => {
       return res.status(400).json({ error: 'Invalid template_type' });
     }
 
-    const patient = await db.get('SELECT id, client_id, display_name, email, phone, preferred_contact_method FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
+    const patient = await db.get(
+      'SELECT id, client_id, display_name, email, phone, preferred_contact_method, sms_consent FROM patients WHERE id = ? AND therapist_id = ?',
+      patient_id,
+      tid,
+    );
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
     const portal = await preparePortalInviteForPatient(db, patient, tid);
 
@@ -1582,18 +1586,71 @@ router.post('/links', async (req, res) => {
       portal?.account ? 'client_portal' : 'link',
       tid,
     );
-    const preferredMethod = patient.preferred_contact_method || 'ask';
-    if ((preferredMethod === 'email' || preferredMethod === 'ask') && (portal?.account || portal?.inviteUrl)) {
-      await sendGenericMiwaEmail(patient.email, { inviteUrl: portal.inviteUrl, pendingItem: true });
+    const appUrl = (process.env.APP_BASE_URL || process.env.APP_URL || 'https://miwa.care').replace(/\/$/, '');
+    const assessmentUrl = `${appUrl}/assess/${token}`;
+    const templateName = TEMPLATES[template_type].name;
+
+    let preferredMethod = method || patient.preferred_contact_method || 'ask';
+    if (preferredMethod === 'ask') {
+      preferredMethod = patient.email ? 'email' : (patient.phone && patient.sms_consent ? 'sms' : null);
+    }
+    if (preferredMethod === 'sms' && (!patient.phone || !patient.sms_consent)) {
+      preferredMethod = patient.email ? 'email' : null;
+    }
+    if (preferredMethod === 'email' && !patient.email) {
+      preferredMethod = patient.phone && patient.sms_consent ? 'sms' : null;
     }
 
-    const appUrl = process.env.APP_URL || 'https://miwa.care';
+    let sent = false;
+    let sentVia = null;
+    let deliveryError = null;
+
+    if (send_now) {
+      if (preferredMethod === 'email') {
+        try {
+          const { sendAssessmentEmail } = require('../services/mailer');
+          await sendAssessmentEmail({
+            toEmail: patient.email,
+            token,
+            type: templateName,
+            clientName: patient.display_name,
+          });
+          await db.run('UPDATE assessment_links SET sent_at = CURRENT_TIMESTAMP WHERE token = ?', token);
+          sent = true;
+          sentVia = 'email';
+        } catch (emailErr) {
+          deliveryError = emailErr.message;
+          console.error('[assessment-link] Email send error:', emailErr.message);
+        }
+      } else if (preferredMethod === 'sms') {
+        try {
+          const { sendAssessmentSms } = require('../services/twilio');
+          const result = await sendAssessmentSms(patient.phone, token);
+          if (result.status !== 'skipped') {
+            await db.run('UPDATE assessment_links SET sent_at = CURRENT_TIMESTAMP WHERE token = ?', token);
+            sent = true;
+            sentVia = 'sms';
+          } else {
+            deliveryError = result.reason || 'SMS is not configured';
+          }
+        } catch (smsErr) {
+          deliveryError = smsErr.message;
+          console.error('[assessment-link] SMS send error:', smsErr.message);
+        }
+      } else {
+        deliveryError = 'No deliverable contact method is available for this client.';
+      }
+    }
+
     res.json({
       token,
-      url: `${appUrl}/assess/${token}`,
+      url: assessmentUrl,
       template_type,
-      template_name: TEMPLATES[template_type].name,
+      template_name: templateName,
       expires_at: expiresAt.toISOString(),
+      sent,
+      sent_via: sentVia,
+      delivery_error: deliveryError,
       client_id: patient.client_id,
       display_name: patient.display_name,
       client_label: clientLabel(patient),

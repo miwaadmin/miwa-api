@@ -953,6 +953,7 @@ function AssessmentLinkModal({ patient, onClose }) {
   const [loadingLinks, setLoadingLinks] = useState(true)
   const [error, setError] = useState('')
   const [generatedUrl, setGeneratedUrl] = useState('')
+  const [delivery, setDelivery] = useState(null)
   const [activeLinks, setActiveLinks] = useState([])
   const [copied, setCopied] = useState('')
 
@@ -991,6 +992,7 @@ function AssessmentLinkModal({ patient, onClose }) {
 
   async function handleCreateLink() {
     setError('')
+    setDelivery(null)
     setGenerating(true)
     try {
       const res = await apiFetch('/assessments/links', {
@@ -1005,6 +1007,11 @@ function AssessmentLinkModal({ patient, onClose }) {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Unable to create link.')
       setGeneratedUrl(data.url)
+      setDelivery({
+        sent: !!data.sent,
+        sentVia: data.sent_via,
+        error: data.delivery_error,
+      })
       await loadLinks()
     } catch (err) {
       setError(err.message)
@@ -1095,22 +1102,28 @@ function AssessmentLinkModal({ patient, onClose }) {
           )}
 
           {generatedUrl && (
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 space-y-2">
-              <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Share this link</p>
+            <div className={`rounded-xl border p-4 space-y-2 ${delivery?.sent ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+              <p className={`text-xs font-semibold uppercase tracking-wide ${delivery?.sent ? 'text-emerald-700' : 'text-amber-700'}`}>
+                {delivery?.sent ? `Sent by ${delivery.sentVia === 'sms' ? 'SMS' : 'email'}` : 'Created but not sent'}
+              </p>
+              <p className={`text-sm ${delivery?.sent ? 'text-emerald-800' : 'text-amber-800'}`}>
+                {delivery?.sent
+                  ? 'The client has been sent the assessment link. Copy is only here as a backup.'
+                  : (delivery?.error || 'No approved contact method was available. Copy the link or update the client contact preference.')}
+              </p>
               <div className="flex items-center gap-2">
                 <input
                   readOnly
                   value={generatedUrl}
-                  className="flex-1 min-w-0 text-xs bg-white border border-emerald-200 rounded-lg px-3 py-2 text-gray-700"
+                  className={`flex-1 min-w-0 text-xs bg-white rounded-lg px-3 py-2 text-gray-700 ${delivery?.sent ? 'border border-emerald-200' : 'border border-amber-200'}`}
                 />
                 <button
                   onClick={() => copyUrl(generatedUrl)}
-                  className="px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700"
+                  className={`px-3 py-2 rounded-lg text-xs font-semibold text-white ${delivery?.sent ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-amber-600 hover:bg-amber-700'}`}
                 >
                   {copied === generatedUrl ? 'Copied' : 'Copy'}
                 </button>
               </div>
-              <p className="text-xs text-emerald-700">Share this link through the client's preferred approved channel. When they finish it, the result updates the chart automatically.</p>
             </div>
           )}
 
@@ -1130,7 +1143,7 @@ function AssessmentLinkModal({ patient, onClose }) {
               disabled={generating}
               className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 disabled:text-gray-500"
             >
-              {generating ? 'Creating…' : 'Create link'}
+              {generating ? 'Sending...' : 'Send link'}
             </button>
           </div>
 
