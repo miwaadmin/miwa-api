@@ -147,6 +147,14 @@ function createSchema() {
       trauma_history TEXT,
       strengths_protective_factors TEXT,
       functional_impairments TEXT,
+      client_type TEXT DEFAULT 'individual',
+      members TEXT,
+      display_name TEXT,
+      phone TEXT,
+      email TEXT,
+      preferred_contact_method TEXT DEFAULT 'ask',
+      sms_consent INTEGER DEFAULT 0,
+      sms_consent_at DATETIME,
       therapist_id INTEGER REFERENCES therapists(id),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -1478,7 +1486,7 @@ function runMigrations() {
     ['display_name', 'TEXT'],  // clinician-chosen name/nickname shown in UI and used by Miwa; never sent to AI as-is
     ['phone', 'TEXT'],         // client mobile number for SMS assessment delivery (E.164 preferred)
     ['email', 'TEXT'],         // client email address for email assessment delivery
-    ['preferred_contact_method', "TEXT DEFAULT 'sms'"],  // 'sms' | 'email' | 'ask' — how to send assessments/links
+    ['preferred_contact_method', "TEXT DEFAULT 'ask'"],  // 'sms' | 'email' | 'ask' - how to send assessments/links
     ['session_modality', "TEXT DEFAULT 'in-person'"],  // 'in-person' | 'telehealth' | 'hybrid'
     ['session_duration', 'INTEGER DEFAULT 50'],          // preferred session length in minutes
     // SMS consent (Twilio toll-free verification requirement — block sends until therapist confirms)

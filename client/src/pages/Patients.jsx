@@ -27,7 +27,7 @@ function PatientModal({ patient, onClose, onSave }) {
     }
   })()
   const [form, setForm] = useState(
-    patient || { client_id: '', first_name: '', last_name: '', age: '', gender: '', presenting_concerns: '', diagnoses: '', notes: '', client_type: 'individual', display_name: '', phone: '', email: '' }
+    patient || { client_id: '', first_name: '', last_name: '', age: '', gender: '', presenting_concerns: '', diagnoses: '', notes: '', client_type: 'individual', display_name: '', phone: '', email: '', preferred_contact_method: 'ask', sms_consent: false }
   )
   const [members, setMembers] = useState(defaultMembers)
   const [saving, setSaving] = useState(false)
@@ -55,6 +55,13 @@ function PatientModal({ patient, onClose, onSave }) {
         ...form,
         age: form.age ? parseInt(form.age) : null,
         members: clientType !== 'individual' ? JSON.stringify(members) : null,
+        preferred_contact_method:
+          form.preferred_contact_method === 'email' && !form.email
+            ? 'ask'
+            : form.preferred_contact_method === 'sms' && (!form.phone || !form.sms_consent)
+              ? 'ask'
+              : (form.preferred_contact_method || 'ask'),
+        sms_consent: form.phone && form.sms_consent ? 1 : 0,
       }
       const res = await apiFetch(url, { method, body: JSON.stringify(payload) })
       const data = await res.json()
@@ -165,10 +172,27 @@ function PatientModal({ patient, onClose, onSave }) {
                 className="input"
                 type="tel"
                 value={form.phone || ''}
-                onChange={e => setForm(f => ({ ...f, phone: e.target.value }))}
+                onChange={e => setForm(f => ({
+                  ...f,
+                  phone: e.target.value,
+                  sms_consent: e.target.value === f.phone ? f.sms_consent : false,
+                }))}
                 placeholder="(555) 123-4567"
               />
-              <p className="text-xs text-gray-400 mt-1">Used for contact records and closed-beta SMS only with explicit consent; Twilio BAA is pending.</p>
+              {form.phone && (
+                <label className="mt-2 flex items-start gap-2 rounded-xl border border-gray-700 bg-gray-900/50 p-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="mt-0.5 h-4 w-4 rounded border-gray-500 text-brand-600 focus:ring-brand-400"
+                    checked={!!form.sms_consent}
+                    onChange={e => setForm(f => ({ ...f, sms_consent: e.target.checked }))}
+                  />
+                  <span className="text-xs text-gray-300 leading-relaxed">
+                    I have obtained explicit consent for closed-beta SMS messages for assessments, check-ins, portal messages, and appointment updates.
+                  </span>
+                </label>
+              )}
+              <p className="text-xs text-gray-400 mt-1">Used for contact records and SMS only with explicit consent.</p>
             </div>
             <div className="col-span-2">
               <label className="label">
@@ -187,6 +211,40 @@ function PatientModal({ patient, onClose, onSave }) {
                 placeholder="client@example.com"
               />
               <p className="text-xs text-gray-400 mt-1">Used for portal invites, assessment links, intake forms, and secure email notifications.</p>
+            </div>
+            <div className="col-span-2">
+              <label className="label">Preferred contact method</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  ['ask', 'Ask'],
+                  ['email', 'Email'],
+                  ['sms', 'SMS'],
+                ].map(([value, label]) => {
+                  const disabled = value === 'email'
+                    ? !form.email
+                    : value === 'sms'
+                      ? !form.phone || !form.sms_consent
+                      : false
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => setForm(f => ({ ...f, preferred_contact_method: value }))}
+                      className={`rounded-xl border px-3 py-2 text-sm font-semibold transition-colors ${
+                        form.preferred_contact_method === value
+                          ? 'border-brand-500 bg-brand-600 text-white'
+                          : 'border-gray-700 bg-gray-900/40 text-gray-300 hover:border-brand-400'
+                      } ${disabled ? 'cursor-not-allowed opacity-40 hover:border-gray-700' : ''}`}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                Used first for assessment links, check-ins, portal nudges, and reminders.
+              </p>
             </div>
             {clientType === 'individual' && (
               <>

@@ -75,3 +75,15 @@ test('assessment_links schema includes client portal delivery columns', () => {
   assert.match(definitionText, /\bdue_at\b/);
   assert.match(definitionText, /\bassigned_by_therapist_id\b/);
 });
+
+test('patients schema includes notification preference columns', () => {
+  const source = fs.readFileSync(path.join(__dirname, '..', 'db.js'), 'utf8');
+  const patients = parseCreateTables(source).find((table) => table.table === 'patients');
+  assert.ok(patients, 'patients table should be parsed from db.js');
+
+  const definitionText = patients.definitions.join('\n');
+  assert.match(definitionText, /\bphone\b/);
+  assert.match(definitionText, /\bemail\b/);
+  assert.match(definitionText, /\bpreferred_contact_method\b/);
+  assert.match(definitionText, /\bsms_consent\b/);
+});

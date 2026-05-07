@@ -1559,7 +1559,7 @@ router.post('/links', async (req, res) => {
       return res.status(400).json({ error: 'Invalid template_type' });
     }
 
-    const patient = await db.get('SELECT id, client_id, display_name, email, phone FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
+    const patient = await db.get('SELECT id, client_id, display_name, email, phone, preferred_contact_method FROM patients WHERE id = ? AND therapist_id = ?', patient_id, tid);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
     const portal = await preparePortalInviteForPatient(db, patient, tid);
 
@@ -1582,7 +1582,8 @@ router.post('/links', async (req, res) => {
       portal?.account ? 'client_portal' : 'link',
       tid,
     );
-    if (portal?.account || portal?.inviteUrl) {
+    const preferredMethod = patient.preferred_contact_method || 'ask';
+    if ((preferredMethod === 'email' || preferredMethod === 'ask') && (portal?.account || portal?.inviteUrl)) {
       await sendGenericMiwaEmail(patient.email, { inviteUrl: portal.inviteUrl, pendingItem: true });
     }
 

@@ -983,6 +983,11 @@ function AssessmentLinkModal({ patient, onClose }) {
   useEffect(() => { loadLinks() }, [loadLinks])
 
   const template = templates[templateType]
+  const preferredMethodLabel = patient?.preferred_contact_method === 'email'
+    ? 'Email preferred'
+    : patient?.preferred_contact_method === 'sms'
+      ? 'SMS preferred'
+      : 'Ask before sending'
 
   async function handleCreateLink() {
     setError('')
@@ -1035,7 +1040,8 @@ function AssessmentLinkModal({ patient, onClose }) {
 
         <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
           <div className="rounded-xl border border-teal-100 bg-teal-50 p-4 text-sm text-teal-800">
-            <p className="font-semibold mb-1">Client phone assessment link</p>
+            <p className="font-semibold mb-1">Client assessment link</p>
+            <p className="mb-1 text-xs font-semibold">Contact preference: {preferredMethodLabel}.</p>
             <p>Miwa will save the completed assessment to this patient’s chart automatically when the client submits it.</p>
           </div>
 
@@ -1104,7 +1110,7 @@ function AssessmentLinkModal({ patient, onClose }) {
                   {copied === generatedUrl ? 'Copied' : 'Copy'}
                 </button>
               </div>
-              <p className="text-xs text-emerald-700">Send this to the client on their phone. When they finish it, the result updates the chart automatically.</p>
+              <p className="text-xs text-emerald-700">Share this link through the client's preferred approved channel. When they finish it, the result updates the chart automatically.</p>
             </div>
           )}
 
@@ -2262,6 +2268,7 @@ export default function PatientDetail() {
       last_name: patient.last_name || parts.slice(1).join(' ') || '',
       phone: patient.phone || '',
       email: patient.email || '',
+      preferred_contact_method: patient.preferred_contact_method || 'ask',
       sms_consent: !!patient.sms_consent,
       age_range: patient.age_range || '',
       gender: patient.gender || '',
@@ -2288,6 +2295,9 @@ export default function PatientDetail() {
       if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
         throw new Error('That email doesn\'t look right. Double-check and try again.')
       }
+      let preferredContactMethod = profileForm.preferred_contact_method || 'ask'
+      if (preferredContactMethod === 'email' && !email) preferredContactMethod = 'ask'
+      if (preferredContactMethod === 'sms' && (!profileForm.phone || !profileForm.sms_consent)) preferredContactMethod = 'ask'
       const res = await apiFetch(`/patients/${id}`, {
         method: 'PUT',
         body: JSON.stringify({
@@ -2297,6 +2307,7 @@ export default function PatientDetail() {
           display_name,
           phone: profileForm.phone || null,
           email: email || null,
+          preferred_contact_method: preferredContactMethod,
           sms_consent: profileForm.phone && profileForm.sms_consent ? 1 : 0,
           age_range: profileForm.age_range || null,
           gender: profileForm.gender || null,
@@ -3220,6 +3231,41 @@ export default function PatientDetail() {
               />
               <p className="mt-1.5 text-[11px] text-gray-400">
                 Used for assessment links, intake forms, and email-based check-ins.
+              </p>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Preferred Contact Method</label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  ['ask', 'Ask'],
+                  ['email', 'Email'],
+                  ['sms', 'SMS'],
+                ].map(([value, label]) => {
+                  const disabled = value === 'email'
+                    ? !profileForm.email
+                    : value === 'sms'
+                      ? !profileForm.phone || !profileForm.sms_consent
+                      : false
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => setProfileForm(f => ({ ...f, preferred_contact_method: value }))}
+                      className={`rounded-xl border px-3 py-2 text-sm font-semibold transition-colors ${
+                        profileForm.preferred_contact_method === value
+                          ? 'border-brand-500 bg-brand-600 text-white'
+                          : 'border-gray-200 bg-white text-gray-600 hover:border-brand-300'
+                      } ${disabled ? 'cursor-not-allowed opacity-40 hover:border-gray-200' : ''}`}
+                    >
+                      {label}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="mt-1.5 text-[11px] text-gray-400">
+                Used first for future assessment links, check-ins, portal nudges, and reminders. SMS requires a mobile number and recorded consent.
               </p>
             </div>
 

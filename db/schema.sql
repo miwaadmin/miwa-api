@@ -129,7 +129,7 @@ CREATE TABLE IF NOT EXISTS patients (
   display_name                    TEXT,
   phone                           TEXT,
   email                           TEXT,
-  preferred_contact_method        TEXT DEFAULT 'sms',
+  preferred_contact_method        TEXT DEFAULT 'ask',
   session_modality                TEXT DEFAULT 'in-person',
   session_duration                INTEGER DEFAULT 50,
   -- SMS consent (Twilio TFV)
