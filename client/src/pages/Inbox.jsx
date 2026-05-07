@@ -98,28 +98,28 @@ export default function Inbox() {
   const unreadCount = messages.filter(m => m.sender === 'client' && !m.read_at).length
 
   return (
-    <div className="min-h-full bg-slate-950 text-white">
+    <div className="inbox-page min-h-full bg-gray-50 text-gray-900 dark:bg-slate-950 dark:text-white">
       <div className="mx-auto max-w-7xl px-4 py-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-teal-300">Secure portal inbox</p>
+            <p className="text-xs font-bold uppercase tracking-[0.22em] text-teal-600 dark:text-teal-300">Secure portal inbox</p>
             <h2 className="mt-2 text-2xl font-bold tracking-tight">Client Messages</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              Keep client communication inside Miwa. Email can notify; clinical content stays in the portal.
+            <p className="mt-1 text-sm text-gray-500 dark:text-slate-400">
+              Keep clinical communication inside Miwa. SMS and email can notify; the conversation stays in the portal.
             </p>
           </div>
           <div className="flex gap-2">
             <button
               type="button"
               onClick={() => askMiwa('Summarize unread secure client messages, flag any risk language, and suggest follow-up tasks.')}
-              className="rounded-lg border border-violet-400/40 bg-violet-500/15 px-3 py-2 text-sm font-semibold text-violet-100 hover:bg-violet-500/25"
+              className="rounded-lg border border-violet-200 bg-violet-50 px-3 py-2 text-sm font-semibold text-violet-700 hover:bg-violet-100 dark:border-violet-400/40 dark:bg-violet-500/15 dark:text-violet-100 dark:hover:bg-violet-500/25"
             >
               Ask Miwa to triage
             </button>
             <button
               type="button"
               onClick={load}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10"
+              className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
             >
               Refresh
             </button>
@@ -127,14 +127,21 @@ export default function Inbox() {
         </div>
 
         {error && (
-          <div className="mt-4 rounded-lg border border-red-400/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+          <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-400/40 dark:bg-red-500/10 dark:text-red-100">
             {error}
           </div>
         )}
 
+        <div className="mt-5 rounded-2xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm text-teal-900 dark:border-teal-400/20 dark:bg-teal-500/10 dark:text-teal-100">
+          <p className="font-semibold">How this works with SMS</p>
+          <p className="mt-1 text-xs leading-relaxed text-teal-800 dark:text-teal-100/80">
+            SMS is best for prompts and notifications, like "you have a message" or "complete this check-in." The inbox is the HIPAA-safe clinical thread where the actual conversation, replies, risk review, and follow-up history live.
+          </p>
+        </div>
+
         <div className="mt-6 grid gap-4 lg:grid-cols-[360px_1fr]">
-          <aside className="rounded-2xl border border-white/10 bg-slate-900/80 shadow-xl">
-            <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+          <aside className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900/80 dark:shadow-xl">
+            <div className="flex items-center justify-between border-b border-gray-100 px-4 py-3 dark:border-white/10">
               <div>
                 <h3 className="text-sm font-semibold">Inbox</h3>
                 <p className="text-xs text-slate-400">{unreadCount} unread · {messages.length} total</p>
@@ -142,7 +149,7 @@ export default function Inbox() {
               <button
                 type="button"
                 onClick={async () => { await apiFetch('/inbox/read-all', { method: 'POST' }); load() }}
-                className="text-xs font-semibold text-teal-300 hover:text-teal-200"
+                className="text-xs font-semibold text-teal-600 hover:text-teal-700 dark:text-teal-300 dark:hover:text-teal-200"
               >
                 Mark all read
               </button>
@@ -191,7 +198,7 @@ export default function Inbox() {
                 <div className="flex flex-col gap-3 border-b border-white/10 px-5 py-4 md:flex-row md:items-center md:justify-between">
                   <div>
                     <h3 className="text-lg font-bold">{patientLabel(selected)}</h3>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-gray-500 dark:text-slate-400">
                       {selected.patient?.client_type || 'individual'} · {selected.patient?.client_id}
                     </p>
                   </div>

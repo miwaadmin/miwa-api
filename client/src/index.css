@@ -700,6 +700,51 @@ html.dark .patient-detail-page .prose-clinical li {
   color: #dbeafe !important;
 }
 
+/* Inbox theme bridge: the secure inbox was originally hand-built as a
+   dark-only surface. These overrides let it honor the clinician's selected
+   light theme without rewriting every existing utility class. */
+html:not(.dark) .inbox-page .bg-slate-950,
+html:not(.dark) .inbox-page .bg-slate-900\/80 {
+  background-color: #ffffff !important;
+}
+html:not(.dark) .inbox-page .bg-white\/5,
+html:not(.dark) .inbox-page .bg-white\/8 {
+  background-color: #f8fafc !important;
+}
+html:not(.dark) .inbox-page .border-white\/10 {
+  border-color: #e5e7eb !important;
+}
+html:not(.dark) .inbox-page .text-white,
+html:not(.dark) .inbox-page .text-slate-100,
+html:not(.dark) .inbox-page .text-slate-200 {
+  color: #111827 !important;
+}
+html:not(.dark) .inbox-page .text-slate-400,
+html:not(.dark) .inbox-page .text-slate-500 {
+  color: #6b7280 !important;
+}
+html:not(.dark) .inbox-page .text-teal-300 {
+  color: #0f766e !important;
+}
+html:not(.dark) .inbox-page .bg-violet-500\/15 {
+  background-color: #f5f3ff !important;
+}
+html:not(.dark) .inbox-page .hover\:bg-white\/10:hover,
+html:not(.dark) .inbox-page .hover\:bg-white\/\[0\.04\]:hover {
+  background-color: #f3f4f6 !important;
+}
+html:not(.dark) .inbox-page input,
+html:not(.dark) .inbox-page textarea,
+html:not(.dark) .inbox-page select {
+  background-color: #ffffff !important;
+  border-color: #d1d5db !important;
+  color: #111827 !important;
+}
+html:not(.dark) .inbox-page input::placeholder,
+html:not(.dark) .inbox-page textarea::placeholder {
+  color: #9ca3af !important;
+}
+
 /* Pink theme */
 html.pink body {
   background-color: #fdf7fa;
