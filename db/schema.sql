@@ -420,6 +420,7 @@ CREATE TABLE IF NOT EXISTS checkin_links (
   completed_at  TIMESTAMPTZ,
   mood_score    INTEGER,
   mood_notes    TEXT,
+  dismissed_at  TIMESTAMPTZ,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_checkin_therapist ON checkin_links(therapist_id, created_at);

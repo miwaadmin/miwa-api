@@ -141,6 +141,12 @@ router.post('/assess/:token', async (req, res) => {
       if (activeIdeation) riskFlagsList.push({ type: 'suicide_risk', source: 'cssrs', active: true });
       else if (responses[0]?.value === 1) riskFlagsList.push({ type: 'suicide_risk', source: 'cssrs', passive: true });
     }
+    if (link.template_type === 'asq' && responses.some(r => r && r.value === 1)) {
+      riskFlagsList.push({ type: 'suicide_risk', source: 'asq', active: true });
+    }
+    if (link.template_type === 'audit' && total >= 20) {
+      riskFlagsList.push({ type: 'substance_use_risk', source: 'audit', score: total });
+    }
     if (link.template_type === 'pcl-5' && total >= 33) {
       riskFlagsList.push({ type: 'provisional_ptsd', score: total });
     }

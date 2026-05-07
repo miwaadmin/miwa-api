@@ -14,17 +14,27 @@ const API = API_BASE
 const MOODS = [
   { score: 1, label: 'Very difficult' },
   { score: 2, label: 'Rough' },
-  { score: 3, label: 'So-so' },
-  { score: 4, label: 'Getting by' },
-  { score: 5, label: 'Pretty good' },
+  { score: 3, label: 'Difficult' },
+  { score: 4, label: 'Low' },
+  { score: 5, label: 'Mixed' },
+  { score: 6, label: 'Okay' },
+  { score: 7, label: 'Steady' },
+  { score: 8, label: 'Good' },
+  { score: 9, label: 'Strong' },
+  { score: 10, label: 'Very good' },
 ]
 
 const ACCENT_FOR_MOOD = {
   1: '#dc2626',
   2: '#f97316',
-  3: '#eab308',
-  4: '#22c55e',
-  5: '#10b981',
+  3: '#f59e0b',
+  4: '#eab308',
+  5: '#84cc16',
+  6: '#22c55e',
+  7: '#10b981',
+  8: '#14b8a6',
+  9: '#0ea5e9',
+  10: '#6366f1',
 }
 
 function Shell({ children }) {
@@ -233,7 +243,7 @@ export default function CheckinForm() {
                   style={selected ? { background: color, borderColor: color } : {}}
                 >
                   <span className="text-2xl font-black leading-none mb-1">{m.score}</span>
-                  <span className="text-[9px] font-bold uppercase tracking-wider">of 5</span>
+                  <span className="text-[9px] font-bold uppercase tracking-wider">of 10</span>
                 </button>
               )
             })}

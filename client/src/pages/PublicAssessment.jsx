@@ -286,7 +286,7 @@ export default function PublicAssessment() {
                   <p className="text-[15px] font-medium text-gray-900 leading-snug">{q.text}</p>
                 </div>
                 <div className="space-y-2 pl-5">
-                  {assessment.options?.map(opt => {
+                  {(q.options || assessment.options || []).map(opt => {
                     const selected = responses[i]?.value === opt.value
                     return (
                       <button

@@ -541,6 +541,7 @@ function createSchema() {
       completed_at DATETIME,
       mood_score   INTEGER,
       mood_notes   TEXT,
+      dismissed_at DATETIME,
       created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_checkin_therapist ON checkin_links(therapist_id, created_at);
@@ -1696,6 +1697,7 @@ function runMigrations() {
   try { db.run('ALTER TABLE assessment_links ADD COLUMN assigned_via TEXT'); } catch {}
   try { db.run('ALTER TABLE assessment_links ADD COLUMN due_at DATETIME'); } catch {}
   try { db.run('ALTER TABLE assessment_links ADD COLUMN assigned_by_therapist_id INTEGER'); } catch {}
+  try { db.run('ALTER TABLE checkin_links ADD COLUMN dismissed_at DATETIME'); } catch {}
   try { db.run('ALTER TABLE treatment_goals ADD COLUMN shared_with_client INTEGER DEFAULT 0'); } catch {}
   try { db.run('ALTER TABLE treatment_goals ADD COLUMN client_visible_label TEXT'); } catch {}
   try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN accepted_privacy_at DATETIME'); } catch {}

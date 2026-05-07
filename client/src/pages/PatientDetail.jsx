@@ -743,9 +743,10 @@ function ProgressTooltip({ active, payload, label }) {
 const SOUL_COLORS = ['#6366F1', '#7C3AED', '#0D9488', '#D97706', '#DC2626', '#2563EB', '#DB2777']
 const TEMPLATE_LABELS = {
   'phq-9': 'PHQ-9', 'gad-7': 'GAD-7', 'pcl-5': 'PCL-5', 'cssrs': 'C-SSRS',
+  'asq': 'ASQ', 'asrs': 'ASRS', 'audit': 'AUDIT',
   'ras': 'RAS', 'das-4': 'DAS-4', 'score-15': 'SCORE-15', 'fad-gf': 'FAD-GF',
 }
-const INDIVIDUAL_TEMPLATES = ['phq-9', 'gad-7', 'pcl-5', 'cssrs']
+const INDIVIDUAL_TEMPLATES = ['phq-9', 'gad-7', 'pcl-5', 'cssrs', 'asq', 'asrs', 'audit']
 const RELATIONAL_TEMPLATES = ['ras', 'das-4', 'score-15', 'fad-gf']
 
 // Assessment Modal for PatientDetail
@@ -898,15 +899,15 @@ function PatientAssessmentModal({ patient, onClose, onSubmit }) {
                   <p className="text-sm font-medium text-gray-800 mb-3">
                     <span className="text-indigo-400 font-bold mr-2">{i + 1}.</span>{q.text}
                   </p>
-                  <div className={templateType === 'cssrs' ? 'grid grid-cols-2 gap-2' : template.options.length <= 4 ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-1 gap-1.5'}>
-                    {template.options.map(opt => (
+                  <div className={templateType === 'cssrs' || templateType === 'asq' ? 'grid grid-cols-2 gap-2' : (q.options || template.options || []).length <= 4 ? 'grid grid-cols-2 gap-2' : 'grid grid-cols-1 gap-1.5'}>
+                    {(q.options || template.options || []).map(opt => (
                       <button key={opt.value} onClick={() => setResponses(prev => ({ ...prev, [i]: { index: i, value: opt.value } }))}
                         className={`text-left px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
                           responses[i]?.value === opt.value
-                            ? templateType === 'cssrs' && opt.value === 1 ? 'bg-red-600 text-white border-red-600' : 'bg-indigo-600 text-white border-indigo-600'
+                            ? (templateType === 'cssrs' || templateType === 'asq') && opt.value === 1 ? 'bg-red-600 text-white border-red-600' : 'bg-indigo-600 text-white border-indigo-600'
                             : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
                         }`}>
-                        {templateType === 'cssrs' ? <span className="font-bold">{opt.label}</span> : <><span className="font-bold mr-1">{opt.value}</span>, {opt.label}</>}
+                        {templateType === 'cssrs' || templateType === 'asq' ? <span className="font-bold">{opt.label}</span> : <><span className="font-bold mr-1">{opt.value}</span>, {opt.label}</>}
                       </button>
                     ))}
                   </div>
@@ -1108,7 +1109,7 @@ function AssessmentLinkModal({ patient, onClose }) {
               </p>
               <p className={`text-sm ${delivery?.sent ? 'text-emerald-800' : 'text-amber-800'}`}>
                 {delivery?.sent
-                  ? 'The client has been sent the assessment link. Copy is only here as a backup.'
+                  ? 'The client has been sent the assessment. The link is here only as a backup.'
                   : (delivery?.error || 'No approved contact method was available. Copy the link or update the client contact preference.')}
               </p>
               <div className="flex items-center gap-2">
@@ -1143,7 +1144,7 @@ function AssessmentLinkModal({ patient, onClose }) {
               disabled={generating}
               className="px-4 py-2 rounded-xl text-sm font-semibold bg-indigo-600 text-white hover:bg-indigo-700 disabled:bg-gray-300 disabled:text-gray-500"
             >
-              {generating ? 'Sending...' : 'Send link'}
+              {generating ? 'Sending...' : 'Send'}
             </button>
           </div>
 
@@ -1339,6 +1340,7 @@ function OutcomeProgressCard({ patientId, patient }) {
   const [showLinkModal, setShowLinkModal] = useState(false)
   const [showCheckinModal, setShowCheckinModal] = useState(false)
   const [checkins, setCheckins] = useState([])
+  const [showHiddenCheckins, setShowHiddenCheckins] = useState(false)
 
   // ── Filter state: which instruments / souls to show on the chart ──
   // Default = all visible. Click a chip to toggle that line on/off so the
@@ -1362,6 +1364,14 @@ function OutcomeProgressCard({ patientId, patient }) {
   }, [patientId])
 
   useEffect(() => { loadCheckins() }, [loadCheckins])
+
+  const updateCheckinDismissed = async (checkinId, dismissed) => {
+    await apiFetch(`/assessments/checkin/${checkinId}/dismiss`, {
+      method: 'PATCH',
+      body: JSON.stringify({ dismissed }),
+    })
+    loadCheckins()
+  }
 
   const clientType = patient?.client_type || 'individual'
   const members = (() => { try { return patient?.members ? JSON.parse(patient.members) : [] } catch { return [] } })()
@@ -1439,13 +1449,37 @@ function OutcomeProgressCard({ patientId, patient }) {
 
   const renderCheckinHistory = () => {
     if (checkins.length === 0) return null
+    const visibleCheckins = checkins.filter(c => showHiddenCheckins || !c.dismissed_at)
+    const hiddenCount = checkins.filter(c => c.dismissed_at).length
+    if (visibleCheckins.length === 0 && hiddenCount > 0) {
+      return (
+        <div className="mt-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Between-Session Check-ins</p>
+            <button onClick={() => setShowHiddenCheckins(true)} className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700">
+              Show hidden ({hiddenCount})
+            </button>
+          </div>
+          <div className="bg-gray-50 rounded-xl px-3 py-2.5 text-xs text-gray-500">
+            Recent check-ins are hidden from this profile view. They are still kept in the chart.
+          </div>
+        </div>
+      )
+    }
 
     return (
       <div className="mt-4">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Between-Session Check-ins</p>
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Between-Session Check-ins</p>
+          {hiddenCount > 0 && (
+            <button onClick={() => setShowHiddenCheckins(v => !v)} className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-700">
+              {showHiddenCheckins ? 'Hide archived' : `Show hidden (${hiddenCount})`}
+            </button>
+          )}
+        </div>
         <div className="space-y-1.5">
-          {checkins.slice(0, 5).map(c => (
-            <div key={c.id} className="flex items-center gap-3 bg-gray-50 rounded-xl px-3 py-2.5">
+          {visibleCheckins.slice(0, 5).map(c => (
+            <div key={c.id} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 ${c.dismissed_at ? 'bg-gray-100 opacity-70' : 'bg-gray-50'}`}>
               {c.completed_at ? (
                 <>
                   <span className="text-lg font-bold w-10 text-center flex-shrink-0"
@@ -1454,7 +1488,9 @@ function OutcomeProgressCard({ patientId, patient }) {
                   </span>
                   <div className="flex-1 min-w-0">
                     {c.mood_notes && <p className="text-xs text-gray-600 truncate">"{c.mood_notes}"</p>}
-                    <p className="text-[11px] text-gray-400">{new Date(c.completed_at).toLocaleDateString()}</p>
+                    <p className="text-[11px] text-gray-400">
+                      {new Date(c.completed_at).toLocaleDateString()}{c.dismissed_at ? ' · hidden' : ''}
+                    </p>
                   </div>
                   <span className="text-[10px] font-semibold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full flex-shrink-0">Completed</span>
                 </>
@@ -1474,6 +1510,13 @@ function OutcomeProgressCard({ patientId, patient }) {
                   </span>
                 </>
               )}
+              <button
+                onClick={() => updateCheckinDismissed(c.id, !c.dismissed_at)}
+                className="text-[11px] font-semibold text-gray-400 hover:text-indigo-600 px-1"
+                title={c.dismissed_at ? 'Restore check-in to profile view' : 'Hide check-in from profile view'}
+              >
+                {c.dismissed_at ? 'Restore' : 'Hide'}
+              </button>
             </div>
           ))}
         </div>
@@ -1955,7 +1998,8 @@ function OutcomeProgressCard({ patientId, patient }) {
       )}
 
       {/* ── Check-in history strip ── */}
-      {checkins.length > 0 && (
+      {renderCheckinHistory()}
+      {false && checkins.length > 0 && (
         <div className="mt-4">
           <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">Between-Session Check-ins</p>
           <div className="space-y-1.5">
@@ -2182,6 +2226,9 @@ function ClientPortalPanel({ patient }) {
                 <option value="gad-7">GAD-7</option>
                 <option value="pcl-5">PCL-5</option>
                 <option value="cssrs">C-SSRS</option>
+                <option value="asq">ASQ</option>
+                <option value="asrs">ASRS-v1.1</option>
+                <option value="audit">AUDIT</option>
               </select>
               <button onClick={assignAssessment} disabled={busy === 'assessment'} className="rounded-lg bg-indigo-600 px-3 py-2 text-xs font-semibold text-white">Assign Check-In</button>
             </div>

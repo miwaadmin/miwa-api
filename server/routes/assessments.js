@@ -244,6 +244,144 @@ const TEMPLATES = {
 
   // ── Couple / Relationship instruments ─────────────────────────────────────
 
+  'asq': {
+    id: 'asq',
+    name: 'ASQ Suicide Risk Screen',
+    description: 'Ask Suicide-Screening Questions, a brief suicide risk screener from NIMH.',
+    instructions: 'Please answer these questions about recent and current thoughts of self-harm.',
+    timeEstimate: '1-2 minutes',
+    copyright: 'NIMH ASQ Toolkit',
+    questions: [
+      { id: 'asq_1', text: 'In the past few weeks, have you wished you were dead?' },
+      { id: 'asq_2', text: 'In the past few weeks, have you felt that you or your family would be better off if you were dead?' },
+      { id: 'asq_3', text: 'In the past week, have you been having thoughts about killing yourself?' },
+      { id: 'asq_4', text: 'Have you ever tried to kill yourself?' },
+    ],
+    options: [
+      { value: 0, label: 'No' },
+      { value: 1, label: 'Yes' },
+    ],
+    scoring: {
+      min: 0,
+      max: 4,
+      severityLevels: [
+        { min: 0, max: 0, label: 'No positive items', color: '#10B981' },
+        { min: 1, max: 1, label: 'Positive screen', color: '#F97316' },
+        { min: 2, max: 4, label: 'Elevated concern', color: '#EF4444' },
+      ],
+      clinicalSignificanceThreshold: 1,
+    },
+    higherIsBetter: false,
+    suicideRiskQuestionIndex: 0,
+  },
+
+  'asrs': {
+    id: 'asrs',
+    name: 'ASRS-v1.1 Adult ADHD Screen',
+    description: 'Adult ADHD Self-Report Scale symptom checklist for current ADHD symptoms.',
+    instructions: 'Please answer based on how you have felt and conducted yourself over the past 6 months.',
+    timeEstimate: '4-6 minutes',
+    copyright: 'WHO Adult ADHD Self-Report Scale',
+    questions: [
+      { id: 'asrs_1', text: 'How often do you have trouble wrapping up the final details of a project, once the challenging parts have been done?' },
+      { id: 'asrs_2', text: 'How often do you have difficulty getting things in order when you have to do a task that requires organization?' },
+      { id: 'asrs_3', text: 'How often do you have problems remembering appointments or obligations?' },
+      { id: 'asrs_4', text: 'When you have a task that requires a lot of thought, how often do you avoid or delay getting started?' },
+      { id: 'asrs_5', text: 'How often do you fidget or squirm with your hands or feet when you have to sit down for a long time?' },
+      { id: 'asrs_6', text: 'How often do you feel overly active and compelled to do things, like you were driven by a motor?' },
+      { id: 'asrs_7', text: 'How often do you make careless mistakes when you have to work on a boring or difficult project?' },
+      { id: 'asrs_8', text: 'How often do you have difficulty keeping your attention when you are doing boring or repetitive work?' },
+      { id: 'asrs_9', text: 'How often do you have difficulty concentrating on what people say to you, even when they are speaking directly to you?' },
+      { id: 'asrs_10', text: 'How often do you misplace or have difficulty finding things at home or at work?' },
+      { id: 'asrs_11', text: 'How often are you distracted by activity or noise around you?' },
+      { id: 'asrs_12', text: 'How often do you leave your seat in meetings or other situations where you are expected to remain seated?' },
+      { id: 'asrs_13', text: 'How often do you feel restless or fidgety?' },
+      { id: 'asrs_14', text: 'How often do you have difficulty unwinding and relaxing when you have time to yourself?' },
+      { id: 'asrs_15', text: 'How often do you find yourself talking too much when you are in social situations?' },
+      { id: 'asrs_16', text: 'When you are in a conversation, how often do you finish the sentences of the people you are talking to before they can finish them themselves?' },
+      { id: 'asrs_17', text: 'How often do you have difficulty waiting your turn in situations when turn taking is required?' },
+      { id: 'asrs_18', text: 'How often do you interrupt others when they are busy?' },
+    ],
+    options: [
+      { value: 0, label: 'Never' },
+      { value: 1, label: 'Rarely' },
+      { value: 2, label: 'Sometimes' },
+      { value: 3, label: 'Often' },
+      { value: 4, label: 'Very often' },
+    ],
+    scoring: {
+      min: 0,
+      max: 72,
+      severityLevels: [
+        { min: 0, max: 16, label: 'Low symptom burden', color: '#10B981' },
+        { min: 17, max: 31, label: 'Moderate symptom burden', color: '#F59E0B' },
+        { min: 32, max: 72, label: 'High symptom burden', color: '#EF4444' },
+      ],
+      clinicalSignificanceThreshold: 6,
+    },
+    higherIsBetter: false,
+  },
+
+  'audit': {
+    id: 'audit',
+    name: 'AUDIT Alcohol Use Screen',
+    description: 'Alcohol Use Disorders Identification Test for alcohol-related risk.',
+    instructions: 'Please answer based on your alcohol use. One drink means a standard drink.',
+    timeEstimate: '3-5 minutes',
+    copyright: 'World Health Organization',
+    questions: [
+      { id: 'audit_1', text: 'How often do you have a drink containing alcohol?', options: [
+        { value: 0, label: 'Never' },
+        { value: 1, label: 'Monthly or less' },
+        { value: 2, label: '2 to 4 times a month' },
+        { value: 3, label: '2 to 3 times a week' },
+        { value: 4, label: '4 or more times a week' },
+      ] },
+      { id: 'audit_2', text: 'How many drinks containing alcohol do you have on a typical day when you are drinking?', options: [
+        { value: 0, label: '1 or 2' },
+        { value: 1, label: '3 or 4' },
+        { value: 2, label: '5 or 6' },
+        { value: 3, label: '7 to 9' },
+        { value: 4, label: '10 or more' },
+      ] },
+      { id: 'audit_3', text: 'How often do you have six or more drinks on one occasion?' },
+      { id: 'audit_4', text: 'During the past year, how often have you found that you were not able to stop drinking once you had started?' },
+      { id: 'audit_5', text: 'During the past year, how often have you failed to do what was normally expected from you because of drinking?' },
+      { id: 'audit_6', text: 'During the past year, how often have you needed a first drink in the morning to get yourself going after a heavy drinking session?' },
+      { id: 'audit_7', text: 'During the past year, how often have you had a feeling of guilt or remorse after drinking?' },
+      { id: 'audit_8', text: 'During the past year, how often have you been unable to remember what happened the night before because you had been drinking?' },
+      { id: 'audit_9', text: 'Have you or someone else been injured because of your drinking?', options: [
+        { value: 0, label: 'No' },
+        { value: 2, label: 'Yes, but not in the past year' },
+        { value: 4, label: 'Yes, during the past year' },
+      ] },
+      { id: 'audit_10', text: 'Has a relative, friend, doctor, or another health worker been concerned about your drinking or suggested you cut down?', options: [
+        { value: 0, label: 'No' },
+        { value: 2, label: 'Yes, but not in the past year' },
+        { value: 4, label: 'Yes, during the past year' },
+      ] },
+    ],
+    options: [
+      { value: 0, label: 'Never' },
+      { value: 1, label: 'Less than monthly' },
+      { value: 2, label: 'Monthly' },
+      { value: 3, label: 'Weekly' },
+      { value: 4, label: 'Daily or almost daily' },
+    ],
+    scoring: {
+      min: 0,
+      max: 40,
+      severityLevels: [
+        { min: 0, max: 7, label: 'Low risk', color: '#10B981' },
+        { min: 8, max: 15, label: 'Hazardous use', color: '#F59E0B' },
+        { min: 16, max: 19, label: 'Harmful use', color: '#F97316' },
+        { min: 20, max: 40, label: 'Possible dependence', color: '#EF4444' },
+      ],
+      clinicalSignificanceThreshold: 4,
+    },
+    higherIsBetter: false,
+  },
+
   'ras': {
     id: 'ras',
     name: 'RAS — Relationship Assessment Scale',
@@ -568,6 +706,27 @@ function generateAlerts(assessment, previous, patient, template) {
         description: `${name} endorsed passive death wish on C-SSRS. Monitor closely.`,
       });
     }
+  }
+
+  if (assessment.template_type === 'asq') {
+    const responses = JSON.parse(assessment.responses);
+    if (responses.some(r => r && r.value === 1)) {
+      alerts.push({
+        type: 'SUICIDE_RISK',
+        severity: 'CRITICAL',
+        title: 'ASQ: Positive Suicide Risk Screen',
+        description: `${name} endorsed at least one ASQ suicide-risk item. Immediate clinical follow-up is recommended.`,
+      });
+    }
+  }
+
+  if (assessment.template_type === 'audit' && assessment.total_score >= 20) {
+    alerts.push({
+      type: 'SUBSTANCE_USE_RISK',
+      severity: 'WARNING',
+      title: 'AUDIT: Possible Alcohol Dependence',
+      description: `${name} scored ${assessment.total_score} on AUDIT, which falls in the possible dependence range.`,
+    });
   }
 
   // PCL-5: note provisional PTSD threshold
@@ -1818,6 +1977,33 @@ router.get('/checkin', async (req, res) => {
 // ── Assessment Delivery ──────────────────────────────────────────────────────
 
 // POST /api/assessments/send — send assessment using preferred contact method
+// PATCH /api/assessments/checkin/:id/dismiss - hide or restore a check-in from the profile summary
+router.patch('/checkin/:id/dismiss', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const tid = req.therapist.id;
+    const { dismissed = true } = req.body || {};
+
+    const existing = await db.get(
+      'SELECT id FROM checkin_links WHERE id = ? AND therapist_id = ?',
+      req.params.id, tid
+    );
+    if (!existing) return res.status(404).json({ error: 'Check-in not found' });
+
+    await db.run(
+      dismissed
+        ? 'UPDATE checkin_links SET dismissed_at = CURRENT_TIMESTAMP WHERE id = ? AND therapist_id = ?'
+        : 'UPDATE checkin_links SET dismissed_at = NULL WHERE id = ? AND therapist_id = ?',
+      req.params.id, tid
+    );
+    await persistIfNeeded();
+
+    res.json({ ok: true, id: Number(req.params.id), dismissed: !!dismissed });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.post('/send', async (req, res) => {
   try {
     const db = getAsyncDb();
