@@ -238,10 +238,21 @@ async function createRealtimeCallAnswer(sdp, { mode = 'conversation', pageContex
   const headers = { Authorization: `Bearer ${apiKey}` };
   if (safetyIdentifier) headers['OpenAI-Safety-Identifier'] = String(safetyIdentifier);
 
+  // OpenAI's /v1/realtime/calls usually answers in a few seconds. If it
+  // doesn't, we'd rather fail fast than have Azure App Service's outbound
+  // timeout (~30s) synthesize a no-body 504 — that loses the OpenAI
+  // request_id and any error metadata, which is what was happening before
+  // this change. 20s is generous for a healthy call and short enough to
+  // surface a clean error.
+  const REALTIME_FETCH_TIMEOUT_MS = Number(env.OPENAI_REALTIME_FETCH_TIMEOUT_MS) || 20000;
+
   const callRealtime = async (session) => {
     const form = new FormData();
     form.set('sdp', offer);
     form.set('session', JSON.stringify(session));
+
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = controller ? setTimeout(() => controller.abort(), REALTIME_FETCH_TIMEOUT_MS) : null;
 
     let response;
     try {
@@ -249,18 +260,26 @@ async function createRealtimeCallAnswer(sdp, { mode = 'conversation', pageContex
         method: 'POST',
         headers,
         body: form,
+        signal: controller?.signal,
       });
     } catch (cause) {
-      const err = new Error('Could not reach OpenAI Realtime.');
-      err.statusCode = 502;
-      err.code = 'REALTIME_OPENAI_NETWORK_ERROR';
+      const aborted = cause?.name === 'AbortError';
+      const err = new Error(aborted ? 'OpenAI Realtime call timed out.' : 'Could not reach OpenAI Realtime.');
+      err.statusCode = aborted ? 504 : 502;
+      err.code = aborted ? 'REALTIME_OPENAI_TIMEOUT' : 'REALTIME_OPENAI_NETWORK_ERROR';
       err.openai = {
         request_id: null,
         status: null,
-        error_type: cause?.name || 'network_error',
-        error_code: 'fetch_failed',
+        error_type: aborted ? 'timeout' : (cause?.name || 'network_error'),
+        error_code: aborted ? 'fetch_aborted' : 'fetch_failed',
+        error_param: null,
+        error_message: aborted
+          ? `Aborted after ${REALTIME_FETCH_TIMEOUT_MS}ms — OpenAI did not respond in time.`
+          : (cause?.message || null),
       };
       throw err;
+    } finally {
+      if (timer) clearTimeout(timer);
     }
 
     const answer = await response.text().catch(() => '');
@@ -289,15 +308,25 @@ async function createRealtimeCallAnswer(sdp, { mode = 'conversation', pageContex
   try {
     response = await callRealtime(session);
   } catch (err) {
-    // Narrow fallback: only when the model itself is rejected (the account
-    // doesn't have access to the configured model on this tier/region).
-    // Don't fall back on schema errors like invalid_offer — those mean the
-    // session JSON is wrong, and retrying with a different model won't help.
+    // Narrow model fallback: when the model itself is rejected (account
+    // doesn't have access on this tier/region) OR when the call fails in
+    // a way that suggests the configured model is slow/unprovisioned on
+    // this account (504 timeout, gateway timeout, abort). The new GA
+    // gpt-realtime-2 has higher cold-start variance than the legacy
+    // gpt-realtime, so a 504 from /v1/realtime/calls in prod is most often
+    // "this model isn't warm for our account, use the older one." Don't
+    // fall back on schema errors (invalid_offer, invalid_session) — those
+    // mean the session JSON is wrong and a different model won't help.
     const modelErrorCodes = new Set(['invalid_model', 'model_not_found', 'model_not_available']);
+    const timeoutLikeStatuses = new Set([502, 503, 504]);
+    const isModelReject = modelErrorCodes.has(err?.openai?.error_code)
+      || err?.openai?.error_type === 'model_not_found';
+    const isLikelyProvisioningIssue = err?.code === 'REALTIME_OPENAI_TIMEOUT'
+      || (err?.statusCode && timeoutLikeStatuses.has(err.statusCode) && !err?.openai?.error_code);
     const shouldRetryFallback = session.type === 'realtime'
       && config.fallbackModel
       && config.fallbackModel !== session.model
-      && (modelErrorCodes.has(err?.openai?.error_code) || err?.openai?.error_type === 'model_not_found');
+      && (isModelReject || isLikelyProvisioningIssue);
     if (!shouldRetryFallback) throw err;
     const fallbackSession = sessionForMode({ mode, pageContext, modelOverride: config.fallbackModel }, env);
     try {
@@ -306,9 +335,12 @@ async function createRealtimeCallAnswer(sdp, { mode = 'conversation', pageContex
         answer: response,
         model: fallbackSession.model,
         fallbackFrom: session.model,
+        fallbackReason: isModelReject ? 'model_rejected' : 'primary_timeout',
         sessionType: fallbackSession.type,
       };
     } catch {
+      // Throw the ORIGINAL error so the user sees the underlying cause, not
+      // the fallback's secondary failure.
       throw err;
     }
   }
