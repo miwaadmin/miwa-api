@@ -2,14 +2,16 @@
 
 const { canSendPhiToTextAI, getTextAIProvider } = require('../lib/phiPolicy');
 
+// Model IDs per OpenAI's published model catalog
+// (https://developers.openai.com/api/docs/models):
+//   gpt-realtime-2        — reasoning model for realtime voice (conversation)
+//   gpt-realtime-1.5      — prior-gen voice model, used as conversation fallback
+//   gpt-realtime-whisper  — streaming transcription
+//   gpt-realtime-translate — streaming speech-to-speech translation
 const DEFAULT_REALTIME_MODEL = 'gpt-realtime-2';
 const DEFAULT_REALTIME_FALLBACK_MODEL = 'gpt-realtime';
 const DEFAULT_TRANSCRIPTION_MODEL = 'gpt-realtime-whisper';
-// whisper-1 is the universally-available transcription model on OpenAI; it's
-// the safe-harbor fallback when an account doesn't have access to the
-// optimistic transcription model (gpt-realtime-whisper / gpt-4o-transcribe).
-const DEFAULT_TRANSCRIPTION_FALLBACK_MODEL = 'whisper-1';
-const DEFAULT_TRANSLATION_MODEL = 'gpt-realtime-2';
+const DEFAULT_TRANSLATION_MODEL = 'gpt-realtime-translate';
 const DEFAULT_VOICE = 'marin';
 
 function isTruthy(value) {
@@ -26,7 +28,6 @@ function getRealtimeConfig(env = process.env) {
     model: String(env.OPENAI_REALTIME_MODEL || DEFAULT_REALTIME_MODEL).trim(),
     fallbackModel: String(env.OPENAI_REALTIME_FALLBACK_MODEL || DEFAULT_REALTIME_FALLBACK_MODEL).trim(),
     transcriptionModel: String(env.OPENAI_REALTIME_TRANSCRIPTION_MODEL || DEFAULT_TRANSCRIPTION_MODEL).trim(),
-    transcriptionFallbackModel: String(env.OPENAI_REALTIME_TRANSCRIPTION_FALLBACK_MODEL || DEFAULT_TRANSCRIPTION_FALLBACK_MODEL).trim(),
     translationModel: String(env.OPENAI_REALTIME_TRANSLATION_MODEL || DEFAULT_TRANSLATION_MODEL).trim(),
     voice: String(env.OPENAI_REALTIME_VOICE || DEFAULT_VOICE).trim(),
   };
@@ -63,7 +64,6 @@ function safeOpenAIDetails(err, env = process.env, mode = 'conversation') {
     model: config.model,
     fallbackModel: config.fallbackModel,
     transcriptionModel: config.transcriptionModel,
-    transcriptionFallbackModel: config.transcriptionFallbackModel,
     translationModel: config.translationModel,
     voice: config.voice,
   };
@@ -115,6 +115,9 @@ function sessionForMode({ mode = 'conversation', pageContext = {}, modelOverride
   const model = modelOverride || (normalizedMode === 'translate' ? config.translationModel : config.model);
 
   if (normalizedMode === 'dictation') {
+    // Transcription-only session: no model at top level, no output_modalities.
+    // The model lives on audio.input.transcription.model per the realtime
+    // transcription_sessions schema.
     return {
       type: 'transcription',
       audio: {
@@ -127,10 +130,17 @@ function sessionForMode({ mode = 'conversation', pageContext = {}, modelOverride
     };
   }
 
+  // Conversation + translation: realtime session. The new GA realtime API
+  // requires `output_modalities` to be set explicitly — leaving it off
+  // returns an `invalid_offer` from /v1/realtime/calls because the model
+  // can't decide whether to produce audio, text, or both. We default to
+  // both so the WebRTC audio track has data AND the data channel still
+  // gets transcript events for the on-screen "Live transcript" panel.
   return {
     type: 'realtime',
     model,
     instructions: clinicalRealtimeInstructions({ mode: normalizedMode, pageContext }),
+    output_modalities: ['audio', 'text'],
     audio: {
       output: {
         voice: config.voice,
@@ -251,74 +261,31 @@ async function createRealtimeCallAnswer(sdp, { mode = 'conversation', pageContex
     return answer;
   };
 
-  // Decide whether the error from OpenAI is a model-rejection signal worth
-  // retrying with the configured fallback model. OpenAI surfaces this in
-  // several different shapes depending on the endpoint:
-  //   - error_code = invalid_model | model_not_found | model_not_available
-  //   - error_type = model_not_found
-  //   - error_code = invalid_offer | invalid_session | invalid_request_error
-  //     when the SDP+session payload is rejected because the requested model
-  //     isn't available on this account/region (this is what users see when
-  //     OPENAI_REALTIME_MODEL=gpt-realtime-2 isn't enabled for their key)
-  //   - error_param = "model" or message contains "model" + "not"
-  //
-  // Without this widened check, a "Live Voice could not connect (invalid_offer)"
-  // message permanently blocks Live / Dictate / Translate even though the
-  // configured fallback model would work fine.
-  const isModelRejection = (err) => {
-    const code = String(err?.openai?.error_code || '').toLowerCase();
-    const type = String(err?.openai?.error_type || '').toLowerCase();
-    const param = String(err?.openai?.error_param || '').toLowerCase();
-    const msg = String(err?.openai?.error_message || err?.message || '').toLowerCase();
-    if (['invalid_model', 'model_not_found', 'model_not_available',
-         'invalid_offer', 'invalid_session', 'invalid_request_error'].includes(code)) return true;
-    if (type === 'model_not_found' || type === 'invalid_request_error') return true;
-    if (param === 'model') return true;
-    if (msg.includes('model') && (msg.includes('not found') || msg.includes('does not exist') || msg.includes('not available') || msg.includes('access'))) return true;
-    return false;
-  };
-
   const session = sessionForMode({ mode, pageContext }, env);
   let response;
   try {
     response = await callRealtime(session);
   } catch (err) {
-    if (!isModelRejection(err)) throw err;
-
-    // Build a fallback session appropriate to the original session type.
-    // Realtime sessions retry with config.fallbackModel; transcription
-    // sessions retry by overriding the inner transcription.model field with
-    // config.transcriptionFallbackModel (whisper-1 by default). Translation
-    // mode also rides config.fallbackModel since it uses the realtime API.
-    let fallbackSession = null;
-    let fallbackLabel = null;
-    if (session.type === 'realtime' && config.fallbackModel && config.fallbackModel !== session.model) {
-      fallbackSession = sessionForMode({ mode, pageContext, modelOverride: config.fallbackModel }, env);
-      fallbackLabel = config.fallbackModel;
-    } else if (session.type === 'transcription'
-        && config.transcriptionFallbackModel
-        && config.transcriptionFallbackModel !== config.transcriptionModel) {
-      // Build a transcription session with the fallback transcription model
-      // baked into audio.input.transcription.model.
-      fallbackSession = {
-        type: 'transcription',
-        audio: { input: { transcription: { model: config.transcriptionFallbackModel } } },
-      };
-      fallbackLabel = config.transcriptionFallbackModel;
-    }
-    if (!fallbackSession) throw err;
-
+    // Narrow fallback: only when the model itself is rejected (the account
+    // doesn't have access to the configured model on this tier/region).
+    // Don't fall back on schema errors like invalid_offer — those mean the
+    // session JSON is wrong, and retrying with a different model won't help.
+    const modelErrorCodes = new Set(['invalid_model', 'model_not_found', 'model_not_available']);
+    const shouldRetryFallback = session.type === 'realtime'
+      && config.fallbackModel
+      && config.fallbackModel !== session.model
+      && (modelErrorCodes.has(err?.openai?.error_code) || err?.openai?.error_type === 'model_not_found');
+    if (!shouldRetryFallback) throw err;
+    const fallbackSession = sessionForMode({ mode, pageContext, modelOverride: config.fallbackModel }, env);
     try {
       response = await callRealtime(fallbackSession);
       return {
         answer: response,
-        model: fallbackLabel,
-        fallbackFrom: session.type === 'realtime' ? session.model : config.transcriptionModel,
+        model: fallbackSession.model,
+        fallbackFrom: session.model,
         sessionType: fallbackSession.type,
       };
     } catch {
-      // Throw the ORIGINAL error so the user sees the underlying cause, not
-      // the fallback's secondary error.
       throw err;
     }
   }
