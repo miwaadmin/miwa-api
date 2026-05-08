@@ -354,6 +354,8 @@ export default function MiwaChat() {
   const [liveVoiceMode, setLiveVoiceMode] = useState('conversation')
   const [liveVoiceStatus, setLiveVoiceStatus] = useState('')
   const [liveTranscript, setLiveTranscript] = useState('')
+  const [liveMicMuted, setLiveMicMuted] = useState(false)
+  const [liveAssistantSpeaking, setLiveAssistantSpeaking] = useState(false)
   const [voiceSupported] = useState(() =>
     typeof window !== 'undefined' && !!window.MediaRecorder && !!window.speechSynthesis
   )
@@ -625,6 +627,8 @@ export default function MiwaChat() {
   const realtimeStreamRef = useRef(null)
   const realtimeAudioElRef = useRef(null)
   const realtimeAssistantRef = useRef('')
+  const liveManualMuteRef = useRef(false)
+  const liveAssistantSpeakingRef = useRef(false)
 
   // Keep voiceEnabled ref in sync
   useEffect(() => { voiceEnabledRef.current = voiceEnabled }, [voiceEnabled])
@@ -1253,6 +1257,23 @@ When you're done, I'll save this as your profile and refer back to it in every c
   }, [])
 
   // ── Voice: STT (Whisper) ──────────────────────────────────────────────────
+  const applyLiveMicState = useCallback(() => {
+    const muted = liveManualMuteRef.current || liveAssistantSpeakingRef.current
+    realtimeStreamRef.current?.getAudioTracks?.().forEach(track => { track.enabled = !muted })
+    setLiveMicMuted(muted)
+  }, [])
+
+  const setRealtimeAssistantSpeaking = useCallback((next) => {
+    liveAssistantSpeakingRef.current = Boolean(next)
+    setLiveAssistantSpeaking(Boolean(next))
+    applyLiveMicState()
+  }, [applyLiveMicState])
+
+  const toggleLiveMicMute = useCallback(() => {
+    liveManualMuteRef.current = !liveManualMuteRef.current
+    applyLiveMicState()
+  }, [applyLiveMicState])
+
   const stopLiveVoice = useCallback(() => {
     try { realtimePcRef.current?.close() } catch {}
     realtimePcRef.current = null
@@ -1265,12 +1286,33 @@ When you're done, I'll save this as your profile and refer back to it in every c
       realtimeAudioElRef.current = null
     }
     realtimeAssistantRef.current = ''
+    liveManualMuteRef.current = false
+    liveAssistantSpeakingRef.current = false
     setLiveVoice(false)
     setLiveVoiceStatus('')
+    setLiveMicMuted(false)
+    setLiveAssistantSpeaking(false)
   }, [])
 
   const handleRealtimeEvent = useCallback((event, mode) => {
     if (!event?.type) return
+    if (
+      event.type === 'response.created'
+      || event.type === 'response.audio.delta'
+      || event.type === 'response.output_audio.delta'
+      || event.type === 'output_audio_buffer.started'
+    ) {
+      setRealtimeAssistantSpeaking(true)
+    }
+    if (
+      event.type === 'response.audio.done'
+      || event.type === 'response.done'
+      || event.type === 'response.cancelled'
+      || event.type === 'response.failed'
+      || event.type === 'output_audio_buffer.stopped'
+    ) {
+      setRealtimeAssistantSpeaking(false)
+    }
     if (event.type === 'conversation.item.input_audio_transcription.delta' && event.delta) {
       setLiveTranscript(prev => `${prev}${event.delta}`)
       return
@@ -1296,7 +1338,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
       realtimeAssistantRef.current = ''
       setStreamingText('')
     }
-  }, [])
+  }, [setRealtimeAssistantSpeaking])
 
   const startLiveVoice = useCallback(async (mode = 'conversation') => {
     if (streaming || !realtimeSupported) return
@@ -1316,6 +1358,10 @@ When you're done, I'll save this as your profile and refer back to it in every c
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       realtimeStreamRef.current = stream
+      liveManualMuteRef.current = false
+      liveAssistantSpeakingRef.current = false
+      setLiveMicMuted(false)
+      setLiveAssistantSpeaking(false)
       stream.getTracks().forEach(track => pc.addTrack(track, stream))
 
       const dc = pc.createDataChannel('oai-events')
@@ -2039,18 +2085,39 @@ When you're done, I'll save this as your profile and refer back to it in every c
                     </button>
                   ))}
                   {liveVoice && (
-                    <button
-                      type="button"
-                      onClick={stopLiveVoice}
-                      className="ml-auto h-7 rounded-lg px-2 text-[11px] font-semibold bg-red-50 text-red-600 hover:bg-red-100"
-                    >
-                      Stop
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        onClick={toggleLiveMicMute}
+                        disabled={liveAssistantSpeaking}
+                        className={`ml-auto h-7 rounded-lg px-2 text-[11px] font-semibold transition-colors ${
+                          liveMicMuted
+                            ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                            : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                        }`}
+                        title={liveMicMuted ? 'Unmute your live mic' : 'Mute your live mic'}
+                      >
+                        {liveAssistantSpeaking ? 'Auto-muted' : liveMicMuted ? 'Muted' : 'Mute'}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={stopLiveVoice}
+                        className="h-7 rounded-lg px-2 text-[11px] font-semibold bg-red-50 text-red-600 hover:bg-red-100"
+                      >
+                        Stop
+                      </button>
+                    </>
                   )}
                 </div>
                 {(liveVoiceStatus || liveTranscript) && (
                   <div className="mt-2 rounded-xl bg-white px-2.5 py-2 text-[11px] leading-relaxed text-gray-600 border border-gray-100">
                     {liveVoiceStatus && <div className="font-semibold text-gray-700">{liveVoiceStatus}</div>}
+                    {liveVoice && liveAssistantSpeaking && (
+                      <div className="mt-1 font-semibold text-amber-700">Mic muted while Miwa is speaking.</div>
+                    )}
+                    {liveVoice && liveMicMuted && !liveAssistantSpeaking && (
+                      <div className="mt-1 font-semibold text-amber-700">Your live mic is muted.</div>
+                    )}
                     {liveTranscript && (
                       <div className="mt-1 line-clamp-2">{liveTranscript}</div>
                     )}
