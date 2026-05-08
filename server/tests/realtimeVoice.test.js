@@ -68,7 +68,8 @@ test('conversation mode includes clinical and page context instructions', () => 
   assert.match(session.instructions, /HIPAA-focused clinical copilot/);
   assert.match(session.instructions, /Current Miwa UI context: page=Patients/);
   assert.equal(session.audio.output.voice, getRealtimeConfig(phiRealtimeEnv()).voice);
-  assert.equal(session.audio.input, undefined);
+  assert.equal(session.audio.input.turn_detection.type, 'server_vad');
+  assert.equal(session.audio.input.turn_detection.silence_duration_ms, 1800);
 });
 
 test('client secret request sends only session config and returns Miwa connection metadata', async () => {
@@ -131,7 +132,8 @@ test('unified realtime call sends SDP and session config from the server', async
   const session = JSON.parse(await seen[0].options.body.get('session'));
   assert.equal(session.type, 'realtime');
   assert.equal(session.model, 'gpt-realtime-2');
-  assert.deepEqual(Object.keys(session.audio), ['output']);
+  assert.deepEqual(Object.keys(session.audio).sort(), ['input', 'output']);
+  assert.equal(session.audio.input.turn_detection.silence_duration_ms, 1800);
   assert.doesNotMatch(JSON.stringify(session), /OPENAI_PHI_API_KEY|phi-key/);
 });
 

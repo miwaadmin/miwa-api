@@ -656,6 +656,10 @@ export default function MiwaChat() {
   const liveManualMuteRef = useRef(false)
   const liveAssistantSpeakingRef = useRef(false)
   const liveAutoUnmuteTimerRef = useRef(null)
+  const liveOutputAudioCtxRef = useRef(null)
+  const liveOutputMonitorRef = useRef(null)
+  const liveOutputHeardAudioRef = useRef(false)
+  const liveOutputSilentSinceRef = useRef(null)
 
   // Keep voiceEnabled ref in sync
   useEffect(() => { voiceEnabledRef.current = voiceEnabled }, [voiceEnabled])
@@ -1295,6 +1299,16 @@ When you're done, I'll save this as your profile and refer back to it in every c
       clearTimeout(liveAutoUnmuteTimerRef.current)
       liveAutoUnmuteTimerRef.current = null
     }
+    if (next) {
+      liveOutputHeardAudioRef.current = false
+      liveOutputSilentSinceRef.current = null
+      liveAutoUnmuteTimerRef.current = setTimeout(() => {
+        liveAutoUnmuteTimerRef.current = null
+        liveAssistantSpeakingRef.current = false
+        setLiveAssistantSpeaking(false)
+        applyLiveMicState()
+      }, 90000)
+    }
     liveAssistantSpeakingRef.current = Boolean(next)
     setLiveAssistantSpeaking(Boolean(next))
     applyLiveMicState()
@@ -1309,6 +1323,63 @@ When you're done, I'll save this as your profile and refer back to it in every c
       applyLiveMicState()
     }, delayMs)
   }, [applyLiveMicState])
+
+  const cleanupLiveOutputMonitor = useCallback(() => {
+    if (liveOutputMonitorRef.current) {
+      cancelAnimationFrame(liveOutputMonitorRef.current)
+      liveOutputMonitorRef.current = null
+    }
+    if (liveOutputAudioCtxRef.current) {
+      try { liveOutputAudioCtxRef.current.close() } catch {}
+      liveOutputAudioCtxRef.current = null
+    }
+    liveOutputHeardAudioRef.current = false
+    liveOutputSilentSinceRef.current = null
+  }, [])
+
+  const startLiveOutputMonitor = useCallback((remoteStream) => {
+    cleanupLiveOutputMonitor()
+    const AudioContextCtor = window.AudioContext || window.webkitAudioContext
+    if (!AudioContextCtor || !remoteStream) return
+    try {
+      const ctx = new AudioContextCtor()
+      const source = ctx.createMediaStreamSource(remoteStream)
+      const analyser = ctx.createAnalyser()
+      analyser.fftSize = 1024
+      source.connect(analyser)
+      liveOutputAudioCtxRef.current = ctx
+      const samples = new Uint8Array(analyser.fftSize)
+      const threshold = 0.012
+      const silenceMs = 1400
+
+      const tick = () => {
+        analyser.getByteTimeDomainData(samples)
+        let sum = 0
+        for (let i = 0; i < samples.length; i += 1) {
+          const centered = (samples[i] - 128) / 128
+          sum += centered * centered
+        }
+        const rms = Math.sqrt(sum / samples.length)
+        const now = performance.now()
+        if (rms > threshold) {
+          liveOutputHeardAudioRef.current = true
+          liveOutputSilentSinceRef.current = null
+          if (!liveAssistantSpeakingRef.current) setRealtimeAssistantSpeaking(true)
+        } else if (liveAssistantSpeakingRef.current && liveOutputHeardAudioRef.current) {
+          if (!liveOutputSilentSinceRef.current) liveOutputSilentSinceRef.current = now
+          if (now - liveOutputSilentSinceRef.current > silenceMs) {
+            setRealtimeAssistantSpeaking(false)
+            liveOutputHeardAudioRef.current = false
+            liveOutputSilentSinceRef.current = null
+          }
+        }
+        liveOutputMonitorRef.current = requestAnimationFrame(tick)
+      }
+      liveOutputMonitorRef.current = requestAnimationFrame(tick)
+    } catch {
+      cleanupLiveOutputMonitor()
+    }
+  }, [cleanupLiveOutputMonitor, setRealtimeAssistantSpeaking])
 
   const toggleLiveMicMute = useCallback(() => {
     liveManualMuteRef.current = !liveManualMuteRef.current
@@ -1326,6 +1397,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
       realtimeAudioElRef.current.srcObject = null
       realtimeAudioElRef.current = null
     }
+    cleanupLiveOutputMonitor()
     realtimeAssistantRef.current = ''
     if (liveAutoUnmuteTimerRef.current) {
       clearTimeout(liveAutoUnmuteTimerRef.current)
@@ -1354,11 +1426,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
       || event.type === 'response.done'
       || event.type === 'output_audio_buffer.stopped'
     ) {
-      const spokenText = (event.transcript || realtimeAssistantRef.current || '').trim()
-      const estimatedPlaybackMs = spokenText
-        ? Math.min(30000, Math.max(4500, spokenText.length * 85))
-        : 8000
-      scheduleLiveAutoUnmute(event.type === 'output_audio_buffer.stopped' ? 1800 : estimatedPlaybackMs)
+      if (!liveOutputHeardAudioRef.current) scheduleLiveAutoUnmute(12000)
     }
     if (event.type === 'response.cancelled' || event.type === 'response.failed') {
       scheduleLiveAutoUnmute(800)
@@ -1404,7 +1472,10 @@ When you're done, I'll save this as your profile and refer back to it in every c
       const audioEl = document.createElement('audio')
       audioEl.autoplay = true
       realtimeAudioElRef.current = audioEl
-      pc.ontrack = event => { audioEl.srcObject = event.streams[0] }
+      pc.ontrack = event => {
+        audioEl.srcObject = event.streams[0]
+        startLiveOutputMonitor(event.streams[0])
+      }
 
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       realtimeStreamRef.current = stream
@@ -1461,7 +1532,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
         : (err.message || 'Miwa Live Voice could not start.')
       setError(message)
     }
-  }, [buildLiveGreetingInstructions, currentPageContext, handleRealtimeEvent, liveVoice, realtimeSupported, stopLiveVoice, stopSpeaking, streaming])
+  }, [buildLiveGreetingInstructions, currentPageContext, handleRealtimeEvent, liveVoice, realtimeSupported, startLiveOutputMonitor, stopLiveVoice, stopSpeaking, streaming])
 
   useEffect(() => () => stopLiveVoice(), [stopLiveVoice])
 

@@ -153,6 +153,14 @@ function sessionForMode({ mode = 'conversation', pageContext = {}, modelOverride
     model,
     instructions: clinicalRealtimeInstructions({ mode: normalizedMode, pageContext }),
     audio: {
+      input: {
+        turn_detection: {
+          type: 'server_vad',
+          threshold: 0.5,
+          prefix_padding_ms: 500,
+          silence_duration_ms: 1800,
+        },
+      },
       output: {
         voice: config.voice,
       },
