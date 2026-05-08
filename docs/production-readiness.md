@@ -19,6 +19,7 @@ This is the near-term bar before inviting real clinicians to store PHI in Miwa.
   or fine-tuning for PHI.
 - Miwa Live Voice additionally requires `OPENAI_REALTIME_PHI_ENABLED=true`.
   Recommended defaults are `OPENAI_REALTIME_MODEL=gpt-realtime-2`,
+  `OPENAI_REALTIME_FALLBACK_MODEL=gpt-realtime`,
   `OPENAI_REALTIME_TRANSCRIPTION_MODEL=gpt-realtime-whisper`,
   `OPENAI_REALTIME_TRANSLATION_MODEL=gpt-realtime-2`, and
   `OPENAI_REALTIME_VOICE=marin`. Browser clients receive only short-lived

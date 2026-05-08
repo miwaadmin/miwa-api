@@ -96,6 +96,7 @@ test('agent realtime status returns safe configuration diagnostics', async () =>
   process.env.OPENAI_PHI_ZDR_ENABLED = 'true';
   process.env.OPENAI_REALTIME_PHI_ENABLED = 'true';
   process.env.OPENAI_REALTIME_MODEL = 'gpt-realtime-2';
+  process.env.OPENAI_REALTIME_FALLBACK_MODEL = 'gpt-realtime';
   process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL = 'gpt-realtime-whisper';
 
   const res = await api('GET', '/api/agent/realtime/status', undefined, cookie);
@@ -103,6 +104,7 @@ test('agent realtime status returns safe configuration diagnostics', async () =>
   assert.equal(res.status, 200);
   assert.equal(res.body.enabled, true);
   assert.equal(res.body.model, 'gpt-realtime-2');
+  assert.equal(res.body.fallbackModel, 'gpt-realtime');
   assert.equal(res.body.transcriptionModel, 'gpt-realtime-whisper');
   assert.doesNotMatch(JSON.stringify(res.body), /test-openai-key|OPENAI_PHI_API_KEY/);
 });

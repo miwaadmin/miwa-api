@@ -3,6 +3,7 @@
 const { canSendPhiToTextAI, getTextAIProvider } = require('../lib/phiPolicy');
 
 const DEFAULT_REALTIME_MODEL = 'gpt-realtime-2';
+const DEFAULT_REALTIME_FALLBACK_MODEL = 'gpt-realtime';
 const DEFAULT_TRANSCRIPTION_MODEL = 'gpt-realtime-whisper';
 const DEFAULT_TRANSLATION_MODEL = 'gpt-realtime-2';
 const DEFAULT_VOICE = 'marin';
@@ -19,6 +20,7 @@ function getRealtimeConfig(env = process.env) {
   return {
     enabled: realtimeEnabled(env),
     model: String(env.OPENAI_REALTIME_MODEL || DEFAULT_REALTIME_MODEL).trim(),
+    fallbackModel: String(env.OPENAI_REALTIME_FALLBACK_MODEL || DEFAULT_REALTIME_FALLBACK_MODEL).trim(),
     transcriptionModel: String(env.OPENAI_REALTIME_TRANSCRIPTION_MODEL || DEFAULT_TRANSCRIPTION_MODEL).trim(),
     translationModel: String(env.OPENAI_REALTIME_TRANSLATION_MODEL || DEFAULT_TRANSLATION_MODEL).trim(),
     voice: String(env.OPENAI_REALTIME_VOICE || DEFAULT_VOICE).trim(),
@@ -35,6 +37,7 @@ function getRealtimeStatus(env = process.env) {
     hipaaOpenAIBlocked: ['0', 'false', 'no', 'off'].includes(String(env.HIPAA_OPENAI_ENABLED || '').trim().toLowerCase()),
     realtimePhiEnabled: isTruthy(env.OPENAI_REALTIME_PHI_ENABLED),
     model: config.model,
+    fallbackModel: config.fallbackModel,
     transcriptionModel: config.transcriptionModel,
     translationModel: config.translationModel,
     voice: config.voice,
@@ -51,6 +54,7 @@ function safeOpenAIDetails(err, env = process.env, mode = 'conversation') {
     openaiErrorCode: err?.openai?.error_code || null,
     openaiRequestId: err?.openai?.request_id || null,
     model: config.model,
+    fallbackModel: config.fallbackModel,
     transcriptionModel: config.transcriptionModel,
     translationModel: config.translationModel,
     voice: config.voice,
@@ -97,10 +101,10 @@ function clinicalRealtimeInstructions({ mode = 'conversation', pageContext = {} 
   ].join(' ');
 }
 
-function sessionForMode({ mode = 'conversation', pageContext = {} } = {}, env = process.env) {
+function sessionForMode({ mode = 'conversation', pageContext = {}, modelOverride = null } = {}, env = process.env) {
   const config = getRealtimeConfig(env);
   const normalizedMode = ['conversation', 'dictation', 'translate'].includes(mode) ? mode : 'conversation';
-  const model = normalizedMode === 'translate' ? config.translationModel : config.model;
+  const model = modelOverride || (normalizedMode === 'translate' ? config.translationModel : config.model);
 
   if (normalizedMode === 'dictation') {
     return {
@@ -120,11 +124,6 @@ function sessionForMode({ mode = 'conversation', pageContext = {} } = {}, env = 
     model,
     instructions: clinicalRealtimeInstructions({ mode: normalizedMode, pageContext }),
     audio: {
-      input: {
-        transcription: {
-          model: config.transcriptionModel,
-        },
-      },
       output: {
         voice: config.voice,
       },
@@ -195,38 +194,80 @@ async function createRealtimeCallAnswer(sdp, { mode = 'conversation', pageContex
   }
 
   const apiKey = String(env.OPENAI_PHI_API_KEY || '').trim();
-  const session = sessionForMode({ mode, pageContext }, env);
-  const form = new FormData();
-  form.set('sdp', offer);
-  form.set('session', JSON.stringify(session));
-
   const headers = { Authorization: `Bearer ${apiKey}` };
   if (safetyIdentifier) headers['OpenAI-Safety-Identifier'] = String(safetyIdentifier);
 
-  const response = await fetchImpl('https://api.openai.com/v1/realtime/calls', {
-    method: 'POST',
-    headers,
-    body: form,
-  });
+  const callRealtime = async (session) => {
+    const form = new FormData();
+    form.set('sdp', offer);
+    form.set('session', JSON.stringify(session));
 
-  const answer = await response.text().catch(() => '');
-  if (!response.ok) {
-    let parsed = {};
-    try { parsed = JSON.parse(answer); } catch {}
-    const err = new Error('Could not start Miwa Live Voice.');
-    err.statusCode = response.status || 502;
-    err.code = 'REALTIME_CALL_FAILED';
-    err.openai = {
-      request_id: response.headers?.get?.('x-request-id') || null,
-      status: response.status,
-      error_type: parsed?.error?.type || null,
-      error_code: parsed?.error?.code || null,
-    };
-    throw err;
+    let response;
+    try {
+      response = await fetchImpl('https://api.openai.com/v1/realtime/calls', {
+        method: 'POST',
+        headers,
+        body: form,
+      });
+    } catch (cause) {
+      const err = new Error('Could not reach OpenAI Realtime.');
+      err.statusCode = 502;
+      err.code = 'REALTIME_OPENAI_NETWORK_ERROR';
+      err.openai = {
+        request_id: null,
+        status: null,
+        error_type: cause?.name || 'network_error',
+        error_code: 'fetch_failed',
+      };
+      throw err;
+    }
+
+    const answer = await response.text().catch(() => '');
+    if (!response.ok) {
+      let parsed = {};
+      try { parsed = JSON.parse(answer); } catch {}
+      const err = new Error('Could not start Miwa Live Voice.');
+      err.statusCode = response.status || 502;
+      err.code = 'REALTIME_CALL_FAILED';
+      err.openai = {
+        request_id: response.headers?.get?.('x-request-id') || null,
+        status: response.status,
+        error_type: parsed?.error?.type || null,
+        error_code: parsed?.error?.code || null,
+      };
+      throw err;
+    }
+
+    return answer;
+  };
+
+  const session = sessionForMode({ mode, pageContext }, env);
+  let response;
+  try {
+    response = await callRealtime(session);
+  } catch (err) {
+    const modelErrorCodes = new Set(['invalid_model', 'model_not_found', 'model_not_available']);
+    const shouldRetryFallback = session.type === 'realtime'
+      && config.fallbackModel
+      && config.fallbackModel !== session.model
+      && (modelErrorCodes.has(err?.openai?.error_code) || err?.openai?.error_type === 'model_not_found');
+    if (!shouldRetryFallback) throw err;
+    const fallbackSession = sessionForMode({ mode, pageContext, modelOverride: config.fallbackModel }, env);
+    try {
+      response = await callRealtime(fallbackSession);
+      return {
+        answer: response,
+        model: fallbackSession.model,
+        fallbackFrom: session.model,
+        sessionType: fallbackSession.type,
+      };
+    } catch {
+      throw err;
+    }
   }
 
   return {
-    answer,
+    answer: response,
     model: session.model || config.transcriptionModel,
     sessionType: session.type,
   };

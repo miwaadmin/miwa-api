@@ -106,6 +106,7 @@ jobs:
           UPDATES+=("OPENAI_PHI_STRUCTURED_MODEL=gpt-5.4-mini")
           UPDATES+=("OPENAI_REALTIME_PHI_ENABLED=true")
           UPDATES+=("OPENAI_REALTIME_MODEL=gpt-realtime-2")
+          UPDATES+=("OPENAI_REALTIME_FALLBACK_MODEL=gpt-realtime")
           UPDATES+=("OPENAI_REALTIME_TRANSCRIPTION_MODEL=gpt-realtime-whisper")
           UPDATES+=("OPENAI_REALTIME_TRANSLATION_MODEL=gpt-realtime-2")
           UPDATES+=("OPENAI_REALTIME_VOICE=marin")

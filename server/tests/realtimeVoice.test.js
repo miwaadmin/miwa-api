@@ -38,6 +38,7 @@ test('realtime status reports safe diagnostics without secrets', () => {
   assert.equal(status.textProvider, 'openai-phi-zdr');
   assert.equal(status.openaiPhiKeyConfigured, true);
   assert.equal(status.model, 'gpt-realtime-2');
+  assert.equal(status.fallbackModel, 'gpt-realtime');
   assert.equal(status.transcriptionModel, 'gpt-realtime-whisper');
   assert.doesNotMatch(JSON.stringify(status), /phi-key|OPENAI_PHI_API_KEY/);
 });
@@ -63,6 +64,7 @@ test('conversation mode includes clinical and page context instructions', () => 
   assert.match(session.instructions, /HIPAA-focused clinical copilot/);
   assert.match(session.instructions, /Current Miwa UI context: page=Patients/);
   assert.equal(session.audio.output.voice, getRealtimeConfig(phiRealtimeEnv()).voice);
+  assert.equal(session.audio.input, undefined);
 });
 
 test('client secret request sends only session config and returns Miwa connection metadata', async () => {
@@ -122,7 +124,46 @@ test('unified realtime call sends SDP and session config from the server', async
   const session = JSON.parse(await seen[0].options.body.get('session'));
   assert.equal(session.type, 'realtime');
   assert.equal(session.model, 'gpt-realtime-2');
+  assert.deepEqual(Object.keys(session.audio), ['output']);
   assert.doesNotMatch(JSON.stringify(session), /OPENAI_PHI_API_KEY|phi-key/);
+});
+
+test('unified realtime call retries configured fallback model for model access failures', async () => {
+  const seen = [];
+  const fakeFetch = async (url, options) => {
+    const session = JSON.parse(await options.body.get('session'));
+    seen.push(session.model);
+    if (seen.length === 1) {
+      return {
+        ok: false,
+        status: 400,
+        headers: { get: (name) => name === 'x-request-id' ? 'req_primary' : null },
+        async text() {
+          return JSON.stringify({ error: { type: 'invalid_request_error', code: 'invalid_model' } });
+        },
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      headers: new Map(),
+      async text() {
+        return 'v=0\r\no=openai-fallback-answer\r\n';
+      },
+    };
+  };
+
+  const result = await createRealtimeCallAnswer('v=0\r\no=browser-offer\r\n', {
+    mode: 'conversation',
+  }, phiRealtimeEnv({
+    OPENAI_REALTIME_MODEL: 'gpt-realtime-2',
+    OPENAI_REALTIME_FALLBACK_MODEL: 'gpt-realtime',
+  }), fakeFetch);
+
+  assert.deepEqual(seen, ['gpt-realtime-2', 'gpt-realtime']);
+  assert.equal(result.answer, 'v=0\r\no=openai-fallback-answer\r\n');
+  assert.equal(result.model, 'gpt-realtime');
+  assert.equal(result.fallbackFrom, 'gpt-realtime-2');
 });
 
 test('unified realtime call exposes safe OpenAI error metadata', async () => {
