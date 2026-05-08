@@ -203,12 +203,35 @@ async function createRealtimeCallAnswer(sdp, { mode = 'conversation', pageContex
     throw err;
   }
 
-  const offer = String(sdp || '').trim();
+  // Validate the SDP shape WITHOUT mutating it. The previous version did
+  // `String(sdp || '').trim()`, which stripped the trailing CRLF that
+  // browsers always ship at the end of an SDP offer. OpenAI's realtime
+  // service uses Pion (Go) to parse the SDP, and Pion treats "no trailing
+  // \r\n on the final attribute" as a parse error — surfaced to us as
+  // "failed to unmarshal SDP: EOF". We need to forward the body byte-for-
+  // byte, only normalizing the trailing terminator if it's missing
+  // entirely (some proxies / body parsers normalize \r\n to \n).
+  let offer = String(sdp || '');
+  // Strip a UTF-8 BOM if any reverse proxy added one. Preserve all other
+  // bytes, including leading whitespace inside the body (rare but possible).
+  if (offer.charCodeAt(0) === 0xFEFF) offer = offer.slice(1);
   if (!offer || !offer.includes('v=0')) {
     const err = new Error('Realtime SDP offer is missing or invalid.');
     err.statusCode = 400;
     err.code = 'REALTIME_SDP_INVALID';
     throw err;
+  }
+  // Ensure SDP ends with a CRLF. If it ends with a bare \n (line endings
+  // got normalized somewhere), upgrade to CRLF; if it has no terminator
+  // at all, append one. This is what was actually breaking Live Voice in
+  // prod — Pion returned "failed to unmarshal SDP: EOF" because the
+  // historical .trim() stripped the trailing CRLF.
+  if (offer.endsWith('\r\n')) {
+    // already correct, leave alone
+  } else if (offer.endsWith('\n')) {
+    offer = offer.slice(0, -1) + '\r\n';
+  } else {
+    offer = offer + '\r\n';
   }
 
   const apiKey = String(env.OPENAI_PHI_API_KEY || '').trim();

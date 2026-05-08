@@ -120,7 +120,10 @@ test('unified realtime call sends SDP and session config from the server', async
   assert.equal(seen[0].url, 'https://api.openai.com/v1/realtime/calls');
   assert.equal(seen[0].options.headers.Authorization, 'Bearer phi-key');
   assert.equal(seen[0].options.headers['OpenAI-Safety-Identifier'], 'hashed-user-id');
-  assert.equal(await seen[0].options.body.get('sdp'), 'v=0\r\no=browser-offer');
+  // Forward the SDP byte-for-byte preserving the trailing CRLF — Pion
+  // (OpenAI's SDP parser) errors with "failed to unmarshal SDP: EOF" if
+  // the final line isn't terminated.
+  assert.equal(await seen[0].options.body.get('sdp'), 'v=0\r\no=browser-offer\r\n');
   const session = JSON.parse(await seen[0].options.body.get('session'));
   assert.equal(session.type, 'realtime');
   assert.equal(session.model, 'gpt-realtime-2');
