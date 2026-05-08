@@ -8,11 +8,17 @@ This is the near-term bar before inviting real clinicians to store PHI in Miwa.
 - Use Azure Database for PostgreSQL Flexible Server as the production database.
 - Azure OpenAI remains an approved PHI-capable model path.
 - OpenAI API may be used for PHI text/reasoning only through the approved
-  BAA-backed Zero Data Retention project. Set `AI_TEXT_PROVIDER=openai`,
+  BAA-backed Zero Data Retention project. Set `AI_TEXT_PROVIDER=auto`,
   `OPENAI_PHI_API_KEY`, `OPENAI_PHI_ZDR_ENABLED=true`, and optionally
   `OPENAI_PHI_MODEL` (defaults to `gpt-5.5`). Do not use live web search,
   files, vector stores, assistants, threads, batches, evals, or fine-tuning for
   PHI.
+- Miwa Live Voice additionally requires `OPENAI_REALTIME_PHI_ENABLED=true`.
+  Recommended defaults are `OPENAI_REALTIME_MODEL=gpt-realtime`,
+  `OPENAI_REALTIME_TRANSCRIPTION_MODEL=gpt-4o-transcribe`,
+  `OPENAI_REALTIME_TRANSLATION_MODEL=gpt-realtime`, and
+  `OPENAI_REALTIME_VOICE=marin`. Browser clients receive only short-lived
+  Realtime client secrets minted by the authenticated backend.
 - Store secrets in Azure App Service configuration now; move to Azure Key Vault
   before scale.
 - Keep `miwa.care` and `www.miwa.care` serving the app. Use `api.miwa.care`
