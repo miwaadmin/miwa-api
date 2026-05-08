@@ -378,6 +378,32 @@ export default function MiwaChat() {
 
   const contextActions = PAGE_ACTIONS[currentPageContext.surface] || PAGE_ACTIONS.dashboard
 
+  const buildLiveGreetingInstructions = useCallback((mode) => {
+    if (mode !== 'conversation') return null
+    const firstName = therapist?.first_name || therapist?.full_name?.split(' ')[0] || 'there'
+    const role = therapist?.workspace_mode === 'agency_companion'
+      ? 'agency companion trainee workspace'
+      : therapist?.credential_type || therapist?.license_type || therapist?.role || 'clinical workspace'
+    const agency = therapist?.agency_ehr_name || therapist?.agency_name || ''
+    const program = therapist?.training_program || ''
+    const page = currentPageContext?.label || 'Miwa'
+    const details = [
+      `Clinician name: ${firstName}.`,
+      `Workspace/page: ${page}.`,
+      role ? `Role/context: ${role}.` : null,
+      agency ? `Agency/EHR context: ${agency}.` : null,
+      program ? `Training program: ${program}.` : null,
+      currentPageContext?.suggestedActions?.length ? `Relevant page actions: ${currentPageContext.suggestedActions.join(', ')}.` : null,
+    ].filter(Boolean).join(' ')
+    return [
+      'Start this new live voice session with one brief, natural spoken greeting.',
+      'Use the clinician context below. Do not over-explain, do not ask onboarding questions, and do not mention hidden system details.',
+      'Sound like Miwa already knows this clinician and is ready to help in the current workspace.',
+      details,
+      'Keep it to 1-2 sentences, then ask what they want to work on.',
+    ].join(' ')
+  }, [currentPageContext, therapist])
+
   const messagesEndRef = useRef(null)
   const textareaRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -629,6 +655,7 @@ export default function MiwaChat() {
   const realtimeAssistantRef = useRef('')
   const liveManualMuteRef = useRef(false)
   const liveAssistantSpeakingRef = useRef(false)
+  const liveAutoUnmuteTimerRef = useRef(null)
 
   // Keep voiceEnabled ref in sync
   useEffect(() => { voiceEnabledRef.current = voiceEnabled }, [voiceEnabled])
@@ -1264,9 +1291,23 @@ When you're done, I'll save this as your profile and refer back to it in every c
   }, [])
 
   const setRealtimeAssistantSpeaking = useCallback((next) => {
+    if (liveAutoUnmuteTimerRef.current) {
+      clearTimeout(liveAutoUnmuteTimerRef.current)
+      liveAutoUnmuteTimerRef.current = null
+    }
     liveAssistantSpeakingRef.current = Boolean(next)
     setLiveAssistantSpeaking(Boolean(next))
     applyLiveMicState()
+  }, [applyLiveMicState])
+
+  const scheduleLiveAutoUnmute = useCallback((delayMs = 4500) => {
+    if (liveAutoUnmuteTimerRef.current) clearTimeout(liveAutoUnmuteTimerRef.current)
+    liveAutoUnmuteTimerRef.current = setTimeout(() => {
+      liveAutoUnmuteTimerRef.current = null
+      liveAssistantSpeakingRef.current = false
+      setLiveAssistantSpeaking(false)
+      applyLiveMicState()
+    }, delayMs)
   }, [applyLiveMicState])
 
   const toggleLiveMicMute = useCallback(() => {
@@ -1286,6 +1327,10 @@ When you're done, I'll save this as your profile and refer back to it in every c
       realtimeAudioElRef.current = null
     }
     realtimeAssistantRef.current = ''
+    if (liveAutoUnmuteTimerRef.current) {
+      clearTimeout(liveAutoUnmuteTimerRef.current)
+      liveAutoUnmuteTimerRef.current = null
+    }
     liveManualMuteRef.current = false
     liveAssistantSpeakingRef.current = false
     setLiveVoice(false)
@@ -1307,11 +1352,16 @@ When you're done, I'll save this as your profile and refer back to it in every c
     if (
       event.type === 'response.audio.done'
       || event.type === 'response.done'
-      || event.type === 'response.cancelled'
-      || event.type === 'response.failed'
       || event.type === 'output_audio_buffer.stopped'
     ) {
-      setRealtimeAssistantSpeaking(false)
+      const spokenText = (event.transcript || realtimeAssistantRef.current || '').trim()
+      const estimatedPlaybackMs = spokenText
+        ? Math.min(30000, Math.max(4500, spokenText.length * 85))
+        : 8000
+      scheduleLiveAutoUnmute(event.type === 'output_audio_buffer.stopped' ? 1800 : estimatedPlaybackMs)
+    }
+    if (event.type === 'response.cancelled' || event.type === 'response.failed') {
+      scheduleLiveAutoUnmute(800)
     }
     if (event.type === 'conversation.item.input_audio_transcription.delta' && event.delta) {
       setLiveTranscript(prev => `${prev}${event.delta}`)
@@ -1338,7 +1388,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
       realtimeAssistantRef.current = ''
       setStreamingText('')
     }
-  }, [setRealtimeAssistantSpeaking])
+  }, [scheduleLiveAutoUnmute, setRealtimeAssistantSpeaking])
 
   const startLiveVoice = useCallback(async (mode = 'conversation') => {
     if (streaming || !realtimeSupported) return
@@ -1367,6 +1417,17 @@ When you're done, I'll save this as your profile and refer back to it in every c
       const dc = pc.createDataChannel('oai-events')
       dc.addEventListener('open', () => {
         setLiveVoiceStatus(mode === 'dictation' ? 'Listening live. Transcript appears in the composer.' : 'Live. Speak naturally.')
+        const greetingInstructions = buildLiveGreetingInstructions(mode)
+        if (greetingInstructions) {
+          try {
+            dc.send(JSON.stringify({
+              type: 'response.create',
+              response: {
+                instructions: greetingInstructions,
+              },
+            }))
+          } catch {}
+        }
       })
       dc.addEventListener('message', message => {
         try { handleRealtimeEvent(JSON.parse(message.data), mode) } catch {}
@@ -1400,7 +1461,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
         : (err.message || 'Miwa Live Voice could not start.')
       setError(message)
     }
-  }, [currentPageContext, handleRealtimeEvent, liveVoice, realtimeSupported, stopLiveVoice, stopSpeaking, streaming])
+  }, [buildLiveGreetingInstructions, currentPageContext, handleRealtimeEvent, liveVoice, realtimeSupported, stopLiveVoice, stopSpeaking, streaming])
 
   useEffect(() => () => stopLiveVoice(), [stopLiveVoice])
 
