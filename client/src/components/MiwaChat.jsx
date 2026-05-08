@@ -781,7 +781,10 @@ When you're done, I'll save this as your profile and refer back to it in every c
   }, [isOpen])
 
   const sendText = useCallback(async (text, contextOverride = null) => {
-    if (!text.trim() || streaming) return
+    const attachmentsToSend = imageAttachments
+    const cleanText = text.trim()
+    const messageText = cleanText || (attachmentsToSend.length ? 'Please describe what is visible in this image and help me think through any clinically relevant details.' : '')
+    if (!messageText || streaming) return
     setInput('')
     setError('')
     setPendingAction(null)
@@ -790,11 +793,10 @@ When you're done, I'll save this as your profile and refer back to it in every c
     setPendingBatchPicker(null)
     setBatchSelected([])
 
-    const attachmentsToSend = imageAttachments
     const userMsg = {
       id: Date.now(),
       role: 'user',
-      content: attachmentsToSend.length ? `${text}\n\n[Attached ${attachmentsToSend.length} image${attachmentsToSend.length === 1 ? '' : 's'}]` : text,
+      content: attachmentsToSend.length ? `${messageText}\n\n[Attached ${attachmentsToSend.length} image${attachmentsToSend.length === 1 ? '' : 's'}]` : messageText,
     }
     setMessages(m => [...m, userMsg])
     setStreaming(true)
@@ -821,12 +823,12 @@ When you're done, I'll save this as your profile and refer back to it in every c
     // same check; we want to respect it but not depend on ordering.
     const lastMsgIsOnboarding = messages.length > 0 && messages[messages.length - 1]?.onboarding
     if (!attachmentsToSend.length && !lastMsgIsOnboarding && !contextOverride && !pendingAction && !pendingBatchPicker && !pendingDisambiguation) {
-      const shouldRunAsTask = looksLikeBackgroundTask(text)
+      const shouldRunAsTask = looksLikeBackgroundTask(messageText)
       if (shouldRunAsTask) {
         try {
           const res = await apiFetch('/agent/tasks', {
             method: 'POST',
-            body: JSON.stringify({ prompt: text, context: currentPageContext }),
+            body: JSON.stringify({ prompt: messageText, context: currentPageContext }),
           })
           if (res.ok) {
             const task = await res.json()
@@ -858,13 +860,13 @@ When you're done, I'll save this as your profile and refer back to it in every c
         const currentStep = ONBOARDING_STEPS[currentIndex] || ONBOARDING_STEPS[0]
         const saved = await apiFetch('/onboarding/progress', {
           method: 'POST',
-          body: JSON.stringify({ stage: currentStep.id, response: text }),
+          body: JSON.stringify({ stage: currentStep.id, response: messageText }),
         })
         const progress = await saved.json()
         if (!saved.ok) throw new Error(progress.error || 'Could not save onboarding answer')
         const nextAnswers = Array.isArray(progress.answers)
           ? progress.answers
-          : [...onboardingAnswers, { stage: currentStep.id, response: text }]
+          : [...onboardingAnswers, { stage: currentStep.id, response: messageText }]
         setOnboardingAnswers(nextAnswers)
 
         const nextStep = ONBOARDING_STEPS[currentIndex + 1]
@@ -915,7 +917,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
     try {
       const endpoint = '/agent/chat'
       const payload = {
-        message: text,
+        message: messageText,
         contextType: effectiveContextType,
         contextId: effectivePatientId,
         pageContext: currentPageContext,
@@ -2358,7 +2360,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
                   routes them to the background runner transparently. */}
               <button
                 onClick={() => sendText(input.trim())}
-                disabled={!input.trim() || streaming || listening}
+                disabled={(!input.trim() && imageAttachments.length === 0) || streaming || listening}
                 className="flex-shrink-0 w-10 h-10 rounded-xl disabled:opacity-30 disabled:cursor-not-allowed text-white flex items-center justify-center transition-all hover:scale-105 active:scale-95"
                 style={{ background: 'linear-gradient(180deg, #2A8AFE 0%, #007AFF 100%)' }}
               >

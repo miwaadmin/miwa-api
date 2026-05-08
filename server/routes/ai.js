@@ -68,6 +68,23 @@ function uploadImportErrorMessage(err) {
     : 'The uploaded file could not be processed. Please try a different file.';
 }
 
+function normalizeImageAttachments(attachments = []) {
+  if (!Array.isArray(attachments)) return [];
+  return attachments.slice(0, 3).map((attachment, index) => {
+    const dataUrl = String(attachment?.dataUrl || attachment?.image_url || '').trim();
+    const mime = String(attachment?.mimeType || '').toLowerCase();
+    if (!dataUrl.startsWith('data:image/')) return null;
+    if (!/^data:image\/(png|jpeg|jpg|webp|gif);base64,/i.test(dataUrl)) return null;
+    if (dataUrl.length > 8_000_000) return null;
+    return {
+      type: 'input_image',
+      image_url: dataUrl,
+      detail: 'auto',
+      _safeName: `image-${index + 1}.${mime.includes('png') ? 'png' : mime.includes('webp') ? 'webp' : 'jpg'}`,
+    };
+  }).filter(Boolean);
+}
+
 function extractJsonObject(text) {
   let jsonStr = (text || '').trim();
   const fenceMatch = jsonStr.match(/```(?:json)?\s*\n?([\s\S]*?)\n?\s*```/);
@@ -1109,8 +1126,10 @@ router.post('/chat', async (req, res) => {
       responseStyle,
       conversationId: conversationIdBody,
       conversation_id,
+      imageAttachments,
     } = req.body;
     const requestedConversationId = conversationIdBody || conversation_id;
+    const imageInputs = normalizeImageAttachments(imageAttachments);
     const allowPhiInConsult = canSendPhiToTextAI();
     const protectText = allowPhiInConsult ? (value) => String(value || '') : scrubText;
     const message = protectText(_rawMsg).trim();
@@ -1252,6 +1271,13 @@ router.post('/chat', async (req, res) => {
         content: `The clinician requested ${requestedContextType} context, but the current assistant permissions do not allow that scope. Explain the limitation plainly and continue without assuming access.`,
       });
     }
+    if (imageInputs.length && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      lastMessage.content = [
+        { type: 'input_text', text: String(lastMessage.content || message) },
+        ...imageInputs.map(({ _safeName, ...image }) => image),
+      ];
+    }
 
     // SSE headers
     res.setHeader('Content-Type', 'text/event-stream');
@@ -1286,11 +1312,14 @@ router.post('/chat', async (req, res) => {
     const modeGuard = therapistRow?.workspace_mode === 'agency_companion'
       ? `\n\nWorkspace mode: Trainee / Agency Companion. Respond as a trainee clinical copilot: supervision-aware, educational, note-drafting oriented, risk/ethics attentive, and mindful that ${therapistRow?.agency_ehr_name || 'the agency EHR'} is usually the official record. Use Socratic teaching when helpful without being patronizing.${traineeWorkspacePrompt ? `\n\n${traineeWorkspacePrompt}` : ''}`
       : '\n\nWorkspace mode: Private Practice. Respond as a licensed clinician practice copilot focused on charting, scheduling, billing, treatment planning, portal workflows, documentation completeness, and caseload operations.';
+    const imageGuard = imageInputs.length
+      ? '\n\nImage input: The clinician attached image(s). Describe only visible content, then connect it to the clinician question. Do not infer hidden PHI, identity, diagnosis, or facts not visible in the image. If the image appears to contain client or agency PHI, keep the response minimum-necessary and remind the clinician to use site-authorized content.'
+      : '';
 
     const result = await generateAIResponseWithUsage([
         {
           role: 'system',
-          content: `${getSupervisorSystemPrompt(userRole, therapistName, effectiveResponseStyle, assistantProfile, { allowPhi: allowPhiInConsult })}${assistantRuntimePrompt ? `\n\n${assistantRuntimePrompt}` : ''}${modeGuard}${completionGuard}`,
+          content: `${getSupervisorSystemPrompt(userRole, therapistName, effectiveResponseStyle, assistantProfile, { allowPhi: allowPhiInConsult })}${assistantRuntimePrompt ? `\n\n${assistantRuntimePrompt}` : ''}${modeGuard}${imageGuard}${completionGuard}`,
         },
         ...messages,
       ], { maxTokens: consultMaxTokens });

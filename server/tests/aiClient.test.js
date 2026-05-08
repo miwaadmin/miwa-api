@@ -358,6 +358,42 @@ describe('Azure OpenAI client error handling', () => {
     assert.ok(!JSON.stringify(status).includes('phi-secret-key'));
   });
 
+  test('OpenAI PHI/ZDR text lane forwards image inputs through Responses API', async () => {
+    process.env.AI_TEXT_PROVIDER = 'openai';
+    process.env.OPENAI_PHI_API_KEY = 'phi-secret-key';
+    process.env.OPENAI_PHI_MODEL = 'gpt-5.5';
+    process.env.OPENAI_PHI_ZDR_ENABLED = 'true';
+
+    let seenRequest = null;
+    aiClient._test.setClient({
+      responses: {
+        create: async (request) => {
+          seenRequest = request;
+          return {
+            output_text: 'image described',
+            usage: { input_tokens: 21, output_tokens: 4 },
+          };
+        },
+      },
+    });
+
+    const result = await aiClient.generateAIResponseWithUsage([
+      {
+        role: 'user',
+        content: [
+          { type: 'input_text', text: 'What is visible here?' },
+          { type: 'input_image', image_url: 'data:image/png;base64,ZmFrZQ==', detail: 'auto' },
+        ],
+      },
+    ]);
+
+    assert.equal(result.text, 'image described');
+    assert.equal(seenRequest.store, false);
+    assert.equal(seenRequest.input[0].content[0].type, 'input_text');
+    assert.equal(seenRequest.input[0].content[1].type, 'input_image');
+    assert.equal(seenRequest.input[0].content[1].image_url, 'data:image/png;base64,ZmFrZQ==');
+  });
+
   test('OpenAI PHI/ZDR text lane honors per-request model routing', async () => {
     process.env.AI_TEXT_PROVIDER = 'openai';
     process.env.OPENAI_PHI_API_KEY = 'phi-secret-key';

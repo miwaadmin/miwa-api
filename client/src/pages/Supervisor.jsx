@@ -222,10 +222,12 @@ export default function Supervisor() {
   const [responseStyle, setResponseStyle] = useState(
     () => therapist?.assistant_verbosity || localStorage.getItem('miwa_response_style') || 'balanced'
   )
+  const [imageAttachments, setImageAttachments] = useState([])
   const [savingPlanId, setSavingPlanId] = useState(null)
   const [planSaveNotice, setPlanSaveNotice] = useState('')
   const messagesEndRef = useRef(null)
   const textareaRef = useRef(null)
+  const fileInputRef = useRef(null)
   // Pick 4 random general prompts once per mount
   const generalPrompts = useRef(pickRandom(GENERAL_PROMPT_POOL, 4))
   const activeConversation = conversations.find(c => String(c.id) === String(activeConversationId))
@@ -293,12 +295,50 @@ export default function Supervisor() {
     }
   }
 
+  const addImageFiles = useCallback((files) => {
+    const list = Array.from(files || []).filter(file => file.type?.startsWith('image/')).slice(0, 3)
+    if (!list.length) return
+    list.forEach(file => {
+      if (file.size > 5 * 1024 * 1024) {
+        setError('Image is too large. Please use an image under 5 MB.')
+        return
+      }
+      const reader = new FileReader()
+      reader.onload = () => {
+        setImageAttachments(prev => [
+          ...prev,
+          {
+            id: `${Date.now()}-${Math.random()}`,
+            name: file.name || 'image',
+            mimeType: file.type,
+            dataUrl: reader.result,
+          },
+        ].slice(0, 3))
+      }
+      reader.onerror = () => setError('Could not read that image.')
+      reader.readAsDataURL(file)
+    })
+  }, [])
+
+  const handlePaste = useCallback((e) => {
+    const files = Array.from(e.clipboardData?.files || []).filter(file => file.type?.startsWith('image/'))
+    if (files.length) addImageFiles(files)
+  }, [addImageFiles])
+
+  const handleDrop = useCallback((e) => {
+    const files = Array.from(e.dataTransfer?.files || []).filter(file => file.type?.startsWith('image/'))
+    if (!files.length) return
+    e.preventDefault()
+    addImageFiles(files)
+  }, [addImageFiles])
+
   const startFreshConsult = useCallback(() => {
     setActiveConversationId(null)
     setMessages([])
     setInput('')
     setStreamingText('')
     setError('')
+    setImageAttachments([])
     setTimeout(() => textareaRef.current?.focus(), 80)
   }, [])
 
@@ -320,24 +360,34 @@ export default function Supervisor() {
   }, [streaming])
 
   const sendText = useCallback(async (text) => {
-    if (!text.trim() || streaming) return
+    const attachmentsToSend = imageAttachments
+    const cleanText = text.trim()
+    const messageText = cleanText || (attachmentsToSend.length ? 'Please describe what is visible in this image and help me think through any clinically relevant details.' : '')
+    if (!messageText || streaming) return
 
     setInput('')
     setError('')
 
-    const userMsg = { id: Date.now(), role: 'user', content: text, created_at: new Date().toISOString() }
+    const userMsg = {
+      id: Date.now(),
+      role: 'user',
+      content: attachmentsToSend.length ? `${messageText}\n\n[Attached ${attachmentsToSend.length} image${attachmentsToSend.length === 1 ? '' : 's'}]` : messageText,
+      created_at: new Date().toISOString(),
+    }
     setMessages(m => [...m, userMsg])
     setStreaming(true)
     setStreamingText('')
 
     try {
       const payload = {
-        message: text,
+        message: messageText,
         conversationId: activeConversationId,
         contextType: contextType !== 'general' ? contextType : null,
         contextId: contextId ? parseInt(contextId) : null,
         responseStyle,
+        imageAttachments: attachmentsToSend.map(({ name: _name, id: _id, ...attachment }) => attachment),
       }
+      setImageAttachments([])
 
       const res = await apiFetch('/ai/chat', {
         method: 'POST',
@@ -406,7 +456,7 @@ export default function Supervisor() {
       setStreaming(false)
       setStreamingText('')
     }
-  }, [streaming, activeConversationId, contextType, contextId, responseStyle, loadConversations])
+  }, [streaming, activeConversationId, contextType, contextId, responseStyle, loadConversations, imageAttachments])
 
   const sendMessage = useCallback(() => sendText(input.trim()), [input, sendText])
 
@@ -760,12 +810,55 @@ export default function Supervisor() {
             Clear
           </button>
         </div>
+        {imageAttachments.length > 0 && (
+          <div className="mx-auto mb-2 flex max-w-4xl gap-2 overflow-x-auto rounded-xl border border-gray-200 bg-gray-50 p-2">
+            {imageAttachments.map(img => (
+              <div key={img.id} className="relative flex-shrink-0">
+                <img src={img.dataUrl} alt="" className="h-16 w-16 rounded-lg object-cover" />
+                <button
+                  type="button"
+                  onClick={() => setImageAttachments(prev => prev.filter(item => item.id !== img.id))}
+                  className="absolute -right-1.5 -top-1.5 h-5 w-5 rounded-full bg-gray-900 text-[10px] text-white"
+                  title="Remove image"
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="flex items-end gap-3 max-w-4xl mx-auto">
-          <div className="flex-1 relative">
+          <div className="flex-shrink-0">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={e => {
+                addImageFiles(e.target.files)
+                e.target.value = ''
+              }}
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={streaming}
+              className="h-11 w-11 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200 disabled:opacity-40 flex items-center justify-center transition-colors"
+              title="Attach image"
+            >
+              <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                <rect x="4" y="5" width="16" height="14" rx="2" />
+                <path strokeLinecap="round" strokeLinejoin="round" d="m8 14 2.5-2.5L14 15l1.5-1.5L18 16" />
+                <circle cx="9" cy="9" r="1" />
+              </svg>
+            </button>
+          </div>
+          <div className="flex-1 relative" onPaste={handlePaste} onDrop={handleDrop} onDragOver={e => e.preventDefault()}>
             <textarea
               ref={textareaRef}
               className="w-full resize-none rounded-xl border border-gray-300 dark:border-white/10 px-4 py-3 text-sm text-gray-900 dark:text-slate-100 placeholder-gray-400 dark:placeholder-slate-500 bg-white dark:bg-slate-900 focus:border-brand-500 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-opacity-20 transition-colors pr-12"
-              placeholder="Ask Miwa a clinical question... (Shift+Enter for new line, Enter to send)"
+              placeholder="Ask Miwa a clinical question, or paste/drop an image..."
               value={input}
               onChange={e => {
                 setInput(e.target.value)
@@ -779,7 +872,7 @@ export default function Supervisor() {
           </div>
           <button
             onClick={sendMessage}
-            disabled={!input.trim() || streaming}
+            disabled={(!input.trim() && imageAttachments.length === 0) || streaming}
             className="flex-shrink-0 w-11 h-11 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors"
           >
             {streaming ? (
