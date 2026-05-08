@@ -40,9 +40,13 @@ const {
 const {
   collectTraineeWorkspaceState,
   formatTraineeWorkspaceState,
+  buildLicensedTransitionPlan,
   generateCaseSnapshot,
   generateSupervisionAgenda,
   generateTraineeDailyBrief,
+  generateTraineeExport,
+  getEhrCompanionProfile,
+  scanEthicalEscalations,
 } = require('../services/traineeIntelligence');
 const {
   createAssistantAction,
@@ -3808,6 +3812,115 @@ router.get('/trainee/supervision-agenda', async (req, res) => {
   }
 });
 
+router.get('/trainee/agency-profile', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const therapist = await db.get(
+      `SELECT agency_ehr_name, agency_ehr_note_format, agency_ehr_custom_format, site_policy_status, site_policy_acknowledged_at
+         FROM therapists WHERE id = ?`,
+      req.therapist.id
+    );
+    res.json({
+      profile: getEhrCompanionProfile(
+        therapist?.agency_ehr_name || 'Other',
+        therapist?.agency_ehr_note_format,
+        therapist?.agency_ehr_custom_format
+      ),
+      site_policy_status: therapist?.site_policy_status || 'not_sure',
+      site_policy_acknowledged: !!therapist?.site_policy_acknowledged_at,
+    });
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
+router.post('/trainee/escalation-scan', async (req, res) => {
+  try {
+    const { text, patient_id, session_id, add_to_supervision } = req.body || {};
+    const flags = scanEthicalEscalations(text);
+    if (add_to_supervision && flags.length) {
+      const db = getAsyncDb();
+      for (const flag of flags) {
+        await db.insert(
+          `INSERT INTO supervision_items (therapist_id, patient_id, session_id, source, title, details, priority)
+           VALUES (?, ?, ?, 'ethics_escalation', ?, ?, ?)`,
+          req.therapist.id,
+          patient_id || null,
+          session_id || null,
+          flag.label,
+          `${flag.guidance}\n\nSource text excerpt:\n${scrubText(String(text || '').slice(0, 700))}`,
+          flag.priority === 'urgent' ? 'high' : 'normal'
+        );
+      }
+      await persistIfNeeded();
+    }
+    res.json({ flags, needs_supervision: flags.length > 0 });
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
+router.get('/trainee/exports/:type', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const result = await generateTraineeExport(db, req.therapist.id, req.params.type, {
+      patientId: req.query.patient_id,
+      timezone: req.therapist.preferred_timezone || 'America/Los_Angeles',
+    });
+    res.json(result);
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
+router.get('/trainee/transition-plan', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    res.json(await buildLicensedTransitionPlan(db, req.therapist.id));
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
+router.post('/trainee/transition-to-licensed', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const caseIds = Array.isArray(req.body?.case_ids) ? req.body.case_ids.map(Number).filter(Boolean) : [];
+    await db.run(
+      `UPDATE therapists
+          SET workspace_mode = 'private_practice',
+              client_record_mode = 'miwa_system_of_record',
+              workspace_mode_selected_at = CURRENT_TIMESTAMP
+        WHERE id = ?`,
+      req.therapist.id
+    );
+    if (caseIds.length) {
+      const placeholders = caseIds.map(() => '?').join(',');
+      await db.run(
+        `UPDATE patients
+            SET record_mode = 'miwa_system_of_record',
+                agency_note_status = COALESCE(agency_note_status, 'converted_from_agency_companion'),
+                updated_at = CURRENT_TIMESTAMP
+          WHERE therapist_id = ? AND id IN (${placeholders})`,
+        req.therapist.id,
+        ...caseIds
+      );
+    }
+    try {
+      await db.insert(
+        `INSERT INTO trainee_growth_events (therapist_id, category, competency, title, details, source)
+         VALUES (?, 'transition', 'professional identity', 'Transitioned Miwa workspace toward licensed private-practice mode', ?, 'transition_to_licensed')`,
+        req.therapist.id,
+        caseIds.length ? `Converted ${caseIds.length} selected case(s) into Miwa system-of-record mode.` : 'Preserved trainee history and switched workspace mode.'
+      );
+    } catch {}
+    await persistIfNeeded();
+    res.json({ ok: true, transition: await buildLicensedTransitionPlan(db, req.therapist.id) });
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
 router.get('/trainee/growth-timeline', async (req, res) => {
   try {
     const db = getAsyncDb();
@@ -3827,6 +3940,31 @@ router.get('/trainee/growth-timeline', async (req, res) => {
       return { name, count: matches.length, lastPracticedAt: matches[0]?.created_at || null };
     });
     res.json({ events: rows, competencies });
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
+router.post('/trainee/growth-events', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const { category, competency, title, details, confidence_rating, patient_id } = req.body || {};
+    const safeTitle = String(title || competency || category || '').trim();
+    if (!safeTitle) return res.status(400).json({ error: 'title is required' });
+    const result = await db.insert(
+      `INSERT INTO trainee_growth_events
+        (therapist_id, patient_id, category, competency, title, details, confidence_rating, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 'manual')`,
+      req.therapist.id,
+      patient_id || null,
+      category || 'learning',
+      competency || null,
+      safeTitle,
+      details || null,
+      confidence_rating || null
+    );
+    await persistIfNeeded();
+    res.status(201).json({ event: await db.get('SELECT * FROM trainee_growth_events WHERE id = ?', result.lastInsertRowid) });
   } catch (err) {
     sendRouteError(res, err);
   }

@@ -21,6 +21,28 @@ const COMPETENCY_LABELS = {
   'termination/discharge': 'Termination/discharge',
 }
 
+function saveTextFile(filename, text) {
+  const blob = new Blob([text || ''], { type: 'text/plain;charset=utf-8' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename || 'miwa-export.txt'
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+async function downloadTraineeExport(type, options = {}) {
+  const qs = new URLSearchParams()
+  if (options.patient_id) qs.set('patient_id', options.patient_id)
+  const res = await apiFetch(`/agent/trainee/exports/${type}${qs.toString() ? `?${qs}` : ''}`)
+  const data = await res.json()
+  if (!res.ok) throw new Error(data.error || 'Export failed')
+  saveTextFile(data.filename, data.text)
+  return data
+}
+
 function StatCard({ label, value, tone = 'brand' }) {
   const tones = {
     brand: 'bg-brand-50 text-brand-700 border-brand-100',
@@ -47,6 +69,86 @@ function EmptyState({ title, body, to, cta }) {
         </Link>
       )}
     </div>
+  )
+}
+
+function AgencyProfilePanel() {
+  const [profile, setProfile] = useState(null)
+  useEffect(() => {
+    apiFetch('/agent/trainee/agency-profile')
+      .then(r => r.ok ? r.json() : null)
+      .then(setProfile)
+      .catch(() => {})
+  }, [])
+  if (!profile?.profile) return null
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-5">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Agency EHR companion profile</p>
+          <h2 className="mt-1 text-lg font-bold text-gray-950">{profile.profile.ehr_name}</h2>
+          <p className="mt-1 text-sm text-gray-600">{profile.profile.copyStyle}</p>
+        </div>
+        <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">{profile.profile.preferred_note_format}</span>
+      </div>
+      <div className="mt-4 grid md:grid-cols-3 gap-2">
+        {profile.profile.checklist?.map(item => (
+          <div key={item} className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700">{item}</div>
+        ))}
+      </div>
+      {profile.site_policy_status !== 'allows_phi' && (
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          Site policy is {profile.site_policy_status || 'not set'}: use minimum-necessary or de-identified case details until authorization is clear.
+        </div>
+      )}
+    </section>
+  )
+}
+
+function EthicalEscalationPanel() {
+  const [text, setText] = useState('')
+  const [flags, setFlags] = useState([])
+  const [scanning, setScanning] = useState(false)
+  const scan = async (add = false) => {
+    if (!text.trim()) return
+    setScanning(true)
+    try {
+      const res = await apiFetch('/agent/trainee/escalation-scan', {
+        method: 'POST',
+        body: JSON.stringify({ text, add_to_supervision: add }),
+      })
+      const data = await res.json()
+      if (res.ok) setFlags(data.flags || [])
+    } finally {
+      setScanning(false)
+    }
+  }
+  return (
+    <section className="rounded-2xl border border-red-100 bg-white p-5">
+      <p className="text-xs font-bold uppercase tracking-widest text-red-600">Ethical / legal escalation prompts</p>
+      <h2 className="mt-1 text-sm font-bold text-gray-950">Scan a note, question, or stuck point</h2>
+      <textarea
+        className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:border-red-300 focus:outline-none focus:ring-2 focus:ring-red-100"
+        rows={3}
+        value={text}
+        onChange={e => setText(e.target.value)}
+        placeholder="Paste the clinical question or documentation uncertainty. Miwa will flag SI/HI, mandated reporting, Tarasoff, minors/custody, consent/ROI, scope, and crisis issues."
+      />
+      <div className="mt-2 flex flex-wrap gap-2">
+        <button onClick={() => scan(false)} disabled={scanning || !text.trim()} className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 disabled:opacity-50">Scan</button>
+        <button onClick={() => scan(true)} disabled={scanning || !text.trim()} className="rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50">Scan and add to supervision</button>
+      </div>
+      {flags.length > 0 && (
+        <div className="mt-3 space-y-2">
+          {flags.map(flag => (
+            <div key={flag.key} className="rounded-xl border border-red-100 bg-red-50 px-3 py-2">
+              <div className="text-xs font-bold text-red-800">{flag.label} · {flag.cta}</div>
+              <p className="mt-1 text-xs text-red-700">{flag.guidance}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
   )
 }
 
@@ -137,6 +239,8 @@ export function TraineeToday() {
         <StatCard label="Hours logged" value={Number.isFinite(totalHours) ? totalHours.toFixed(totalHours % 1 ? 1 : 0) : '0'} tone="brand" />
       </div>
 
+      <AgencyProfilePanel />
+
       <div className="grid lg:grid-cols-3 gap-5">
         <section className="lg:col-span-2 rounded-2xl border border-gray-200 bg-white overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -224,6 +328,8 @@ export function TraineeToday() {
           <div className="text-sm text-gray-500">Ask Miwa for a daily brief once you have cases, notes, hours, or appointments.</div>
         )}
       </section>
+
+      <EthicalEscalationPanel />
     </div>
   )
 }
@@ -233,10 +339,94 @@ export function TraineeCases() {
     <div className="trainee-cases">
       <div className="px-6 pt-6 max-w-6xl mx-auto">
         <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Cases</p>
-        <p className="mt-1 text-sm text-gray-500">Use case language here while Miwa keeps the underlying clinical records intact.</p>
+        <p className="mt-1 text-sm text-gray-500">Case conceptualization, supervision questions, EHR status, and learning opportunities live here alongside the underlying chart.</p>
       </div>
+      <CaseSnapshotBoard />
       <Patients />
     </div>
+  )
+}
+
+function CaseSnapshotBoard() {
+  const { patients, loading } = useTraineeData()
+  const [selectedId, setSelectedId] = useState('')
+  const [snapshot, setSnapshot] = useState('')
+  const [caseForm, setCaseForm] = useState({
+    case_conceptualization: '',
+    modality_lens: '',
+    supervision_questions: '',
+    supervision_priority: '',
+    agency_note_status: '',
+  })
+  const selected = patients.find(p => String(p.id) === String(selectedId))
+  useEffect(() => {
+    if (!selected) return
+    setCaseForm({
+      case_conceptualization: selected.case_conceptualization || '',
+      modality_lens: selected.modality_lens || '',
+      supervision_questions: selected.supervision_questions || '',
+      supervision_priority: selected.supervision_priority || '',
+      agency_note_status: selected.agency_note_status || '',
+    })
+    setSnapshot('')
+  }, [selectedId])
+  const generateSnapshot = async () => {
+    if (!selectedId) return
+    const res = await apiFetch(`/agent/trainee/cases/${selectedId}/snapshot`)
+    const data = await res.json()
+    if (res.ok) setSnapshot(data.markdown || '')
+  }
+  const saveCaseMeta = async () => {
+    if (!selectedId) return
+    await apiFetch(`/patients/${selectedId}`, { method: 'PUT', body: JSON.stringify(caseForm) })
+  }
+  if (loading || patients.length === 0) {
+    return (
+      <div className="px-6 py-5 max-w-6xl mx-auto">
+        <EmptyState title="Add your first case" body="Use Cases instead of Patients in trainee mode. Track conceptualization, supervision questions, agency note status, and what you are learning." to="/patients/new" cta="Add case" />
+      </div>
+    )
+  }
+  return (
+    <section className="px-6 py-5 max-w-6xl mx-auto">
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
+        <div className="flex flex-col md:flex-row md:items-end gap-3">
+          <div className="flex-1">
+            <label className="text-xs font-bold uppercase tracking-wide text-gray-500">Agentic case snapshot</label>
+            <select value={selectedId} onChange={e => setSelectedId(e.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm">
+              <option value="">Choose a case</option>
+              {patients.map(p => <option key={p.id} value={p.id}>{p.display_name || p.client_id}</option>)}
+            </select>
+          </div>
+          <button onClick={generateSnapshot} disabled={!selectedId} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Generate snapshot</button>
+          <button onClick={() => downloadTraineeExport('case-presentation', { patient_id: selectedId }).catch(() => {})} disabled={!selectedId} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 disabled:opacity-50">Export case presentation</button>
+        </div>
+        {selected && (
+          <div className="grid lg:grid-cols-2 gap-3">
+            <textarea className="rounded-xl border border-gray-200 px-3 py-2 text-sm" rows={4} value={caseForm.case_conceptualization} onChange={e => setCaseForm(f => ({ ...f, case_conceptualization: e.target.value }))} placeholder="Case conceptualization" />
+            <textarea className="rounded-xl border border-gray-200 px-3 py-2 text-sm" rows={4} value={caseForm.modality_lens} onChange={e => setCaseForm(f => ({ ...f, modality_lens: e.target.value }))} placeholder="Modality / theory lens" />
+            <textarea className="rounded-xl border border-gray-200 px-3 py-2 text-sm" rows={4} value={caseForm.supervision_questions} onChange={e => setCaseForm(f => ({ ...f, supervision_questions: e.target.value }))} placeholder="Questions to bring to supervision" />
+            <div className="grid sm:grid-cols-2 gap-2">
+              <select className="rounded-xl border border-gray-200 px-3 py-2 text-sm" value={caseForm.supervision_priority} onChange={e => setCaseForm(f => ({ ...f, supervision_priority: e.target.value }))}>
+                <option value="">Supervision priority</option>
+                <option value="high">High</option>
+                <option value="normal">Normal</option>
+                <option value="low">Low</option>
+              </select>
+              <select className="rounded-xl border border-gray-200 px-3 py-2 text-sm" value={caseForm.agency_note_status} onChange={e => setCaseForm(f => ({ ...f, agency_note_status: e.target.value }))}>
+                <option value="">Agency note status</option>
+                <option value="needs_draft">Needs draft</option>
+                <option value="ready_to_copy">Ready to copy</option>
+                <option value="copied_to_agency_ehr">Copied to agency EHR</option>
+                <option value="needs_supervisor_review">Needs supervisor review</option>
+              </select>
+              <button onClick={saveCaseMeta} className="sm:col-span-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-bold text-brand-700">Save case learning fields</button>
+            </div>
+          </div>
+        )}
+        {snapshot && <div className="prose-clinical rounded-2xl border border-brand-100 bg-brand-50 p-4 text-sm" dangerouslySetInnerHTML={{ __html: renderClinical(snapshot) }} />}
+      </div>
+    </section>
   )
 }
 
@@ -250,6 +440,7 @@ export function TraineeDrafts() {
           Draft, tighten, discuss in supervision, then copy clean notes into the required agency EHR.
         </p>
       </div>
+      <AgencyProfilePanel />
       <DraftQueue />
     </div>
   )
@@ -354,6 +545,9 @@ export function TraineeSupervision() {
           <button onClick={loadAgenda} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white hover:bg-brand-700">
             {loading ? 'Preparing...' : 'Prepare agenda'}
           </button>
+          <button onClick={() => downloadTraineeExport('supervision-agenda').catch(() => {})} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 hover:bg-gray-50">
+            Export agenda
+          </button>
         </div>
         {agenda && (
           <div className="max-w-6xl mx-auto mt-3 rounded-2xl border border-brand-100 bg-brand-50 p-4 text-sm text-gray-800 whitespace-pre-wrap max-h-56 overflow-y-auto">
@@ -392,6 +586,10 @@ export function TraineeSupervision() {
             <button onClick={submitFeedback} disabled={extracting || !feedback.trim()} className="mt-2 rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
               {extracting ? 'Extracting...' : 'Convert feedback'}
             </button>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <button onClick={() => downloadTraineeExport('growth-summary').catch(() => {})} className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700">Export growth summary</button>
+              <button onClick={() => downloadTraineeExport('hours-summary').catch(() => {})} className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700">Export hours summary</button>
+            </div>
           </section>
         </div>
       </div>
@@ -403,18 +601,105 @@ export function TraineeSupervision() {
 }
 
 export function TraineeHours() {
-  return <Hours />
+  return (
+    <div>
+      <div className="p-6 pb-0 max-w-6xl mx-auto">
+        <div className="rounded-2xl border border-gray-200 bg-white p-4 flex flex-col md:flex-row md:items-center gap-3">
+          <div className="flex-1">
+            <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Agency-ready hours</p>
+            <p className="mt-1 text-sm text-gray-600">Track practicum/licensure hours, then export summaries for school, site, or supervisor review.</p>
+          </div>
+          <button onClick={() => downloadTraineeExport('hours-summary').catch(() => {})} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white">Export hours summary</button>
+        </div>
+      </div>
+      <Hours />
+    </div>
+  )
+}
+
+function GrowthEventForm({ onSaved }) {
+  const [form, setForm] = useState({ competency: 'documentation', title: '', details: '', confidence_rating: '' })
+  const save = async () => {
+    if (!form.title.trim()) return
+    const res = await apiFetch('/agent/trainee/growth-events', { method: 'POST', body: JSON.stringify(form) })
+    if (res.ok) {
+      setForm({ competency: 'documentation', title: '', details: '', confidence_rating: '' })
+      onSaved?.()
+    }
+  }
+  return (
+    <section className="rounded-2xl border border-gray-200 bg-white p-5">
+      <h2 className="text-sm font-bold text-gray-950">Log a growth moment</h2>
+      <div className="mt-3 grid md:grid-cols-3 gap-2">
+        <select className="rounded-xl border border-gray-200 px-3 py-2 text-sm" value={form.competency} onChange={e => setForm(f => ({ ...f, competency: e.target.value }))}>
+          {Object.keys(COMPETENCY_LABELS).map(key => <option key={key} value={key}>{COMPETENCY_LABELS[key]}</option>)}
+        </select>
+        <input className="rounded-xl border border-gray-200 px-3 py-2 text-sm md:col-span-2" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Skill practiced, theme noticed, or modality learned" />
+        <textarea className="rounded-xl border border-gray-200 px-3 py-2 text-sm md:col-span-2" rows={3} value={form.details} onChange={e => setForm(f => ({ ...f, details: e.target.value }))} placeholder="What happened, what feedback did you receive, and what will you try next?" />
+        <div className="space-y-2">
+          <input className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm" type="number" min="1" max="5" value={form.confidence_rating} onChange={e => setForm(f => ({ ...f, confidence_rating: e.target.value }))} placeholder="Confidence 1-5" />
+          <button onClick={save} disabled={!form.title.trim()} className="w-full rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Save growth event</button>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function TransitionPanel() {
+  const [plan, setPlan] = useState(null)
+  const [selected, setSelected] = useState([])
+  const [done, setDone] = useState(false)
+  const load = () => apiFetch('/agent/trainee/transition-plan').then(r => r.ok ? r.json() : null).then(setPlan).catch(() => {})
+  useEffect(() => { load() }, [])
+  const toggle = id => setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
+  const convert = async () => {
+    const res = await apiFetch('/agent/trainee/transition-to-licensed', { method: 'POST', body: JSON.stringify({ case_ids: selected }) })
+    if (res.ok) {
+      setDone(true)
+      load()
+    }
+  }
+  if (!plan) return null
+  return (
+    <section className="rounded-2xl border border-brand-100 bg-white p-5">
+      <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Transition to licensed mode</p>
+      <h2 className="mt-1 text-sm font-bold text-gray-950">Carry your clinical operating system forward</h2>
+      <div className="mt-3 grid md:grid-cols-2 gap-3">
+        <div className="rounded-xl bg-brand-50 p-3">
+          <p className="text-xs font-bold text-brand-800">Preserved</p>
+          <ul className="mt-2 space-y-1 text-xs text-brand-900">{plan.preserved?.map(item => <li key={item}>- {item}</li>)}</ul>
+        </div>
+        <div className="rounded-xl bg-teal-50 p-3">
+          <p className="text-xs font-bold text-teal-800">Unlocked</p>
+          <ul className="mt-2 space-y-1 text-xs text-teal-900">{plan.unlocks?.map(item => <li key={item}>- {item}</li>)}</ul>
+        </div>
+      </div>
+      <div className="mt-4 space-y-2">
+        <p className="text-xs font-bold text-gray-700">Optional case conversion</p>
+        {plan.convertible_cases?.slice(0, 8).map(c => (
+          <label key={c.id} className="flex items-start gap-2 rounded-xl border border-gray-200 px-3 py-2 text-xs text-gray-700">
+            <input type="checkbox" checked={selected.includes(c.id)} onChange={() => toggle(c.id)} className="mt-0.5" />
+            <span><strong>{c.label}</strong>: {c.recommendation}</span>
+          </label>
+        ))}
+      </div>
+      <button onClick={convert} className="mt-3 rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white">
+        {done ? 'Transition saved' : 'Switch to private-practice mode'}
+      </button>
+    </section>
+  )
 }
 
 export function TraineeLearning() {
   const navigate = useNavigate()
   const [growth, setGrowth] = useState({ events: [], competencies: [] })
-  useEffect(() => {
+  const loadGrowth = () => {
     apiFetch('/agent/trainee/growth-timeline')
       .then(r => r.ok ? r.json() : null)
       .then(data => { if (data) setGrowth(data) })
       .catch(() => {})
-  }, [])
+  }
+  useEffect(() => { loadGrowth() }, [])
   const prompts = [
     'Teach me why this intervention fits this presentation',
     'Compare CBT, DBT, EFT, and family systems for this case',
@@ -442,6 +727,7 @@ export function TraineeLearning() {
           </button>
         ))}
       </div>
+      <GrowthEventForm onSaved={loadGrowth} />
       <section className="rounded-2xl border border-gray-200 bg-white p-5">
         <h2 className="text-sm font-bold text-gray-950">Competency map</h2>
         <p className="mt-1 text-xs text-gray-500">Miwa builds this from supervision feedback and learning activity over time.</p>
@@ -468,6 +754,7 @@ export function TraineeLearning() {
           )) : <p className="text-sm text-gray-500">Your modalities learned, recurring supervision themes, documentation struggles, confidence growth, and skills practiced will collect here.</p>}
         </div>
       </section>
+      <TransitionPanel />
     </div>
   )
 }

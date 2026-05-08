@@ -110,6 +110,8 @@ router.get('/', async (req, res) => {
       patients.case_type, patients.client_type, patients.age_range, patients.presenting_concerns, patients.diagnoses,
       patients.risk_screening, patients.phone, patients.email, patients.preferred_contact_method,
       patients.sms_consent, patients.sms_consent_at,
+      patients.record_mode, patients.agency_client_id, patients.agency_note_status, patients.supervision_priority,
+      patients.case_conceptualization, patients.modality_lens, patients.supervision_questions,
       patients.session_modality, patients.session_duration, patients.therapist_id,
       patients.status, patients.therapy_ended_at, patients.retention_until, patients.retention_basis,
       patients.archived_at, patients.legal_hold,
@@ -189,6 +191,8 @@ router.post('/', async (req, res) => {
       trauma_history, strengths_protective_factors, functional_impairments,
       display_name, phone, email, preferred_contact_method, sms_consent, date_of_birth,
       session_modality, session_duration,
+      record_mode, agency_client_id, agency_note_status, supervision_priority,
+      case_conceptualization, modality_lens, supervision_questions, private_reflection,
     } = req.body;
 
     const normalizedClientType = client_type || 'individual';
@@ -209,6 +213,10 @@ router.post('/', async (req, res) => {
     const consentAt = consent ? new Date().toISOString() : null;
     const contactMethod = normalizePreferredContactMethod(preferred_contact_method);
 
+    let therapist = null;
+    try { therapist = await db.get('SELECT workspace_mode FROM therapists WHERE id = ?', tid); } catch {}
+    const defaultRecordMode = therapist?.workspace_mode === 'agency_companion' ? 'agency_ehr_companion' : 'miwa_system_of_record';
+
     const result = await db.insert(
       `INSERT INTO patients (
         client_id, first_name, last_name, age, gender, case_type, client_type, members, age_range, referral_source, living_situation,
@@ -216,8 +224,11 @@ router.post('/', async (req, res) => {
         mental_health_history, substance_use, risk_screening, family_social_history,
         mental_status_observations, treatment_goals, medical_history, medications,
         trauma_history, strengths_protective_factors, functional_impairments,
-        display_name, phone, email, preferred_contact_method, sms_consent, sms_consent_at, date_of_birth, session_modality, session_duration, therapist_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        display_name, phone, email, preferred_contact_method, sms_consent, sms_consent_at, date_of_birth,
+        record_mode, agency_client_id, agency_note_status, supervision_priority,
+        case_conceptualization, modality_lens, supervision_questions, private_reflection,
+        session_modality, session_duration, therapist_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       resolvedClientId,
       normalizedFirstName,
       normalizedLastName,
@@ -252,6 +263,14 @@ router.post('/', async (req, res) => {
       consent,
       consentAt,
       normalizeDateOnly(date_of_birth),
+      record_mode || defaultRecordMode,
+      agency_client_id || null,
+      agency_note_status || null,
+      supervision_priority || null,
+      case_conceptualization || null,
+      modality_lens || null,
+      supervision_questions || null,
+      private_reflection || null,
       session_modality || null,
       session_duration || null,
       tid
@@ -274,6 +293,8 @@ router.put('/:id', async (req, res) => {
       trauma_history, strengths_protective_factors, functional_impairments,
       display_name, phone, email, preferred_contact_method, sms_consent, date_of_birth, legal_hold, legal_hold_reason,
       session_modality, session_duration,
+      record_mode, agency_client_id, agency_note_status, supervision_priority, last_copied_to_ehr_at,
+      case_conceptualization, modality_lens, supervision_questions, private_reflection,
     } = req.body;
     const existing = await db.get('SELECT * FROM patients WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
     if (!existing) return res.status(404).json({ error: 'Patient not found' });
@@ -324,6 +345,8 @@ router.put('/:id', async (req, res) => {
          risk_screening=?, family_social_history=?, mental_status_observations=?, treatment_goals=?,
          medical_history=?, medications=?, trauma_history=?, strengths_protective_factors=?, functional_impairments=?,
          display_name=?, phone=?, email=?, preferred_contact_method=?, sms_consent=?, sms_consent_at=?, date_of_birth=?, legal_hold=?, legal_hold_reason=?,
+         record_mode=?, agency_client_id=?, agency_note_status=?, supervision_priority=?, last_copied_to_ehr_at=?,
+         case_conceptualization=?, modality_lens=?, supervision_questions=?, private_reflection=?,
          session_modality=?,
          session_duration=?,
          updated_at=CURRENT_TIMESTAMP
@@ -364,6 +387,15 @@ router.put('/:id', async (req, res) => {
       date_of_birth !== undefined ? normalizeDateOnly(date_of_birth) : existing.date_of_birth,
       legal_hold !== undefined ? (legal_hold ? 1 : 0) : (existing.legal_hold ? 1 : 0),
       legal_hold_reason !== undefined ? legal_hold_reason : existing.legal_hold_reason,
+      record_mode !== undefined ? record_mode : existing.record_mode,
+      agency_client_id !== undefined ? agency_client_id : existing.agency_client_id,
+      agency_note_status !== undefined ? agency_note_status : existing.agency_note_status,
+      supervision_priority !== undefined ? supervision_priority : existing.supervision_priority,
+      last_copied_to_ehr_at !== undefined ? last_copied_to_ehr_at : existing.last_copied_to_ehr_at,
+      case_conceptualization !== undefined ? case_conceptualization : existing.case_conceptualization,
+      modality_lens !== undefined ? modality_lens : existing.modality_lens,
+      supervision_questions !== undefined ? supervision_questions : existing.supervision_questions,
+      private_reflection !== undefined ? private_reflection : existing.private_reflection,
       session_modality !== undefined ? session_modality : existing.session_modality,
       session_duration !== undefined ? session_duration : existing.session_duration,
       req.params.id, req.therapist.id
