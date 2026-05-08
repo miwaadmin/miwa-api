@@ -30,7 +30,7 @@ function looksLikeTreatmentPlan(text) {
   return /treatment plan|treatment goal|goal\s+\d|objective|interventions/i.test(text || '')
 }
 
-function Message({ msg, canSavePlan = false, onSavePlan, savingPlan = false }) {
+function Message({ msg, canSavePlan = false, onSavePlan, savingPlan = false, onFollowUp }) {
   const isUser = msg.role === 'user'
   return (
     <div className={`flex items-end gap-3 message-enter ${isUser ? 'flex-row-reverse' : ''}`}>
@@ -73,6 +73,20 @@ function Message({ msg, canSavePlan = false, onSavePlan, savingPlan = false }) {
                   )}
                   Save to client plan
                 </button>
+              </div>
+            )}
+            {onFollowUp && (
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-gray-100 pt-3 dark:border-white/10">
+                {FOLLOW_UP_ACTIONS.map(action => (
+                  <button
+                    key={action.label}
+                    type="button"
+                    onClick={() => onFollowUp(action.prompt)}
+                    className="rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs font-semibold text-gray-600 transition-colors hover:border-brand-300 hover:text-brand-700 dark:border-white/10 dark:text-slate-300 dark:hover:text-brand-200"
+                  >
+                    {action.label}
+                  </button>
+                ))}
               </div>
             )}
           </>
@@ -202,6 +216,13 @@ const STYLE_OPTIONS = [
   { id: 'balanced',  label: 'Balanced',  desc: 'Thorough but concise' },
   { id: 'concise',   label: 'Concise',   desc: 'Short, bullet-first answers' },
   { id: 'detailed',  label: 'Detailed',  desc: 'Deep explanations & research' },
+]
+
+const FOLLOW_UP_ACTIONS = [
+  { label: 'Go deeper', prompt: 'Go deeper on that and explain the clinical reasoning behind it.' },
+  { label: 'Make it practical', prompt: 'Turn that into a practical next-session plan with specific interventions.' },
+  { label: 'Draft chart language', prompt: 'Draft concise chart language I could adapt for documentation.' },
+  { label: 'Ask me what matters', prompt: 'Ask me the most important follow-up questions before we go further.' },
 ]
 
 export default function Supervisor() {
@@ -562,7 +583,7 @@ export default function Supervisor() {
 
       <div className="flex flex-col min-w-0 flex-1 h-full">
       {/* Top bar, hidden on mobile */}
-      <div className="hidden md:flex flex-shrink-0 px-6 py-3 bg-white border-b border-gray-100 items-center gap-4">
+      <div className="hidden md:flex flex-shrink-0 px-6 py-3 bg-white border-b border-gray-100 items-center gap-4 dark:bg-slate-900 dark:border-white/10">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-gradient-to-br from-brand-500 to-teal-500 flex items-center justify-center">
             <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -570,13 +591,18 @@ export default function Supervisor() {
             </svg>
           </div>
           <div>
-            <div className="text-sm font-semibold text-gray-900">
+            <div className="text-sm font-semibold text-gray-900 dark:text-white">
               {activeConversation ? conversationTitle(activeConversation) : 'Miwa'}
             </div>
-            <div className="text-xs text-gray-500">
-              {activeConversation ? 'Opened from consult history' : 'Fresh consult session ready for input'}
+            <div className="text-xs text-gray-500 dark:text-slate-400">
+              {activeConversation ? 'Opened from consult history' : 'Miwa Live is ready to think with you'}
             </div>
           </div>
+        </div>
+
+        <div className="hidden xl:flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-800 dark:border-teal-400/30 dark:bg-teal-400/10 dark:text-teal-200">
+          <span className="h-2 w-2 rounded-full bg-teal-500" />
+          Warm, direct, clinically careful
         </div>
 
         <div className="flex items-center gap-4 ml-auto flex-wrap">
@@ -591,7 +617,7 @@ export default function Supervisor() {
                 className={`text-xs px-2.5 py-1 rounded-lg font-medium border transition-all ${
                   responseStyle === opt.id
                     ? 'bg-brand-600 text-white border-brand-600'
-                    : 'bg-white text-gray-500 border-gray-200 hover:border-brand-300 hover:text-brand-600'
+                    : 'bg-white text-gray-500 border-gray-200 hover:border-brand-300 hover:text-brand-600 dark:bg-slate-900 dark:text-slate-300 dark:border-white/10 dark:hover:text-brand-200'
                 }`}
               >
                 {opt.label}
@@ -626,7 +652,7 @@ export default function Supervisor() {
 
           <button
             onClick={clearHistory}
-            className="text-xs text-gray-400 hover:text-red-500 transition-colors px-2 py-1.5 rounded-lg hover:bg-red-50"
+            className="text-xs text-gray-400 hover:text-red-500 transition-colors px-2 py-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10"
           >
             Clear history
           </button>
@@ -634,7 +660,7 @@ export default function Supervisor() {
       </div>
 
       {/* Messages area */}
-      <div className="flex-1 overflow-y-auto px-3 md:px-6 py-4 space-y-4 bg-gray-50">
+      <div className="flex-1 overflow-y-auto px-3 md:px-6 py-4 space-y-4 bg-gray-50 dark:bg-slate-950">
         {loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
@@ -646,7 +672,7 @@ export default function Supervisor() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
               </svg>
             </div>
-            <h3 className="text-base font-semibold text-gray-900 mb-2">
+            <h3 className="text-base font-semibold text-gray-900 mb-2 dark:text-white">
               {therapist?.full_name
                 ? `Hello, ${therapist.full_name.split(' ')[0]}.`
                 : 'Hello.'}
@@ -656,13 +682,13 @@ export default function Supervisor() {
             {contextType === 'patient' && contextId ? (() => {
               const pt = patients.find(p => String(p.id) === String(contextId))
               return (
-                <p className="text-sm text-gray-500 max-w-sm mb-5">
+                <p className="text-sm text-gray-500 max-w-sm mb-5 dark:text-slate-300">
                   Consulting on <span className="font-semibold text-brand-600">{patientLabel(pt)}</span>. Miwa has read their sessions, notes, and history.
                 </p>
               )
             })() : (
-              <p className="text-sm text-gray-500 max-w-sm mb-5">
-                I'm Miwa. This is a fresh consult session. What would you like to think through today?
+              <p className="text-sm text-gray-500 max-w-md mb-5 dark:text-slate-300">
+                I'm Miwa. Bring me the messy middle. I will reason with you, ask what matters, and help turn it into next steps.
               </p>
             )}
 
@@ -691,8 +717,8 @@ export default function Supervisor() {
             })()}
 
             {/* Style reminder */}
-            <p className="text-[11px] text-gray-400 mt-4">
-              Response style: <span className="font-medium text-gray-500 capitalize">{responseStyle}</span>
+            <p className="text-[11px] text-gray-400 mt-4 dark:text-slate-500">
+              Response style: <span className="font-medium text-gray-500 capitalize dark:text-slate-300">{responseStyle}</span>
               {' · '}
               <button
                 className="underline hover:text-brand-500"
@@ -719,6 +745,7 @@ export default function Supervisor() {
                 }
                 onSavePlan={savePlanToClient}
                 savingPlan={savingPlanId === (msg.id || msg.created_at || msg.content?.slice(0, 24))}
+                onFollowUp={streaming ? null : sendText}
               />
             ))}
             {streaming && streamingText && (
@@ -728,7 +755,7 @@ export default function Supervisor() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                   </svg>
                 </div>
-                <div className="max-w-[75%] rounded-2xl rounded-bl-sm px-4 py-3 bg-white border border-gray-200 shadow-sm text-sm text-gray-800 leading-relaxed">
+                <div className="max-w-[75%] rounded-2xl rounded-bl-sm px-4 py-3 bg-white border border-gray-200 shadow-sm text-sm text-gray-800 leading-relaxed dark:bg-slate-800 dark:border-white/10 dark:text-slate-100">
                   <div
                     className="prose-clinical"
                     dangerouslySetInnerHTML={{ __html: renderMarkdown(streamingText) }}
