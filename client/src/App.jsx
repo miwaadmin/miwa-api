@@ -57,6 +57,7 @@ import ScrollToTop from './components/ScrollToTop'
 import Resources from './pages/Resources'
 import DashboardResources from './pages/DashboardResources'
 import { isNativeApp } from './lib/api'
+import { isAgencyCompanionMode, needsWorkspaceModeOnboarding } from './lib/workspaceMode'
 import {
   TraineeCases,
   TraineeDrafts,
@@ -173,6 +174,10 @@ function MobileDashboardRedirect() {
 }
 
 function DashboardRedirect() {
+  const { therapist } = useAuth()
+  if (!isMobileDevice() && therapist && !needsWorkspaceModeOnboarding(therapist) && isAgencyCompanionMode(therapist)) {
+    return <Navigate to="/t/dashboard" replace />
+  }
   return <MobileDashboardRedirect />
 }
 
