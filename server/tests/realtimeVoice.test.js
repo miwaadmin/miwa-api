@@ -37,8 +37,12 @@ test('realtime status reports safe diagnostics without secrets', () => {
   assert.equal(status.enabled, true);
   assert.equal(status.textProvider, 'openai-phi-zdr');
   assert.equal(status.openaiPhiKeyConfigured, true);
+  // status.model honors the explicit override above
   assert.equal(status.model, 'gpt-realtime-2');
-  assert.equal(status.fallbackModel, 'gpt-realtime');
+  // The default fallback flipped when we made gpt-realtime-1.5 the primary
+  // (gpt-realtime-2 demoted to fallback). No env override for fallback in
+  // this test, so we expect the new default.
+  assert.equal(status.fallbackModel, 'gpt-realtime-2');
   assert.equal(status.transcriptionModel, 'gpt-realtime-whisper');
   assert.doesNotMatch(JSON.stringify(status), /phi-key|OPENAI_PHI_API_KEY/);
 });
