@@ -5,6 +5,7 @@ const OPENAI_PHI_PROVIDER = 'openai-phi-zdr';
 const GENERIC_AI_MESSAGE = 'The AI service is temporarily unavailable. Please try again in a moment.';
 const DEFAULT_AZURE_OPENAI_API_VERSION = '2025-04-01-preview';
 const DEFAULT_OPENAI_PHI_MODEL = 'gpt-5.5';
+const DEFAULT_OPENAI_PHI_FAST_MODEL = 'gpt-5.4-mini';
 const TRANSCRIPTION_DEPLOYMENT_ENV_NAMES = [
   'AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT',
   'AZURE_OPENAI_TRANSCRIBE_DEPLOYMENT',
@@ -81,8 +82,24 @@ function getTextAIProvider() {
   return AZURE_AI_PROVIDER;
 }
 
-function getOpenAIModel() {
-  return String(process.env.OPENAI_PHI_MODEL || DEFAULT_OPENAI_PHI_MODEL).trim();
+function cleanModelName(value, fallback) {
+  return String(value || fallback || '').trim();
+}
+
+function getOpenAIModel(options = {}) {
+  return cleanModelName(options.model, process.env.OPENAI_PHI_MODEL || DEFAULT_OPENAI_PHI_MODEL);
+}
+
+function getOpenAIFastModel() {
+  return cleanModelName(process.env.OPENAI_PHI_FAST_MODEL, DEFAULT_OPENAI_PHI_FAST_MODEL);
+}
+
+function getOpenAIToolModel() {
+  return cleanModelName(process.env.OPENAI_PHI_TOOL_MODEL, getOpenAIFastModel());
+}
+
+function getOpenAIStructuredModel() {
+  return cleanModelName(process.env.OPENAI_PHI_STRUCTURED_MODEL, getOpenAIFastModel());
 }
 
 function getDefaultModelForProvider(provider = getTextAIProvider()) {
@@ -108,9 +125,9 @@ function requireAzureConfig() {
   return { endpoint, apiKey, deployment, apiVersion };
 }
 
-function requireOpenAIConfig() {
+function requireOpenAIConfig(options = {}) {
   const apiKey = String(process.env.OPENAI_PHI_API_KEY || '').trim();
-  const model = getOpenAIModel();
+  const model = getOpenAIModel(options);
 
   if (!apiKey || !model) {
     throw sanitizeAIError({
@@ -322,6 +339,9 @@ function getAIConfigStatus() {
       configured: Boolean(String(process.env.OPENAI_PHI_API_KEY || '').trim()),
       zdrConfirmed: isTruthyEnv('OPENAI_PHI_ZDR_ENABLED'),
       model: getOpenAIModel(),
+      fastModel: getOpenAIFastModel(),
+      toolModel: getOpenAIToolModel(),
+      structuredModel: getOpenAIStructuredModel(),
       projectIdConfigured: Boolean(String(process.env.OPENAI_PHI_PROJECT_ID || '').trim()),
     },
     azureConfigured: Boolean(endpoint && String(process.env.AZURE_OPENAI_KEY || '').trim() && String(process.env.AZURE_OPENAI_DEPLOYMENT || '').trim()),
@@ -414,7 +434,7 @@ function azureUsage(response) {
 
 async function generateAIResponse(messages, options = {}) {
   const provider = getTextAIProvider();
-  const deployment = provider === OPENAI_PHI_PROVIDER ? requireOpenAIConfig().model : requireAzureConfig().deployment;
+  const deployment = provider === OPENAI_PHI_PROVIDER ? requireOpenAIConfig(options).model : requireAzureConfig().deployment;
   const request = {
     model: deployment,
     input: messages,
@@ -432,7 +452,7 @@ async function generateAIResponse(messages, options = {}) {
 
 async function generateAIResponseWithUsage(messages, options = {}) {
   const provider = getTextAIProvider();
-  const deployment = provider === OPENAI_PHI_PROVIDER ? requireOpenAIConfig().model : requireAzureConfig().deployment;
+  const deployment = provider === OPENAI_PHI_PROVIDER ? requireOpenAIConfig(options).model : requireAzureConfig().deployment;
   const request = {
     model: deployment,
     input: messages,
@@ -448,13 +468,15 @@ async function generateAIResponseWithUsage(messages, options = {}) {
   return {
     text: extractResponseText(response) || '',
     usage: azureUsage(response),
+    model: deployment,
+    provider,
     raw: response,
   };
 }
 
 async function generateAIResponseWithTools(systemPrompt, messages, tools, options = {}) {
   const provider = getTextAIProvider();
-  const deployment = provider === OPENAI_PHI_PROVIDER ? requireOpenAIConfig().model : requireAzureConfig().deployment;
+  const deployment = provider === OPENAI_PHI_PROVIDER ? requireOpenAIConfig(options).model : requireAzureConfig().deployment;
   const input = [
     { role: 'system', content: systemPrompt || 'You are a clinical assistant helping therapists.' },
     ...normalizeMessages(messages),
@@ -498,6 +520,8 @@ async function generateAIResponseWithTools(systemPrompt, messages, tools, option
     content,
     stop_reason: content.some((block) => block.type === 'tool_use') ? 'tool_use' : 'end_turn',
     usage: azureUsage(response),
+    model: deployment,
+    provider,
     raw: response,
   };
 }
@@ -555,6 +579,10 @@ module.exports = {
     normalizeEndpoint,
     requireTTSAzureConfig,
     requireOpenAIConfig,
+    getOpenAIModel,
+    getOpenAIFastModel,
+    getOpenAIToolModel,
+    getOpenAIStructuredModel,
     getAzureApiVersion,
     getTextAIProvider,
   },

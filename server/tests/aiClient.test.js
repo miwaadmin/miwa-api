@@ -26,6 +26,9 @@ const ORIGINAL_ENV = {
   AI_PROVIDER: process.env.AI_PROVIDER,
   OPENAI_PHI_API_KEY: process.env.OPENAI_PHI_API_KEY,
   OPENAI_PHI_MODEL: process.env.OPENAI_PHI_MODEL,
+  OPENAI_PHI_FAST_MODEL: process.env.OPENAI_PHI_FAST_MODEL,
+  OPENAI_PHI_TOOL_MODEL: process.env.OPENAI_PHI_TOOL_MODEL,
+  OPENAI_PHI_STRUCTURED_MODEL: process.env.OPENAI_PHI_STRUCTURED_MODEL,
   OPENAI_PHI_ZDR_ENABLED: process.env.OPENAI_PHI_ZDR_ENABLED,
   OPENAI_PHI_PROJECT_ID: process.env.OPENAI_PHI_PROJECT_ID,
 };
@@ -353,6 +356,43 @@ describe('Azure OpenAI client error handling', () => {
     assert.equal(status.openaiPhi.configured, true);
     assert.equal(status.openaiPhi.zdrConfirmed, true);
     assert.ok(!JSON.stringify(status).includes('phi-secret-key'));
+  });
+
+  test('OpenAI PHI/ZDR text lane honors per-request model routing', async () => {
+    process.env.AI_TEXT_PROVIDER = 'openai';
+    process.env.OPENAI_PHI_API_KEY = 'phi-secret-key';
+    process.env.OPENAI_PHI_MODEL = 'gpt-5.5';
+    process.env.OPENAI_PHI_FAST_MODEL = 'gpt-5.4-mini';
+    process.env.OPENAI_PHI_TOOL_MODEL = 'gpt-5.4-mini';
+    process.env.OPENAI_PHI_STRUCTURED_MODEL = 'gpt-5.4-mini';
+    process.env.OPENAI_PHI_ZDR_ENABLED = 'true';
+
+    let seenRequest = null;
+    aiClient._test.setClient({
+      responses: {
+        create: async (request) => {
+          seenRequest = request;
+          return {
+            output_text: 'fictional routed answer',
+            usage: { input_tokens: 3, output_tokens: 2 },
+          };
+        },
+      },
+    });
+
+    const result = await aiClient.generateAIResponseWithUsage([
+      { role: 'user', content: 'FICTIONAL_OPENAI_ROUTING_MARKER' },
+    ], { model: 'gpt-5.4-mini' });
+    const status = aiClient.getAIConfigStatus();
+
+    assert.equal(result.text, 'fictional routed answer');
+    assert.equal(result.model, 'gpt-5.4-mini');
+    assert.equal(seenRequest.model, 'gpt-5.4-mini');
+    assert.equal(seenRequest.store, false);
+    assert.equal(status.openaiPhi.model, 'gpt-5.5');
+    assert.equal(status.openaiPhi.fastModel, 'gpt-5.4-mini');
+    assert.equal(status.openaiPhi.toolModel, 'gpt-5.4-mini');
+    assert.equal(status.openaiPhi.structuredModel, 'gpt-5.4-mini');
   });
 
   test('OpenAI PHI/ZDR text lane fails closed unless ZDR is confirmed', async () => {

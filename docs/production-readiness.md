@@ -10,9 +10,13 @@ This is the near-term bar before inviting real clinicians to store PHI in Miwa.
 - OpenAI API may be used for PHI text/reasoning only through the approved
   BAA-backed Zero Data Retention project. Set `AI_TEXT_PROVIDER=auto`,
   `OPENAI_PHI_API_KEY`, `OPENAI_PHI_ZDR_ENABLED=true`, and optionally
-  `OPENAI_PHI_MODEL` (defaults to `gpt-5.5`). Do not use live web search,
-  files, vector stores, assistants, threads, batches, evals, or fine-tuning for
-  PHI.
+  `OPENAI_PHI_MODEL` (defaults to `gpt-5.5`). Miwa routes complex clinical
+  reasoning, risk, reports, session prep, and clinical document synthesis to
+  that flagship lane, while cheaper utility work can use
+  `OPENAI_PHI_FAST_MODEL`, `OPENAI_PHI_TOOL_MODEL`, and
+  `OPENAI_PHI_STRUCTURED_MODEL` (all default to `gpt-5.4-mini`). Do not use
+  live web search, files, vector stores, assistants, threads, batches, evals,
+  or fine-tuning for PHI.
 - Miwa Live Voice additionally requires `OPENAI_REALTIME_PHI_ENABLED=true`.
   Recommended defaults are `OPENAI_REALTIME_MODEL=gpt-realtime-2`,
   `OPENAI_REALTIME_TRANSCRIPTION_MODEL=gpt-4o-transcribe`,

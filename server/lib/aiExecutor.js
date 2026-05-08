@@ -15,21 +15,51 @@ const { logCostEvent, assertBudgetOk } = require('../services/costTracker');
 
 const MODELS = {
   AZURE_MAIN: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-main',
-  GPT_FLAGSHIP: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-main',
-  GPT_MINI: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-main',
-  GPT_NANO: process.env.AZURE_OPENAI_DEPLOYMENT || 'gpt-main',
+  GPT_FLAGSHIP: process.env.OPENAI_PHI_MODEL || 'gpt-5.5',
+  GPT_MINI: process.env.OPENAI_PHI_FAST_MODEL || 'gpt-5.4-mini',
+  GPT_NANO: process.env.OPENAI_PHI_STRUCTURED_MODEL || process.env.OPENAI_PHI_FAST_MODEL || 'gpt-5.4-mini',
 };
 
-function logAzure(context, usage = {}, status = 'ok') {
+function getOpenAIModelPolicy() {
+  const fast = String(process.env.OPENAI_PHI_FAST_MODEL || 'gpt-5.4-mini').trim();
+  return {
+    flagship: String(process.env.OPENAI_PHI_MODEL || 'gpt-5.5').trim(),
+    fast,
+    tools: String(process.env.OPENAI_PHI_TOOL_MODEL || fast).trim(),
+    structured: String(process.env.OPENAI_PHI_STRUCTURED_MODEL || fast).trim(),
+  };
+}
+
+function selectOpenAIModel(context = {}, options = {}) {
+  const policy = getOpenAIModelPolicy();
+  const tier = String(context.modelTier || '').trim().toLowerCase();
+  if (context.model) return String(context.model).trim();
+  if (tier && policy[tier]) return policy[tier];
+  if (options.tools) return policy.tools;
+  if (options.jsonMode) return policy.structured;
+
+  const kind = String(context.kind || '').toLowerCase();
+  if (/(classify|intent|extract|structured|news|summary|title|routing|onboarding)/.test(kind)) {
+    return policy.structured;
+  }
+  if (/(clinical|risk|treatment|supervision|court|report|document|analysis|case|brief|session|notes|lap_md)/.test(kind)) {
+    return policy.flagship;
+  }
+  return policy.fast;
+}
+
+function logAzure(context, usage = {}, status = 'ok', model = null) {
   if (!context || !context.therapistId) return;
   const aiStatus = getAIConfigStatus();
   logCostEvent({
     therapistId: context.therapistId,
     kind: context.kind || 'unknown',
     provider: aiStatus.textProvider || aiStatus.provider || 'unknown',
-    model: aiStatus.textProvider === 'openai-phi-zdr'
-      ? aiStatus.openaiPhi?.model
-      : (process.env.AZURE_OPENAI_DEPLOYMENT || MODELS.AZURE_MAIN),
+    model: model || (
+      aiStatus.textProvider === 'openai-phi-zdr'
+        ? aiStatus.openaiPhi?.model
+        : (process.env.AZURE_OPENAI_DEPLOYMENT || MODELS.AZURE_MAIN)
+    ),
     inputTokens: usage.input || 0,
     outputTokens: usage.output || 0,
     status,
@@ -51,11 +81,12 @@ function messagesFromPrompts(systemPrompt, userPrompt) {
 
 async function callAI(_model, systemPrompt, userPrompt, maxTokens = 1200, jsonMode = false, context = {}) {
   if (!context.skipBudgetCheck) assertBudgetOk(context.therapistId);
+  const model = selectOpenAIModel(context, { jsonMode });
   const result = await generateAIResponseWithUsage(
     messagesFromPrompts(systemPrompt, userPrompt),
-    { maxTokens, jsonMode },
+    { maxTokens, jsonMode, model },
   );
-  logAzure(context, result.usage);
+  logAzure(context, result.usage, 'ok', result.model);
   return result.text || '';
 }
 
@@ -66,8 +97,9 @@ async function* streamAI(_model, systemPrompt, userPrompt, maxTokens = 2000, con
 
 async function callAIWithTools(_model, systemPrompt, messages, tools, maxTokens = 2000, context = {}) {
   if (!context.skipBudgetCheck) assertBudgetOk(context.therapistId);
-  const response = await generateAIResponseWithTools(systemPrompt, messages, tools, { maxTokens });
-  logAzure(context, response.usage);
+  const model = selectOpenAIModel(context, { tools: true });
+  const response = await generateAIResponseWithTools(systemPrompt, messages, tools, { maxTokens, model });
+  logAzure(context, response.usage, 'ok', response.model);
   return response;
 }
 
@@ -116,4 +148,8 @@ module.exports = {
   synthesizeResearch,
   summarizeNews,
   streamAnalyzeNotes,
+  _test: {
+    getOpenAIModelPolicy,
+    selectOpenAIModel,
+  },
 };
