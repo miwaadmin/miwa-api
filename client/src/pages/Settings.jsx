@@ -6,6 +6,7 @@ import { API_BASE, apiFetch } from '../lib/api'
 import { therapistInitials } from '../lib/avatar'
 import { COMMON_TIMEZONES } from '../lib/dateUtils'
 import OutreachSettings from '../components/OutreachSettings'
+import { TransitionPanel } from './trainee/TraineePages'
 
 const API = API_BASE
 
@@ -1111,6 +1112,8 @@ export default function Settings() {
 
       {/* Proactive Outreach Settings */}
       <OutreachSettings />
+
+      {therapist?.workspace_mode === 'agency_companion' && <TransitionPanel />}
 
       {/* Help & App Tour */}
       <HelpTourCard />

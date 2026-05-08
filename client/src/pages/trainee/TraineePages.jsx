@@ -5,7 +5,6 @@ import { useAuth } from '../../context/AuthContext'
 import { renderClinical } from '../../lib/renderClinical'
 import Patients from '../Patients'
 import Hours from '../Hours'
-import Supervisor from '../Supervisor'
 
 const COMPETENCY_LABELS = {
   assessment: 'Assessment',
@@ -90,11 +89,6 @@ function AgencyProfilePanel() {
           <p className="mt-1 text-sm text-gray-600">{profile.profile.copyStyle}</p>
         </div>
         <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">{profile.profile.preferred_note_format}</span>
-      </div>
-      <div className="mt-4 grid md:grid-cols-3 gap-2">
-        {profile.profile.checklist?.map(item => (
-          <div key={item} className="rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-700">{item}</div>
-        ))}
       </div>
       {profile.site_policy_status !== 'allows_phi' && (
         <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
@@ -535,12 +529,13 @@ export function TraineeSupervision() {
   }
 
   return (
-    <div className="h-full min-h-0 flex flex-col">
-      <div className="flex-shrink-0 border-b border-gray-200 bg-white px-6 py-4">
+    <div className="p-6 max-w-6xl mx-auto space-y-5">
+      <div>
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row md:items-center gap-3">
           <div className="flex-1">
-            <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Supervision agent</p>
-            <h1 className="text-xl font-bold text-gray-950">Weekly supervision agenda</h1>
+            <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Supervision</p>
+            <h1 className="text-2xl font-bold text-gray-950">Weekly supervision agenda</h1>
+            <p className="mt-1 text-sm text-gray-500">Prepare what to bring to your supervisor, track what was discussed, and turn feedback into next steps.</p>
           </div>
           <button onClick={loadAgenda} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white hover:bg-brand-700">
             {loading ? 'Preparing...' : 'Prepare agenda'}
@@ -550,11 +545,9 @@ export function TraineeSupervision() {
           </button>
         </div>
         {agenda && (
-          <div className="max-w-6xl mx-auto mt-3 rounded-2xl border border-brand-100 bg-brand-50 p-4 text-sm text-gray-800 whitespace-pre-wrap max-h-56 overflow-y-auto">
-            {agenda}
-          </div>
+          <div className="max-w-6xl mx-auto mt-4 prose-clinical rounded-2xl border border-brand-100 bg-brand-50 p-4 text-sm" dangerouslySetInnerHTML={{ __html: renderClinical(agenda) }} />
         )}
-        <div className="max-w-6xl mx-auto mt-3 grid lg:grid-cols-2 gap-3">
+        <div className="max-w-6xl mx-auto mt-4 grid lg:grid-cols-2 gap-3">
           <section className="rounded-2xl border border-gray-200 bg-white p-4">
             <h2 className="text-sm font-bold text-gray-950">Ask my supervisor queue</h2>
             <div className="mt-3 space-y-2 max-h-48 overflow-y-auto">
@@ -592,9 +585,6 @@ export function TraineeSupervision() {
             </div>
           </section>
         </div>
-      </div>
-      <div className="flex-1 min-h-0">
-        <Supervisor />
       </div>
     </div>
   )
@@ -645,7 +635,7 @@ function GrowthEventForm({ onSaved }) {
   )
 }
 
-function TransitionPanel() {
+export function TransitionPanel() {
   const [plan, setPlan] = useState(null)
   const [selected, setSelected] = useState([])
   const [done, setDone] = useState(false)
@@ -754,7 +744,6 @@ export function TraineeLearning() {
           )) : <p className="text-sm text-gray-500">Your modalities learned, recurring supervision themes, documentation struggles, confidence growth, and skills practiced will collect here.</p>}
         </div>
       </section>
-      <TransitionPanel />
     </div>
   )
 }

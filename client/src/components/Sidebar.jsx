@@ -227,8 +227,8 @@ export default function Sidebar() {
     : navItems
   const traineeNavItems = [
     {
-      to: '/t/today',
-      label: 'Today',
+      to: '/t/dashboard',
+      label: 'Dashboard',
       end: true,
       activeColor: 'text-teal-300',
       icon: navItems[0].icon,
@@ -258,10 +258,10 @@ export default function Sidebar() {
       icon: HOURS_ITEM.icon,
     }] : []),
     {
-      to: '/t/learning',
-      label: 'Learning',
+      to: '/consult',
+      label: 'Consult',
       activeColor: 'text-orange-300',
-      icon: navItems.find(i => i.to === '/library')?.icon,
+      icon: navItems.find(i => i.to === '/consult')?.icon,
     },
     {
       to: '/settings',

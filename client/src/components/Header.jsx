@@ -8,6 +8,7 @@ import TaskInbox from './TaskInbox'
 
 const pageMeta = {
   '/dashboard':  { title: 'Dashboard' },
+  '/t/dashboard': { title: 'Dashboard' },
   '/patients':   { title: 'Patients' },
   '/consult': { title: 'Consult' },
   '/workspace':  { title: 'Session Workspace' },

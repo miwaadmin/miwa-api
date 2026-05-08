@@ -226,12 +226,12 @@ function usePatientContext() {
 }
 
 function pageSurface(pathname) {
-  if (pathname.startsWith('/t/today')) return { surface: 'trainee_today', label: 'Trainee Today' }
+  if (pathname.startsWith('/t/dashboard') || pathname.startsWith('/t/today')) return { surface: 'trainee_dashboard', label: 'Trainee Dashboard' }
   if (pathname.startsWith('/t/cases')) return { surface: 'trainee_cases', label: 'Cases' }
   if (pathname.startsWith('/t/drafts')) return { surface: 'trainee_drafts', label: 'Note Drafts' }
   if (pathname.startsWith('/t/supervision')) return { surface: 'trainee_supervision', label: 'Supervision' }
   if (pathname.startsWith('/t/hours')) return { surface: 'trainee_hours', label: 'Hours' }
-  if (pathname.startsWith('/t/learning')) return { surface: 'trainee_learning', label: 'Learning' }
+  if (pathname.startsWith('/t/learning')) return { surface: 'consult', label: 'Consult' }
   if (pathname === '/dashboard') return { surface: 'dashboard', label: 'Dashboard' }
   if (pathname === '/schedule' || pathname === '/calendar') return { surface: 'schedule', label: 'Schedule' }
   if (pathname === '/patients') return { surface: 'patients', label: 'Patients' }
