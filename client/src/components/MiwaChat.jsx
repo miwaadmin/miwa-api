@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useLocation } from 'react-router-dom'
-import { apiFetch, apiUpload } from '../lib/api'
+import { API_BASE, apiFetch, apiUpload } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { renderClinical } from '../lib/renderClinical'
 import AssistantActionCard from './AssistantActionCards'
@@ -1206,17 +1206,6 @@ When you're done, I'll save this as your profile and refer back to it in every c
     setLiveVoiceMode(mode)
     setLiveVoiceStatus(mode === 'dictation' ? 'Starting live dictation...' : mode === 'translate' ? 'Starting clinical translation...' : 'Starting Miwa Live...')
     try {
-      const sessionRes = await apiFetch('/agent/realtime/session', {
-        method: 'POST',
-        body: JSON.stringify({ mode, pageContext: currentPageContext }),
-      })
-      const session = await sessionRes.json()
-      if (!sessionRes.ok) throw new Error(session.message || session.error || 'Live Voice is not available.')
-
-      const clientSecret = session?.client_secret?.value || session?.client_secret || session?.value
-      const realtimeUrl = session?.miwa?.realtimeUrl
-      if (!clientSecret || !realtimeUrl) throw new Error('Live Voice session did not return a client secret.')
-
       const pc = new RTCPeerConnection()
       realtimePcRef.current = pc
       const audioEl = document.createElement('audio')
@@ -1238,15 +1227,21 @@ When you're done, I'll save this as your profile and refer back to it in every c
 
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
-      const sdpRes = await fetch(realtimeUrl, {
+      const params = new URLSearchParams({ mode })
+      if (currentPageContext) params.set('pageContext', JSON.stringify(currentPageContext))
+      const sdpRes = await fetch(`${API_BASE}/agent/realtime/call?${params.toString()}`, {
         method: 'POST',
+        credentials: 'include',
         headers: {
-          Authorization: `Bearer ${clientSecret}`,
           'Content-Type': 'application/sdp',
         },
         body: offer.sdp,
       })
-      if (!sdpRes.ok) throw new Error('OpenAI Realtime did not accept the voice connection.')
+      if (!sdpRes.ok) {
+        const contentType = sdpRes.headers.get('content-type') || ''
+        const data = contentType.includes('application/json') ? await sdpRes.json().catch(() => ({})) : {}
+        throw new Error(data.message || data.error || 'Miwa Live Voice could not connect to the realtime service.')
+      }
       await pc.setRemoteDescription({ type: 'answer', sdp: await sdpRes.text() })
       setLiveVoice(true)
     } catch (err) {

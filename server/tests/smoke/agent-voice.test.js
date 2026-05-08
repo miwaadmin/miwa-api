@@ -57,6 +57,33 @@ test('agent realtime session stays disabled until PHI/ZDR realtime is explicitly
   assert.equal(res.body.requirements.realtimePhiFlag, 'OPENAI_REALTIME_PHI_ENABLED=true');
 });
 
+test('agent realtime call rejects malformed SDP before contacting OpenAI', async () => {
+  await startTestServer();
+  const { cookie } = await bootstrapAdminAndLogin({
+    email: 'voice-realtime-invalid-sdp@miwa.test',
+    password: 'test-password-1234',
+  });
+
+  process.env.AI_TEXT_PROVIDER = 'openai';
+  process.env.OPENAI_PHI_API_KEY = 'test-openai-key';
+  process.env.OPENAI_PHI_ZDR_ENABLED = 'true';
+  process.env.OPENAI_REALTIME_PHI_ENABLED = 'true';
+
+  const baseUrl = await startTestServer();
+  const res = await fetch(`${baseUrl}/api/agent/realtime/call?mode=conversation`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/sdp',
+      Cookie: cookie,
+    },
+    body: 'not an sdp offer',
+  });
+  const body = await res.json();
+
+  assert.equal(res.status, 400);
+  assert.equal(body.error, 'REALTIME_SDP_INVALID');
+});
+
 test('app CSP allows Miwa Live Voice browser connection to OpenAI realtime', async () => {
   const baseUrl = await startTestServer();
   const res = await fetch(`${baseUrl}/t/dashboard`);

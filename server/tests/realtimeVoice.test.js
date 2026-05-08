@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  createRealtimeCallAnswer,
   createRealtimeClientSecret,
   getRealtimeConfig,
   realtimeEnabled,
@@ -75,4 +76,36 @@ test('client secret request sends only session config and returns Miwa connectio
   assert.equal(seen[0].url, 'https://api.openai.com/v1/realtime/client_secrets');
   assert.equal(seen[0].options.headers.Authorization, 'Bearer phi-key');
   assert.doesNotMatch(seen[0].options.body, /OPENAI_PHI_API_KEY|phi-key/);
+});
+
+test('unified realtime call sends SDP and session config from the server', async () => {
+  const seen = [];
+  const fakeFetch = async (url, options) => {
+    seen.push({ url, options });
+    return {
+      ok: true,
+      status: 200,
+      headers: new Map(),
+      async text() {
+        return 'v=0\r\no=openai-answer\r\n';
+      },
+    };
+  };
+
+  const result = await createRealtimeCallAnswer('v=0\r\no=browser-offer\r\n', {
+    mode: 'conversation',
+    pageContext: { label: 'Dashboard' },
+    safetyIdentifier: 'hashed-user-id',
+  }, phiRealtimeEnv({ OPENAI_REALTIME_MODEL: 'gpt-realtime-2' }), fakeFetch);
+
+  assert.equal(result.answer, 'v=0\r\no=openai-answer\r\n');
+  assert.equal(result.model, 'gpt-realtime-2');
+  assert.equal(seen[0].url, 'https://api.openai.com/v1/realtime/calls');
+  assert.equal(seen[0].options.headers.Authorization, 'Bearer phi-key');
+  assert.equal(seen[0].options.headers['OpenAI-Safety-Identifier'], 'hashed-user-id');
+  assert.equal(await seen[0].options.body.get('sdp'), 'v=0\r\no=browser-offer');
+  const session = JSON.parse(await seen[0].options.body.get('session'));
+  assert.equal(session.type, 'realtime');
+  assert.equal(session.model, 'gpt-realtime-2');
+  assert.doesNotMatch(JSON.stringify(session), /OPENAI_PHI_API_KEY|phi-key/);
 });

@@ -1,4 +1,5 @@
 const express = require('express');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { PDFDocument, StandardFonts, rgb } = require('pdf-lib');
@@ -34,6 +35,7 @@ const {
   recordConversationSignal,
 } = require('../services/assistantRuntime');
 const {
+  createRealtimeCallAnswer,
   createRealtimeClientSecret,
   getRealtimeConfig,
 } = require('../services/realtimeVoice');
@@ -4627,6 +4629,53 @@ router.post('/realtime/session', async (req, res) => {
     return res.status(err.statusCode || 502).json({
       error: err.code || 'REALTIME_SESSION_FAILED',
       message: 'Miwa Live Voice could not start. Classic dictation and text chat still work.',
+    });
+  }
+});
+
+router.post('/realtime/call', express.text({ type: ['application/sdp', 'text/plain'], limit: '2mb' }), async (req, res) => {
+  try {
+    const mode = String(req.query.mode || 'conversation');
+    let pageContext = {};
+    try {
+      pageContext = req.query.pageContext ? JSON.parse(String(req.query.pageContext)) : {};
+    } catch {
+      pageContext = {};
+    }
+    const safetyIdentifier = crypto
+      .createHash('sha256')
+      .update(`miwa-therapist:${req.therapist.id}`)
+      .digest('hex');
+    const result = await createRealtimeCallAnswer(req.body, { mode, pageContext, safetyIdentifier });
+    res.type('application/sdp').send(result.answer);
+  } catch (err) {
+    if (err.code === 'REALTIME_VOICE_UNAVAILABLE') {
+      const config = getRealtimeConfig();
+      return res.status(503).json({
+        error: 'REALTIME_VOICE_UNAVAILABLE',
+        message: 'Miwa Live Voice is not enabled for the PHI/ZDR OpenAI lane yet. Classic dictation and text chat still work.',
+        requirements: {
+          openaiPhiZdr: true,
+          realtimePhiFlag: 'OPENAI_REALTIME_PHI_ENABLED=true',
+          model: config.model,
+          transcriptionModel: config.transcriptionModel,
+        },
+      });
+    }
+    if (err.code === 'REALTIME_SDP_INVALID') {
+      return res.status(400).json({
+        error: 'REALTIME_SDP_INVALID',
+        message: 'Miwa Live Voice could not read the browser voice offer. Please refresh and try again.',
+      });
+    }
+    console.error('[agent realtime] call failed', {
+      code: err.code,
+      statusCode: err.statusCode,
+      openai: err.openai || null,
+    });
+    return res.status(err.statusCode || 502).json({
+      error: err.code || 'REALTIME_CALL_FAILED',
+      message: 'Miwa Live Voice could not connect to the realtime service. Classic dictation and text chat still work.',
     });
   }
 });

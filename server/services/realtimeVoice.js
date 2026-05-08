@@ -145,8 +145,64 @@ async function createRealtimeClientSecret({ mode = 'conversation', pageContext =
   };
 }
 
+async function createRealtimeCallAnswer(sdp, { mode = 'conversation', pageContext = {}, safetyIdentifier = null } = {}, env = process.env, fetchImpl = fetch) {
+  const config = getRealtimeConfig(env);
+  if (!config.enabled) {
+    const err = new Error('Realtime voice is not enabled for the PHI/ZDR lane.');
+    err.statusCode = 503;
+    err.code = 'REALTIME_VOICE_UNAVAILABLE';
+    throw err;
+  }
+
+  const offer = String(sdp || '').trim();
+  if (!offer || !offer.includes('v=0')) {
+    const err = new Error('Realtime SDP offer is missing or invalid.');
+    err.statusCode = 400;
+    err.code = 'REALTIME_SDP_INVALID';
+    throw err;
+  }
+
+  const apiKey = String(env.OPENAI_PHI_API_KEY || '').trim();
+  const session = sessionForMode({ mode, pageContext }, env);
+  const form = new FormData();
+  form.set('sdp', offer);
+  form.set('session', JSON.stringify(session));
+
+  const headers = { Authorization: `Bearer ${apiKey}` };
+  if (safetyIdentifier) headers['OpenAI-Safety-Identifier'] = String(safetyIdentifier);
+
+  const response = await fetchImpl('https://api.openai.com/v1/realtime/calls', {
+    method: 'POST',
+    headers,
+    body: form,
+  });
+
+  const answer = await response.text().catch(() => '');
+  if (!response.ok) {
+    let parsed = {};
+    try { parsed = JSON.parse(answer); } catch {}
+    const err = new Error('Could not start Miwa Live Voice.');
+    err.statusCode = response.status || 502;
+    err.code = 'REALTIME_CALL_FAILED';
+    err.openai = {
+      request_id: response.headers?.get?.('x-request-id') || null,
+      status: response.status,
+      error_type: parsed?.error?.type || null,
+      error_code: parsed?.error?.code || null,
+    };
+    throw err;
+  }
+
+  return {
+    answer,
+    model: session.model || config.transcriptionModel,
+    sessionType: session.type,
+  };
+}
+
 module.exports = {
   clinicalRealtimeInstructions,
+  createRealtimeCallAnswer,
   createRealtimeClientSecret,
   getRealtimeConfig,
   realtimeEnabled,
