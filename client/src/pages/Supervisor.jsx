@@ -591,18 +591,14 @@ export default function Supervisor() {
             </svg>
           </div>
           <div>
-            <div className="text-sm font-semibold text-gray-900 dark:text-white">
-              {activeConversation ? conversationTitle(activeConversation) : 'Miwa'}
+            <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+              <span>{activeConversation ? conversationTitle(activeConversation) : 'Miwa'}</span>
+              <span title="Miwa is online" className="h-2 w-2 rounded-full bg-teal-500 shadow-[0_0_0_3px_rgba(20,184,166,0.15)]" />
             </div>
             <div className="text-xs text-gray-500 dark:text-slate-400">
               {activeConversation ? 'Opened from consult history' : 'Miwa Live is ready to think with you'}
             </div>
           </div>
-        </div>
-
-        <div className="hidden xl:flex items-center gap-2 rounded-full border border-teal-200 bg-teal-50 px-3 py-1.5 text-xs font-semibold text-teal-800 dark:border-teal-400/30 dark:bg-teal-400/10 dark:text-teal-200">
-          <span className="h-2 w-2 rounded-full bg-teal-500" />
-          Warm, direct, clinically careful
         </div>
 
         <div className="flex items-center gap-4 ml-auto flex-wrap">

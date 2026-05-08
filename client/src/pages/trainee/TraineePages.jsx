@@ -493,6 +493,14 @@ function DraftQueue() {
   )
 }
 
+function isUsefulSupervisionItem(item) {
+  const title = String(item?.title || '')
+  const details = String(item?.details || '')
+  const leakedTaskText = /I'll work on this in the background|Tasks inbox|result will show up|you can close this chat/i
+  if (leakedTaskText.test(`${title} ${details}`)) return false
+  return true
+}
+
 export function TraineeSupervision() {
   const [agenda, setAgenda] = useState('')
   const [items, setItems] = useState([])
@@ -503,7 +511,7 @@ export function TraineeSupervision() {
   const loadItems = () => {
     apiFetch('/agent/trainee/supervision-items')
       .then(r => r.ok ? r.json() : null)
-      .then(data => setItems(Array.isArray(data?.items) ? data.items : []))
+      .then(data => setItems(Array.isArray(data?.items) ? data.items.filter(isUsefulSupervisionItem) : []))
       .catch(() => {})
   }
   const loadAgenda = () => {
@@ -516,7 +524,6 @@ export function TraineeSupervision() {
   }
 
   useEffect(() => {
-    loadAgenda()
     loadItems()
   }, [])
 
@@ -606,13 +613,15 @@ export function TraineeSupervision() {
           </div>
           <div className="p-5">
             {loading ? (
-              <div className="flex min-h-56 items-center justify-center rounded-xl border border-dashed border-gray-200 text-sm text-gray-500 dark:border-white/10 dark:text-slate-400">
+              <div className="flex min-h-36 items-center justify-center rounded-xl border border-dashed border-gray-200 text-sm text-gray-500 dark:border-white/10 dark:text-slate-400">
                 Preparing your supervision agenda...
               </div>
             ) : agenda ? (
-              <div className="prose-clinical rounded-xl border border-brand-100 bg-brand-50 p-4 text-sm dark:border-brand-400/30 dark:bg-brand-950/20" dangerouslySetInnerHTML={{ __html: renderClinical(agenda) }} />
+              <div className="max-h-80 overflow-y-auto rounded-xl border border-brand-100 bg-brand-50 p-4 dark:border-brand-400/30 dark:bg-brand-950/20">
+                <div className="prose-clinical text-sm" dangerouslySetInnerHTML={{ __html: renderClinical(agenda) }} />
+              </div>
             ) : (
-              <div className="rounded-xl border border-dashed border-gray-200 p-6 text-sm leading-6 text-gray-600 dark:border-white/10 dark:text-slate-300">
+              <div className="rounded-xl border border-dashed border-gray-200 p-5 text-sm leading-6 text-gray-600 dark:border-white/10 dark:text-slate-300">
                 Prepare an agenda from unresolved supervision items, risk questions, stuck points, note issues, and growth themes.
               </div>
             )}

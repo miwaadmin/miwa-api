@@ -1054,10 +1054,14 @@ When you're done, I'll save this as your profile and refer back to it in every c
     try {
       const content = String(msg?.content || '').trim()
       if (!content) return
+      if (msg?.role === 'system_action' || /I'll work on this in the background|Tasks inbox|result will show up|you can close this chat/i.test(content)) {
+        setError('That is a system status message, so it was not added to supervision.')
+        return
+      }
       const res = await apiFetch('/agent/trainee/supervision-items', {
         method: 'POST',
         body: JSON.stringify({
-          title: 'Ask supervisor about Miwa chat insight',
+          title: patientId ? 'Bring client question to supervision' : 'Bring clinical question to supervision',
           details: content.slice(0, 2000),
           patient_id: patientId || null,
           source: 'miwa_chat',
@@ -1743,7 +1747,10 @@ When you're done, I'll save this as your profile and refer back to it in every c
               </svg>
             </div>
             <div className="flex-1 min-w-0">
-              <div className="text-sm font-bold text-white leading-tight">Miwa</div>
+              <div className="flex items-center gap-2 text-sm font-bold text-white leading-tight">
+                <span>Miwa</span>
+                <span title="Miwa is online" className="h-2 w-2 rounded-full bg-teal-300 shadow-[0_0_0_3px_rgba(45,212,191,0.18)]" />
+              </div>
               {patientName ? (
                 <div className="text-xs text-white/70 truncate">Consulting on {patientName}</div>
               ) : (

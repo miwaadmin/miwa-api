@@ -296,9 +296,9 @@ async function generateSupervisionAgenda(db, therapistId, options = {}) {
   const state = await collectTraineeWorkspaceState(db, therapistId, options);
   const markdown = await callAI(
     MODELS.AZURE_MAIN,
-    'You are Miwa as a supervision-prep agent for a therapy trainee. Build a concise weekly agenda from the available workspace data.',
-    `${formatTraineeWorkspaceState(state)}\n\nGenerate a supervision agenda with: high-priority cases, risk/ethics items, case conceptualization questions, documentation questions, hours/admin questions, follow-up from last supervision, and action items to track. If data is missing, suggest what the trainee should add.`,
-    1800,
+    'You are Miwa as a supervision-prep agent for a therapy trainee. Build a short agenda for a real human supervision meeting.',
+    `${formatTraineeWorkspaceState(state)}\n\nGenerate a concise supervision agenda, not a full report. Maximum 5 sections. Maximum 2 bullets per section. Prioritize only what should actually be discussed with a human supervisor this week: urgent cases, risk/ethics, stuck case formulation, documentation blockers, and one follow-up/action item. Do not list every draft, every client, or every missing data point. If there is no real item for a section, omit the section.`,
+    900,
     false,
     { therapistId, kind: 'trainee_supervision_agenda' },
   );
