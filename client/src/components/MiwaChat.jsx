@@ -437,6 +437,107 @@ export default function MiwaChat() {
   })
   const dragStateRef = useRef({ dragging: false, startX: 0, startY: 0, origX: 0, origY: 0, moved: false })
 
+  // Panel-drag state — same pattern as FAB. null = auto-anchor to FAB
+  // (the historical behavior); {x, y} = pinned by the user. Persisted to
+  // localStorage as miwa_panel_pos so the panel "remembers" where the
+  // clinician put it across page navigations and reloads.
+  const [panelPos, setPanelPos] = useState(() => {
+    try {
+      const stored = localStorage.getItem('miwa_panel_pos')
+      return stored ? JSON.parse(stored) : null
+    } catch { return null }
+  })
+  const panelDragStateRef = useRef({ dragging: false, startX: 0, startY: 0, origX: 0, origY: 0, moved: false })
+
+  const handlePanelHeaderMouseDown = useCallback((e) => {
+    if (e.button !== 0) return
+    // Don't start a drag if the click landed on an interactive child
+    // (the voice-mode toggle, voice-on switch, close button). Without
+    // this guard, clicking those buttons starts a 0-pixel "drag" which
+    // is harmless but feels wrong.
+    if (e.target.closest('button, input, textarea, select, a')) return
+    const panel = e.currentTarget.closest('[data-miwa-panel]')
+    if (!panel) return
+    const rect = panel.getBoundingClientRect()
+    panelDragStateRef.current = {
+      dragging: true,
+      startX: e.clientX,
+      startY: e.clientY,
+      origX: rect.left,
+      origY: rect.top,
+      moved: false,
+    }
+    e.preventDefault()
+  }, [])
+
+  const handlePanelHeaderTouchStart = useCallback((e) => {
+    if (e.touches.length !== 1) return
+    if (e.target.closest('button, input, textarea, select, a')) return
+    const panel = e.currentTarget.closest('[data-miwa-panel]')
+    if (!panel) return
+    const rect = panel.getBoundingClientRect()
+    const t = e.touches[0]
+    panelDragStateRef.current = {
+      dragging: true,
+      startX: t.clientX,
+      startY: t.clientY,
+      origX: rect.left,
+      origY: rect.top,
+      moved: false,
+    }
+  }, [])
+
+  // Double-click the header to release the pinned position and snap
+  // back to the auto-anchored layout next to the FAB.
+  const handlePanelHeaderDoubleClick = useCallback((e) => {
+    if (e.target.closest('button, input, textarea, select, a')) return
+    setPanelPos(null)
+    try { localStorage.removeItem('miwa_panel_pos') } catch {}
+  }, [])
+
+  useEffect(() => {
+    function move(clientX, clientY) {
+      const s = panelDragStateRef.current
+      if (!s.dragging) return
+      const dx = clientX - s.startX
+      const dy = clientY - s.startY
+      if (Math.abs(dx) > 4 || Math.abs(dy) > 4) s.moved = true
+      // Use the actual rendered panel size for clamping so the user can't
+      // drag the chrome off-screen on small viewports.
+      const panelEl = document.querySelector('[data-miwa-panel]')
+      const w = panelEl?.offsetWidth || 390
+      const h = panelEl?.offsetHeight || 540
+      const maxX = Math.max(4, window.innerWidth - w - 4)
+      const maxY = Math.max(4, window.innerHeight - h - 4)
+      const nx = Math.min(Math.max(4, s.origX + dx), maxX)
+      const ny = Math.min(Math.max(4, s.origY + dy), maxY)
+      setPanelPos({ x: nx, y: ny })
+    }
+    function onMouseMove(e) { move(e.clientX, e.clientY) }
+    function onTouchMove(e) {
+      if (e.touches.length !== 1) return
+      move(e.touches[0].clientX, e.touches[0].clientY)
+    }
+    function end() {
+      const s = panelDragStateRef.current
+      if (!s.dragging) return
+      s.dragging = false
+      if (s.moved) {
+        try { localStorage.setItem('miwa_panel_pos', JSON.stringify(panelPos)) } catch {}
+      }
+    }
+    window.addEventListener('mousemove', onMouseMove)
+    window.addEventListener('mouseup', end)
+    window.addEventListener('touchmove', onTouchMove, { passive: true })
+    window.addEventListener('touchend', end)
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove)
+      window.removeEventListener('mouseup', end)
+      window.removeEventListener('touchmove', onTouchMove)
+      window.removeEventListener('touchend', end)
+    }
+  }, [panelPos])
+
   const handleFabMouseDown = useCallback((e) => {
     // Only start drag on primary button
     if (e.button !== 0) return
@@ -1376,6 +1477,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
       {/* ── Chat panel ── */}
       {isOpen && (
         <div
+          data-miwa-panel
           className="miwa-chat-panel fixed z-50 flex flex-col overflow-hidden rounded-2xl shadow-2xl"
           style={{
             ...(() => {
@@ -1386,6 +1488,18 @@ When you're done, I'll save this as your profile and refer back to it in every c
                 width: 'min(calc(100vw - 2rem), 390px)',
                 height: 'min(calc(100vh - 8rem), 540px)',
               };
+              // If the user grabbed the panel header and dragged it somewhere
+              // explicit, honor that position over the FAB-anchored auto-layout.
+              if (panelPos) {
+                const PANEL_W = Math.min(390, (typeof window !== 'undefined' ? window.innerWidth : 800) - 24);
+                const PANEL_H = Math.min(540, (typeof window !== 'undefined' ? window.innerHeight : 700) - 24);
+                return {
+                  width: PANEL_W + 'px',
+                  height: PANEL_H + 'px',
+                  left: panelPos.x + 'px',
+                  top: panelPos.y + 'px',
+                };
+              }
               if (!fabPos) return { ...base, bottom: '5.5rem', right: '1rem' };
               const FAB_SIZE = 56;
               const GAP = 12;
@@ -1424,10 +1538,20 @@ When you're done, I'll save this as your profile and refer back to it in every c
             boxShadow: '0 24px 60px rgba(0,0,0,0.18), 0 0 0 1px rgba(87,70,237,0.1)',
           }}
         >
-          {/* Header */}
+          {/* Header — grab anywhere off the buttons to drag the panel
+              around the viewport. Double-click empty header space to
+              snap back to the auto-anchored position next to the FAB. */}
           <div
-            className="flex items-center gap-3 px-4 py-3 flex-shrink-0"
-            style={{ background: 'linear-gradient(135deg, #5746ed, #0ac5a2)' }}
+            className="flex items-center gap-3 px-4 py-3 flex-shrink-0 select-none"
+            style={{
+              background: 'linear-gradient(135deg, #5746ed, #0ac5a2)',
+              cursor: panelDragStateRef.current.dragging ? 'grabbing' : 'grab',
+              touchAction: 'none',
+            }}
+            onMouseDown={handlePanelHeaderMouseDown}
+            onTouchStart={handlePanelHeaderTouchStart}
+            onDoubleClick={handlePanelHeaderDoubleClick}
+            title="Drag to reposition. Double-click to snap back."
           >
             <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
               <svg width="22" height="22" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
