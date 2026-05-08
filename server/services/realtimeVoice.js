@@ -136,17 +136,22 @@ function sessionForMode({ mode = 'conversation', pageContext = {}, modelOverride
     };
   }
 
-  // Conversation + translation: realtime session. The new GA realtime API
-  // requires `output_modalities` to be set explicitly — leaving it off
-  // returns an `invalid_offer` from /v1/realtime/calls because the model
-  // can't decide whether to produce audio, text, or both. We default to
-  // both so the WebRTC audio track has data AND the data channel still
-  // gets transcript events for the on-screen "Live transcript" panel.
+  // Conversation + translation: realtime session.
+  //
+  // We're staying conservatively close to the minimal session shape OpenAI
+  // documents in the official Node.js example (developers.openai.com/api/
+  // docs/guides/realtime-webrtc):
+  //
+  //   { type, model, audio: { output: { voice } } }
+  //
+  // Plus an `instructions` field for our clinical guardrails. We previously
+  // also passed output_modalities: ["audio", "text"] based on a guess; that
+  // was not in the docs and coincided with prod responses being empty 504s
+  // (OpenAI's backend hanging instead of erroring cleanly). Removed.
   return {
     type: 'realtime',
     model,
     instructions: clinicalRealtimeInstructions({ mode: normalizedMode, pageContext }),
-    output_modalities: ['audio', 'text'],
     audio: {
       output: {
         voice: config.voice,
