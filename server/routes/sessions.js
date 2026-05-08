@@ -166,17 +166,21 @@ router.post('/', async (req, res) => {
     const patient = await ownedPatient(db, req.params.patientId, req.therapist.id);
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
 
-    const { session_date, note_format, subjective, objective, assessment, plan, icd10_codes, ai_feedback, notes_json, treatment_plan, duration_minutes, cpt_code, signed_at, full_note } = req.body;
+    const { session_date, note_format, subjective, objective, assessment, plan, icd10_codes, ai_feedback, notes_json, treatment_plan, duration_minutes, cpt_code, signed_at, full_note, trainee_note_status, copied_to_ehr_at, copied_to_ehr_name, needs_supervision, supervision_question, draft_completed_at, reviewed_by_trainee_at, risk_safety_checked_at, discussed_in_supervision_at, follow_up_completed_at, copy_to_ehr_checklist_json } = req.body;
 
     const result = await db.insert(
-      `INSERT INTO sessions (patient_id, therapist_id, session_date, note_format, subjective, objective, assessment, plan, icd10_codes, ai_feedback, notes_json, treatment_plan, duration_minutes, cpt_code, signed_at, full_note)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO sessions (patient_id, therapist_id, session_date, note_format, subjective, objective, assessment, plan, icd10_codes, ai_feedback, notes_json, treatment_plan, duration_minutes, cpt_code, signed_at, full_note, trainee_note_status, copied_to_ehr_at, copied_to_ehr_name, needs_supervision, supervision_question, draft_completed_at, reviewed_by_trainee_at, risk_safety_checked_at, discussed_in_supervision_at, follow_up_completed_at, copy_to_ehr_checklist_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       req.params.patientId, req.therapist.id,
       session_date || null, note_format || 'SOAP',
       subjective || null, objective || null,
       assessment || null, plan || null, icd10_codes || null, ai_feedback || null,
       notes_json || null, treatment_plan || null,
-      duration_minutes || null, cpt_code || null, signed_at || null, full_note || null
+      duration_minutes || null, cpt_code || null, signed_at || null, full_note || null,
+      trainee_note_status || null, copied_to_ehr_at || null, copied_to_ehr_name || null,
+      needs_supervision ? 1 : 0, supervision_question || null,
+      draft_completed_at || null, reviewed_by_trainee_at || null, risk_safety_checked_at || null,
+      discussed_in_supervision_at || null, follow_up_completed_at || null, copy_to_ehr_checklist_json || null
     );
 
     const session = await db.get('SELECT * FROM sessions WHERE id = ?', result.lastInsertRowid);
@@ -212,7 +216,7 @@ router.put('/:sessionId', async (req, res) => {
     );
     if (!existing) return res.status(404).json({ error: 'Session not found' });
 
-    const { session_date, note_format, subjective, objective, assessment, plan, icd10_codes, ai_feedback, notes_json, treatment_plan, duration_minutes, cpt_code, signed_at, full_note } = req.body;
+    const { session_date, note_format, subjective, objective, assessment, plan, icd10_codes, ai_feedback, notes_json, treatment_plan, duration_minutes, cpt_code, signed_at, full_note, trainee_note_status, copied_to_ehr_at, copied_to_ehr_name, needs_supervision, supervision_question, draft_completed_at, reviewed_by_trainee_at, risk_safety_checked_at, discussed_in_supervision_at, follow_up_completed_at, copy_to_ehr_checklist_json } = req.body;
 
     // Prevent editing a signed (locked) note unless explicitly unlocking
     if (existing.signed_at && signed_at === undefined) {
@@ -220,7 +224,9 @@ router.put('/:sessionId', async (req, res) => {
     }
 
     await db.run(
-      `UPDATE sessions SET session_date=?, note_format=?, subjective=?, objective=?, assessment=?, plan=?, icd10_codes=?, ai_feedback=?, notes_json=?, treatment_plan=?, duration_minutes=?, cpt_code=?, signed_at=?, full_note=?
+      `UPDATE sessions SET session_date=?, note_format=?, subjective=?, objective=?, assessment=?, plan=?, icd10_codes=?, ai_feedback=?, notes_json=?, treatment_plan=?, duration_minutes=?, cpt_code=?, signed_at=?, full_note=?,
+        trainee_note_status=?, copied_to_ehr_at=?, copied_to_ehr_name=?, needs_supervision=?, supervision_question=?,
+        draft_completed_at=?, reviewed_by_trainee_at=?, risk_safety_checked_at=?, discussed_in_supervision_at=?, follow_up_completed_at=?, copy_to_ehr_checklist_json=?
        WHERE id=? AND patient_id=?`,
       session_date    !== undefined ? session_date    : existing.session_date,
       note_format     !== undefined ? note_format     : existing.note_format,
@@ -236,6 +242,17 @@ router.put('/:sessionId', async (req, res) => {
       cpt_code        !== undefined ? cpt_code        : existing.cpt_code,
       signed_at       !== undefined ? signed_at       : existing.signed_at,
       full_note       !== undefined ? full_note       : existing.full_note,
+      trainee_note_status !== undefined ? trainee_note_status : existing.trainee_note_status,
+      copied_to_ehr_at !== undefined ? copied_to_ehr_at : existing.copied_to_ehr_at,
+      copied_to_ehr_name !== undefined ? copied_to_ehr_name : existing.copied_to_ehr_name,
+      needs_supervision !== undefined ? (needs_supervision ? 1 : 0) : existing.needs_supervision,
+      supervision_question !== undefined ? supervision_question : existing.supervision_question,
+      draft_completed_at !== undefined ? draft_completed_at : existing.draft_completed_at,
+      reviewed_by_trainee_at !== undefined ? reviewed_by_trainee_at : existing.reviewed_by_trainee_at,
+      risk_safety_checked_at !== undefined ? risk_safety_checked_at : existing.risk_safety_checked_at,
+      discussed_in_supervision_at !== undefined ? discussed_in_supervision_at : existing.discussed_in_supervision_at,
+      follow_up_completed_at !== undefined ? follow_up_completed_at : existing.follow_up_completed_at,
+      copy_to_ehr_checklist_json !== undefined ? copy_to_ehr_checklist_json : existing.copy_to_ehr_checklist_json,
       req.params.sessionId, req.params.patientId
     );
 

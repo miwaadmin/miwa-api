@@ -914,6 +914,32 @@ When you're done, I'll save this as your profile and refer back to it in every c
     }
   }, [streaming, patientId, therapist?.assistant_verbosity, isOpen, onboardingStage, onboardingAnswers, currentPageContext])
 
+  const addMessageToSupervision = useCallback(async (msg) => {
+    try {
+      const content = String(msg?.content || '').trim()
+      if (!content) return
+      const res = await apiFetch('/agent/trainee/supervision-items', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: 'Ask supervisor about Miwa chat insight',
+          details: content.slice(0, 2000),
+          patient_id: patientId || null,
+          source: 'miwa_chat',
+          priority: /\b(SI|HI|suicid|homicid|abuse|mandated|Tarasoff|custody|consent|ROI|crisis|scope)\b/i.test(content) ? 'high' : 'normal',
+        }),
+      })
+      if (!res.ok) throw new Error('Could not add this to supervision')
+      setMessages(m => [...m, {
+        id: Date.now(),
+        role: 'system_action',
+        actionType: 'supervision_item_added',
+        content: 'Added to your supervision queue.',
+      }])
+    } catch (err) {
+      setError(err.message)
+    }
+  }, [patientId])
+
   // External prompt bridge for guided actions from pages like Schedule
   useEffect(() => {
     const handler = (event) => {
@@ -1368,7 +1394,9 @@ When you're done, I'll save this as your profile and refer back to it in every c
                   Hi {firstName}! 👋
                 </p>
                 <p className="miwa-chat-empty-copy text-xs text-gray-500 mt-1 max-w-[260px]">
-                  {patientName
+                  {agencyMode
+                    ? 'Bring your clinical thinking here, not to random AI tools. I can help with notes, supervision questions, hours, risk, and learning.'
+                    : patientName
                     ? `I can schedule, send an assessment, pull a report, or find resources for ${patientName}.`
                     : `I can see you're on ${currentPageContext.label}. I can help with the actions that fit this page, or you can ask anything.`}
                 </p>
@@ -1439,6 +1467,16 @@ When you're done, I'll save this as your profile and refer back to it in every c
                     )
                   }
 
+                  if (msg.role === 'system_action' && msg.actionType === 'supervision_item_added') {
+                    return (
+                      <div key={msg.id} className="flex justify-start">
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 shadow-sm">
+                          Added to your supervision queue.
+                        </div>
+                      </div>
+                    )
+                  }
+
                   if (msg.role === 'system_action' && msg.actionType === 'client_created') {
                     return (
                       <div key={msg.id} className="flex items-start gap-2">
@@ -1461,24 +1499,35 @@ When you're done, I'll save this as your profile and refer back to it in every c
                   // the conversational feel of a real messaging app.
                   return (
                     <div key={msg.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-                      <div
-                        className={`max-w-[82%] px-3.5 py-2 text-[13px] leading-relaxed ${
-                          isUser
-                            ? 'text-white rounded-3xl rounded-br-md shadow-sm'
-                            : 'miwa-assistant-bubble text-gray-900 rounded-3xl rounded-bl-md'
-                        }`}
-                        style={isUser
-                          ? { background: 'linear-gradient(180deg, #2A8AFE 0%, #007AFF 100%)' }
-                          : { background: '#E9E9EB' }
-                        }
-                      >
-                        {isUser ? (
-                          <p className="whitespace-pre-wrap">{msg.content}</p>
-                        ) : (
-                          <div
-                            className="prose-clinical"
-                            dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
-                          />
+                      <div className={`max-w-[82%] ${isUser ? '' : 'space-y-1'}`}>
+                        <div
+                          className={`px-3.5 py-2 text-[13px] leading-relaxed ${
+                            isUser
+                              ? 'text-white rounded-3xl rounded-br-md shadow-sm'
+                              : 'miwa-assistant-bubble text-gray-900 rounded-3xl rounded-bl-md'
+                          }`}
+                          style={isUser
+                            ? { background: 'linear-gradient(180deg, #2A8AFE 0%, #007AFF 100%)' }
+                            : { background: '#E9E9EB' }
+                          }
+                        >
+                          {isUser ? (
+                            <p className="whitespace-pre-wrap">{msg.content}</p>
+                          ) : (
+                            <div
+                              className="prose-clinical"
+                              dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                            />
+                          )}
+                        </div>
+                        {agencyMode && !isUser && (
+                          <button
+                            type="button"
+                            onClick={() => addMessageToSupervision(msg)}
+                            className="ml-2 rounded-full border border-amber-200 bg-white px-2.5 py-1 text-[10px] font-bold text-amber-700 shadow-sm hover:bg-amber-50"
+                          >
+                            Ask supervisor
+                          </button>
                         )}
                       </div>
                     </div>

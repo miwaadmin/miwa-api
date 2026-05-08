@@ -102,6 +102,9 @@ function safeProfile(row) {
     client_record_mode: row.client_record_mode || 'miwa_system_of_record',
     agency_name: row.agency_name || null,
     agency_ehr_name: row.agency_ehr_name || null,
+    site_policy_status: row.site_policy_status || null,
+    agency_ehr_note_format: row.agency_ehr_note_format || null,
+    agency_ehr_custom_format: row.agency_ehr_custom_format || null,
     training_program: row.training_program || null,
     site_policy_acknowledged_at: row.site_policy_acknowledged_at || null,
     workspace_mode_selected_at: row.workspace_mode_selected_at || null,
@@ -562,6 +565,9 @@ router.put('/me', requireAuth, async (req, res) => {
       client_record_mode,
       agency_name,
       agency_ehr_name,
+      site_policy_status,
+      agency_ehr_note_format,
+      agency_ehr_custom_format,
       training_program,
       site_policy_acknowledged,
     } = req.body;
@@ -609,6 +615,8 @@ router.put('/me', requireAuth, async (req, res) => {
 
     const validWorkspaceModes = new Set(['agency_companion', 'private_practice', 'group_practice_future']);
     const validRecordModes = new Set(['agency_ehr_companion', 'miwa_system_of_record']);
+    const validSitePolicyStatuses = new Set(['allows_phi', 'no_phi_outside_tools', 'not_sure']);
+    const validNoteFormats = new Set(['SOAP', 'DAP', 'BIRP', 'GIRP', 'narrative', 'concise_agency_style', 'custom']);
     const nextWorkspaceMode = workspace_mode !== undefined
       ? (validWorkspaceModes.has(workspace_mode) ? workspace_mode : row.workspace_mode)
       : row.workspace_mode;
@@ -630,6 +638,7 @@ router.put('/me', requireAuth, async (req, res) => {
            assistant_verbosity = ?, assistant_memory = ?, assistant_permissions_json = ?,
            telehealth_url = ?, preferred_timezone = ?,
            workspace_mode = ?, client_record_mode = ?, agency_name = ?, agency_ehr_name = ?,
+           site_policy_status = ?, agency_ehr_note_format = ?, agency_ehr_custom_format = ?,
            training_program = ?, site_policy_acknowledged_at = ?,
            workspace_mode_selected_at = ?
        WHERE id = ?`,
@@ -652,6 +661,9 @@ router.put('/me', requireAuth, async (req, res) => {
       nextClientRecordMode || 'miwa_system_of_record',
       agency_name !== undefined ? (agency_name || null) : row.agency_name,
       agency_ehr_name !== undefined ? (agency_ehr_name || null) : row.agency_ehr_name,
+      site_policy_status !== undefined && validSitePolicyStatuses.has(site_policy_status) ? site_policy_status : row.site_policy_status,
+      agency_ehr_note_format !== undefined && validNoteFormats.has(agency_ehr_note_format) ? agency_ehr_note_format : row.agency_ehr_note_format,
+      agency_ehr_custom_format !== undefined ? (agency_ehr_custom_format || null) : row.agency_ehr_custom_format,
       training_program !== undefined ? (training_program || null) : row.training_program,
       sitePolicyAt,
       workspaceModeSelectedAt,

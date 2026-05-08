@@ -101,6 +101,9 @@ function createSchema() {
       client_record_mode TEXT DEFAULT 'miwa_system_of_record',
       agency_name TEXT,
       agency_ehr_name TEXT,
+      site_policy_status TEXT,
+      agency_ehr_note_format TEXT,
+      agency_ehr_custom_format TEXT,
       training_program TEXT,
       site_policy_acknowledged_at DATETIME,
       workspace_mode_selected_at DATETIME,
@@ -197,6 +200,12 @@ function createSchema() {
       trainee_note_status TEXT,
       copied_to_ehr_at DATETIME,
       copied_to_ehr_name TEXT,
+      draft_completed_at DATETIME,
+      reviewed_by_trainee_at DATETIME,
+      risk_safety_checked_at DATETIME,
+      discussed_in_supervision_at DATETIME,
+      follow_up_completed_at DATETIME,
+      copy_to_ehr_checklist_json TEXT,
       needs_supervision INTEGER DEFAULT 0,
       supervision_question TEXT,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -1222,6 +1231,9 @@ function runMigrations() {
     ['client_record_mode',   "TEXT DEFAULT 'miwa_system_of_record'"],
     ['agency_name',          'TEXT'],
     ['agency_ehr_name',      'TEXT'],
+    ['site_policy_status',   'TEXT'],
+    ['agency_ehr_note_format', 'TEXT'],
+    ['agency_ehr_custom_format', 'TEXT'],
     ['training_program',     'TEXT'],
     ['site_policy_acknowledged_at', 'DATETIME'],
     ['workspace_mode_selected_at', 'DATETIME'],
@@ -1487,6 +1499,12 @@ function runMigrations() {
     ['trainee_note_status', "TEXT"],
     ['copied_to_ehr_at', 'DATETIME'],
     ['copied_to_ehr_name', 'TEXT'],
+    ['draft_completed_at', 'DATETIME'],
+    ['reviewed_by_trainee_at', 'DATETIME'],
+    ['risk_safety_checked_at', 'DATETIME'],
+    ['discussed_in_supervision_at', 'DATETIME'],
+    ['follow_up_completed_at', 'DATETIME'],
+    ['copy_to_ehr_checklist_json', 'TEXT'],
     ['needs_supervision', 'INTEGER DEFAULT 0'],
     ['supervision_question', 'TEXT'],
   ];
@@ -1585,6 +1603,51 @@ function runMigrations() {
   );`);
   db.run('CREATE INDEX IF NOT EXISTS idx_practice_hours_therapist_date ON practice_hours(therapist_id, date);');
   db.run('CREATE INDEX IF NOT EXISTS idx_practice_hours_bucket         ON practice_hours(therapist_id, bucket_id);');
+
+  db.run(`CREATE TABLE IF NOT EXISTS supervision_items (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    therapist_id    INTEGER NOT NULL REFERENCES therapists(id),
+    patient_id      INTEGER REFERENCES patients(id),
+    session_id      INTEGER REFERENCES sessions(id),
+    source          TEXT NOT NULL DEFAULT 'manual',
+    title           TEXT NOT NULL,
+    details         TEXT,
+    status          TEXT NOT NULL DEFAULT 'queued',
+    priority        TEXT NOT NULL DEFAULT 'normal',
+    discussed_at    DATETIME,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+  );`);
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_supervision_items_therapist_status ON supervision_items(therapist_id, status, created_at)'); } catch {}
+
+  db.run(`CREATE TABLE IF NOT EXISTS supervisor_feedback (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    therapist_id    INTEGER NOT NULL REFERENCES therapists(id),
+    patient_id      INTEGER REFERENCES patients(id),
+    session_id      INTEGER REFERENCES sessions(id),
+    feedback_text   TEXT NOT NULL,
+    action_items_json TEXT,
+    documentation_reminders TEXT,
+    clinical_learning_goals TEXT,
+    next_session_prompts TEXT,
+    future_supervision_followups TEXT,
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+  );`);
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_supervisor_feedback_therapist ON supervisor_feedback(therapist_id, created_at)'); } catch {}
+
+  db.run(`CREATE TABLE IF NOT EXISTS trainee_growth_events (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    therapist_id    INTEGER NOT NULL REFERENCES therapists(id),
+    patient_id      INTEGER REFERENCES patients(id),
+    category        TEXT NOT NULL,
+    competency      TEXT,
+    title           TEXT NOT NULL,
+    details         TEXT,
+    confidence_rating INTEGER,
+    source          TEXT NOT NULL DEFAULT 'manual',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP
+  );`);
+  try { db.run('CREATE INDEX IF NOT EXISTS idx_growth_events_therapist ON trainee_growth_events(therapist_id, created_at)'); } catch {}
 
   // ── scheduled_sends — queued SMS assessment deliveries ────────────────────
   db.run(`CREATE TABLE IF NOT EXISTS scheduled_sends (

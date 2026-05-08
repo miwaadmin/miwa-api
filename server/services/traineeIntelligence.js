@@ -50,15 +50,13 @@ async function collectTraineeWorkspaceState(db, therapistId, { timezone = 'Ameri
   const noteDrafts = await db.all(
     `SELECT s.id, s.patient_id, s.session_date, s.created_at, s.note_format,
             s.trainee_note_status, s.copied_to_ehr_at, s.needs_supervision,
-            s.supervision_question, p.client_id, p.display_name
-       FROM sessions s
+            s.supervision_question, s.draft_completed_at, s.reviewed_by_trainee_at,
+            s.risk_safety_checked_at, s.discussed_in_supervision_at, s.follow_up_completed_at,
+            p.client_id, p.display_name
+      FROM sessions s
        JOIN patients p ON p.id = s.patient_id
       WHERE s.therapist_id = ?
-        AND (
-          s.signed_at IS NULL
-          OR s.trainee_note_status IN ('Draft', 'Ready for Review', 'Discuss in Supervision')
-          OR (s.copied_to_ehr_at IS NULL AND s.signed_at IS NOT NULL)
-        )
+        AND (s.signed_at IS NULL OR s.copied_to_ehr_at IS NULL OR s.trainee_note_status IN ('Draft', 'Ready for Review', 'Discuss in Supervision'))
       ORDER BY COALESCE(s.session_date, s.created_at) DESC
       LIMIT ?`,
     therapistId, limit,
@@ -122,11 +120,23 @@ async function collectTraineeWorkspaceState(db, therapistId, { timezone = 'Ameri
   };
 }
 
+function documentationLatency(session) {
+  const base = session?.session_date || session?.created_at;
+  const draftedAt = session?.draft_completed_at || session?.created_at;
+  const copiedAt = session?.copied_to_ehr_at;
+  return {
+    daysSinceSession: daysAgo(base),
+    daysToDraft: base && draftedAt ? Math.max(0, daysAgo(base) - daysAgo(draftedAt)) : null,
+    daysLateToEhr: copiedAt ? 0 : daysAgo(base),
+  };
+}
+
 function formatTraineeWorkspaceState(state) {
   if (!state || state.mode !== 'agency_companion') return '';
   const noteLines = state.noteDrafts.slice(0, 8).map((s) => {
-    const age = daysAgo(s.session_date || s.created_at);
-    const lag = age == null ? '' : `, ${age} day${age === 1 ? '' : 's'} old`;
+    const latency = documentationLatency(s);
+    const age = latency.daysSinceSession;
+    const lag = age == null ? '' : `, ${age} day${age === 1 ? '' : 's'} since session`;
     return `- ${protect(s.display_name || s.client_id)}: ${s.trainee_note_status || 'Draft/unsigned'}${s.copied_to_ehr_at ? ', copied' : `, not yet copied to ${state.agency_ehr_name}`}${lag}`;
   });
   const supervisionLines = state.supervisionCases.slice(0, 8).map((c) =>

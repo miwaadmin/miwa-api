@@ -3804,6 +3804,154 @@ router.get('/trainee/supervision-agenda', async (req, res) => {
   }
 });
 
+router.get('/trainee/growth-timeline', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const rows = await db.all(
+      `SELECT * FROM trainee_growth_events
+        WHERE therapist_id = ?
+        ORDER BY created_at DESC
+        LIMIT 100`,
+      req.therapist.id
+    );
+    const competencies = [
+      'assessment', 'diagnosis', 'treatment planning', 'risk assessment',
+      'cultural humility', 'documentation', 'ethics/law', 'crisis response',
+      'family systems', 'trauma-informed care', 'termination/discharge',
+    ].map(name => {
+      const matches = rows.filter(row => String(row.competency || '').toLowerCase() === name);
+      return { name, count: matches.length, lastPracticedAt: matches[0]?.created_at || null };
+    });
+    res.json({ events: rows, competencies });
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
+router.get('/trainee/supervision-items', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const rows = await db.all(
+      `SELECT si.*, p.client_id, p.display_name
+         FROM supervision_items si
+         LEFT JOIN patients p ON p.id = si.patient_id
+        WHERE si.therapist_id = ?
+        ORDER BY
+          CASE si.status WHEN 'open' THEN 0 WHEN 'discussed' THEN 1 ELSE 2 END,
+          CASE si.priority WHEN 'high' THEN 0 WHEN 'normal' THEN 1 ELSE 2 END,
+          si.created_at DESC
+        LIMIT 100`,
+      req.therapist.id
+    );
+    res.json({ items: rows });
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
+router.post('/trainee/supervision-items', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const { title, details, patient_id, session_id, source, priority } = req.body || {};
+    if (!String(title || '').trim()) return res.status(400).json({ error: 'title is required' });
+    const result = await db.insert(
+      `INSERT INTO supervision_items (therapist_id, patient_id, session_id, source, title, details, priority)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      req.therapist.id,
+      patient_id || null,
+      session_id || null,
+      source || 'manual',
+      String(title).trim(),
+      details || null,
+      priority || 'normal'
+    );
+    await persistIfNeeded();
+    res.status(201).json({ item: await db.get('SELECT * FROM supervision_items WHERE id = ?', result.lastInsertRowid) });
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
+router.patch('/trainee/supervision-items/:id', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const existing = await db.get('SELECT * FROM supervision_items WHERE id = ? AND therapist_id = ?', req.params.id, req.therapist.id);
+    if (!existing) return res.status(404).json({ error: 'Item not found' });
+    const status = req.body?.status || existing.status;
+    const discussedAt = status === 'discussed' ? (existing.discussed_at || new Date().toISOString()) : existing.discussed_at;
+    await db.run(
+      `UPDATE supervision_items SET status = ?, discussed_at = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ? AND therapist_id = ?`,
+      status, discussedAt, req.params.id, req.therapist.id
+    );
+    await persistIfNeeded();
+    res.json({ item: await db.get('SELECT * FROM supervision_items WHERE id = ?', req.params.id) });
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
+router.post('/trainee/supervisor-feedback', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const { feedback_text, patient_id, session_id } = req.body || {};
+    if (!String(feedback_text || '').trim()) return res.status(400).json({ error: 'feedback_text is required' });
+    const raw = await callAI(
+      MODELS.AZURE_MAIN,
+      'Extract trainee supervision feedback into practical follow-up. Return JSON only.',
+      `Feedback:\n${scrubText(feedback_text)}\n\nReturn JSON with keys: action_items (array), documentation_reminders (array), clinical_learning_goals (array), next_session_prompts (array), future_supervision_followups (array), competencies (array from assessment, diagnosis, treatment planning, risk assessment, cultural humility, documentation, ethics/law, crisis response, family systems, trauma-informed care, termination/discharge).`,
+      1200,
+      true,
+      { therapistId: req.therapist.id, kind: 'supervisor_feedback_extract' }
+    );
+    let parsed;
+    try {
+      parsed = safeJsonParse(raw);
+    } catch {
+      parsed = {
+        action_items: [String(feedback_text).slice(0, 180)],
+        documentation_reminders: [],
+        clinical_learning_goals: [],
+        next_session_prompts: [],
+        future_supervision_followups: [],
+        competencies: [],
+      };
+    }
+    const result = await db.insert(
+      `INSERT INTO supervisor_feedback
+        (therapist_id, patient_id, session_id, feedback_text, action_items_json, documentation_reminders,
+         clinical_learning_goals, next_session_prompts, future_supervision_followups)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      req.therapist.id,
+      patient_id || null,
+      session_id || null,
+      feedback_text,
+      JSON.stringify(parsed.action_items || []),
+      (parsed.documentation_reminders || []).join('\n'),
+      (parsed.clinical_learning_goals || []).join('\n'),
+      (parsed.next_session_prompts || []).join('\n'),
+      (parsed.future_supervision_followups || []).join('\n')
+    );
+    for (const item of parsed.action_items || []) {
+      await db.insert(
+        `INSERT INTO supervision_items (therapist_id, patient_id, session_id, source, title, details, priority)
+         VALUES (?, ?, ?, 'supervisor_feedback', ?, ?, 'normal')`,
+        req.therapist.id, patient_id || null, session_id || null, String(item).slice(0, 160), String(item)
+      );
+    }
+    for (const competency of parsed.competencies || []) {
+      await db.insert(
+        `INSERT INTO trainee_growth_events (therapist_id, patient_id, category, competency, title, details, source)
+         VALUES (?, ?, 'supervisor_feedback', ?, ?, ?, 'supervisor_feedback')`,
+        req.therapist.id, patient_id || null, competency, `Supervisor feedback: ${competency}`, feedback_text
+      );
+    }
+    await persistIfNeeded();
+    res.status(201).json({ feedback: await db.get('SELECT * FROM supervisor_feedback WHERE id = ?', result.lastInsertRowid), extracted: parsed });
+  } catch (err) {
+    sendRouteError(res, err);
+  }
+});
+
 router.post('/chat', async (req, res) => {
   try {
     const db = getAsyncDb();

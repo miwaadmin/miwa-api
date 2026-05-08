@@ -7,6 +7,7 @@ import NoteEnrichments from '../components/NoteEnrichments'
 import RiskMonitorBadge from '../components/RiskMonitorBadge'
 import ResourceMentionPicker, { formatResourceMention, detectResourceTrigger } from '../components/ResourceMentionPicker'
 import { renderClinical } from '../lib/renderClinical'
+import { isAgencyCompanionMode } from '../lib/workspaceMode'
 
 // ── Dictation Panel ─────────────────────────────────────────────────────────
 function DictationPanel({ onApply, onClose }) {
@@ -480,8 +481,21 @@ export default function SessionNote() {
 
   // Export functionality
   const { therapist } = useAuth()
+  const agencyMode = isAgencyCompanionMode(therapist)
   const [exportFormat, setExportFormat] = useState('pdf') // 'pdf' or 'text'
   const [isExporting, setIsExporting] = useState(false)
+  const [copyChecklist, setCopyChecklist] = useState({
+    draft_completed: false,
+    reviewed_by_trainee: false,
+    risk_safety_checked: false,
+    copied_to_agency_ehr: false,
+    needs_supervisor_review: false,
+    discussed_in_supervision: false,
+    follow_up_completed: false,
+  })
+  const [checklistTimestamps, setChecklistTimestamps] = useState({})
+  const [privateReflection, setPrivateReflection] = useState('')
+  const [supervisionQueued, setSupervisionQueued] = useState(false)
 
   const handleExportSession = async () => {
     setIsExporting(true)
@@ -598,6 +612,29 @@ export default function SessionNote() {
         if (s.signed_at) setSignedAt(s.signed_at)
         if (s.ai_feedback) setAiResult(s.ai_feedback)
         if (s.treatment_plan) { setTreatmentPlan(s.treatment_plan); setSavedTreatmentPlan(s.treatment_plan) }
+        const loadedChecklist = (() => {
+          if (!s.copy_to_ehr_checklist_json) return null
+          try { return JSON.parse(s.copy_to_ehr_checklist_json) } catch { return null }
+        })()
+        setCopyChecklist(prev => ({
+          ...prev,
+          ...(loadedChecklist || {}),
+          draft_completed: !!(loadedChecklist?.draft_completed || s.draft_completed_at),
+          reviewed_by_trainee: !!(loadedChecklist?.reviewed_by_trainee || s.reviewed_by_trainee_at),
+          risk_safety_checked: !!(loadedChecklist?.risk_safety_checked || s.risk_safety_checked_at),
+          copied_to_agency_ehr: !!(loadedChecklist?.copied_to_agency_ehr || s.copied_to_ehr_at),
+          needs_supervisor_review: !!(loadedChecklist?.needs_supervisor_review || s.needs_supervision),
+          discussed_in_supervision: !!(loadedChecklist?.discussed_in_supervision || s.discussed_in_supervision_at),
+          follow_up_completed: !!(loadedChecklist?.follow_up_completed || s.follow_up_completed_at),
+        }))
+        setChecklistTimestamps({
+          draft_completed_at: s.draft_completed_at || null,
+          reviewed_by_trainee_at: s.reviewed_by_trainee_at || null,
+          risk_safety_checked_at: s.risk_safety_checked_at || null,
+          copied_to_ehr_at: s.copied_to_ehr_at || null,
+          discussed_in_supervision_at: s.discussed_in_supervision_at || null,
+          follow_up_completed_at: s.follow_up_completed_at || null,
+        })
 
         setSessionNoteFormat(s.note_format || 'SOAP')
 
@@ -606,6 +643,9 @@ export default function SessionNote() {
           try { parsed = JSON.parse(s.notes_json) } catch {}
         }
         setSessionNotesJson(parsed)
+        if (parsed?.WORKSPACE?.privateReflection) {
+          setPrivateReflection(parsed.WORKSPACE.privateReflection)
+        }
 
         // Load notes, prefer notes_json, but preserve intake sessions and older records
         if (parsed) {
@@ -908,9 +948,18 @@ export default function SessionNote() {
     const noteFormatToSave = isIntakeSession ? 'INTAKE' : activeFormat
     const active = notes[activeFormat]
     const nextNotesJson = { ...(sessionNotesJson || {}), ...notes }
+    if (agencyMode) {
+      nextNotesJson.WORKSPACE = {
+        ...(sessionNotesJson?.WORKSPACE || {}),
+        ...(nextNotesJson.WORKSPACE || {}),
+        privateReflection: privateReflection || '',
+        privateReflectionWarning: 'Private trainee reflection. Do not copy into an agency EHR note.',
+      }
+    }
     if (isIntakeSession) {
       nextNotesJson.WORKSPACE = {
         ...(sessionNotesJson?.WORKSPACE || {}),
+        ...(nextNotesJson.WORKSPACE || {}),
         generatedNoteFormat: sessionNotesJson?.WORKSPACE?.generatedNoteFormat || activeFormat,
       }
     }
@@ -918,6 +967,26 @@ export default function SessionNote() {
     // and legacy displays still get meaningful data.
     // GIRP: goals→subjective, intervention→objective, response→assessment, plan→plan
     const legacyColumns = flattenNoteForLegacyColumns(noteFormatToSave, active)
+    const stampIf = (checked, key) => checked ? (checklistTimestamps[key] || new Date().toISOString()) : null
+    const traineeFields = agencyMode ? {
+      trainee_note_status: copyChecklist.copied_to_agency_ehr
+        ? 'Copied to Agency EHR'
+        : copyChecklist.needs_supervisor_review
+          ? 'Discuss in Supervision'
+          : copyChecklist.reviewed_by_trainee
+            ? 'Ready for Review'
+            : 'Draft',
+      copied_to_ehr_at: stampIf(copyChecklist.copied_to_agency_ehr, 'copied_to_ehr_at'),
+      copied_to_ehr_name: therapist?.agency_ehr_name || null,
+      needs_supervision: copyChecklist.needs_supervisor_review ? 1 : 0,
+      supervision_question: privateReflection || null,
+      draft_completed_at: stampIf(copyChecklist.draft_completed, 'draft_completed_at'),
+      reviewed_by_trainee_at: stampIf(copyChecklist.reviewed_by_trainee, 'reviewed_by_trainee_at'),
+      risk_safety_checked_at: stampIf(copyChecklist.risk_safety_checked, 'risk_safety_checked_at'),
+      discussed_in_supervision_at: stampIf(copyChecklist.discussed_in_supervision, 'discussed_in_supervision_at'),
+      follow_up_completed_at: stampIf(copyChecklist.follow_up_completed, 'follow_up_completed_at'),
+      copy_to_ehr_checklist_json: JSON.stringify(copyChecklist),
+    } : {}
     return {
       ...meta,
       note_format:    noteFormatToSave,
@@ -928,8 +997,33 @@ export default function SessionNote() {
       notes_json:     JSON.stringify(nextNotesJson),
       full_note:      buildFullNoteText(noteFormatToSave, active) || null,
       treatment_plan: savedTreatmentPlan || null,
+      ...traineeFields,
       ...extraFields,
     }
+  }
+
+  const toggleChecklist = (key) => {
+    if (signedAt) return
+    setCopyChecklist(prev => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  const handleAddToSupervision = async () => {
+    setSupervisionQueued(false)
+    const body = {
+      title: `Discuss note for ${patient?.display_name || patient?.client_id || 'case'}`,
+      details: privateReflection || aiResult || buildFullNoteText(activeFormat, notes[activeFormat]).slice(0, 1000),
+      patient_id: patientId,
+      session_id: isNew ? null : sessionId,
+      source: 'session_note',
+      priority: copyChecklist.needs_supervisor_review ? 'high' : 'normal',
+    }
+    const res = await apiFetch('/agent/trainee/supervision-items', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) throw new Error('Could not add this to supervision')
+    setCopyChecklist(prev => ({ ...prev, needs_supervisor_review: true }))
+    setSupervisionQueued(true)
   }
 
   const handleSave = async () => {
@@ -1169,6 +1263,42 @@ export default function SessionNote() {
       )}
 
       {/* ── Main 50/50 grid ─────────────────────────────────────────────── */}
+      {agencyMode && (
+        <section className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
+            <div className="flex-1">
+              <p className="text-xs font-bold uppercase tracking-widest text-amber-700">Agency EHR companion note</p>
+              <h2 className="mt-1 text-sm font-bold text-amber-950">Copy-to-EHR checklist</h2>
+              <p className="mt-1 text-xs text-amber-800">
+                Keep private reflection separate. Copy only clean clinical note content into {therapist?.agency_ehr_name || 'the agency EHR'}.
+              </p>
+            </div>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2 flex-[2]">
+              {[
+                ['draft_completed', 'Draft completed'],
+                ['reviewed_by_trainee', 'Reviewed by trainee'],
+                ['risk_safety_checked', 'Risk/safety checked'],
+                ['copied_to_agency_ehr', `Copied to ${therapist?.agency_ehr_name || 'agency EHR'}`],
+                ['needs_supervisor_review', 'Needs supervisor review'],
+                ['discussed_in_supervision', 'Discussed in supervision'],
+                ['follow_up_completed', 'Follow-up completed'],
+              ].map(([key, label]) => (
+                <label key={key} className="flex items-center gap-2 rounded-xl border border-amber-200 bg-white/80 px-3 py-2 text-xs font-semibold text-amber-950">
+                  <input
+                    type="checkbox"
+                    disabled={!!signedAt}
+                    checked={!!copyChecklist[key]}
+                    onChange={() => toggleChecklist(key)}
+                    className="rounded border-amber-300 text-brand-600 focus:ring-brand-500"
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
 
         {/* ── LEFT ────────────────────────────────────────────────────── */}
@@ -1467,6 +1597,33 @@ export default function SessionNote() {
               </button>
             </div>
           </div>
+
+          {agencyMode && (
+            <div className="card p-4 space-y-3 border-amber-100">
+              <div>
+                <label className="label">Private reflection <span className="text-amber-600 font-normal">(not copied to agency EHR)</span></label>
+                <textarea
+                  className="textarea border-l-4 border-l-amber-300"
+                  rows={4}
+                  readOnly={!!signedAt}
+                  value={privateReflection}
+                  onChange={e => setPrivateReflection(e.target.value)}
+                  placeholder="Countertransference, places you felt stuck, questions for supervision, self-of-therapist notes..."
+                />
+                <p className="mt-1 text-xs text-amber-700">
+                  This lives in Miwa's trainee workspace and is intentionally separated from the clinical note text.
+                </p>
+              </div>
+              <button
+                type="button"
+                disabled={!!signedAt || !privateReflection.trim()}
+                onClick={() => handleAddToSupervision().catch(err => setError(err.message))}
+                className="btn-secondary w-full justify-center text-sm disabled:opacity-50"
+              >
+                {supervisionQueued ? 'Added to supervision' : 'Ask my supervisor about this'}
+              </button>
+            </div>
+          )}
 
         </div>
 

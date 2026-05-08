@@ -405,6 +405,10 @@ app.get('/api/sessions/unsigned', requireAuth, async (req, res) => {
     const rows = await db.all(`
       SELECT s.id, s.patient_id, s.session_date, s.created_at, s.note_format,
              s.subjective, s.assessment, s.plan,
+             s.trainee_note_status, s.copied_to_ehr_at, s.copied_to_ehr_name,
+             s.needs_supervision, s.draft_completed_at, s.reviewed_by_trainee_at,
+             s.risk_safety_checked_at, s.discussed_in_supervision_at,
+             s.follow_up_completed_at, s.copy_to_ehr_checklist_json,
              p.client_id, p.display_name
       FROM sessions s JOIN patients p ON s.patient_id = p.id
       WHERE s.therapist_id = ?
@@ -421,6 +425,16 @@ app.get('/api/sessions/unsigned', requireAuth, async (req, res) => {
       session_date: r.session_date,
       created_at: r.created_at,
       note_format: r.note_format || 'SOAP',
+      trainee_note_status: r.trainee_note_status || null,
+      copied_to_ehr_at: r.copied_to_ehr_at || null,
+      copied_to_ehr_name: r.copied_to_ehr_name || null,
+      needs_supervision: !!r.needs_supervision,
+      draft_completed_at: r.draft_completed_at || null,
+      reviewed_by_trainee_at: r.reviewed_by_trainee_at || null,
+      risk_safety_checked_at: r.risk_safety_checked_at || null,
+      discussed_in_supervision_at: r.discussed_in_supervision_at || null,
+      follow_up_completed_at: r.follow_up_completed_at || null,
+      copy_to_ehr_checklist_json: r.copy_to_ehr_checklist_json || null,
       preview: (r.assessment || r.plan || r.subjective || '').replace(/\s+/g, ' ').slice(0, 180),
     }));
     res.json({ count: items.length, sessions: items });

@@ -9,6 +9,15 @@ const PROGRAM_OPTIONS = [
   ['ca_bbs_lmft', 'CA BBS LMFT Associate'],
   ['other', 'Other / future'],
 ]
+const NOTE_FORMAT_OPTIONS = [
+  ['SOAP', 'SOAP'],
+  ['DAP', 'DAP'],
+  ['BIRP', 'BIRP'],
+  ['GIRP', 'GIRP'],
+  ['narrative', 'Narrative'],
+  ['concise_agency_style', 'Concise agency style'],
+  ['custom', 'Custom copy/paste format'],
+]
 
 export default function WorkspaceModeOnboarding() {
   const { therapist, refreshTherapist } = useAuth()
@@ -20,6 +29,9 @@ export default function WorkspaceModeOnboarding() {
   const [trainingProgram, setTrainingProgram] = useState(
     therapist?.credential_type === 'associate' ? 'ca_bbs_lmft' : 'csun_mft'
   )
+  const [sitePolicyStatus, setSitePolicyStatus] = useState('not_sure')
+  const [noteFormat, setNoteFormat] = useState('SOAP')
+  const [customFormat, setCustomFormat] = useState('')
   const [sitePolicyAck, setSitePolicyAck] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -37,8 +49,11 @@ export default function WorkspaceModeOnboarding() {
         client_record_mode: agencyMode ? 'agency_ehr_companion' : 'miwa_system_of_record',
         agency_name: agencyMode ? agencyName.trim() || null : null,
         agency_ehr_name: agencyMode ? ehrName : null,
+        site_policy_status: agencyMode ? sitePolicyStatus : null,
+        agency_ehr_note_format: agencyMode ? noteFormat : null,
+        agency_ehr_custom_format: agencyMode && noteFormat === 'custom' ? customFormat.trim() || null : null,
         training_program: agencyMode ? trainingProgram : null,
-        site_policy_acknowledged: agencyMode ? sitePolicyAck : false,
+        site_policy_acknowledged: agencyMode ? sitePolicyAck || sitePolicyStatus === 'allows_phi' : false,
       }
       const res = await apiFetch('/auth/me', {
         method: 'PUT',
@@ -94,7 +109,7 @@ export default function WorkspaceModeOnboarding() {
           </div>
 
           {agencyMode && (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-4">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 space-y-4">
               <div>
                 <p className="text-sm font-bold text-amber-950">Agency companion setup</p>
                 <p className="mt-1 text-xs leading-relaxed text-amber-800">
@@ -132,7 +147,47 @@ export default function WorkspaceModeOnboarding() {
                     {PROGRAM_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-amber-900">Site policy for PHI in Miwa</span>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm focus:border-brand-400 focus:ring-brand-200"
+                    value={sitePolicyStatus}
+                    onChange={e => setSitePolicyStatus(e.target.value)}
+                  >
+                    <option value="allows_phi">My site allows PHI in Miwa</option>
+                    <option value="no_phi_outside_tools">My site does not allow PHI in outside tools</option>
+                    <option value="not_sure">I'm not sure yet</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="text-xs font-semibold text-amber-900">Agency note output</span>
+                  <select
+                    className="mt-1 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm focus:border-brand-400 focus:ring-brand-200"
+                    value={noteFormat}
+                    onChange={e => setNoteFormat(e.target.value)}
+                  >
+                    {NOTE_FORMAT_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                </label>
+                {noteFormat === 'custom' && (
+                  <label className="block md:col-span-2">
+                    <span className="text-xs font-semibold text-amber-900">Custom copy/paste format</span>
+                    <textarea
+                      className="mt-1 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm focus:border-brand-400 focus:ring-brand-200"
+                      rows={3}
+                      value={customFormat}
+                      onChange={e => setCustomFormat(e.target.value)}
+                      placeholder="Example: keep sections in agency-required order, concise MSE, risk statement before plan..."
+                    />
+                  </label>
+                )}
               </div>
+
+              {sitePolicyStatus !== 'allows_phi' && (
+                <div className="rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs leading-relaxed text-amber-900">
+                  Until your site confirms PHI use, Miwa will nudge you toward minimum-necessary or de-identified case details.
+                </div>
+              )}
 
               <label className="flex items-start gap-3 rounded-xl border border-amber-200 bg-white p-3 cursor-pointer">
                 <input
