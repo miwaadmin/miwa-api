@@ -84,6 +84,29 @@ test('agent realtime call rejects malformed SDP before contacting OpenAI', async
   assert.equal(body.error, 'REALTIME_SDP_INVALID');
 });
 
+test('agent realtime status returns safe configuration diagnostics', async () => {
+  await startTestServer();
+  const { cookie } = await bootstrapAdminAndLogin({
+    email: 'voice-realtime-status@miwa.test',
+    password: 'test-password-1234',
+  });
+
+  process.env.AI_TEXT_PROVIDER = 'openai';
+  process.env.OPENAI_PHI_API_KEY = 'test-openai-key';
+  process.env.OPENAI_PHI_ZDR_ENABLED = 'true';
+  process.env.OPENAI_REALTIME_PHI_ENABLED = 'true';
+  process.env.OPENAI_REALTIME_MODEL = 'gpt-realtime-2';
+  process.env.OPENAI_REALTIME_TRANSCRIPTION_MODEL = 'gpt-realtime-whisper';
+
+  const res = await api('GET', '/api/agent/realtime/status', undefined, cookie);
+
+  assert.equal(res.status, 200);
+  assert.equal(res.body.enabled, true);
+  assert.equal(res.body.model, 'gpt-realtime-2');
+  assert.equal(res.body.transcriptionModel, 'gpt-realtime-whisper');
+  assert.doesNotMatch(JSON.stringify(res.body), /test-openai-key|OPENAI_PHI_API_KEY/);
+});
+
 test('app CSP allows Miwa Live Voice browser connection to OpenAI realtime', async () => {
   const baseUrl = await startTestServer();
   const res = await fetch(`${baseUrl}/t/dashboard`);

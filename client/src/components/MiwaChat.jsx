@@ -1240,7 +1240,9 @@ When you're done, I'll save this as your profile and refer back to it in every c
       if (!sdpRes.ok) {
         const contentType = sdpRes.headers.get('content-type') || ''
         const data = contentType.includes('application/json') ? await sdpRes.json().catch(() => ({})) : {}
-        throw new Error(data.message || data.error || 'Miwa Live Voice could not connect to the realtime service.')
+        const detailCode = data.details?.openaiErrorCode || data.details?.openaiErrorType || data.details?.error || ''
+        const detailText = detailCode ? ` (${detailCode})` : ''
+        throw new Error(`${data.message || data.error || 'Miwa Live Voice could not connect to the realtime service.'}${detailText}`)
       }
       await pc.setRemoteDescription({ type: 'answer', sdp: await sdpRes.text() })
       setLiveVoice(true)

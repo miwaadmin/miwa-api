@@ -1,9 +1,9 @@
 'use strict';
 
-const { canSendPhiToTextAI } = require('../lib/phiPolicy');
+const { canSendPhiToTextAI, getTextAIProvider } = require('../lib/phiPolicy');
 
 const DEFAULT_REALTIME_MODEL = 'gpt-realtime-2';
-const DEFAULT_TRANSCRIPTION_MODEL = 'gpt-4o-transcribe';
+const DEFAULT_TRANSCRIPTION_MODEL = 'gpt-realtime-whisper';
 const DEFAULT_TRANSLATION_MODEL = 'gpt-realtime-2';
 const DEFAULT_VOICE = 'marin';
 
@@ -22,6 +22,38 @@ function getRealtimeConfig(env = process.env) {
     transcriptionModel: String(env.OPENAI_REALTIME_TRANSCRIPTION_MODEL || DEFAULT_TRANSCRIPTION_MODEL).trim(),
     translationModel: String(env.OPENAI_REALTIME_TRANSLATION_MODEL || DEFAULT_TRANSLATION_MODEL).trim(),
     voice: String(env.OPENAI_REALTIME_VOICE || DEFAULT_VOICE).trim(),
+  };
+}
+
+function getRealtimeStatus(env = process.env) {
+  const config = getRealtimeConfig(env);
+  return {
+    enabled: config.enabled,
+    textProvider: getTextAIProvider(env),
+    openaiPhiKeyConfigured: Boolean(String(env.OPENAI_PHI_API_KEY || '').trim()),
+    openaiPhiZdrEnabled: isTruthy(env.OPENAI_PHI_ZDR_ENABLED),
+    hipaaOpenAIBlocked: ['0', 'false', 'no', 'off'].includes(String(env.HIPAA_OPENAI_ENABLED || '').trim().toLowerCase()),
+    realtimePhiEnabled: isTruthy(env.OPENAI_REALTIME_PHI_ENABLED),
+    model: config.model,
+    transcriptionModel: config.transcriptionModel,
+    translationModel: config.translationModel,
+    voice: config.voice,
+  };
+}
+
+function safeOpenAIDetails(err, env = process.env, mode = 'conversation') {
+  const config = getRealtimeConfig(env);
+  return {
+    mode,
+    status: err?.statusCode || null,
+    openaiStatus: err?.openai?.status || null,
+    openaiErrorType: err?.openai?.error_type || null,
+    openaiErrorCode: err?.openai?.error_code || null,
+    openaiRequestId: err?.openai?.request_id || null,
+    model: config.model,
+    transcriptionModel: config.transcriptionModel,
+    translationModel: config.translationModel,
+    voice: config.voice,
   };
 }
 
@@ -205,6 +237,8 @@ module.exports = {
   createRealtimeCallAnswer,
   createRealtimeClientSecret,
   getRealtimeConfig,
+  getRealtimeStatus,
   realtimeEnabled,
+  safeOpenAIDetails,
   sessionForMode,
 };

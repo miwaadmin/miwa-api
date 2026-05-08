@@ -38,6 +38,8 @@ const {
   createRealtimeCallAnswer,
   createRealtimeClientSecret,
   getRealtimeConfig,
+  getRealtimeStatus,
+  safeOpenAIDetails,
 } = require('../services/realtimeVoice');
 const {
   collectTraineeWorkspaceState,
@@ -4603,8 +4605,11 @@ router.post('/tts', async (req, res) => {
 
 // GET /api/agent/preferences — return all saved preferences for the logged-in therapist
 router.post('/realtime/session', async (req, res) => {
+  let mode = 'conversation';
   try {
-    const { mode = 'conversation', pageContext = {} } = req.body || {};
+    const body = req.body || {};
+    mode = body.mode || 'conversation';
+    const pageContext = body.pageContext || {};
     const secret = await createRealtimeClientSecret({ mode, pageContext });
     res.json(secret);
   } catch (err) {
@@ -4629,13 +4634,18 @@ router.post('/realtime/session', async (req, res) => {
     return res.status(err.statusCode || 502).json({
       error: err.code || 'REALTIME_SESSION_FAILED',
       message: 'Miwa Live Voice could not start. Classic dictation and text chat still work.',
+      details: safeOpenAIDetails(err, process.env, mode),
     });
   }
 });
 
+router.get('/realtime/status', async (req, res) => {
+  res.json(getRealtimeStatus());
+});
+
 router.post('/realtime/call', express.text({ type: ['application/sdp', 'text/plain'], limit: '2mb' }), async (req, res) => {
+  const mode = String(req.query.mode || 'conversation');
   try {
-    const mode = String(req.query.mode || 'conversation');
     let pageContext = {};
     try {
       pageContext = req.query.pageContext ? JSON.parse(String(req.query.pageContext)) : {};
@@ -4676,6 +4686,7 @@ router.post('/realtime/call', express.text({ type: ['application/sdp', 'text/pla
     return res.status(err.statusCode || 502).json({
       error: err.code || 'REALTIME_CALL_FAILED',
       message: 'Miwa Live Voice could not connect to the realtime service. Classic dictation and text chat still work.',
+      details: safeOpenAIDetails(err, process.env, mode),
     });
   }
 });
