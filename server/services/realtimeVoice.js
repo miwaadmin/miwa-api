@@ -4,12 +4,18 @@ const { canSendPhiToTextAI, getTextAIProvider } = require('../lib/phiPolicy');
 
 // Model IDs per OpenAI's published model catalog
 // (https://developers.openai.com/api/docs/models):
-//   gpt-realtime-2        — reasoning model for realtime voice (conversation)
-//   gpt-realtime-1.5      — prior-gen voice model, used as conversation fallback
+//   gpt-realtime-1.5      — "the best voice model for audio in, audio out"
+//                           per the catalog. Pinned as the primary because
+//                           gpt-realtime-2 (the new reasoning model) was
+//                           consistently 504-timing-out from Azure App
+//                           Service's outbound path on production.
+//   gpt-realtime-2        — reasoning model for realtime voice. Available
+//                           as a fallback in case 1.5 has access issues on
+//                           a given account.
 //   gpt-realtime-whisper  — streaming transcription
 //   gpt-realtime-translate — streaming speech-to-speech translation
-const DEFAULT_REALTIME_MODEL = 'gpt-realtime-2';
-const DEFAULT_REALTIME_FALLBACK_MODEL = 'gpt-realtime';
+const DEFAULT_REALTIME_MODEL = 'gpt-realtime-1.5';
+const DEFAULT_REALTIME_FALLBACK_MODEL = 'gpt-realtime-2';
 const DEFAULT_TRANSCRIPTION_MODEL = 'gpt-realtime-whisper';
 const DEFAULT_TRANSLATION_MODEL = 'gpt-realtime-translate';
 const DEFAULT_VOICE = 'marin';
