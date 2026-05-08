@@ -1251,7 +1251,10 @@ When you're done, I'll save this as your profile and refer back to it in every c
       setLiveVoice(true)
     } catch (err) {
       stopLiveVoice()
-      setError(err.message || 'Miwa Live Voice could not start.')
+      const message = err?.name === 'TypeError' && /fetch/i.test(err?.message || '')
+        ? 'Miwa Live Voice could not reach the realtime service. Please refresh and try again.'
+        : (err.message || 'Miwa Live Voice could not start.')
+      setError(message)
     }
   }, [currentPageContext, handleRealtimeEvent, liveVoice, realtimeSupported, stopLiveVoice, stopSpeaking, streaming])
 

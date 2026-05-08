@@ -56,3 +56,14 @@ test('agent realtime session stays disabled until PHI/ZDR realtime is explicitly
   assert.match(res.body.message, /Classic dictation and text chat still work/);
   assert.equal(res.body.requirements.realtimePhiFlag, 'OPENAI_REALTIME_PHI_ENABLED=true');
 });
+
+test('app CSP allows Miwa Live Voice browser connection to OpenAI realtime', async () => {
+  const baseUrl = await startTestServer();
+  const res = await fetch(`${baseUrl}/t/dashboard`);
+  const csp = res.headers.get('content-security-policy') || '';
+
+  assert.equal(res.status, 200);
+  assert.match(csp, /connect-src/);
+  assert.match(csp, /https:\/\/api\.openai\.com/);
+  assert.match(csp, /wss:\/\/api\.openai\.com/);
+});

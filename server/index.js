@@ -47,7 +47,13 @@ app.use(helmet({
       scriptSrc: ["'self'", "'unsafe-inline'", 'https://cloud.umami.is'],
       styleSrc: ["'self'", "'unsafe-inline'"],
       imgSrc: ["'self'", 'data:', 'blob:'],
-      connectSrc: ["'self'", 'https://cloud.umami.is', 'https://api-gateway.umami.dev'],
+      connectSrc: [
+        "'self'",
+        'https://cloud.umami.is',
+        'https://api-gateway.umami.dev',
+        'https://api.openai.com',
+        'wss://api.openai.com',
+      ],
     },
   },
 }));
