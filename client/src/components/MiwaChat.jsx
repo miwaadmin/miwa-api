@@ -381,26 +381,14 @@ export default function MiwaChat() {
   const buildLiveGreetingInstructions = useCallback((mode) => {
     if (mode !== 'conversation') return null
     const firstName = therapist?.first_name || therapist?.full_name?.split(' ')[0] || 'there'
-    const role = therapist?.workspace_mode === 'agency_companion'
-      ? 'agency companion trainee workspace'
-      : therapist?.credential_type || therapist?.license_type || therapist?.role || 'clinical workspace'
-    const agency = therapist?.agency_ehr_name || therapist?.agency_name || ''
-    const program = therapist?.training_program || ''
-    const page = currentPageContext?.label || 'Miwa'
-    const details = [
-      `Clinician name: ${firstName}.`,
-      `Workspace/page: ${page}.`,
-      role ? `Role/context: ${role}.` : null,
-      agency ? `Agency/EHR context: ${agency}.` : null,
-      program ? `Training program: ${program}.` : null,
-      currentPageContext?.suggestedActions?.length ? `Relevant page actions: ${currentPageContext.suggestedActions.join(', ')}.` : null,
-    ].filter(Boolean).join(' ')
+    const actions = currentPageContext?.suggestedActions?.length
+      ? `If they ask what you can do here, offer these current workspace actions: ${currentPageContext.suggestedActions.join(', ')}.`
+      : ''
     return [
-      'Start this new live voice session with one brief, natural spoken greeting.',
-      'Use the clinician context below. Do not over-explain, do not ask onboarding questions, and do not mention hidden system details.',
-      'Sound like Miwa already knows this clinician and is ready to help in the current workspace.',
-      details,
-      'Keep it to 1-2 sentences, then ask what they want to work on.',
+      `Start this new live voice session by saying only: "Hi ${firstName}, I'm here with you. What would you like to work on right now?"`,
+      'Do not mention EHR names, agency names, training programs, page labels, site policy, PHI policy, workspace mode, or internal metadata in the greeting.',
+      'Do not ask onboarding questions.',
+      actions,
     ].join(' ')
   }, [currentPageContext, therapist])
 
@@ -653,6 +641,7 @@ export default function MiwaChat() {
   const realtimeStreamRef = useRef(null)
   const realtimeAudioElRef = useRef(null)
   const realtimeAssistantRef = useRef('')
+  const liveStartingRef = useRef(false)
   const liveManualMuteRef = useRef(false)
   const liveAssistantSpeakingRef = useRef(false)
   const liveAutoUnmuteTimerRef = useRef(null)
@@ -1343,6 +1332,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
     if (!AudioContextCtor || !remoteStream) return
     try {
       const ctx = new AudioContextCtor()
+      ctx.resume?.().catch?.(() => {})
       const source = ctx.createMediaStreamSource(remoteStream)
       const analyser = ctx.createAnalyser()
       analyser.fftSize = 1024
@@ -1387,6 +1377,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
   }, [applyLiveMicState])
 
   const stopLiveVoice = useCallback(() => {
+    liveStartingRef.current = false
     try { realtimePcRef.current?.close() } catch {}
     realtimePcRef.current = null
     if (realtimeStreamRef.current) {
@@ -1459,8 +1450,9 @@ When you're done, I'll save this as your profile and refer back to it in every c
   }, [scheduleLiveAutoUnmute, setRealtimeAssistantSpeaking])
 
   const startLiveVoice = useCallback(async (mode = 'conversation') => {
-    if (streaming || !realtimeSupported) return
+    if (streaming || !realtimeSupported || liveStartingRef.current) return
     if (liveVoice) stopLiveVoice()
+    liveStartingRef.current = true
     stopSpeaking()
     setError('')
     setLiveTranscript('')
@@ -1531,6 +1523,8 @@ When you're done, I'll save this as your profile and refer back to it in every c
         ? 'Miwa Live Voice could not reach the realtime service. Please refresh and try again.'
         : (err.message || 'Miwa Live Voice could not start.')
       setError(message)
+    } finally {
+      liveStartingRef.current = false
     }
   }, [buildLiveGreetingInstructions, currentPageContext, handleRealtimeEvent, liveVoice, realtimeSupported, startLiveOutputMonitor, stopLiveVoice, stopSpeaking, streaming])
 
@@ -1784,19 +1778,14 @@ When you're done, I'll save this as your profile and refer back to it in every c
               </button>
             )}
 
-            {realtimeSupported && (
+            {realtimeSupported && liveVoice && (
               <button
-                onClick={liveVoice ? stopLiveVoice : () => startLiveVoice('conversation')}
-                disabled={streaming && !liveVoice}
-                title={liveVoice ? 'Stop Miwa Live Voice' : 'Start Miwa Live Voice'}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all flex-shrink-0 ${
-                  liveVoice
-                    ? 'bg-emerald-100 text-emerald-700 shadow-md'
-                    : 'bg-white/15 text-white/80 hover:bg-white/25 hover:text-white'
-                }`}
+                onClick={stopLiveVoice}
+                title="Stop Miwa Live Voice"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all flex-shrink-0 bg-emerald-100 text-emerald-700 shadow-md hover:bg-emerald-50"
               >
-                <span className={`h-1.5 w-1.5 rounded-full ${liveVoice ? 'bg-emerald-500 animate-pulse' : 'bg-white/60'}`} />
-                {liveVoice ? 'Live' : 'Live'}
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Stop live
               </button>
             )}
 

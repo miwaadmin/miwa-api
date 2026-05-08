@@ -20,6 +20,14 @@ const COMPETENCY_LABELS = {
   'termination/discharge': 'Termination/discharge',
 }
 
+function sitePolicyCopy(status) {
+  if (status === 'allows_phi') return null
+  if (status === 'no_phi_outside_tools') {
+    return 'Use de-identified or minimum-necessary case details here unless your site specifically authorizes PHI in Miwa.'
+  }
+  return 'Keep case details de-identified until your site authorization is confirmed.'
+}
+
 function saveTextFile(filename, text) {
   const blob = new Blob([text || ''], { type: 'text/plain;charset=utf-8' })
   const url = URL.createObjectURL(blob)
@@ -90,9 +98,9 @@ function AgencyProfilePanel() {
         </div>
         <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-700">{profile.profile.preferred_note_format}</span>
       </div>
-      {profile.site_policy_status !== 'allows_phi' && (
+      {sitePolicyCopy(profile.site_policy_status) && (
         <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-          Site policy is {profile.site_policy_status || 'not set'}: use minimum-necessary or de-identified case details until authorization is clear.
+          {sitePolicyCopy(profile.site_policy_status)}
         </div>
       )}
     </section>
@@ -215,11 +223,11 @@ export function TraineeToday() {
           <div className="flex-1">
             <h1 className="text-2xl font-bold text-gray-950">Good to see you, {firstName}.</h1>
             <p className="mt-1 text-sm text-gray-600">
-              Your agency has an EHR. You still need a clinical brain.
+              Your companion workspace for clinical thinking, documentation, and supervision prep.
             </p>
           </div>
           <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900 max-w-xl">
-            Miwa is HIPAA-ready. Your ability to enter agency client PHI depends on your site's policies and authorization.
+            Miwa is ready to help with notes, supervision prep, risk thinking, and hours tracking. Use client-identifying details only when your site authorizes it.
           </div>
         </div>
       </section>
