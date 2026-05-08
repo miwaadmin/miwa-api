@@ -34,6 +34,10 @@ const {
   recordConversationSignal,
 } = require('../services/assistantRuntime');
 const {
+  createRealtimeClientSecret,
+  getRealtimeConfig,
+} = require('../services/realtimeVoice');
+const {
   collectTraineeWorkspaceState,
   formatTraineeWorkspaceState,
   generateCaseSnapshot,
@@ -4458,6 +4462,37 @@ router.post('/tts', async (req, res) => {
 // ── Therapist Preferences (Soul Profile) API ──────────────────────────────────
 
 // GET /api/agent/preferences — return all saved preferences for the logged-in therapist
+router.post('/realtime/session', async (req, res) => {
+  try {
+    const { mode = 'conversation', pageContext = {} } = req.body || {};
+    const secret = await createRealtimeClientSecret({ mode, pageContext });
+    res.json(secret);
+  } catch (err) {
+    if (err.code === 'REALTIME_VOICE_UNAVAILABLE') {
+      const config = getRealtimeConfig();
+      return res.status(503).json({
+        error: 'REALTIME_VOICE_UNAVAILABLE',
+        message: 'Miwa Live Voice is not enabled for the PHI/ZDR OpenAI lane yet. Classic dictation and text chat still work.',
+        requirements: {
+          openaiPhiZdr: true,
+          realtimePhiFlag: 'OPENAI_REALTIME_PHI_ENABLED=true',
+          model: config.model,
+          transcriptionModel: config.transcriptionModel,
+        },
+      });
+    }
+    console.error('[agent realtime] session failed', {
+      code: err.code,
+      statusCode: err.statusCode,
+      openai: err.openai || null,
+    });
+    return res.status(err.statusCode || 502).json({
+      error: err.code || 'REALTIME_SESSION_FAILED',
+      message: 'Miwa Live Voice could not start. Classic dictation and text chat still work.',
+    });
+  }
+});
+
 router.get('/preferences', async (req, res) => {
   try {
     const db = getAsyncDb();

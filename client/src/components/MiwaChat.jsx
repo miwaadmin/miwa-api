@@ -350,9 +350,14 @@ export default function MiwaChat() {
   const [listening, setListening] = useState(false)         // recording mic
   const [speaking, setSpeaking] = useState(false)           // TTS actively playing
   const [loadingAudio, setLoadingAudio] = useState(false)   // TTS request in-flight
+  const [liveVoice, setLiveVoice] = useState(false)
+  const [liveVoiceMode, setLiveVoiceMode] = useState('conversation')
+  const [liveVoiceStatus, setLiveVoiceStatus] = useState('')
+  const [liveTranscript, setLiveTranscript] = useState('')
   const [voiceSupported] = useState(() =>
     typeof window !== 'undefined' && !!window.MediaRecorder && !!window.speechSynthesis
   )
+  const realtimeSupported = typeof window !== 'undefined' && !!window.RTCPeerConnection && !!navigator.mediaDevices?.getUserMedia
 
   const currentPageContext = useMemo(() => {
     const meta = pageSurface(location.pathname)
@@ -515,6 +520,10 @@ export default function MiwaChat() {
   const speakRef = useRef(null)
   const audioRef = useRef(null)   // holds the current AudioBufferSourceNode for TTS
   const audioCtxRef = useRef(null) // Web Audio API context (unlocked during user gesture)
+  const realtimePcRef = useRef(null)
+  const realtimeStreamRef = useRef(null)
+  const realtimeAudioElRef = useRef(null)
+  const realtimeAssistantRef = useRef('')
 
   // Keep voiceEnabled ref in sync
   useEffect(() => { voiceEnabledRef.current = voiceEnabled }, [voiceEnabled])
@@ -1143,6 +1152,111 @@ When you're done, I'll save this as your profile and refer back to it in every c
   }, [])
 
   // ── Voice: STT (Whisper) ──────────────────────────────────────────────────
+  const stopLiveVoice = useCallback(() => {
+    try { realtimePcRef.current?.close() } catch {}
+    realtimePcRef.current = null
+    if (realtimeStreamRef.current) {
+      realtimeStreamRef.current.getTracks().forEach(track => track.stop())
+      realtimeStreamRef.current = null
+    }
+    if (realtimeAudioElRef.current) {
+      realtimeAudioElRef.current.srcObject = null
+      realtimeAudioElRef.current = null
+    }
+    realtimeAssistantRef.current = ''
+    setLiveVoice(false)
+    setLiveVoiceStatus('')
+  }, [])
+
+  const handleRealtimeEvent = useCallback((event, mode) => {
+    if (!event?.type) return
+    if (event.type === 'conversation.item.input_audio_transcription.delta' && event.delta) {
+      setLiveTranscript(prev => `${prev}${event.delta}`)
+      return
+    }
+    if (event.type === 'conversation.item.input_audio_transcription.completed' && event.transcript) {
+      const transcript = event.transcript.trim()
+      setLiveTranscript(transcript)
+      if (mode === 'dictation') {
+        setInput(prev => [prev, transcript].filter(Boolean).join(prev ? '\n' : ''))
+      } else {
+        setMessages(prev => [...prev, { id: Date.now(), role: 'user', content: transcript }])
+      }
+      return
+    }
+    if ((event.type === 'response.audio_transcript.delta' || event.type === 'response.output_audio_transcript.delta') && event.delta) {
+      realtimeAssistantRef.current += event.delta
+      setStreamingText(realtimeAssistantRef.current)
+      return
+    }
+    if (event.type === 'response.done' || event.type === 'response.audio_transcript.done' || event.type === 'response.output_audio_transcript.done') {
+      const text = (event.transcript || realtimeAssistantRef.current || '').trim()
+      if (text) setMessages(prev => [...prev, { id: Date.now() + 1, role: 'assistant', content: text }])
+      realtimeAssistantRef.current = ''
+      setStreamingText('')
+    }
+  }, [])
+
+  const startLiveVoice = useCallback(async (mode = 'conversation') => {
+    if (streaming || !realtimeSupported) return
+    if (liveVoice) stopLiveVoice()
+    stopSpeaking()
+    setError('')
+    setLiveTranscript('')
+    setLiveVoiceMode(mode)
+    setLiveVoiceStatus(mode === 'dictation' ? 'Starting live dictation...' : mode === 'translate' ? 'Starting clinical translation...' : 'Starting Miwa Live...')
+    try {
+      const sessionRes = await apiFetch('/agent/realtime/session', {
+        method: 'POST',
+        body: JSON.stringify({ mode, pageContext: currentPageContext }),
+      })
+      const session = await sessionRes.json()
+      if (!sessionRes.ok) throw new Error(session.message || session.error || 'Live Voice is not available.')
+
+      const clientSecret = session?.client_secret?.value || session?.client_secret || session?.value
+      const realtimeUrl = session?.miwa?.realtimeUrl
+      if (!clientSecret || !realtimeUrl) throw new Error('Live Voice session did not return a client secret.')
+
+      const pc = new RTCPeerConnection()
+      realtimePcRef.current = pc
+      const audioEl = document.createElement('audio')
+      audioEl.autoplay = true
+      realtimeAudioElRef.current = audioEl
+      pc.ontrack = event => { audioEl.srcObject = event.streams[0] }
+
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      realtimeStreamRef.current = stream
+      stream.getTracks().forEach(track => pc.addTrack(track, stream))
+
+      const dc = pc.createDataChannel('oai-events')
+      dc.addEventListener('open', () => {
+        setLiveVoiceStatus(mode === 'dictation' ? 'Listening live. Transcript appears in the composer.' : 'Live. Speak naturally.')
+      })
+      dc.addEventListener('message', message => {
+        try { handleRealtimeEvent(JSON.parse(message.data), mode) } catch {}
+      })
+
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+      const sdpRes = await fetch(realtimeUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${clientSecret}`,
+          'Content-Type': 'application/sdp',
+        },
+        body: offer.sdp,
+      })
+      if (!sdpRes.ok) throw new Error('OpenAI Realtime did not accept the voice connection.')
+      await pc.setRemoteDescription({ type: 'answer', sdp: await sdpRes.text() })
+      setLiveVoice(true)
+    } catch (err) {
+      stopLiveVoice()
+      setError(err.message || 'Miwa Live Voice could not start.')
+    }
+  }, [currentPageContext, handleRealtimeEvent, liveVoice, realtimeSupported, stopLiveVoice, stopSpeaking, streaming])
+
+  useEffect(() => () => stopLiveVoice(), [stopLiveVoice])
+
   const startListening = useCallback(async () => {
     if (listening || streaming) return
     stopSpeaking()
@@ -1365,6 +1479,22 @@ When you're done, I'll save this as your profile and refer back to it in every c
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
                 </svg>
                 {voiceEnabled ? 'Voice on' : 'Voice'}
+              </button>
+            )}
+
+            {realtimeSupported && (
+              <button
+                onClick={liveVoice ? stopLiveVoice : () => startLiveVoice('conversation')}
+                disabled={streaming && !liveVoice}
+                title={liveVoice ? 'Stop Miwa Live Voice' : 'Start Miwa Live Voice'}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold transition-all flex-shrink-0 ${
+                  liveVoice
+                    ? 'bg-emerald-100 text-emerald-700 shadow-md'
+                    : 'bg-white/15 text-white/80 hover:bg-white/25 hover:text-white'
+                }`}
+              >
+                <span className={`h-1.5 w-1.5 rounded-full ${liveVoice ? 'bg-emerald-500 animate-pulse' : 'bg-white/60'}`} />
+                {liveVoice ? 'Live' : 'Live'}
               </button>
             )}
 
@@ -1762,6 +1892,58 @@ When you're done, I'll save this as your profile and refer back to it in every c
           {/* Composer: one stable rounded surface, with fixed action buttons so
               long text does not balloon the UI. */}
           <div className="miwa-chat-inputbar flex-shrink-0 px-3 py-3 bg-white border-t border-gray-100">
+            {realtimeSupported && (
+              <div className="mb-2 rounded-2xl border border-gray-200 bg-gray-50 p-2">
+                <div className="flex items-center gap-1.5">
+                  {[
+                    ['conversation', 'Live'],
+                    ['dictation', 'Dictate'],
+                    ['translate', 'Translate'],
+                  ].map(([mode, label]) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => liveVoice && liveVoiceMode === mode ? stopLiveVoice() : startLiveVoice(mode)}
+                      disabled={streaming || listening}
+                      className={`h-7 rounded-lg px-2 text-[11px] font-semibold transition-colors ${
+                        liveVoice && liveVoiceMode === mode
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                  {liveVoice && (
+                    <button
+                      type="button"
+                      onClick={stopLiveVoice}
+                      className="ml-auto h-7 rounded-lg px-2 text-[11px] font-semibold bg-red-50 text-red-600 hover:bg-red-100"
+                    >
+                      Stop
+                    </button>
+                  )}
+                </div>
+                {(liveVoiceStatus || liveTranscript) && (
+                  <div className="mt-2 rounded-xl bg-white px-2.5 py-2 text-[11px] leading-relaxed text-gray-600 border border-gray-100">
+                    {liveVoiceStatus && <div className="font-semibold text-gray-700">{liveVoiceStatus}</div>}
+                    {liveTranscript && (
+                      <div className="mt-1 line-clamp-2">{liveTranscript}</div>
+                    )}
+                    {liveTranscript && liveVoiceMode !== 'dictation' && (
+                      <button
+                        type="button"
+                        onClick={() => sendText(liveTranscript)}
+                        disabled={streaming}
+                        className="mt-2 text-[11px] font-semibold text-brand-600 hover:text-brand-700"
+                      >
+                        Send transcript through Miwa tools
+                      </button>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             {imageAttachments.length > 0 && (
               <div className="mb-2 flex gap-2 overflow-x-auto">
                 {imageAttachments.map(img => (

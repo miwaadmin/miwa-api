@@ -33,3 +33,26 @@ test('agent TTS reports voice-only configuration failures without breaking text 
   assert.equal(res.body.error, 'VOICE_UNAVAILABLE');
   assert.match(res.body.message, /Text chat still works/);
 });
+
+test('agent realtime session stays disabled until PHI/ZDR realtime is explicitly enabled', async () => {
+  await startTestServer();
+  const { cookie } = await bootstrapAdminAndLogin({
+    email: 'voice-realtime-disabled@miwa.test',
+    password: 'test-password-1234',
+  });
+
+  process.env.AI_TEXT_PROVIDER = 'openai';
+  process.env.OPENAI_PHI_API_KEY = 'test-openai-key';
+  process.env.OPENAI_PHI_ZDR_ENABLED = 'true';
+  delete process.env.OPENAI_REALTIME_PHI_ENABLED;
+
+  const res = await api('POST', '/api/agent/realtime/session', {
+    mode: 'conversation',
+    pageContext: { label: 'Dashboard', surface: 'dashboard' },
+  }, cookie);
+
+  assert.equal(res.status, 503);
+  assert.equal(res.body.error, 'REALTIME_VOICE_UNAVAILABLE');
+  assert.match(res.body.message, /Classic dictation and text chat still work/);
+  assert.equal(res.body.requirements.realtimePhiFlag, 'OPENAI_REALTIME_PHI_ENABLED=true');
+});
