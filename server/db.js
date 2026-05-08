@@ -334,18 +334,42 @@ function createSchema() {
       title TEXT NOT NULL,                   -- short label for UI chip
       prompt TEXT NOT NULL,                  -- user's original message
       context_json TEXT,                     -- current UI surface/context when the task was queued
+      goal_id INTEGER,
+      workflow_id INTEGER,
       status TEXT NOT NULL DEFAULT 'queued', -- queued|running|done|failed|cancelled
       result_text TEXT,                      -- final assistant response
       result_json TEXT,                      -- optional structured payload
       error_message TEXT,                    -- populated if status='failed'
+      failure_kind TEXT,
       iterations INTEGER NOT NULL DEFAULT 0,
+      retry_count INTEGER NOT NULL DEFAULT 0,
+      max_retries INTEGER NOT NULL DEFAULT 1,
       tool_calls_json TEXT,                  -- scrubbed log of tool invocations
+      checkpoint_json TEXT,                  -- resumable progress metadata/checkpoints
       cost_cents INTEGER NOT NULL DEFAULT 0,
       read_at DATETIME,                      -- null while unread (drives badge)
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       started_at DATETIME,
+      heartbeat_at DATETIME,
       completed_at DATETIME
     );
+
+    CREATE TABLE IF NOT EXISTS agent_task_steps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL REFERENCES agent_tasks(id),
+      therapist_id INTEGER NOT NULL REFERENCES therapists(id),
+      step_key TEXT NOT NULL,
+      label TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      detail TEXT,
+      attempt INTEGER NOT NULL DEFAULT 0,
+      started_at DATETIME,
+      completed_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(task_id, step_key)
+    );
+    CREATE INDEX IF NOT EXISTS idx_agent_task_steps_task ON agent_task_steps(task_id, step_key);
 
     CREATE TABLE IF NOT EXISTS progress_alerts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1406,6 +1430,31 @@ function runMigrations() {
   try { db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_therapist ON agent_tasks(therapist_id, created_at DESC)`); } catch {}
   try { db.run(`CREATE INDEX IF NOT EXISTS idx_tasks_status ON agent_tasks(status, created_at)`); } catch {}
   try { db.run(`ALTER TABLE agent_tasks ADD COLUMN context_json TEXT`); } catch {}
+  try { db.run(`ALTER TABLE agent_tasks ADD COLUMN goal_id INTEGER`); } catch {}
+  try { db.run(`ALTER TABLE agent_tasks ADD COLUMN workflow_id INTEGER`); } catch {}
+  try { db.run(`ALTER TABLE agent_tasks ADD COLUMN failure_kind TEXT`); } catch {}
+  try { db.run(`ALTER TABLE agent_tasks ADD COLUMN retry_count INTEGER NOT NULL DEFAULT 0`); } catch {}
+  try { db.run(`ALTER TABLE agent_tasks ADD COLUMN max_retries INTEGER NOT NULL DEFAULT 1`); } catch {}
+  try { db.run(`ALTER TABLE agent_tasks ADD COLUMN checkpoint_json TEXT`); } catch {}
+  try { db.run(`ALTER TABLE agent_tasks ADD COLUMN heartbeat_at DATETIME`); } catch {}
+  try {
+    db.run(`CREATE TABLE IF NOT EXISTS agent_task_steps (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      task_id INTEGER NOT NULL REFERENCES agent_tasks(id),
+      therapist_id INTEGER NOT NULL REFERENCES therapists(id),
+      step_key TEXT NOT NULL,
+      label TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      detail TEXT,
+      attempt INTEGER NOT NULL DEFAULT 0,
+      started_at DATETIME,
+      completed_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(task_id, step_key)
+    )`);
+  } catch {}
+  try { db.run(`CREATE INDEX IF NOT EXISTS idx_agent_task_steps_task ON agent_task_steps(task_id, step_key)`); } catch {}
 
   // Opt-out flag on therapists — default enabled
   if (!therapistCols.includes('training_data_opt_out')) {

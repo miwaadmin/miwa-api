@@ -76,6 +76,7 @@ export default function TaskDetail() {
   if (!task) return null
 
   const toolCalls = Array.isArray(task.tool_calls) ? task.tool_calls : []
+  const steps = Array.isArray(task.steps) ? task.steps : []
   const isRunning = task.status === 'queued' || task.status === 'running'
 
   return (
@@ -106,6 +107,37 @@ export default function TaskDetail() {
           </div>
         </div>
 
+        {task.goal && (
+          <div className="mb-4 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2">
+            <div className="text-[11px] font-bold uppercase tracking-widest text-indigo-600 mb-1">Persistent goal</div>
+            <div className="text-sm font-semibold text-indigo-950">{task.goal.title}</div>
+            {task.goal.description && (
+              <div className="text-xs text-indigo-800 mt-1">{task.goal.description}</div>
+            )}
+          </div>
+        )}
+
+        {steps.length > 0 && (
+          <div className="mb-4">
+            <div className="text-[11px] font-bold uppercase tracking-widest text-gray-500 mb-1.5">Workflow timeline</div>
+            <div className="rounded-lg border border-gray-200 overflow-hidden">
+              {steps.map(step => (
+                <div key={step.id} className="flex items-start gap-3 px-3 py-2 border-b border-gray-100 last:border-0 bg-gray-50/50">
+                  <StepDot status={step.status} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold text-gray-800 truncate">{step.label}</span>
+                      {step.attempt > 0 && <span className="text-[10px] rounded-full bg-gray-100 text-gray-500 px-1.5 py-0.5">retry {step.attempt}</span>}
+                    </div>
+                    {step.detail && <div className="text-xs text-gray-500 mt-0.5">{step.detail}</div>}
+                  </div>
+                  <span className="text-[10px] uppercase tracking-wide text-gray-400">{step.status}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Result */}
         {task.status === 'done' && task.result_text && (
           <div className="mb-4">
@@ -121,7 +153,7 @@ export default function TaskDetail() {
           <div className="mb-4">
             <div className="text-[11px] font-bold uppercase tracking-widest text-red-600 mb-1.5">Error</div>
             <div className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg p-3 whitespace-pre-wrap">
-              {task.error_message}
+              {task.failure_kind ? `${task.failure_kind}: ` : ''}{task.error_message}
             </div>
           </div>
         )}
@@ -205,5 +237,19 @@ function StatusRow({ task }) {
         </>
       )}
     </div>
+  )
+}
+
+function StepDot({ status }) {
+  const cls = {
+    completed: 'bg-emerald-500',
+    running: 'bg-brand-500 animate-pulse',
+    failed: 'bg-red-500',
+    blocked: 'bg-amber-500',
+    cancelled: 'bg-gray-400',
+  }[status] || 'bg-gray-300'
+
+  return (
+    <span className={`mt-1.5 h-2.5 w-2.5 rounded-full flex-shrink-0 ${cls}`} />
   )
 }

@@ -40,6 +40,16 @@ const { MODELS, callAIWithTools } = require('../lib/aiExecutor');
 const { AGENT_TOOLS, AI_AGENT_TOOLS, executeAgentTool } = require('../routes/agent');
 const { scrubText } = require('../lib/scrubber');
 const { buildPatientDossier } = require('../lib/patientDossier');
+const {
+  actionVerificationSummary,
+  appendVerificationNotice,
+  buildCheckpoint,
+  classifyFailure,
+  ensureGoalForPrompt,
+  recordTaskStep,
+  shouldRetryFailure,
+  touchGoal,
+} = require('./clinicalDurability');
 
 // ── Config ──────────────────────────────────────────────────────────────────
 const MAX_ITERATIONS     = 20;
@@ -268,6 +278,14 @@ async function runTask(taskId) {
   await updateTaskProgress(db, taskId, {
     status: 'running',
     started_at: startedAt.toISOString(),
+    heartbeat_at: startedAt.toISOString(),
+    checkpoint_json: JSON.stringify(buildCheckpoint({ phase: 'started', iterations: task.iterations || 0 })),
+  });
+  await recordTaskStep(db, task, 'started', {
+    label: 'Started task',
+    status: 'completed',
+    detail: `Attempt ${(task.retry_count || 0) + 1} of ${(task.max_retries || 1) + 1}`,
+    attempt: task.retry_count || 0,
   });
 
   const abortController = new AbortController();
@@ -293,6 +311,16 @@ async function runTask(taskId) {
   let pageContext = null;
   try { pageContext = task.context_json ? JSON.parse(task.context_json) : null; } catch {}
   const systemPrompt = buildSystemPrompt({ therapist, caseloadSummary, dateContext }) + formatPageContext(pageContext);
+  await recordTaskStep(db, task, 'context_loaded', {
+    label: 'Loaded clinical context',
+    status: 'completed',
+    detail: pageContext?.label ? `Included ${pageContext.label} page context.` : 'Included therapist date and caseload context.',
+    attempt: task.retry_count || 0,
+  });
+  await updateTaskProgress(db, taskId, {
+    heartbeat_at: new Date().toISOString(),
+    checkpoint_json: JSON.stringify(buildCheckpoint({ phase: 'context_loaded', iterations })),
+  });
 
   // Scrub prompt for PHI (same approach as sync agent — conservative default)
   const scrubbed = scrubText(task.prompt || '');
@@ -318,6 +346,12 @@ async function runTask(taskId) {
       }
 
       iterations = i + 1;
+      await recordTaskStep(db, task, `reasoning_${iterations}`, {
+        label: `Reasoning step ${iterations}`,
+        status: 'running',
+        detail: 'Miwa is deciding whether it needs tools or can finalize.',
+        attempt: task.retry_count || 0,
+      });
       const response = await callAIWithTools(
         MODELS.AZURE_MAIN,
         systemPrompt,
@@ -332,6 +366,12 @@ async function runTask(taskId) {
       const toolUseBlocks = response.content.filter(b => b.type === 'tool_use');
       if (response.stop_reason === 'end_turn' || toolUseBlocks.length === 0) {
         finalText = response.content.filter(b => b.type === 'text').map(b => b.text).join('') || '';
+        await recordTaskStep(db, task, `reasoning_${iterations}`, {
+          label: `Reasoning step ${iterations}`,
+          status: 'completed',
+          detail: 'Miwa produced a final answer.',
+          attempt: task.retry_count || 0,
+        });
         break;
       }
 
@@ -340,6 +380,12 @@ async function runTask(taskId) {
       let needsInput = false;
       const toolResults = [];
       for (const toolUse of toolUseBlocks) {
+        await recordTaskStep(db, task, `tool_${iterations}_${toolCallLog.length + 1}`, {
+          label: `Used ${toolUse.name}`,
+          status: 'running',
+          detail: 'Calling a server-side Miwa tool.',
+          attempt: task.retry_count || 0,
+        });
         const result = await executeAgentTool({
           name: toolUse.name,
           args: toolUse.input || {},
@@ -359,6 +405,15 @@ async function runTask(taskId) {
             ? Object.fromEntries(Object.entries(result).filter(([k]) => !k.startsWith('__')))
             : result,
           needs_input: !!(result?.__requiresApproval || result?.__requiresPicker),
+        });
+
+        await recordTaskStep(db, task, `tool_${iterations}_${toolCallLog.length}`, {
+          label: `Used ${toolUse.name}`,
+          status: result?.__requiresApproval || result?.__requiresPicker ? 'blocked' : 'completed',
+          detail: result?.__requiresApproval || result?.__requiresPicker
+            ? 'Paused for clinician approval/input.'
+            : 'Server-side tool call completed.',
+          attempt: task.retry_count || 0,
         });
 
         if (result?.__requiresApproval || result?.__requiresPicker) {
@@ -387,6 +442,8 @@ async function runTask(taskId) {
       await updateTaskProgress(db, taskId, {
         iterations,
         tool_calls_json: JSON.stringify(toolCallLog),
+        heartbeat_at: new Date().toISOString(),
+        checkpoint_json: JSON.stringify(buildCheckpoint({ phase: 'iteration_complete', iterations, toolCallLog, finalText })),
       });
     }
 
@@ -396,17 +453,67 @@ async function runTask(taskId) {
   } catch (err) {
     terminalStatus = 'failed';
     terminalError = err?.message || String(err);
+    await recordTaskStep(db, task, 'failed', {
+      label: 'Task failed',
+      status: 'failed',
+      detail: terminalError,
+      attempt: task.retry_count || 0,
+    }).catch(() => {});
   } finally {
     clearTimeout(timeoutHandle);
     _running.delete(taskId);
   }
 
+  const failureKind = terminalError ? classifyFailure(terminalError) : null;
+  const currentRetry = Number(task.retry_count || 0);
+  const maxRetries = Number(task.max_retries || 1);
+  if (terminalStatus === 'failed' && shouldRetryFailure(failureKind) && currentRetry < maxRetries) {
+    await updateTaskProgress(db, taskId, {
+      status: 'queued',
+      error_message: terminalError,
+      failure_kind: failureKind,
+      retry_count: currentRetry + 1,
+      iterations,
+      tool_calls_json: JSON.stringify(toolCallLog),
+      heartbeat_at: new Date().toISOString(),
+      checkpoint_json: JSON.stringify(buildCheckpoint({ phase: 'retry_queued', iterations, toolCallLog, finalText })),
+    });
+    await recordTaskStep(db, task, `retry_${currentRetry + 1}`, {
+      label: `Retry ${currentRetry + 1} queued`,
+      status: 'completed',
+      detail: terminalError,
+      attempt: currentRetry + 1,
+    }).catch(() => {});
+    return;
+  }
+
+  const verification = actionVerificationSummary(toolCallLog, finalText);
+  finalText = appendVerificationNotice(finalText, verification);
+  await touchGoal(db, task.goal_id, {
+    evidence: {
+      task_id: taskId,
+      status: terminalStatus,
+      iterations,
+      verification,
+      completed_at: new Date().toISOString(),
+    },
+  });
+  await recordTaskStep(db, task, terminalStatus === 'done' ? 'verified' : 'finalized', {
+    label: terminalStatus === 'done' ? 'Verified final answer' : 'Finalized task',
+    status: terminalStatus === 'done' ? 'completed' : terminalStatus,
+    detail: verification.note,
+    attempt: task.retry_count || 0,
+  }).catch(() => {});
+
   await updateTaskProgress(db, taskId, {
     status: terminalStatus,
     result_text: finalText || null,
     error_message: terminalError,
+    failure_kind: failureKind,
     iterations,
     tool_calls_json: JSON.stringify(toolCallLog),
+    heartbeat_at: new Date().toISOString(),
+    checkpoint_json: JSON.stringify(buildCheckpoint({ phase: 'terminal', iterations, toolCallLog, finalText })),
     completed_at: new Date().toISOString(),
   });
 }
@@ -504,14 +611,25 @@ async function enqueueTask({ therapistId, prompt, title, context }) {
   if (!prompt || !prompt.trim()) throw new Error('prompt required');
 
   const db = getAsyncDb();
+  const goalId = await ensureGoalForPrompt(db, therapistId, prompt.trim());
   const insert = await db.insert(
-    `INSERT INTO agent_tasks (therapist_id, title, prompt, context_json, status)
-     VALUES (?, ?, ?, ?, 'queued')`,
+    `INSERT INTO agent_tasks (therapist_id, title, prompt, context_json, goal_id, status, checkpoint_json)
+     VALUES (?, ?, ?, ?, ?, 'queued', ?)`,
     therapistId,
     (title && title.trim()) || deriveTitle(prompt),
     prompt.trim(),
     context ? JSON.stringify(context) : null,
+    goalId,
+    JSON.stringify(buildCheckpoint({ phase: 'queued', iterations: 0 })),
   );
+  await recordTaskStep(db, {
+    id: insert.lastInsertRowid,
+    therapist_id: therapistId,
+  }, 'queued', {
+    label: 'Queued task',
+    status: 'completed',
+    detail: goalId ? 'Linked to a persistent clinical goal.' : 'Ready for Miwa background worker.',
+  }).catch(() => {});
   await persistIfNeeded();
 
   // Kick the worker so the task starts within a few hundred ms instead of up

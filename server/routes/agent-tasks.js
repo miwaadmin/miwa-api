@@ -53,18 +53,21 @@ router.get('/', async (req, res) => {
     const offset = parseInt(req.query.offset, 10) || 0;
     const status = req.query.status; // optional filter
 
-    let sql = `SELECT id, title, prompt, status, result_text, error_message,
-                      iterations, cost_cents, read_at, created_at, started_at,
-                      completed_at
-               FROM agent_tasks WHERE therapist_id = ?`;
+    let sql = `SELECT at.id, at.title, at.prompt, at.status, at.result_text, at.error_message,
+                      at.failure_kind, at.iterations, at.retry_count, at.max_retries,
+                      at.cost_cents, at.read_at, at.created_at, at.started_at,
+                      at.heartbeat_at, at.completed_at, at.goal_id, ag.title AS goal_title
+                 FROM agent_tasks at
+                 LEFT JOIN assistant_goals ag ON ag.id = at.goal_id
+                WHERE at.therapist_id = ?`;
     const params = [req.therapist.id];
 
     if (status) {
-      sql += ' AND status = ?';
+      sql += ' AND at.status = ?';
       params.push(status);
     }
 
-    sql += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
+    sql += ' ORDER BY at.created_at DESC LIMIT ? OFFSET ?';
     params.push(limit, offset);
 
     const rows = await db.all(sql, ...params);
@@ -98,6 +101,114 @@ router.get('/unread-count', async (req, res) => {
 });
 
 // ── GET /:id — fetch single task ────────────────────────────────────────────
+router.get('/goals', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const status = req.query.status || 'active';
+    const rows = await db.all(
+      `SELECT id, goal_key, title, description, status, cadence,
+              last_checked_at, next_check_at, evidence_json, created_at, updated_at
+         FROM assistant_goals
+        WHERE therapist_id = ? AND (? = 'all' OR status = ?)
+        ORDER BY
+          CASE status WHEN 'active' THEN 0 WHEN 'paused' THEN 1 ELSE 2 END,
+          COALESCE(next_check_at, updated_at, created_at) ASC`,
+      req.therapist.id,
+      status,
+      status,
+    );
+    res.json({
+      goals: rows.map(row => ({
+        ...row,
+        evidence: row.evidence_json ? JSON.parse(row.evidence_json) : null,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/goals', async (req, res) => {
+  try {
+    const { title, description = '', cadence = 'ongoing' } = req.body || {};
+    if (!title || typeof title !== 'string' || !title.trim()) {
+      return res.status(400).json({ error: 'title is required' });
+    }
+    const goalKey = title.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 48) || `goal_${Date.now()}`;
+    const db = getAsyncDb();
+    await db.run(
+      `INSERT INTO assistant_goals
+        (therapist_id, goal_key, title, description, cadence, status, evidence_json)
+       VALUES (?, ?, ?, ?, ?, 'active', ?)
+       ON CONFLICT(therapist_id, goal_key) DO UPDATE SET
+         title = excluded.title,
+         description = excluded.description,
+         cadence = excluded.cadence,
+         status = 'active',
+         updated_at = CURRENT_TIMESTAMP`,
+      req.therapist.id,
+      goalKey,
+      title.trim(),
+      String(description || '').trim(),
+      String(cadence || 'ongoing').trim(),
+      JSON.stringify({ source: 'clinician', created_at: new Date().toISOString() }),
+    );
+    await persistIfNeeded();
+    const row = await db.get(
+      'SELECT * FROM assistant_goals WHERE therapist_id = ? AND goal_key = ?',
+      req.therapist.id,
+      goalKey,
+    );
+    res.status(201).json(row);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.patch('/goals/:id(\\d+)', async (req, res) => {
+  try {
+    const allowedStatus = new Set(['active', 'paused', 'completed', 'archived']);
+    const status = req.body?.status;
+    if (status && !allowedStatus.has(status)) {
+      return res.status(400).json({ error: 'invalid status' });
+    }
+    const db = getAsyncDb();
+    const current = await db.get(
+      'SELECT id FROM assistant_goals WHERE id = ? AND therapist_id = ?',
+      req.params.id,
+      req.therapist.id,
+    );
+    if (!current) return res.status(404).json({ error: 'Goal not found' });
+
+    await db.run(
+      `UPDATE assistant_goals
+          SET title = COALESCE(?, title),
+              description = COALESCE(?, description),
+              cadence = COALESCE(?, cadence),
+              status = COALESCE(?, status),
+              next_check_at = COALESCE(?, next_check_at),
+              updated_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND therapist_id = ?`,
+      req.body?.title ? String(req.body.title).trim() : null,
+      req.body?.description ? String(req.body.description).trim() : null,
+      req.body?.cadence ? String(req.body.cadence).trim() : null,
+      status || null,
+      req.body?.next_check_at || null,
+      req.params.id,
+      req.therapist.id,
+    );
+    await persistIfNeeded();
+    const row = await db.get(
+      'SELECT * FROM assistant_goals WHERE id = ? AND therapist_id = ?',
+      req.params.id,
+      req.therapist.id,
+    );
+    res.json(row);
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.get('/:id(\\d+)', async (req, res) => {
   try {
     const db = getAsyncDb();
@@ -111,6 +222,26 @@ router.get('/:id(\\d+)', async (req, res) => {
     if (row.tool_calls_json) {
       try { row.tool_calls = JSON.parse(row.tool_calls_json); } catch { row.tool_calls = []; }
     }
+    if (row.checkpoint_json) {
+      try { row.checkpoint = JSON.parse(row.checkpoint_json); } catch { row.checkpoint = null; }
+    }
+    row.steps = await db.all(
+      `SELECT id, step_key, label, status, detail, attempt, started_at, completed_at, created_at, updated_at
+         FROM agent_task_steps
+        WHERE task_id = ? AND therapist_id = ?
+        ORDER BY id ASC`,
+      row.id,
+      req.therapist.id,
+    ).catch(() => []);
+    row.goal = row.goal_id
+      ? await db.get(
+          `SELECT id, goal_key, title, description, status, cadence, last_checked_at,
+                  next_check_at, evidence_json, created_at, updated_at
+             FROM assistant_goals WHERE id = ? AND therapist_id = ?`,
+          row.goal_id,
+          req.therapist.id,
+        ).catch(() => null)
+      : null;
     res.json(row);
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
@@ -221,7 +352,7 @@ router.get('/stream', (req, res) => {
     try {
       const db = getAsyncDb();
       const rows = await db.all(
-        `SELECT id, status, title, completed_at, iterations
+        `SELECT id, status, title, completed_at, iterations, retry_count, heartbeat_at, failure_kind
          FROM agent_tasks
          WHERE therapist_id = ?
            AND (status IN ('queued','running') OR completed_at > datetime('now', '-10 minutes'))`,

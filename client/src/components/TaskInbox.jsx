@@ -73,7 +73,18 @@ function TaskRow({ task, expanded, onToggle, onCancel, onRead, onOpenDetail }) {
                 <span>{task.iterations} step{task.iterations === 1 ? '' : 's'}</span>
               </>
             )}
+            {task.retry_count > 0 && (
+              <>
+                <span>â€¢</span>
+                <span>retry {task.retry_count}</span>
+              </>
+            )}
           </div>
+          {task.goal_title && (
+            <div className="mt-1 text-[11px] text-indigo-600 truncate">
+              Goal: {task.goal_title}
+            </div>
+          )}
         </div>
         <button
           className="w-6 h-6 flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors"
@@ -101,7 +112,7 @@ function TaskRow({ task, expanded, onToggle, onCancel, onRead, onOpenDetail }) {
           )}
           {task.status === 'failed' && task.error_message && (
             <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg p-2">
-              {task.error_message}
+              {task.failure_kind ? `${task.failure_kind}: ` : ''}{task.error_message}
             </div>
           )}
           {task.status === 'needs_input' && (
