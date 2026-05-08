@@ -101,9 +101,9 @@ jobs:
           UPDATES+=("AI_TEXT_PROVIDER=auto")
           UPDATES+=("OPENAI_PHI_ZDR_ENABLED=true")
           UPDATES+=("OPENAI_REALTIME_PHI_ENABLED=true")
-          UPDATES+=("OPENAI_REALTIME_MODEL=gpt-realtime")
+          UPDATES+=("OPENAI_REALTIME_MODEL=gpt-realtime-2")
           UPDATES+=("OPENAI_REALTIME_TRANSCRIPTION_MODEL=gpt-4o-transcribe")
-          UPDATES+=("OPENAI_REALTIME_TRANSLATION_MODEL=gpt-realtime")
+          UPDATES+=("OPENAI_REALTIME_TRANSLATION_MODEL=gpt-realtime-2")
           UPDATES+=("OPENAI_REALTIME_VOICE=marin")
           if [ ${#UPDATES[@]} -eq 0 ]; then
             echo "No runtime secrets to sync — skipping."

@@ -2,9 +2,9 @@
 
 const { canSendPhiToTextAI } = require('../lib/phiPolicy');
 
-const DEFAULT_REALTIME_MODEL = 'gpt-realtime';
+const DEFAULT_REALTIME_MODEL = 'gpt-realtime-2';
 const DEFAULT_TRANSCRIPTION_MODEL = 'gpt-4o-transcribe';
-const DEFAULT_TRANSLATION_MODEL = 'gpt-realtime';
+const DEFAULT_TRANSLATION_MODEL = 'gpt-realtime-2';
 const DEFAULT_VOICE = 'marin';
 
 function isTruthy(value) {
