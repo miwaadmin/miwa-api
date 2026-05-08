@@ -306,7 +306,7 @@ async function createRealtimeCallAnswer(sdp, { mode = 'conversation', pageContex
         error_type: parsed?.error?.type || null,
         error_code: parsed?.error?.code || null,
         error_param: parsed?.error?.param || null,
-        error_message: parsed?.error?.message || null,
+        error_message: parsed?.error?.message || (answer && answer.length < 500 ? answer : null),
       };
       throw err;
     }
@@ -333,7 +333,8 @@ async function createRealtimeCallAnswer(sdp, { mode = 'conversation', pageContex
     const isModelReject = modelErrorCodes.has(err?.openai?.error_code)
       || err?.openai?.error_type === 'model_not_found';
     const isLikelyProvisioningIssue = err?.code === 'REALTIME_OPENAI_TIMEOUT'
-      || (err?.statusCode && timeoutLikeStatuses.has(err.statusCode) && !err?.openai?.error_code);
+      || (err?.statusCode && timeoutLikeStatuses.has(err.statusCode) && !err?.openai?.error_code)
+      || (err?.openai?.status && timeoutLikeStatuses.has(err.openai.status) && !err?.openai?.error_code);
     const shouldRetryFallback = session.type === 'realtime'
       && config.fallbackModel
       && config.fallbackModel !== session.model

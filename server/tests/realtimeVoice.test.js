@@ -173,6 +173,44 @@ test('unified realtime call retries configured fallback model for model access f
   assert.equal(result.fallbackFrom, 'gpt-realtime-2');
 });
 
+test('unified realtime call retries configured fallback model for upstream timeouts', async () => {
+  const seen = [];
+  const fakeFetch = async (url, options) => {
+    const session = JSON.parse(await options.body.get('session'));
+    seen.push(session.model);
+    if (seen.length === 1) {
+      return {
+        ok: false,
+        status: 504,
+        headers: { get: () => null },
+        async text() {
+          return '';
+        },
+      };
+    }
+    return {
+      ok: true,
+      status: 200,
+      headers: new Map(),
+      async text() {
+        return 'v=0\r\no=openai-fallback-answer\r\n';
+      },
+    };
+  };
+
+  const result = await createRealtimeCallAnswer('v=0\r\no=browser-offer\r\n', {
+    mode: 'conversation',
+  }, phiRealtimeEnv({
+    OPENAI_REALTIME_MODEL: 'gpt-realtime-2',
+    OPENAI_REALTIME_FALLBACK_MODEL: 'gpt-realtime',
+  }), fakeFetch);
+
+  assert.deepEqual(seen, ['gpt-realtime-2', 'gpt-realtime']);
+  assert.equal(result.answer, 'v=0\r\no=openai-fallback-answer\r\n');
+  assert.equal(result.model, 'gpt-realtime');
+  assert.equal(result.fallbackFrom, 'gpt-realtime-2');
+});
+
 test('unified realtime call exposes safe OpenAI error metadata', async () => {
   const fakeFetch = async () => ({
     ok: false,
