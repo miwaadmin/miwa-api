@@ -1647,9 +1647,15 @@ function runMigrations() {
     supervisor   TEXT,
     site         TEXT,
     notes        TEXT,
+    applies_to_programs TEXT NOT NULL DEFAULT 'both',
+    school_bucket_id TEXT,
+    bbs_bucket_id TEXT,
     created_at   DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at   DATETIME DEFAULT CURRENT_TIMESTAMP
   );`);
+  try { db.run("ALTER TABLE practice_hours ADD COLUMN applies_to_programs TEXT NOT NULL DEFAULT 'both'"); } catch {}
+  try { db.run('ALTER TABLE practice_hours ADD COLUMN school_bucket_id TEXT'); } catch {}
+  try { db.run('ALTER TABLE practice_hours ADD COLUMN bbs_bucket_id TEXT'); } catch {}
   db.run('CREATE INDEX IF NOT EXISTS idx_practice_hours_therapist_date ON practice_hours(therapist_id, date);');
   db.run('CREATE INDEX IF NOT EXISTS idx_practice_hours_bucket         ON practice_hours(therapist_id, bucket_id);');
 

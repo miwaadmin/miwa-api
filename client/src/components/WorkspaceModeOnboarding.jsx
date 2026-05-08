@@ -5,6 +5,7 @@ import { needsWorkspaceModeOnboarding } from '../lib/workspaceMode'
 
 const EHR_OPTIONS = ['Exym', 'Welligent', 'Credible', 'SimplePractice', 'TherapyNotes', 'Other']
 const PROGRAM_OPTIONS = [
+  ['dual_csun_bbs_lmft', 'School degree + CA BBS LMFT'],
   ['csun_mft', 'CSUN MFT Practicum'],
   ['ca_bbs_lmft', 'CA BBS LMFT Associate'],
   ['other', 'Other / future'],
@@ -27,7 +28,7 @@ export default function WorkspaceModeOnboarding() {
   const [agencyName, setAgencyName] = useState('')
   const [ehrName, setEhrName] = useState('Exym')
   const [trainingProgram, setTrainingProgram] = useState(
-    therapist?.credential_type === 'associate' ? 'ca_bbs_lmft' : 'csun_mft'
+    therapist?.credential_type === 'associate' ? 'ca_bbs_lmft' : 'dual_csun_bbs_lmft'
   )
   const [sitePolicyStatus, setSitePolicyStatus] = useState('not_sure')
   const [noteFormat, setNoteFormat] = useState('SOAP')
@@ -138,7 +139,7 @@ export default function WorkspaceModeOnboarding() {
                   </select>
                 </label>
                 <label className="block md:col-span-2">
-                  <span className="text-xs font-semibold text-amber-900">Hours framework</span>
+                  <span className="text-xs font-semibold text-amber-900">Hours frameworks</span>
                   <select
                     className="mt-1 w-full rounded-xl border border-amber-200 bg-white px-3 py-2 text-sm focus:border-brand-400 focus:ring-brand-200"
                     value={trainingProgram}
@@ -147,6 +148,11 @@ export default function WorkspaceModeOnboarding() {
                     {PROGRAM_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                   </select>
                 </label>
+                {trainingProgram === 'dual_csun_bbs_lmft' && (
+                  <div className="md:col-span-2 rounded-xl border border-amber-300 bg-white px-3 py-2 text-xs leading-relaxed text-amber-900">
+                    School/practicum hours will also populate CA BBS LMFT tracking by default. You can mark a specific entry as school-only when it should not count toward BBS.
+                  </div>
+                )}
                 <label className="block">
                   <span className="text-xs font-semibold text-amber-900">Site policy for PHI in Miwa</span>
                   <select

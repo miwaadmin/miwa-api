@@ -19,9 +19,10 @@ export default function HoursWidget() {
   const eligible = cred === 'trainee' || cred === 'associate'
 
   // Pick up the same program the user last selected on the Hours page.
+  // Default to dual tracking because most trainees need school + BBS totals.
   const program = useMemo(() => {
-    try { return localStorage.getItem('miwa.hours.program') || 'csun_mft' }
-    catch { return 'csun_mft' }
+    try { return localStorage.getItem('miwa.hours.program') || 'dual_csun_bbs_lmft' }
+    catch { return 'dual_csun_bbs_lmft' }
   }, [])
 
   const [apiBuckets, setApiBuckets] = useState([])
@@ -68,7 +69,7 @@ export default function HoursWidget() {
             </svg>
           </div>
           <div>
-            <p className="text-sm font-bold text-gray-900">Practicum hours</p>
+            <p className="text-sm font-bold text-gray-900">Training hours</p>
             <p className="text-[11px] text-gray-500">{getProgramLabel(program)}{loading ? ' · loading…' : ''}</p>
           </div>
         </div>

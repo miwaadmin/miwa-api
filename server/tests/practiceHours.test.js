@@ -93,22 +93,20 @@ function makeFakeDb({ appointments = [], practice_hours = [], patients = [] } = 
             };
           });
       }
-      // Manual entries grouped — used by computeHourTotals.
-      if (/FROM practice_hours WHERE therapist_id = \? GROUP BY bucket_id/i.test(Q)) {
+      // Manual entries, full history, used by computeHourTotals.
+      if (/FROM practice_hours WHERE therapist_id = \?/i.test(Q)
+          && !/date BETWEEN/i.test(Q)) {
         const therapistId = params[0];
-        const sums = {};
-        for (const r of practice_hours) {
-          if (r.therapist_id !== therapistId) continue;
-          sums[r.bucket_id] = (sums[r.bucket_id] || 0) + Number(r.hours);
-        }
-        return Object.entries(sums).map(([bucket_id, total]) => ({ bucket_id, total }));
+        return practice_hours
+          .filter(r => r.therapist_id === therapistId)
+          .map(r => ({ ...r, hours: Number(r.hours) }));
       }
       // Manual entries in date range — used by computeHourGrid.
       if (/FROM practice_hours WHERE therapist_id = \? AND date BETWEEN/i.test(Q)) {
         const [therapistId, fromDate, toDate] = params;
         return practice_hours
           .filter(r => r.therapist_id === therapistId && r.date >= fromDate && r.date <= toDate)
-          .map(r => ({ bucket_id: r.bucket_id, date: r.date, hours: Number(r.hours) }));
+          .map(r => ({ ...r, hours: Number(r.hours) }));
       }
       throw new Error(`Unhandled fake-db query: ${Q.slice(0, 120)}…`);
     },
@@ -328,6 +326,44 @@ describe('computeHourTotals — rollups and source attribution', () => {
     const total = findBucket(state, 'total');
     assert.equal(total.minHours, 3000);
     assert.equal(total.hours, 1);
+  });
+
+  test('CSUN school entries count toward CA BBS by default', async () => {
+    const db = makeFakeDb({
+      practice_hours: [
+        { therapist_id: 1, bucket_id: 'sup_field_individual', date: '2026-04-01', hours: 1.5 },
+        { therapist_id: 1, bucket_id: 'other_progress_notes', date: '2026-04-02', hours: 0.5 },
+      ],
+    });
+    const state = await computeHourTotals(db, 1, 'ca_bbs_lmft');
+    assert.equal(findBucket(state, 'lmft_sup_individual').fromManual, 1.5);
+    assert.equal(findBucket(state, 'lmft_progress_notes').fromManual, 0.5);
+    assert.equal(findBucket(state, 'total').hours, 2);
+  });
+
+  test('school-only entries stay out of CA BBS totals', async () => {
+    const db = makeFakeDb({
+      practice_hours: [
+        { therapist_id: 1, bucket_id: 'sup_field_individual', date: '2026-04-01', hours: 1.5, applies_to_programs: 'school_only' },
+      ],
+    });
+    const school = await computeHourTotals(db, 1, 'csun_mft');
+    const bbs = await computeHourTotals(db, 1, 'ca_bbs_lmft');
+    assert.equal(findBucket(school, 'sup_field_individual').fromManual, 1.5);
+    assert.equal(findBucket(bbs, 'lmft_sup_individual').fromManual, 0);
+  });
+
+  test('dual program returns school totals plus paired BBS totals', async () => {
+    const db = makeFakeDb({
+      practice_hours: [
+        { therapist_id: 1, bucket_id: 'sup_field_group', date: '2026-04-01', hours: 2 },
+      ],
+    });
+    const state = await computeHourTotals(db, 1, 'dual_csun_bbs_lmft');
+    assert.equal(state.program, 'dual_csun_bbs_lmft');
+    assert.equal(state.dualTracking, true);
+    assert.equal(findBucket(state, 'sup_field_group').fromManual, 2);
+    assert.equal(findBucket(state.pairedPrograms[0], 'lmft_sup_group').fromManual, 2);
   });
 
   test('unknown program throws', async () => {

@@ -100,6 +100,81 @@ const PROGRAMS = {
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
+
+const DUAL_CSU_BBS_PROGRAM_ID = 'dual_csun_bbs_lmft';
+
+const CSUN_TO_BBS_BUCKET = {
+  individual_adult: 'lmft_individual',
+  individual_child: 'lmft_child',
+  process_group_individuals: 'lmft_group',
+  couples_therapy: 'lmft_relational',
+  family_therapy: 'lmft_relational',
+  process_group_couples_families: 'lmft_group',
+  advocacy_live_telephonic: 'lmft_advocacy',
+  sup_case_report: 'lmft_sup_individual',
+  sup_field_individual: 'lmft_sup_individual',
+  sup_field_group: 'lmft_sup_group',
+  sup_csun_class_group: 'lmft_sup_group',
+  live_sup_field_individual: 'lmft_sup_individual',
+  live_sup_field_group: 'lmft_sup_group',
+  live_sup_csun_class_group: 'lmft_sup_group',
+  other_progress_notes: 'lmft_progress_notes',
+  other_trainings: 'lmft_workshops',
+  other_advocacy_research: 'lmft_advocacy',
+};
+
+const BBS_TO_CSUN_BUCKET = {
+  lmft_individual: 'individual_adult',
+  lmft_child: 'individual_child',
+  lmft_relational: 'couples_therapy',
+  lmft_group: 'process_group_individuals',
+  lmft_sup_individual: 'sup_field_individual',
+  lmft_sup_group: 'sup_field_group',
+  lmft_workshops: 'other_trainings',
+  lmft_advocacy: 'advocacy_live_telephonic',
+  lmft_progress_notes: 'other_progress_notes',
+  lmft_admin: 'other_trainings',
+};
+
+function normalizeProgramId(programId = 'csun_mft') {
+  return programId === DUAL_CSU_BBS_PROGRAM_ID ? 'csun_mft' : programId;
+}
+
+function isDualProgram(programId) {
+  return programId === DUAL_CSU_BBS_PROGRAM_ID;
+}
+
+function isSchoolOnly(row = {}) {
+  return ['school_only', 'csun_only', 'degree_only', 'university_only'].includes(row.applies_to_programs);
+}
+
+function isBbsOnly(row = {}) {
+  return row.applies_to_programs === 'bbs_only';
+}
+
+function isExplicitDual(row = {}) {
+  return ['both', 'school_and_bbs', 'dual'].includes(row.applies_to_programs);
+}
+
+function mapBucketForProgram(bucketId, programId, row = {}) {
+  const program = PROGRAMS[programId];
+  const validBucketIds = new Set(program?.buckets.map(b => b.id) || []);
+  if (!bucketId || !program) return null;
+  if (validBucketIds.has(bucketId)) return bucketId;
+  if (programId === 'ca_bbs_lmft') return row.bbs_bucket_id || CSUN_TO_BBS_BUCKET[bucketId] || null;
+  if (programId === 'csun_mft') {
+    if (row.school_bucket_id) return row.school_bucket_id;
+    return isExplicitDual(row) ? (BBS_TO_CSUN_BUCKET[bucketId] || null) : null;
+  }
+  return null;
+}
+
+function manualBucketForProgram(row, programId) {
+  if (programId === 'ca_bbs_lmft' && isSchoolOnly(row)) return null;
+  if (programId === 'csun_mft' && isBbsOnly(row)) return null;
+  return mapBucketForProgram(row.bucket_id, programId, row);
+}
+
 // Map a completed appointment to a bucket id for the given program.
 // Returns null if the appointment doesn't fit any auto-tallied bucket.
 //
@@ -149,6 +224,21 @@ function mapAppointmentToBucket(appt, patient, programId = 'csun_mft') {
 // children's hours summed in.
 // ─────────────────────────────────────────────────────────────────────────────
 async function computeHourTotals(db, therapistId, programId = 'csun_mft') {
+  if (isDualProgram(programId)) {
+    const school = await computeSingleProgramTotals(db, therapistId, 'csun_mft');
+    const bbs = await computeSingleProgramTotals(db, therapistId, 'ca_bbs_lmft');
+    return {
+      ...school,
+      program: DUAL_CSU_BBS_PROGRAM_ID,
+      programLabel: 'School degree + CA BBS LMFT',
+      dualTracking: true,
+      pairedPrograms: [bbs],
+    };
+  }
+  return computeSingleProgramTotals(db, therapistId, normalizeProgramId(programId));
+}
+
+async function computeSingleProgramTotals(db, therapistId, programId = 'csun_mft') {
   const program = PROGRAMS[programId];
   if (!program) throw new Error(`Unknown hour program: ${programId}`);
 
@@ -168,13 +258,19 @@ async function computeHourTotals(db, therapistId, programId = 'csun_mft') {
     therapistId,
   );
 
-  // Manual entries summed by bucket.
+  // Manual entries summed by bucket. CSUN/school entries flow into CA BBS
+  // tracking by default; trainees can mark an entry school-only when it
+  // should not populate the BBS side.
   const manualRows = await db.all(
-    'SELECT bucket_id, COALESCE(SUM(hours), 0) AS total FROM practice_hours WHERE therapist_id = ? GROUP BY bucket_id',
+    'SELECT bucket_id, hours, applies_to_programs, bbs_bucket_id, school_bucket_id FROM practice_hours WHERE therapist_id = ?',
     therapistId,
   );
   const manualByBucket = {};
-  for (const r of manualRows) manualByBucket[r.bucket_id] = Number(r.total) || 0;
+  for (const r of manualRows) {
+    const bucketId = manualBucketForProgram(r, programId);
+    if (!bucketId) continue;
+    manualByBucket[bucketId] = (manualByBucket[bucketId] || 0) + (Number(r.hours) || 0);
+  }
 
   // Sum appointment hours into leaf buckets. The therapist can override the
   // automatic categorization on a per-appointment basis (e.g. fix when an
@@ -185,6 +281,9 @@ async function computeHourTotals(db, therapistId, programId = 'csun_mft') {
   const apptByBucket = {};
   for (const a of apptRows) {
     let bucketId = a.practicum_bucket_override;
+    if (bucketId && !validBucketIds.has(bucketId)) {
+      bucketId = mapBucketForProgram(bucketId, programId);
+    }
     if (!bucketId || !validBucketIds.has(bucketId)) {
       bucketId = mapAppointmentToBucket(a, { age: a.age, age_range: a.age_range }, programId);
     }
@@ -251,6 +350,7 @@ function round2(n) {
 
 // Validate a bucket id and confirm it's manual-entry-eligible.
 function isManualEntryBucket(bucketId, programId = 'csun_mft') {
+  programId = normalizeProgramId(programId);
   const program = PROGRAMS[programId];
   if (!program) return false;
   const bucket = program.buckets.find(b => b.id === bucketId);
@@ -259,6 +359,7 @@ function isManualEntryBucket(bucketId, programId = 'csun_mft') {
 }
 
 function listManualEntryBuckets(programId = 'csun_mft') {
+  programId = normalizeProgramId(programId);
   const program = PROGRAMS[programId];
   if (!program) return [];
   return program.buckets
@@ -271,6 +372,7 @@ function listManualEntryBuckets(programId = 'csun_mft') {
 // manual; e.g. an "Individual" session that was actually a supervision
 // observation hour).
 function listLeafBuckets(programId = 'csun_mft') {
+  programId = normalizeProgramId(programId);
   const program = PROGRAMS[programId];
   if (!program) return [];
   return program.buckets
@@ -298,6 +400,7 @@ function listLeafBuckets(programId = 'csun_mft') {
  * computes day grouping.
  */
 async function computeHourGrid(db, therapistId, fromDate, toDate, programId = 'csun_mft', tz = 'America/Los_Angeles') {
+  programId = normalizeProgramId(programId);
   const program = PROGRAMS[programId];
   if (!program) throw new Error(`Unknown hour program: ${programId}`);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fromDate) || !/^\d{4}-\d{2}-\d{2}$/.test(toDate)) {
@@ -340,7 +443,7 @@ async function computeHourGrid(db, therapistId, fromDate, toDate, programId = 'c
   );
 
   const manualRows = await db.all(
-    'SELECT bucket_id, date, hours FROM practice_hours WHERE therapist_id = ? AND date BETWEEN ? AND ?',
+    'SELECT bucket_id, date, hours, applies_to_programs, bbs_bucket_id, school_bucket_id FROM practice_hours WHERE therapist_id = ? AND date BETWEEN ? AND ?',
     therapistId, fromDate, toDate,
   );
 
@@ -364,6 +467,9 @@ async function computeHourGrid(db, therapistId, fromDate, toDate, programId = 'c
 
   for (const a of apptRows) {
     let bucketId = a.practicum_bucket_override;
+    if (bucketId && !validBucketIds.has(bucketId)) {
+      bucketId = mapBucketForProgram(bucketId, programId);
+    }
     if (!bucketId || !validBucketIds.has(bucketId)) {
       bucketId = mapAppointmentToBucket(a, { age: a.age, age_range: a.age_range }, programId);
     }
@@ -373,7 +479,7 @@ async function computeHourGrid(db, therapistId, fromDate, toDate, programId = 'c
     addToCell(bucketId, date, (Number(a.duration_minutes) || 0) / 60);
   }
   for (const r of manualRows) {
-    addToCell(r.bucket_id, r.date, Number(r.hours) || 0);
+    addToCell(manualBucketForProgram(r, programId), r.date, Number(r.hours) || 0);
   }
 
   // Reuse computeHourTotals to get the bucket metadata + program totals.
@@ -392,7 +498,9 @@ async function computeHourGrid(db, therapistId, fromDate, toDate, programId = 'c
 
 module.exports = {
   PROGRAMS,
+  DUAL_CSU_BBS_PROGRAM_ID,
   CSUN_MFT_BUCKETS,
+  CSUN_TO_BBS_BUCKET,
   computeHourTotals,
   computeHourGrid,
   mapAppointmentToBucket,

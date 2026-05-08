@@ -64,6 +64,7 @@ export const CA_BBS_LMFT_BUCKETS = [
 ]
 
 export const PROGRAMS = {
+  dual_csun_bbs_lmft: { id: 'dual_csun_bbs_lmft', label: 'School + CA BBS LMFT', buckets: CSUN_MFT_BUCKETS },
   csun_mft:    { id: 'csun_mft',    label: 'CSUN MFT (Practicum)',        buckets: CSUN_MFT_BUCKETS },
   ca_bbs_lmft: { id: 'ca_bbs_lmft', label: 'CA BBS, LMFT (post-degree)', buckets: CA_BBS_LMFT_BUCKETS },
 }

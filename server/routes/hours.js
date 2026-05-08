@@ -21,6 +21,7 @@ const {
   isManualEntryBucket,
   listManualEntryBuckets,
   listLeafBuckets,
+  CSUN_TO_BBS_BUCKET,
 } = require('../services/practiceHours');
 
 // Middleware: only trainees + associates have hour-tracking access. Licensed
@@ -118,7 +119,7 @@ router.get('/entries', async (req, res) => {
 router.post('/entries', async (req, res) => {
   try {
     const db = getAsyncDb();
-    const { bucket_id, date, hours, supervisor, site, notes, program } = req.body || {};
+    const { bucket_id, date, hours, supervisor, site, notes, program, applies_to_programs } = req.body || {};
     if (!bucket_id || !date || hours == null) {
       return res.status(400).json({ error: 'bucket_id, date, and hours are required' });
     }
@@ -132,11 +133,14 @@ router.post('/entries', async (req, res) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date))) {
       return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
     }
+    const programScope = applies_to_programs || 'both';
+    const bbsBucketId = CSUN_TO_BBS_BUCKET[bucket_id] || null;
     const result = await db.insert(
-      `INSERT INTO practice_hours (therapist_id, bucket_id, date, hours, supervisor, site, notes)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO practice_hours (therapist_id, bucket_id, date, hours, supervisor, site, notes, applies_to_programs, school_bucket_id, bbs_bucket_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       req.therapist.id, bucket_id, date, hrs,
       supervisor || null, site || null, notes || null,
+      programScope, bucket_id, bbsBucketId,
     );
     await persistIfNeeded();
     const entry = await db.get('SELECT * FROM practice_hours WHERE id = ?', result.lastInsertRowid);
@@ -156,11 +160,11 @@ router.put('/entries/:id', async (req, res) => {
     );
     if (!existing) return res.status(404).json({ error: 'Entry not found' });
 
-    const { bucket_id, date, hours, supervisor, site, notes } = req.body || {};
+    const { bucket_id, date, hours, supervisor, site, notes, program, applies_to_programs } = req.body || {};
     const nextBucket = bucket_id || existing.bucket_id;
     const nextDate   = date      || existing.date;
     const nextHours  = hours == null ? existing.hours : Number(hours);
-    if (!isManualEntryBucket(nextBucket)) {
+    if (!isManualEntryBucket(nextBucket, program || 'csun_mft')) {
       return res.status(400).json({ error: 'That category isn\'t eligible for manual entry' });
     }
     if (!Number.isFinite(nextHours) || nextHours <= 0 || nextHours > 24) {
@@ -169,15 +173,20 @@ router.put('/entries/:id', async (req, res) => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(String(nextDate))) {
       return res.status(400).json({ error: 'date must be YYYY-MM-DD' });
     }
+    const nextScope = applies_to_programs !== undefined ? applies_to_programs : (existing.applies_to_programs || 'both');
+    const nextSchoolBucket = nextBucket && !String(nextBucket).startsWith('lmft_') ? nextBucket : (existing.school_bucket_id || null);
+    const nextBbsBucket = CSUN_TO_BBS_BUCKET[nextBucket] || existing.bbs_bucket_id || null;
     await db.run(
       `UPDATE practice_hours SET
          bucket_id = ?, date = ?, hours = ?, supervisor = ?, site = ?, notes = ?,
+         applies_to_programs = ?, school_bucket_id = ?, bbs_bucket_id = ?,
          updated_at = CURRENT_TIMESTAMP
        WHERE id = ? AND therapist_id = ?`,
       nextBucket, nextDate, nextHours,
       supervisor !== undefined ? (supervisor || null) : existing.supervisor,
       site       !== undefined ? (site       || null) : existing.site,
       notes      !== undefined ? (notes      || null) : existing.notes,
+      nextScope, nextSchoolBucket, nextBbsBucket,
       req.params.id, req.therapist.id,
     );
     await persistIfNeeded();

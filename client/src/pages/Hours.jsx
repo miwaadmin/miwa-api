@@ -39,12 +39,12 @@ export default function Hours() {
   const { therapist } = useAuth()
   const navigate = useNavigate()
   const [tab, setTab] = useState('progress')          // 'progress' | 'track' | 'log'
-  // Program persistence: trainees usually start with CSUN practicum, then
-  // switch to the BBS post-grad form once they graduate. We remember the
-  // last choice in localStorage so navigating away and back doesn't reset.
+  // Program persistence: most trainees need school + BBS tracking together.
+  // The dual default logs school/practicum hours and mirrors them into CA BBS
+  // unless the trainee marks a specific entry school-only.
   const [program, setProgram] = useState(() => {
-    try { return localStorage.getItem('miwa.hours.program') || 'csun_mft' }
-    catch { return 'csun_mft' }
+    try { return localStorage.getItem('miwa.hours.program') || 'dual_csun_bbs_lmft' }
+    catch { return 'dual_csun_bbs_lmft' }
   })
   useEffect(() => {
     try { localStorage.setItem('miwa.hours.program', program) } catch {}
@@ -114,7 +114,7 @@ export default function Hours() {
     } finally {
       setExporting(false)
     }
-  }, [])
+  }, [program])
 
   const openEntryModal = useCallback((entry = null) => {
     setEditingEntry(entry)
@@ -173,6 +173,7 @@ export default function Hours() {
           {/* Program switcher, small, inline, persisted in localStorage. */}
           <div className="mt-2 inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 p-0.5">
             {[
+              { id: 'dual_csun_bbs_lmft', label: 'School + BBS' },
               { id: 'csun_mft',    label: 'CSUN Practicum' },
               { id: 'ca_bbs_lmft', label: 'CA BBS LMFT' },
             ].map(p => (
@@ -187,6 +188,11 @@ export default function Hours() {
               </button>
             ))}
           </div>
+          {program === 'dual_csun_bbs_lmft' && (
+            <p className="mt-2 text-xs leading-relaxed text-teal-700">
+              Default dual tracking is on: school/practicum entries also count toward CA BBS unless you mark an entry school-only.
+            </p>
+          )}
         </div>
         <div className="flex items-center gap-2 w-full sm:w-auto">
           <button
@@ -287,7 +293,31 @@ export default function Hours() {
       {loading ? (
         <div className="card p-12 flex justify-center text-sm text-gray-400">Loading hours…</div>
       ) : tab === 'progress' ? (
-        <ProgressView buckets={buckets} total={total} rollups={rollups} sessions={state?.totalSessions || 0} />
+        <>
+          <ProgressView
+            buckets={buckets}
+            total={total}
+            rollups={rollups}
+            sessions={state?.totalSessions || 0}
+            programLabel={state?.programLabel || getProgramLabel(program)}
+          />
+          {program === 'dual_csun_bbs_lmft' && state?.pairedPrograms?.map(paired => {
+            const pairedBuckets = mergeBucketTotals(paired.program, paired.buckets || [])
+            const pairedTotal = pairedBuckets.find(b => b.id === 'total')
+            const pairedRollups = pairedBuckets.filter(b => b.kind === 'rollup' && b.parent === 'total')
+            return (
+              <div key={paired.program} className="mt-5">
+                <ProgressView
+                  buckets={pairedBuckets}
+                  total={pairedTotal}
+                  rollups={pairedRollups}
+                  sessions={paired.totalSessions || 0}
+                  programLabel={`${paired.programLabel} paired view`}
+                />
+              </div>
+            )
+          })}
+        </>
       ) : tab === 'track' ? (
         <TrackGridView
           program={program}
@@ -323,14 +353,14 @@ export default function Hours() {
 // ─────────────────────────────────────────────────────────────────────────────
 // Progress view, top-level rollups with progress bars + leaf-bucket detail.
 // ─────────────────────────────────────────────────────────────────────────────
-function ProgressView({ buckets, total, rollups, sessions }) {
+function ProgressView({ buckets, total, rollups, sessions, programLabel = 'Hours' }) {
   return (
     <div className="space-y-5">
       {/* Big total card */}
       {total && (
         <div className="card p-6">
           <div className="flex items-baseline justify-between mb-2">
-            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">{total.label}</h2>
+            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">{programLabel} - {total.label}</h2>
             <span className="text-xs text-gray-400">From {sessions} completed session{sessions === 1 ? '' : 's'} + manual entries</span>
           </div>
           <div className="flex items-baseline gap-3 mb-3">
@@ -675,6 +705,7 @@ function EntryModal({ entry, program = 'csun_mft', onClose, onSaved }) {
       supervisor: entry?.supervisor || '',
       site:       entry?.site       || '',
       notes:      entry?.notes      || '',
+      applies_to_programs: entry?.applies_to_programs || 'both',
     }
   })
   const [saving, setSaving] = useState(false)
@@ -716,6 +747,7 @@ function EntryModal({ entry, program = 'csun_mft', onClose, onSaved }) {
           supervisor: form.supervisor || null,
           site:       form.site       || null,
           notes:      form.notes      || null,
+          applies_to_programs: form.applies_to_programs || 'both',
         }),
       })
       const data = await res.json()
@@ -830,6 +862,21 @@ function EntryModal({ entry, program = 'csun_mft', onClose, onSaved }) {
               onChange={e => set('notes', e.target.value)}
             />
           </div>
+
+          {program === 'dual_csun_bbs_lmft' && (
+            <label className="flex items-start gap-3 rounded-xl border border-teal-200 bg-teal-50 px-3 py-2.5 cursor-pointer">
+              <input
+                type="checkbox"
+                className="mt-0.5 rounded border-teal-300 text-brand-600 focus:ring-brand-500"
+                checked={form.applies_to_programs !== 'school_only'}
+                onChange={e => set('applies_to_programs', e.target.checked ? 'both' : 'school_only')}
+              />
+              <span className="text-xs leading-relaxed text-teal-900">
+                Count this school/practicum entry toward CA BBS too.
+                <span className="block text-teal-700">Turn this off only when your supervisor or program says the hour should stay school-only.</span>
+              </span>
+            </label>
+          )}
         </div>
 
         <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 flex items-center justify-end gap-3">
