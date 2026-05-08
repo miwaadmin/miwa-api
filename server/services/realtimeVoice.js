@@ -139,7 +139,7 @@ async function createRealtimeClientSecret({ mode = 'conversation', pageContext =
     miwa: {
       mode,
       model: session.model || config.transcriptionModel,
-      realtimeUrl: `https://api.openai.com/v1/realtime?model=${encodeURIComponent(session.model || config.model)}`,
+      realtimeUrl: 'https://api.openai.com/v1/realtime/calls',
       sessionType: session.type,
     },
   };

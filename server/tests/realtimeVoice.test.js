@@ -71,7 +71,7 @@ test('client secret request sends only session config and returns Miwa connectio
   assert.equal(result.client_secret.value, 'ephemeral-secret');
   assert.equal(result.miwa.mode, 'conversation');
   assert.equal(result.miwa.model, 'gpt-realtime-2');
-  assert.match(result.miwa.realtimeUrl, /gpt-realtime-2/);
+  assert.equal(result.miwa.realtimeUrl, 'https://api.openai.com/v1/realtime/calls');
   assert.equal(seen[0].url, 'https://api.openai.com/v1/realtime/client_secrets');
   assert.equal(seen[0].options.headers.Authorization, 'Bearer phi-key');
   assert.doesNotMatch(seen[0].options.body, /OPENAI_PHI_API_KEY|phi-key/);
