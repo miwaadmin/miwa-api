@@ -73,3 +73,7 @@ change is clearly experimental / scratch work. When in doubt, push.
   `session_duration` are all on the `patients` table. New fields go
   through the migration block in `db.js` AND the destructure + UPDATE
   in `server/routes/patients.js` PUT handler.
+
+## Frontend tests
+
+- Run `npm run test:client` for the Vitest + React Testing Library smoke suite in `client/src/__tests__/`.
