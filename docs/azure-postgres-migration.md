@@ -7,6 +7,14 @@ Database for PostgreSQL Flexible Server under the Microsoft BAA.
 This runbook keeps PHI out of Git. Do not commit database files, exports, or
 connection strings.
 
+## Current Status
+
+As of May 9, 2026, the application runtime is routed through
+`server/db/asyncDb.js`. When `DB_PROVIDER=postgres`, that layer creates a
+PostgreSQL pool, applies the Postgres schema sync, and skips SQLite persistence.
+Do not flip production to Postgres until the data copy and verification gates
+below pass.
+
 ## Target Azure Service
 
 Use Azure Database for PostgreSQL Flexible Server in the same Azure resource
@@ -32,18 +40,54 @@ DB_PROVIDER=postgres
 Keep `DB_PATH=/home/data/mftbrain.db` only while the SQLite runtime is still
 active or while performing the one-time migration.
 
-## Local Preflight
+## Safe Local Preflight
 
 From the Azure repo root:
 
 ```bash
 npm install
-npm run postgres:check
 npm run postgres:migrate:dry-run
+npm run postgres:verify -- --dry-run
+npm test
+npm run build
 ```
 
-The dry run only reads the local SQLite database and prints table counts. It
-does not send PHI anywhere.
+The dry runs only read the local SQLite database and print table names, column
+counts, row counts, and foreign key counts. They do not send PHI anywhere.
+
+If Docker or a local PostgreSQL server is available, do a non-production restore
+before touching Azure:
+
+```bash
+set SQLITE_DB_PATH=C:\path\to\local-copy-of-mftbrain.db
+set DATABASE_URL=postgres://USER:PASSWORD@localhost:5432/miwa_dry_run
+set PGSSLMODE=disable
+set MIGRATION_CONFIRM=copy-miwa-sqlite-to-postgres
+npm run postgres:migrate -- --wipe-target
+npm run postgres:verify
+```
+
+This catches schema, data type, identity, and foreign key issues before the
+production window.
+
+## Production Backup Gate
+
+Before copying data, preserve the current SQLite file as the rollback artifact.
+The expected App Service path is usually:
+
+```text
+/home/data/mftbrain.db
+```
+
+Download or copy that file to a secure location outside the App Service
+container. Keep it for at least 7 days after cutover. Do not proceed if the
+file cannot be copied and opened.
+
+Minimum backup checks:
+
+- File exists and has a plausible size.
+- File opens with SQLite tooling or Miwa's dry-run scripts.
+- The backup timestamp, source path, and file size are recorded outside Git.
 
 ## One-Time Data Copy
 
@@ -63,8 +107,8 @@ fresh Postgres load.
 
 ## Verify Copy Integrity
 
-After the one-time copy, compare table existence, column presence, and row
-counts without printing PHI:
+After the one-time copy, compare table existence, column presence, row counts,
+and foreign key constraints without printing PHI:
 
 ```bash
 set SQLITE_DB_PATH=C:\path\to\mftbrain.db
@@ -73,40 +117,53 @@ set PGSSLMODE=require
 npm run postgres:verify
 ```
 
-The verifier exits non-zero if tables are missing, columns are missing, or row
-counts differ. It does not print row data or secrets.
+The verifier exits non-zero if tables are missing, columns are missing, row
+counts differ, or expected foreign key constraints are missing. It does not
+print row data or secrets.
 
-## Runtime Cutover
+## Runtime Cutover Gate
 
-These scripts prepare Azure PostgreSQL and copy the data. The app still needs
-the runtime database layer switched from the synchronous SQLite wrapper to async
-PostgreSQL usage before production can set `DB_PROVIDER=postgres`. The
-foundation for that adapter lives in `server/db/postgresAdapter.js`, but it is
-not wired into production until route handlers are converted to `await` DB
-calls.
+Only after `npm run postgres:verify` returns `status: "ok"`:
 
-Today, the server intentionally refuses to boot if `DB_PROVIDER=postgres` is
-set before that runtime cutover is complete, so we do not accidentally believe
-PHI is in Postgres while the app is still writing to SQLite.
+1. In Azure App Service configuration, add or confirm:
+   - `DATABASE_URL`
+   - `PGSSLMODE=require`
+   - `DB_PROVIDER=postgres`
+2. Restart the App Service.
+3. Hit `/api/health`.
+4. Log in with a known migrated account.
+5. Confirm patient list, a patient chart, a session note, assessment links, and
+   client portal routes load.
+6. Watch logs for database errors for at least 10 minutes.
 
-That runtime cutover should be a separate, reviewed change because every route
-currently expects `db.get`, `db.all`, `db.run`, and `db.insert` to return
-synchronously.
+Do not delete `DB_PATH` until the rollback window has passed.
 
-## Verification
+## Rollback
 
-After the runtime cutover:
+Rollback is simplest before any new production writes happen in Postgres.
 
-```bash
-npm test
-npm run build
-npm start
+If smoke tests fail immediately after the App Service restart:
+
+1. Set `DB_PROVIDER=sqlite` in App Service configuration.
+2. Confirm `DB_PATH` still points to the preserved SQLite file.
+3. Restart App Service.
+4. Log in and verify the same smoke-test paths.
+5. Leave the Postgres database untouched for diagnosis.
+
+If clinicians used the app after the Postgres flip, pause before rollback and
+decide whether those writes need to be exported or replayed. Do not blindly
+switch back after meaningful new Postgres writes.
+
+## Secure Helper Script
+
+For interactive use from PowerShell, the secure wrapper prompts for the
+Postgres password and avoids writing the connection string to disk:
+
+```powershell
+.\server\scripts\postgres-secure.ps1 -Action check
+.\server\scripts\postgres-secure.ps1 -Action migrate -WipeTarget
+.\server\scripts\postgres-secure.ps1 -Action verify
 ```
 
-Then verify:
-
-- `https://miwa.care/api/health`
-- login with a known migrated account
-- public network page
-- patient list and session notes for a migrated therapist
-- document upload path and generated report path
+The wrapper does not flip App Service settings. That remains a manual cutover
+gate.

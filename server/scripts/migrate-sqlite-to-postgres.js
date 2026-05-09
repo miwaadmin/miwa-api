@@ -2,6 +2,7 @@ require('../lib/loadEnv').loadEnv();
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const initSqlJs = require('sql.js');
 const { Pool } = require('pg');
 
@@ -82,6 +83,13 @@ function getColumns(sqliteDb, table) {
   return getRows(sqliteDb, `PRAGMA table_info(${ident(table)})`);
 }
 
+function getPrimaryKeyColumns(sqliteDb, table) {
+  return getColumns(sqliteDb, table)
+    .filter((column) => Number(column.pk) > 0)
+    .sort((a, b) => Number(a.pk) - Number(b.pk))
+    .map((column) => column.name);
+}
+
 function getUniqueIndexes(sqliteDb, table) {
   return getRows(sqliteDb, `PRAGMA index_list(${ident(table)})`)
     .filter((idx) => Number(idx.unique) === 1)
@@ -90,6 +98,58 @@ function getUniqueIndexes(sqliteDb, table) {
       return { table, name: `uniq_${table}_${cols.join('_')}`, columns: cols };
     })
     .filter((idx) => idx.columns.length > 0);
+}
+
+function normalizeForeignKeyAction(action) {
+  const upper = String(action || '').trim().toUpperCase();
+  if (['CASCADE', 'RESTRICT', 'SET NULL', 'SET DEFAULT', 'NO ACTION'].includes(upper)) return upper;
+  return 'NO ACTION';
+}
+
+function constraintName(table, id, columns) {
+  const base = `fk_${table}_${id}_${columns.join('_')}`.replace(/[^a-zA-Z0-9_]/g, '_');
+  if (base.length <= 55) return base;
+  return `${base.slice(0, 46)}_${crypto.createHash('sha1').update(base).digest('hex').slice(0, 8)}`;
+}
+
+function getForeignKeys(sqliteDb, table) {
+  const rows = getRows(sqliteDb, `PRAGMA foreign_key_list(${ident(table)})`);
+  const grouped = new Map();
+
+  for (const row of rows) {
+    const key = String(row.id);
+    if (!grouped.has(key)) {
+      grouped.set(key, {
+        table,
+        id: row.id,
+        referencedTable: row.table,
+        fromColumns: [],
+        toColumns: [],
+        onUpdate: normalizeForeignKeyAction(row.on_update),
+        onDelete: normalizeForeignKeyAction(row.on_delete),
+      });
+    }
+
+    const group = grouped.get(key);
+    group.fromColumns[Number(row.seq)] = row.from;
+    group.toColumns[Number(row.seq)] = row.to;
+  }
+
+  return Array.from(grouped.values()).map((fk) => {
+    const fallbackPk = getPrimaryKeyColumns(sqliteDb, fk.referencedTable);
+    const fromColumns = fk.fromColumns.filter(Boolean);
+    const toColumns = fk.toColumns.map((column, index) => column || fallbackPk[index]).filter(Boolean);
+    return {
+      ...fk,
+      fromColumns,
+      toColumns,
+      name: constraintName(fk.table, fk.id, fromColumns),
+    };
+  }).filter((fk) => (
+    fk.fromColumns.length > 0
+      && fk.fromColumns.length === fk.toColumns.length
+      && fk.referencedTable
+  ));
 }
 
 async function createSchema(pg, sqliteDb, tables) {
@@ -101,6 +161,35 @@ async function createSchema(pg, sqliteDb, tables) {
     for (const index of getUniqueIndexes(sqliteDb, table)) {
       await pg.query(
         `CREATE UNIQUE INDEX IF NOT EXISTS ${ident(index.name)} ON ${ident(index.table)} (${index.columns.map(ident).join(', ')})`
+      );
+    }
+  }
+}
+
+async function constraintExists(pg, name) {
+  const result = await pg.query(
+    `SELECT 1 FROM pg_constraint WHERE conname = $1 LIMIT 1`,
+    [name]
+  );
+  return result.rowCount > 0;
+}
+
+async function addForeignKeys(pg, sqliteDb, tables) {
+  const tableSet = new Set(tables);
+
+  for (const table of tables) {
+    for (const fk of getForeignKeys(sqliteDb, table)) {
+      if (!tableSet.has(fk.referencedTable)) continue;
+      if (await constraintExists(pg, fk.name)) continue;
+
+      await pg.query(
+        `ALTER TABLE ${ident(fk.table)}
+           ADD CONSTRAINT ${ident(fk.name)}
+           FOREIGN KEY (${fk.fromColumns.map(ident).join(', ')})
+           REFERENCES ${ident(fk.referencedTable)} (${fk.toColumns.map(ident).join(', ')})
+           ON UPDATE ${fk.onUpdate}
+           ON DELETE ${fk.onDelete}
+           DEFERRABLE INITIALLY DEFERRED`
       );
     }
   }
@@ -199,6 +288,7 @@ async function main() {
     if (wipeTarget) await wipeSchema(pool, tables);
     if (!dataOnly) await createSchema(pool, sqliteDb, tables);
     const counts = schemaOnly ? {} : await copyData(pool, sqliteDb, tables);
+    if (!dataOnly) await addForeignKeys(pool, sqliteDb, tables);
     console.log(JSON.stringify({
       status: 'ok',
       provider: 'azure-postgresql',
@@ -212,11 +302,22 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(JSON.stringify({
-    status: 'error',
-    provider: 'azure-postgresql',
-    message: err.message,
-  }, null, 2));
-  process.exit(1);
-});
+if (require.main === module) {
+  main().catch((err) => {
+    console.error(JSON.stringify({
+      status: 'error',
+      provider: 'azure-postgresql',
+      message: err.message,
+    }, null, 2));
+    process.exit(1);
+  });
+}
+
+module.exports = {
+  buildCreateTable,
+  constraintName,
+  getForeignKeys,
+  normalizeForeignKeyAction,
+  sqliteDefaultToPostgres,
+  sqliteTypeToPostgres,
+};

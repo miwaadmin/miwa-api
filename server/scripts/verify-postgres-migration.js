@@ -4,6 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const initSqlJs = require('sql.js');
 const { Pool } = require('pg');
+const {
+  getForeignKeys,
+} = require('./migrate-sqlite-to-postgres');
 
 const repoRoot = path.join(__dirname, '..', '..');
 const sqlitePath = process.env.SQLITE_DB_PATH
@@ -25,7 +28,7 @@ Environment:
   PGSSLMODE        Use "require" for Azure PostgreSQL.
 
 Output:
-  Verifies table existence, column presence, and row counts only.
+  Verifies table existence, column presence, row counts, and foreign key constraints.
   Does not print row data, PHI, connection strings, or secrets.
 `.trim());
 }
@@ -79,10 +82,28 @@ async function getPostgresCount(pg, table) {
   return Number(result.rows[0]?.count || 0);
 }
 
+async function getPostgresForeignKeys(pg, table) {
+  const result = await pg.query(
+    `SELECT con.conname AS name
+       FROM pg_constraint con
+       JOIN pg_class rel ON rel.oid = con.conrelid
+       JOIN pg_namespace nsp ON nsp.oid = con.connamespace
+      WHERE nsp.nspname = 'public'
+        AND rel.relname = $1
+        AND con.contype = 'f'
+      ORDER BY con.conname`,
+    [table]
+  );
+  return result.rows.map((row) => row.name);
+}
+
 async function verifyTable(pg, sqliteDb, table) {
   const sqliteColumns = getColumns(sqliteDb, table);
   const postgresColumns = await getPostgresColumns(pg, table);
   const missingColumns = sqliteColumns.filter((col) => !postgresColumns.includes(col));
+  const expectedForeignKeys = getForeignKeys(sqliteDb, table).map((fk) => fk.name);
+  const postgresForeignKeys = await getPostgresForeignKeys(pg, table);
+  const missingForeignKeys = expectedForeignKeys.filter((name) => !postgresForeignKeys.includes(name));
 
   let postgresRows = null;
   let rowCountMatches = false;
@@ -102,6 +123,9 @@ async function verifyTable(pg, sqliteDb, table) {
     sqliteColumns: sqliteColumns.length,
     postgresColumns: postgresColumns.length,
     missingColumns,
+    expectedForeignKeys: expectedForeignKeys.length,
+    postgresForeignKeys: postgresForeignKeys.length,
+    missingForeignKeys,
   };
 }
 
@@ -124,6 +148,7 @@ async function main() {
       table,
       columns: getColumns(sqliteDb, table).length,
       rows: getSqliteCount(sqliteDb, table),
+      foreignKeys: getForeignKeys(sqliteDb, table).length,
     }));
     console.log(JSON.stringify({ status: 'dry-run', sqlitePath, tables: summary }, null, 2));
     sqliteDb.close();
@@ -147,7 +172,10 @@ async function main() {
     }
 
     const failures = results.filter((item) => (
-      !item.exists || item.missingColumns.length > 0 || !item.rowCountMatches
+      !item.exists
+        || item.missingColumns.length > 0
+        || item.missingForeignKeys.length > 0
+        || !item.rowCountMatches
     ));
 
     console.log(JSON.stringify({
