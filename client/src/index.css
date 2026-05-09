@@ -340,27 +340,27 @@
 
 /* ── Dark mode overrides ─────────────────────────────────────────── */
 html.dark body {
-  background-color: #0f172a;
-  color: #e2e8f0;
+  background-color: #0b1220;
+  color: #e5edf8;
 }
 
 /* Layout shell in dark */
 html.dark .app-shell {
-  background: #0f172a;
+  background: #0b1220;
 }
 html.dark .app-main {
-  background: linear-gradient(160deg, #0f172a 0%, #111827 60%, #0d1b14 100%);
+  background: linear-gradient(160deg, #0b1220 0%, #111827 64%, #0b1f19 100%);
 }
 html.dark .app-header {
-  background: rgba(15,23,42,0.95);
+  background: rgba(11,18,32,0.96);
   backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+  border-bottom: 1px solid rgba(148,163,184,0.18);
   box-shadow: 0 1px 12px rgba(0,0,0,0.4);
 }
 
 html.dark .card {
-  background-color: #1e293b;
-  border-color: rgba(255,255,255,0.07);
+  background-color: #1b2637;
+  border-color: rgba(148,163,184,0.22);
   box-shadow: 0 1px 3px rgba(0,0,0,0.4);
 }
 html.dark .card:hover {
@@ -372,59 +372,159 @@ html.dark .btn-primary {
 }
 
 html.dark .btn-secondary {
-  background-color: #334155;
-  color: #cbd5e1;
-  border-color: rgba(255,255,255,0.1);
+  background-color: #243247;
+  color: #dbe7f5;
+  border-color: rgba(148,163,184,0.28);
 }
 html.dark .btn-secondary:hover {
-  background-color: #3e4f66;
-  border-color: rgba(255,255,255,0.15);
+  background-color: #304159;
+  border-color: rgba(148,163,184,0.40);
 }
 
 html.dark .input,
 html.dark .textarea {
-  background-color: #1e293b;
-  border-color: rgba(255,255,255,0.1);
-  color: #e2e8f0;
+  background-color: #111827;
+  border-color: rgba(148,163,184,0.32);
+  color: #f8fafc;
 }
 html.dark .input::placeholder,
 html.dark .textarea::placeholder {
-  color: #64748b;
+  color: #9aa9bc;
 }
 html.dark .input:focus,
 html.dark .textarea:focus {
-  border-color: #5746ed;
-  background-color: #243044;
+  border-color: #8b7cff;
+  background-color: #152033;
 }
 
 html.dark .label {
-  color: #94a3b8;
+  color: #b6c4d6;
 }
 
 /* Text color overrides */
-html.dark .text-gray-900 { color: #f1f5f9; }
-html.dark .text-gray-800 { color: #e2e8f0; }
-html.dark .text-gray-700 { color: #cbd5e1; }
-html.dark .text-gray-600 { color: #94a3b8; }
-html.dark .text-gray-500 { color: #94a3b8; }
-html.dark .text-gray-400 { color: #64748b; }
+html.dark .text-black,
+html.dark .text-gray-950,
+html.dark .text-gray-900 { color: #f8fafc !important; }
+html.dark .text-gray-800 { color: #edf4ff !important; }
+html.dark .text-gray-700 { color: #dbe7f5 !important; }
+html.dark .text-gray-600 { color: #c2d0e1 !important; }
+html.dark .text-gray-500 { color: #aebdd0 !important; }
+html.dark .text-gray-400 { color: #92a4ba !important; }
+html.dark .text-gray-300 { color: #bac7d8 !important; }
+
+/* Accent colors need lighter dark-mode tokens. Saturated 600/700 hues
+   often fall below readable contrast on navy and slate surfaces. */
+html.dark .text-brand-900,
+html.dark .text-brand-800,
+html.dark .text-brand-700,
+html.dark .text-brand-600,
+html.dark .text-indigo-900,
+html.dark .text-indigo-800,
+html.dark .text-indigo-700,
+html.dark .text-indigo-600,
+html.dark .text-violet-900,
+html.dark .text-violet-800,
+html.dark .text-violet-700,
+html.dark .text-violet-600,
+html.dark .text-purple-900,
+html.dark .text-purple-800,
+html.dark .text-purple-700,
+html.dark .text-purple-600 {
+  color: #c7d2fe !important;
+}
+html.dark .text-teal-900,
+html.dark .text-teal-800,
+html.dark .text-teal-700,
+html.dark .text-teal-600,
+html.dark .text-emerald-900,
+html.dark .text-emerald-800,
+html.dark .text-emerald-700,
+html.dark .text-emerald-600,
+html.dark .text-green-900,
+html.dark .text-green-800,
+html.dark .text-green-700,
+html.dark .text-green-600 {
+  color: #99f6e4 !important;
+}
+html.dark .text-amber-900,
+html.dark .text-amber-800,
+html.dark .text-amber-700,
+html.dark .text-amber-600,
+html.dark .text-yellow-900,
+html.dark .text-yellow-800,
+html.dark .text-yellow-700,
+html.dark .text-yellow-600,
+html.dark .text-orange-900,
+html.dark .text-orange-800,
+html.dark .text-orange-700,
+html.dark .text-orange-600 {
+  color: #fed7aa !important;
+}
+html.dark .text-red-900,
+html.dark .text-red-800,
+html.dark .text-red-700,
+html.dark .text-red-600,
+html.dark .text-rose-900,
+html.dark .text-rose-800,
+html.dark .text-rose-700,
+html.dark .text-rose-600 {
+  color: #fecaca !important;
+}
+html.dark .text-blue-900,
+html.dark .text-blue-800,
+html.dark .text-blue-700,
+html.dark .text-blue-600,
+html.dark .text-sky-900,
+html.dark .text-sky-800,
+html.dark .text-sky-700,
+html.dark .text-sky-600 {
+  color: #bfdbfe !important;
+}
 
 /* Background overrides */
-html.dark .bg-white       { background-color: #1e293b; }
-html.dark .bg-gray-50     { background-color: #0f172a; }
-html.dark .bg-gray-100    { background-color: #1e293b; }
-html.dark .bg-brand-50    { background-color: rgba(87,70,237,0.12); }
-html.dark .bg-teal-50     { background-color: rgba(10,197,162,0.12); }
-html.dark .bg-amber-50    { background-color: rgba(245,158,11,0.10); }
-html.dark .bg-red-50      { background-color: rgba(239,68,68,0.10); }
-html.dark .bg-green-50    { background-color: rgba(34,197,94,0.10); }
-html.dark .bg-blue-50     { background-color: rgba(59,130,246,0.10); }
-html.dark .bg-purple-50   { background-color: rgba(168,85,247,0.10); }
+html.dark .bg-white       { background-color: #1b2637; }
+html.dark .bg-gray-50     { background-color: #0b1220; }
+html.dark .bg-gray-100    { background-color: #162235; }
+html.dark .bg-gray-200    { background-color: #243247; }
+html.dark .bg-slate-50    { background-color: #0b1220; }
+html.dark .bg-slate-100   { background-color: #162235; }
+html.dark .bg-brand-50,
+html.dark .bg-indigo-50,
+html.dark .bg-violet-50,
+html.dark .bg-purple-50   { background-color: rgba(99,102,241,0.18); }
+html.dark .bg-teal-50,
+html.dark .bg-emerald-50,
+html.dark .bg-green-50    { background-color: rgba(13,148,136,0.20); }
+html.dark .bg-amber-50,
+html.dark .bg-yellow-50,
+html.dark .bg-orange-50   { background-color: rgba(146,64,14,0.28); }
+html.dark .bg-red-50,
+html.dark .bg-rose-50     { background-color: rgba(153,27,27,0.28); }
+html.dark .bg-blue-50,
+html.dark .bg-sky-50      { background-color: rgba(30,64,175,0.22); }
 
 /* Border overrides */
-html.dark .border-gray-100 { border-color: rgba(255,255,255,0.06); }
-html.dark .border-gray-200 { border-color: rgba(255,255,255,0.09); }
-html.dark .border-gray-300 { border-color: rgba(255,255,255,0.12); }
+html.dark .border-gray-50,
+html.dark .border-gray-100 { border-color: rgba(148,163,184,0.16); }
+html.dark .border-gray-200 { border-color: rgba(148,163,184,0.24); }
+html.dark .border-gray-300 { border-color: rgba(148,163,184,0.32); }
+html.dark .border-brand-100,
+html.dark .border-indigo-100,
+html.dark .border-violet-100,
+html.dark .border-purple-100 { border-color: rgba(165,180,252,0.42); }
+html.dark .border-teal-100,
+html.dark .border-emerald-100,
+html.dark .border-green-100 { border-color: rgba(94,234,212,0.38); }
+html.dark .border-amber-100,
+html.dark .border-yellow-100,
+html.dark .border-orange-100,
+html.dark .border-amber-200,
+html.dark .border-yellow-200,
+html.dark .border-orange-200 { border-color: rgba(253,186,116,0.52); }
+html.dark .border-red-100,
+html.dark .border-rose-100,
+html.dark .border-red-200,
+html.dark .border-rose-200 { border-color: rgba(252,165,165,0.48); }
 
 /* Native form controls in dark */
 html.dark select,
@@ -433,21 +533,21 @@ html.dark input {
   color-scheme: dark;
 }
 html.dark select {
-  background-color: #0f172a;
-  color: #e2e8f0;
-  border-color: rgba(255,255,255,0.12);
+  background-color: #111827;
+  color: #f8fafc;
+  border-color: rgba(148,163,184,0.32);
 }
 html.dark select option {
-  background-color: #0f172a;
-  color: #e2e8f0;
+  background-color: #111827;
+  color: #f8fafc;
 }
 html.dark textarea {
-  background-color: #0f172a;
-  color: #e2e8f0;
-  border-color: rgba(255,255,255,0.12);
+  background-color: #111827;
+  color: #f8fafc;
+  border-color: rgba(148,163,184,0.32);
 }
 html.dark textarea::placeholder {
-  color: #64748b;
+  color: #9aa9bc;
 }
 html.dark .shadow-sm {
   box-shadow: 0 1px 2px rgba(0,0,0,0.35);
