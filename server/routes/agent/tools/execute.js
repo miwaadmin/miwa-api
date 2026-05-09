@@ -941,7 +941,7 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       );
 
       // Fire and forget — run in background
-      runBackgroundTask(db, bgTaskId, therapistId, args.task_type, args.params || {}).catch(async err => {
+      runBackgroundTask(db, bgTaskId, therapistId, args.task_type).catch(async err => {
         await db.run("UPDATE background_tasks SET status = 'failed', error = ? WHERE id = ?", err.message, bgTaskId);
       });
 

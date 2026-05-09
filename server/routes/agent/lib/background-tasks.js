@@ -5,7 +5,7 @@ const { MODELS, callAI } = require('../../../lib/aiExecutor');
  * Execute a long-running background task asynchronously.
  * Updates progress in the background_tasks table and creates an alert when done.
  */
-async function runBackgroundTask(db, taskId, therapistId, taskType, params) {
+async function runBackgroundTask(db, taskId, therapistId, taskType) {
   try {
     let result;
 
