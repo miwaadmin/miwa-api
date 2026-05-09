@@ -1264,39 +1264,33 @@ export default function SessionNote() {
 
       {/* ── Main 50/50 grid ─────────────────────────────────────────────── */}
       {agencyMode && (
-        <section className="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-          <div className="flex flex-col lg:flex-row lg:items-start gap-4">
-            <div className="flex-1">
-              <p className="text-xs font-bold uppercase tracking-widest text-amber-700">Agency EHR companion note</p>
-              <h2 className="mt-1 text-sm font-bold text-amber-950">Copy-to-EHR checklist</h2>
-              <p className="mt-1 text-xs text-amber-800">
-                Keep private reflection separate. Copy only clean clinical note content into {therapist?.agency_ehr_name || 'the agency EHR'}.
-              </p>
-            </div>
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-2 flex-[2]">
-              {[
-                ['draft_completed', 'Draft completed'],
-                ['reviewed_by_trainee', 'Reviewed by trainee'],
-                ['risk_safety_checked', 'Risk/safety checked'],
-                ['copied_to_agency_ehr', `Copied to ${therapist?.agency_ehr_name || 'agency EHR'}`],
-                ['needs_supervisor_review', 'Needs supervisor review'],
-                ['discussed_in_supervision', 'Discussed in supervision'],
-                ['follow_up_completed', 'Follow-up completed'],
-              ].map(([key, label]) => (
-                <label key={key} className="flex items-center gap-2 rounded-xl border border-amber-200 bg-white/80 px-3 py-2 text-xs font-semibold text-amber-950">
-                  <input
-                    type="checkbox"
-                    disabled={!!signedAt}
-                    checked={!!copyChecklist[key]}
-                    onChange={() => toggleChecklist(key)}
-                    className="rounded border-amber-300 text-brand-600 focus:ring-brand-500"
-                  />
-                  <span>{label}</span>
-                </label>
-              ))}
-            </div>
+        <details className="mb-4 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+          <summary className="cursor-pointer text-xs font-bold uppercase tracking-widest text-slate-600">
+            Copy checklist
+          </summary>
+          <div className="mt-3 grid sm:grid-cols-2 lg:grid-cols-4 gap-2">
+            {[
+              ['draft_completed', 'Draft completed'],
+              ['reviewed_by_trainee', 'Reviewed by trainee'],
+              ['risk_safety_checked', 'Risk/safety checked'],
+              ['copied_to_agency_ehr', `Copied to ${therapist?.agency_ehr_name || 'agency EHR'}`],
+              ['needs_supervisor_review', 'Needs supervisor review'],
+              ['discussed_in_supervision', 'Discussed in supervision'],
+              ['follow_up_completed', 'Follow-up completed'],
+            ].map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
+                <input
+                  type="checkbox"
+                  disabled={!!signedAt}
+                  checked={!!copyChecklist[key]}
+                  onChange={() => toggleChecklist(key)}
+                  className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                />
+                <span>{label}</span>
+              </label>
+            ))}
           </div>
-        </section>
+        </details>
       )}
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 items-start">
