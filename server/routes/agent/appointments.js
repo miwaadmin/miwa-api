@@ -276,7 +276,7 @@ router.post('/confirm', async (req, res) => {
     await persistIfNeeded();
 
     const appointment = await db.get('SELECT a.*, p.client_id, p.display_name FROM appointments a JOIN patients p ON p.id = a.patient_id WHERE a.id = ?', insert.lastInsertRowid);
-    maybeSendTelehealthSms(db, req.therapist.id, patient, payload.scheduledStart);
+    maybeSendTelehealthSms(db, req.therapist.id, patient);
     return res.json({ ok: true, appointment, calendarSync: syncMeta });
   } catch (err) {
     sendRouteError(res, err);
@@ -396,7 +396,7 @@ router.post('/appointments', async (req, res) => {
       }
     }
 
-    maybeSendTelehealthSms(db, req.therapist.id, patient, scheduledStart, meetUrl);
+    maybeSendTelehealthSms(db, req.therapist.id, patient, meetUrl);
     return res.status(201).json({ ok: true, appointment, calendarSync: syncMeta });
   } catch (err) {
     sendRouteError(res, err);

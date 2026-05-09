@@ -107,7 +107,7 @@ async function generateMeetForAppointment(db, appointmentId) {
  *
  * SMS only sends if patient has both a phone number AND sms_consent recorded.
  */
-async function maybeSendTelehealthSms(db, therapistId, patient, scheduledStart, meetUrlOverride) {
+async function maybeSendTelehealthSms(db, therapistId, patient, meetUrlOverride) {
   try {
     const phone = normalisePhone(patient.phone);
     if (!phone) return;
@@ -119,16 +119,6 @@ async function maybeSendTelehealthSms(db, therapistId, patient, scheduledStart, 
       videoUrl = therapist?.telehealth_url;
     }
     if (!videoUrl) return;
-
-    let apptTime = null;
-    if (scheduledStart) {
-      try {
-        apptTime = new Date(scheduledStart).toLocaleString('en-US', {
-          weekday: 'long', month: 'short', day: 'numeric',
-          hour: 'numeric', minute: '2-digit', timeZoneName: 'short',
-        });
-      } catch {}
-    }
 
     await sendAppointmentSms(phone, videoUrl);
   } catch (err) {

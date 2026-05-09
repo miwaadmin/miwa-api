@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const { persistIfNeeded } = require('../../../db/asyncDb');
 const { MODELS, callAI } = require('../../../lib/aiExecutor');
 const { sendPortalSms, normalisePhone } = require('../../../services/twilio');
@@ -30,8 +31,6 @@ const { APP_HELP_KB } = require('./data/help-kb');
 const { PORTAL_LINK_TTL_DAYS } = require('./definitions');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
-  const crypto = require('crypto');
-
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
   async function resolvePatient(rawId) {
     const clean = (rawId || '').replace(/[\[\]]/g, '').trim();
