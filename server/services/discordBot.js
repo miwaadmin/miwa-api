@@ -125,6 +125,14 @@ const SLASH_COMMANDS = [
       },
     ],
   },
+  {
+    // Founder-only. No options — we open a modal so the body field is a
+    // real multiline textarea (slash-command STRING options are single-line
+    // and capped at 4000 chars, but render as a one-line input which is
+    // miserable for a 1000-char release post).
+    name: 'announce',
+    description: 'Post a release / update to #announcements (Founder only)',
+  },
 ];
 
 // ─── Lifecycle ──────────────────────────────────────────────────────────────
@@ -220,9 +228,20 @@ async function startDiscordBot() {
   });
 
   client.on(Events.InteractionCreate, async (interaction) => {
-    if (!interaction.isChatInputCommand()) return;
-    if (interaction.commandName === 'feedback') {
-      await handleFeedbackCommand(interaction);
+    try {
+      if (interaction.isChatInputCommand()) {
+        if (interaction.commandName === 'feedback') {
+          await handleFeedbackCommand(interaction);
+        } else if (interaction.commandName === 'announce') {
+          await handleAnnounceCommand(interaction);
+        }
+        return;
+      }
+      if (interaction.isModalSubmit() && interaction.customId === 'announce-modal') {
+        await handleAnnounceModalSubmit(interaction);
+      }
+    } catch (err) {
+      console.error('[discord] interaction handler error:', err.message);
     }
   });
 
@@ -479,6 +498,156 @@ async function handleFeedbackCommand(interaction) {
       : '✅ Got it — posted to #feedback. (DB save hit a snag; logged for review.)',
     ephemeral: true,
   });
+}
+
+// ─── /announce ──────────────────────────────────────────────────────────────
+// Founder-only broadcast into #announcements. Two-step flow:
+//   1. /announce → opens a modal with Title + Body inputs (multiline body).
+//   2. Modal submit → re-verifies Founder role, chunks if needed (Discord
+//      message cap is 2000 chars; modal body allows 4000), posts to
+//      #announcements, replies ephemerally so the cohort doesn't see noise.
+//
+// Founder gate is checked twice on purpose. The first check stops the modal
+// from opening for non-founders; the second prevents a race where someone's
+// role gets removed between opening and submitting (or where the role
+// cache is stale on the first check).
+function isFounderMember(interaction) {
+  return !!interaction.member?.roles?.cache?.some(r => r.name === 'Founder');
+}
+
+async function handleAnnounceCommand(interaction) {
+  if (!isFounderMember(interaction)) {
+    return interaction.reply({
+      content: 'Only the Founder role can use `/announce`.',
+      ephemeral: true,
+    });
+  }
+
+  const { ModalBuilder, TextInputBuilder, TextInputStyle, ActionRowBuilder } = djs;
+
+  const modal = new ModalBuilder()
+    .setCustomId('announce-modal')
+    .setTitle('Post to #announcements');
+
+  const titleInput = new TextInputBuilder()
+    .setCustomId('announce-title')
+    .setLabel('Headline (optional — bolded at top)')
+    .setStyle(TextInputStyle.Short)
+    .setRequired(false)
+    .setMaxLength(200);
+
+  const bodyInput = new TextInputBuilder()
+    .setCustomId('announce-body')
+    .setLabel('Body (markdown OK — auto-chunks if long)')
+    .setStyle(TextInputStyle.Paragraph)
+    .setRequired(true)
+    .setMaxLength(4000);
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(titleInput),
+    new ActionRowBuilder().addComponents(bodyInput),
+  );
+
+  await interaction.showModal(modal);
+}
+
+async function handleAnnounceModalSubmit(interaction) {
+  if (!isFounderMember(interaction)) {
+    return interaction.reply({
+      content: 'Only the Founder role can post announcements.',
+      ephemeral: true,
+    });
+  }
+
+  const title = (interaction.fields.getTextInputValue('announce-title') || '').trim();
+  const body = (interaction.fields.getTextInputValue('announce-body') || '').trim();
+
+  if (!body) {
+    return interaction.reply({ content: 'Empty announcement — nothing to post.', ephemeral: true });
+  }
+
+  const ch = interaction.guild?.channels.cache.find(c => c.name === 'announcements');
+  if (!ch || !ch.isTextBased?.()) {
+    return interaction.reply({
+      content: 'Could not find the #announcements channel in this guild.',
+      ephemeral: true,
+    });
+  }
+
+  const content = title ? `**${title}**\n\n${body}` : body;
+  const chunks = chunkForDiscord(content);
+
+  // Defer ASAP — modal interactions also have a 3-second ack window. If the
+  // first send blocks (e.g. rate limit), we still want the modal to close
+  // cleanly so the Founder isn't staring at "interaction failed".
+  try {
+    await interaction.deferReply({ ephemeral: true });
+  } catch {}
+
+  try {
+    for (const chunk of chunks) {
+      await ch.send({ content: chunk });
+    }
+    const summary = chunks.length === 1
+      ? `✅ Posted to #${ch.name}.`
+      : `✅ Posted to #${ch.name} (${chunks.length} messages — body was over the 2000-char cap).`;
+    await interaction.editReply({ content: summary });
+  } catch (err) {
+    console.error('[discord] /announce send failed:', err.message);
+    try {
+      await interaction.editReply({ content: `❌ Failed to post: ${err.message}` });
+    } catch {}
+  }
+}
+
+// Discord caps a single message at 2000 chars. We split on paragraph
+// boundaries first (double-newline) so markdown structure survives, then
+// fall back to single-newline, then hard-break on length. Limit set to 1900
+// to leave a safety margin for any markdown the user pastes that might
+// expand on render.
+function chunkForDiscord(text, max = 1900) {
+  if (text.length <= max) return [text];
+
+  const paras = text.split(/\n\n+/);
+  const chunks = [];
+  let cur = '';
+
+  const flush = () => { if (cur) { chunks.push(cur); cur = ''; } };
+
+  for (const p of paras) {
+    // Paragraph itself fits in current chunk.
+    const candidate = cur ? cur + '\n\n' + p : p;
+    if (candidate.length <= max) {
+      cur = candidate;
+      continue;
+    }
+    // Doesn't fit — flush current chunk first.
+    flush();
+    if (p.length <= max) {
+      cur = p;
+      continue;
+    }
+    // Single paragraph is too big on its own — split on single newlines.
+    const lines = p.split('\n');
+    for (const line of lines) {
+      const cand2 = cur ? cur + '\n' + line : line;
+      if (cand2.length <= max) {
+        cur = cand2;
+      } else {
+        flush();
+        // Line is still too big — hard break.
+        if (line.length <= max) {
+          cur = line;
+        } else {
+          for (let i = 0; i < line.length; i += max) {
+            chunks.push(line.slice(i, i + max));
+          }
+        }
+      }
+    }
+  }
+  flush();
+  return chunks;
 }
 
 module.exports = { startDiscordBot, getDiscordBotStatus };
