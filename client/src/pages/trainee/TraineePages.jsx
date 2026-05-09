@@ -535,7 +535,10 @@ export function TraineeSupervision() {
   const [agenda, setAgenda] = useState('')
   const [items, setItems] = useState([])
   const [feedback, setFeedback] = useState('')
+  const [question, setQuestion] = useState({ title: '', details: '', priority: 'normal' })
+  const [extracted, setExtracted] = useState(null)
   const [extracting, setExtracting] = useState(false)
+  const [addingQuestion, setAddingQuestion] = useState(false)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
   const loadItems = () => {
@@ -566,11 +569,35 @@ export function TraineeSupervision() {
         body: JSON.stringify({ feedback_text: feedback }),
       })
       if (res.ok) {
+        const data = await res.json().catch(() => ({}))
+        setExtracted(data.extracted || null)
         setFeedback('')
         loadItems()
       }
     } finally {
       setExtracting(false)
+    }
+  }
+
+  const addQuestion = async () => {
+    if (!question.title.trim()) return
+    setAddingQuestion(true)
+    try {
+      const res = await apiFetch('/agent/trainee/supervision-items', {
+        method: 'POST',
+        body: JSON.stringify({
+          title: question.title,
+          details: question.details || null,
+          source: 'manual',
+          priority: question.priority,
+        }),
+      })
+      if (res.ok) {
+        setQuestion({ title: '', details: '', priority: 'normal' })
+        loadItems()
+      }
+    } finally {
+      setAddingQuestion(false)
     }
   }
 
@@ -591,7 +618,7 @@ export function TraineeSupervision() {
 
   const consultFromItem = (item) => {
     const prompt = [
-      'Help me prepare this supervision question before I bring it to my human supervisor.',
+      'Help me organize this question before I bring it to my supervisor.',
       item.title,
       item.details || '',
       'Give me the clinical issue, what I should ask, and what decision points I should be ready to discuss.',
@@ -605,9 +632,9 @@ export function TraineeSupervision() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
           <div className="flex-1">
             <p className="text-xs font-bold uppercase tracking-widest text-brand-600 dark:text-brand-300">Supervision</p>
-            <h1 className="mt-1 text-2xl font-bold text-gray-950 dark:text-white">Weekly supervision workspace</h1>
+            <h1 className="mt-1 text-2xl font-bold text-gray-950 dark:text-white">Supervision workspace</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600 dark:text-slate-300">
-              Supervision is where Miwa helps you prepare for your human supervisor, track what was discussed, and convert feedback into clinical growth. Consult is for live case reasoning. This page is your agenda, feedback loop, and follow-through record.
+              Use this page before, during, and after meeting with your supervisor. Bring your questions in, mark what was discussed, write down what your supervisor said, then let Miwa organize the follow-up.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -625,7 +652,7 @@ export function TraineeSupervision() {
             ['Open questions', supervisionStats.open],
             ['Discussed', supervisionStats.discussed],
             ['Risk or ethics flags', supervisionStats.urgent],
-            ['Total items', supervisionStats.total],
+            ['Follow-up items', supervisionStats.total],
           ].map(([label, value]) => (
             <div key={label} className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-slate-950/60">
               <p className="text-xs font-bold uppercase tracking-wide text-gray-500 dark:text-slate-400">{label}</p>
@@ -639,9 +666,39 @@ export function TraineeSupervision() {
         <section className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
           <div className="border-b border-gray-100 p-5 dark:border-white/10">
             <p className="text-xs font-bold uppercase tracking-widest text-brand-600 dark:text-brand-300">Before supervision</p>
-            <h2 className="mt-1 text-lg font-bold text-gray-950 dark:text-white">Agenda for your supervisor</h2>
+            <h2 className="mt-1 text-lg font-bold text-gray-950 dark:text-white">Questions and agenda</h2>
           </div>
-          <div className="p-5">
+          <div className="space-y-4 p-5">
+            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 dark:border-white/10 dark:bg-slate-950/60">
+              <h3 className="text-sm font-bold text-gray-950 dark:text-white">Add something to bring up</h3>
+              <input
+                className="mt-3 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
+                value={question.title}
+                onChange={e => setQuestion(q => ({ ...q, title: e.target.value }))}
+                placeholder="Question, stuck point, case concern, or documentation issue"
+              />
+              <textarea
+                className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100 dark:border-white/10 dark:bg-slate-950 dark:text-slate-100"
+                rows={3}
+                value={question.details}
+                onChange={e => setQuestion(q => ({ ...q, details: e.target.value }))}
+                placeholder="Optional context: client, session, what you tried, what you want your supervisor to weigh in on."
+              />
+              <div className="mt-2 flex flex-wrap gap-2">
+                <select
+                  className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm dark:border-white/10 dark:bg-slate-950"
+                  value={question.priority}
+                  onChange={e => setQuestion(q => ({ ...q, priority: e.target.value }))}
+                >
+                  <option value="normal">Normal</option>
+                  <option value="high">High priority</option>
+                  <option value="low">Low priority</option>
+                </select>
+                <button onClick={addQuestion} disabled={addingQuestion || !question.title.trim()} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
+                  {addingQuestion ? 'Adding...' : 'Add to supervision'}
+                </button>
+              </div>
+            </div>
             {loading ? (
               <div className="flex min-h-36 items-center justify-center rounded-xl border border-dashed border-gray-200 text-sm text-gray-500 dark:border-white/10 dark:text-slate-400">
                 Preparing your supervision agenda...
@@ -652,7 +709,7 @@ export function TraineeSupervision() {
               </div>
             ) : (
               <div className="rounded-xl border border-dashed border-gray-200 p-5 text-sm leading-6 text-gray-600 dark:border-white/10 dark:text-slate-300">
-                Prepare an agenda from unresolved supervision items, risk questions, stuck points, note issues, and growth themes.
+                Click Prepare agenda when you want a clean list to walk into supervision with.
               </div>
             )}
           </div>
@@ -661,7 +718,7 @@ export function TraineeSupervision() {
         <section className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
           <div className="border-b border-gray-100 p-5 dark:border-white/10">
             <p className="text-xs font-bold uppercase tracking-widest text-brand-600 dark:text-brand-300">During supervision</p>
-            <h2 className="mt-1 text-lg font-bold text-gray-950 dark:text-white">Ask my supervisor queue</h2>
+            <h2 className="mt-1 text-lg font-bold text-gray-950 dark:text-white">What to ask and mark discussed</h2>
           </div>
           <div className="max-h-[34rem] space-y-3 overflow-y-auto p-5">
             {items.length ? items.slice(0, 12).map(item => (
@@ -681,16 +738,16 @@ export function TraineeSupervision() {
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button type="button" onClick={() => markDiscussed(item)} className="rounded-lg bg-brand-600 px-3 py-2 text-xs font-bold text-white hover:bg-brand-700">
-                    Mark discussed
+                    Discussed with supervisor
                   </button>
                   <button type="button" onClick={() => consultFromItem(item)} className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-white dark:border-white/10 dark:text-slate-200 dark:hover:bg-white/5">
-                    Think with Miwa first
+                    Prep in Consult
                   </button>
                 </div>
               </div>
             )) : (
               <div className="rounded-xl border border-dashed border-gray-200 p-6 text-sm leading-6 text-gray-600 dark:border-white/10 dark:text-slate-300">
-                No supervision items yet. When a case question, risk concern, documentation issue, or stuck point comes up, add it here so it does not vanish before supervision.
+                No questions yet. Add anything you want to bring to your supervisor before it disappears into the week.
               </div>
             )}
           </div>
@@ -701,7 +758,7 @@ export function TraineeSupervision() {
         <section className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900">
           <div className="border-b border-gray-100 p-5 dark:border-white/10">
             <p className="text-xs font-bold uppercase tracking-widest text-brand-600 dark:text-brand-300">After supervision</p>
-            <h2 className="mt-1 text-lg font-bold text-gray-950 dark:text-white">Supervisor feedback loop</h2>
+            <h2 className="mt-1 text-lg font-bold text-gray-950 dark:text-white">Notes from supervision</h2>
           </div>
           <div className="p-5">
             <textarea
@@ -709,24 +766,30 @@ export function TraineeSupervision() {
               rows={6}
               value={feedback}
               onChange={e => setFeedback(e.target.value)}
-              placeholder="Paste what your supervisor said. Miwa will turn it into action items, documentation reminders, learning goals, next-session prompts, and follow-ups."
+              placeholder="Write what your supervisor said: feedback, clinical direction, documentation edits, questions to follow up on, or things to try next session."
             />
             <div className="mt-3 flex flex-wrap gap-2">
               <button onClick={submitFeedback} disabled={extracting || !feedback.trim()} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">
-                {extracting ? 'Converting...' : 'Convert feedback'}
+                {extracting ? 'Organizing...' : 'Save notes and create follow-ups'}
               </button>
               <button onClick={() => downloadTraineeExport('growth-summary').catch(() => {})} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 dark:border-white/10 dark:text-slate-200">Export growth summary</button>
               <button onClick={() => downloadTraineeExport('hours-summary').catch(() => {})} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 dark:border-white/10 dark:text-slate-200">Export hours summary</button>
             </div>
+            {extracted && (
+              <div className="mt-4 rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm text-teal-950 dark:border-teal-400/20 dark:bg-teal-400/10 dark:text-teal-100">
+                <p className="font-bold">Follow-up created</p>
+                <p className="mt-1 text-xs leading-5">Miwa organized your supervisor's feedback into action items, learning goals, documentation reminders, and next-session prompts.</p>
+              </div>
+            )}
           </div>
         </section>
 
         <section className="grid gap-3 sm:grid-cols-2">
           {[
-            ['Action items', 'Concrete tasks from supervisor feedback, including documentation edits, session follow-ups, and risk steps.'],
-            ['Learning goals', 'Patterns to practice over time: assessment, treatment planning, cultural humility, ethics, and use of self.'],
-            ['Next session prompts', 'Questions and interventions to bring back into the room with the client.'],
-            ['Growth record', 'A running record you can export for school, site, or licensure supervision review.'],
+            ['Action items', 'Tasks that come out of supervision: documentation edits, client follow-ups, risk steps, or admin items.'],
+            ['Learning goals', 'Patterns your supervisor wants you to practice over time.'],
+            ['Next session prompts', 'Things to bring back into the room with the client.'],
+            ['Growth record', 'A running supervision record you can export for school, site, or licensure review.'],
           ].map(([title, body]) => (
             <div key={title} className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-white/10 dark:bg-slate-900">
               <h3 className="text-sm font-bold text-gray-950 dark:text-white">{title}</h3>
