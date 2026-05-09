@@ -100,8 +100,9 @@ export default function Login() {
         <div className="rounded-2xl p-7 bg-white shadow-xl border border-gray-100">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className={labelCls}>Email</label>
+              <label className={labelCls} htmlFor="login-email">Email</label>
               <input
+                id="login-email"
                 type="email"
                 required
                 autoFocus
@@ -113,12 +114,13 @@ export default function Login() {
             </div>
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className={labelCls} style={{ margin: 0 }}>Password</label>
+                <label className={labelCls} htmlFor="login-password" style={{ margin: 0 }}>Password</label>
                 <Link to="/forgot-password" className="text-sm text-indigo-600 hover:text-indigo-700 font-medium transition-colors">
                   Forgot password?
                 </Link>
               </div>
               <input
+                id="login-password"
                 type="password"
                 required
                 className={inputCls}

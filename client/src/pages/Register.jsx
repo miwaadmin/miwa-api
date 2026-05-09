@@ -249,14 +249,14 @@ export default function Register() {
                 {/* Name */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={labelCls}>First Name <span className="text-red-500">*</span></label>
-                    <input type="text" required className={inputCls}
+                    <label className={labelCls} htmlFor="register-first-name">First Name <span className="text-red-500">*</span></label>
+                    <input id="register-first-name" type="text" required className={inputCls}
                       placeholder="Jane" value={form.first_name}
                       onChange={e => set('first_name', e.target.value)} />
                   </div>
                   <div>
-                    <label className={labelCls}>Last Name <span className="text-red-500">*</span></label>
-                    <input type="text" required className={inputCls}
+                    <label className={labelCls} htmlFor="register-last-name">Last Name <span className="text-red-500">*</span></label>
+                    <input id="register-last-name" type="text" required className={inputCls}
                       placeholder="Smith" value={form.last_name}
                       onChange={e => set('last_name', e.target.value)} />
                   </div>
@@ -264,8 +264,8 @@ export default function Register() {
 
                 {/* Email */}
                 <div>
-                  <label className={labelCls}>Email</label>
-                  <input type="email" required className={inputCls}
+                  <label className={labelCls} htmlFor="register-email">Email</label>
+                  <input id="register-email" type="email" required className={inputCls}
                     placeholder="you@practice.com" value={form.email}
                     onChange={e => set('email', e.target.value)} />
                 </div>
@@ -273,14 +273,14 @@ export default function Register() {
                 {/* Password */}
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className={labelCls}>Password</label>
-                    <input type="password" required minLength={8} className={inputCls}
+                    <label className={labelCls} htmlFor="register-password">Password</label>
+                    <input id="register-password" type="password" required minLength={8} className={inputCls}
                       placeholder="Min 8 chars" value={form.password}
                       onChange={e => set('password', e.target.value)} />
                   </div>
                   <div>
-                    <label className={labelCls}>Confirm</label>
-                    <input type="password" required className={inputCls}
+                    <label className={labelCls} htmlFor="register-confirm-password">Confirm</label>
+                    <input id="register-confirm-password" type="password" required className={inputCls}
                       placeholder="••••••••" value={form.confirm_password}
                       onChange={e => set('confirm_password', e.target.value)} />
                   </div>
@@ -290,10 +290,10 @@ export default function Register() {
 
                 {(credType === 'associate' || credType === 'licensed') && (
                   <div>
-                    <label className={labelCls}>
+                    <label className={labelCls} htmlFor="register-credential-number">
                       {credType === 'associate' ? 'Associate Number' : 'License Number'} <span className="text-red-500">*</span>
                     </label>
-                    <input type="text" required className={inputCls}
+                    <input id="register-credential-number" type="text" required className={inputCls}
                       placeholder={credType === 'associate' ? 'AMFT123456 / ACSW123456 / APCC123456' : 'LMFT12345 / LCSW12345 / LPCC12345'}
                       value={form.credential_number}
                       onChange={e => set('credential_number', e.target.value)} />
@@ -307,8 +307,8 @@ export default function Register() {
                       Enter your school or program email (e.g. @usc.edu). We'll send a one-click confirmation link. Your account is active immediately.
                     </p>
                     <div>
-                      <label className={labelCls}>School Email <span className="text-red-500">*</span></label>
-                      <input type="email" required className={inputCls}
+                      <label className={labelCls} htmlFor="register-school-email">School Email <span className="text-red-500">*</span></label>
+                      <input id="register-school-email" type="email" required className={inputCls}
                         placeholder="yourname@university.edu" value={form.school_email}
                         onChange={e => set('school_email', e.target.value)} />
                     </div>
@@ -317,10 +317,10 @@ export default function Register() {
 
                 {/* Referral code */}
                 <div>
-                  <label className={labelCls}>
+                  <label className={labelCls} htmlFor="register-referral-code">
                     Referral Code <span className="text-gray-400 normal-case font-normal">(optional)</span>
                   </label>
-                  <input type="text" className={`${inputCls} font-mono tracking-widest`}
+                  <input id="register-referral-code" type="text" className={`${inputCls} font-mono tracking-widest`}
                     placeholder="e.g. MIWA-AB12-CD34" value={form.referral_code}
                     onChange={e => set('referral_code', e.target.value.toUpperCase())}
                     maxLength={14} />
