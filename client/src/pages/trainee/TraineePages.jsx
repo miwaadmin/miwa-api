@@ -50,21 +50,6 @@ async function downloadTraineeExport(type, options = {}) {
   return data
 }
 
-function StatCard({ label, value, tone = 'brand' }) {
-  const tones = {
-    brand: 'bg-brand-50 text-brand-700 border-brand-100',
-    amber: 'bg-amber-50 text-amber-800 border-amber-200',
-    teal: 'bg-teal-50 text-teal-800 border-teal-200',
-    slate: 'bg-slate-50 text-slate-700 border-slate-200',
-  }
-  return (
-    <div className={`rounded-2xl border p-4 ${tones[tone] || tones.brand}`}>
-      <div className="text-2xl font-bold leading-none">{value}</div>
-      <div className="mt-1 text-xs font-semibold uppercase tracking-wide opacity-75">{label}</div>
-    </div>
-  )
-}
-
 function EmptyState({ title, body, to, cta }) {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center">
@@ -191,10 +176,24 @@ export function TraineeToday() {
   const { loading, stats, sessions, patients, hours, error } = useTraineeData()
   const [brief, setBrief] = useState(null)
   const [briefLoading, setBriefLoading] = useState(false)
+  const [now, setNow] = useState(() => new Date())
   const navigate = useNavigate()
   const firstName = therapist?.first_name || therapist?.full_name?.split(' ')[0] || 'there'
   const totalBucket = Array.isArray(hours?.buckets) ? hours.buckets.find(bucket => bucket.id === 'total' || bucket.parent == null) : null
   const totalHours = Number(totalBucket?.hours || 0)
+  const dateLabel = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+  const timeLabel = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit' })
+  const greeting = (() => {
+    const hour = now.getHours()
+    if (hour < 12) return `Good morning, ${firstName}`
+    if (hour < 17) return `Good afternoon, ${firstName}`
+    return `Good evening, ${firstName}`
+  })()
+
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -217,31 +216,62 @@ export function TraineeToday() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <section className="rounded-2xl border border-brand-100 bg-white p-6 shadow-sm">
-        <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Agency companion workspace</p>
-        <div className="mt-2 flex flex-col lg:flex-row lg:items-end gap-4">
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-gray-950">Good to see you, {firstName}.</h1>
-            <p className="mt-1 text-sm text-gray-600">
-              Your companion workspace for clinical thinking, documentation, and supervision prep.
+      <section
+        className="rounded-2xl p-6 text-white relative overflow-hidden shadow-sm border border-brand-100/40"
+        style={{ background: 'linear-gradient(135deg, #4a38d9 0%, #221a6e 55%, #059e85 100%)' }}
+      >
+        <div className="absolute inset-0 pointer-events-none"
+          style={{ background: 'radial-gradient(ellipse at 85% 50%, rgba(45,212,191,0.18) 0%, transparent 60%)' }} />
+        <div className="relative flex flex-col lg:flex-row lg:items-center gap-5">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2.5 mb-2 flex-wrap">
+              <div className="w-1.5 h-1.5 rounded-full bg-teal-300 animate-pulse" />
+              <span className="text-[11px] font-semibold text-teal-200 uppercase tracking-widest">Trainee workspace</span>
+              <span className="text-white/25 text-base">·</span>
+              <span className="text-sm font-semibold text-white/85 tracking-wide">{dateLabel}</span>
+              <span className="text-white/25 text-base">·</span>
+              <span className="text-base font-bold text-teal-200 tabular-nums tracking-wider">{timeLabel}</span>
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight">{greeting}</h1>
+            <p className="mt-1 max-w-xl text-sm leading-6 text-white/70">
+              Your companion workspace for clinical thinking, documentation, supervision prep, and hours tracking.
             </p>
+            <div className="mt-4 flex gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => navigate('/workspace')}
+                className="px-4 py-2 text-sm font-semibold rounded-xl bg-white text-brand-700 hover:bg-white/90 transition-colors shadow-sm"
+              >
+                Session Workspace
+              </button>
+              <button
+                type="button"
+                onClick={() => navigate('/t/supervision')}
+                className="px-4 py-2 text-sm font-medium rounded-xl transition-colors hover:bg-white/15"
+                style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.15)' }}
+              >
+                Supervision Prep
+              </button>
+            </div>
           </div>
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900 max-w-xl">
-            Miwa is ready to help with notes, supervision prep, risk thinking, and hours tracking. Use client-identifying details only when your site authorizes it.
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:flex gap-3 flex-shrink-0">
+            {[
+              { value: stats?.totalPatients || patients.length || 0, label: 'Cases' },
+              { value: stats?.appointmentsToday || 0, label: 'Today' },
+              { value: sessions.length, label: 'Drafts' },
+              { value: Number.isFinite(totalHours) ? totalHours.toFixed(totalHours % 1 ? 1 : 0) : '0', label: 'Hours' },
+            ].map(s => (
+              <div key={s.label} className="rounded-xl px-4 py-3 text-center min-w-[74px]"
+                style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <div className="text-2xl font-bold leading-none">{s.value}</div>
+                <div className="text-[11px] text-white/60 mt-1 uppercase tracking-wide">{s.label}</div>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
-
-      <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-        <StatCard label="Cases" value={stats?.totalPatients || patients.length || 0} />
-        <StatCard label="Today" value={stats?.appointmentsToday || 0} tone="teal" />
-        <StatCard label="Note drafts" value={sessions.length} tone={sessions.length ? 'amber' : 'slate'} />
-        <StatCard label="Hours logged" value={Number.isFinite(totalHours) ? totalHours.toFixed(totalHours % 1 ? 1 : 0) : '0'} tone="brand" />
-      </div>
-
-      <AgencyProfilePanel />
 
       <div className="grid lg:grid-cols-3 gap-5">
         <section className="lg:col-span-2 rounded-2xl border border-gray-200 bg-white overflow-hidden">
