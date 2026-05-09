@@ -894,6 +894,7 @@ export default function Supervisor() {
             />
           </div>
           <button
+            aria-label="Send message"
             onClick={sendMessage}
             disabled={(!input.trim() && imageAttachments.length === 0) || streaming}
             className="flex-shrink-0 w-11 h-11 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-50 disabled:cursor-not-allowed text-white flex items-center justify-center transition-colors"
