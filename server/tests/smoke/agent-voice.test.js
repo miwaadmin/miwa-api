@@ -109,7 +109,19 @@ test('agent realtime status returns safe configuration diagnostics', async () =>
   assert.doesNotMatch(JSON.stringify(res.body), /test-openai-key|OPENAI_PHI_API_KEY/);
 });
 
-test('app CSP allows Miwa Live Voice browser connection to OpenAI realtime', async () => {
+test('app CSP allows Miwa Live Voice browser connection to OpenAI realtime', async (t) => {
+  // The /t/dashboard route is served by the SPA catch-all, which only
+  // registers when client/dist exists. CI builds the client before running
+  // tests; local `npm test` does not. Skip rather than fail noisily when the
+  // client hasn't been built — the real CI run still enforces this.
+  const path = require('path');
+  const fs = require('fs');
+  const clientDist = path.join(__dirname, '..', '..', '..', 'client', 'dist', 'index.html');
+  if (!fs.existsSync(clientDist)) {
+    t.skip('client/dist not built — run `npm run build` first');
+    return;
+  }
+
   const baseUrl = await startTestServer();
   const res = await fetch(`${baseUrl}/t/dashboard`);
   const csp = res.headers.get('content-security-policy') || '';
