@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'react'
 import { adminApiFetch } from '../../lib/api'
 import { AdminBanners } from './adminUtils'
+import {
+  AdminButton,
+  AdminCard,
+  AdminPageHeader,
+  AdminStatusBadge,
+} from '../../components/admin'
 
 function PolicyList({ title, items }) {
   return (
-    <div className="rounded-xl border border-gray-100 bg-white p-4">
-      <h3 className="text-sm font-semibold text-gray-900">{title}</h3>
-      <div className="mt-3 space-y-2">
+    <AdminCard title={title}>
+      <div className="space-y-2">
         {(items || []).map(item => (
           <div key={item} className="flex items-start gap-2 text-sm text-gray-700">
             <span className="mt-1 h-1.5 w-1.5 rounded-full bg-brand-500 flex-shrink-0" />
@@ -14,7 +19,7 @@ function PolicyList({ title, items }) {
           </div>
         ))}
       </div>
-    </div>
+    </AdminCard>
   )
 }
 
@@ -69,59 +74,49 @@ export default function AdminSecurity() {
     }
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading security policy...</div>
+  if (loading) return <div className="p-8 text-sm text-gray-500">Loading security policy...</div>
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900">Security</h2>
-          <p className="text-sm text-gray-500 mt-1">
-            Admin access is limited to operations by default. Client clinical data is not browsable from this console.
-          </p>
-        </div>
-        <button onClick={load} className="btn-secondary text-sm">Refresh</button>
-      </div>
+    <div className="p-8 max-w-7xl mx-auto space-y-6">
+      <AdminPageHeader
+        title="Security"
+        subtitle="Review admin access boundaries and record break-glass access requests."
+        actions={
+          <AdminButton variant="secondary" size="sm" onClick={load}>
+            Refresh
+          </AdminButton>
+        }
+      />
 
       <AdminBanners notice={notice} error={error} />
 
-      <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-5">
-        <div className="flex items-start gap-3">
-          <div className="h-9 w-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-            OK
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-emerald-950">Default admin boundary</h3>
-            <p className="mt-1 text-sm text-emerald-800 max-w-3xl">
-              {policy?.default_admin_access || 'Account, billing, support, usage, and operational metadata only.'}
-            </p>
-          </div>
-        </div>
-      </div>
+      <AdminCard
+        title="Default admin boundary"
+        subtitle="Admin access is limited to operations by default. Client clinical data is not browsable from this console."
+        highlight="success"
+        action={<AdminStatusBadge status="pass" label="OK" />}
+      >
+        <p className="text-sm text-emerald-800 max-w-3xl">
+          {policy?.default_admin_access || 'Account, billing, support, usage, and operational metadata only.'}
+        </p>
+      </AdminCard>
 
       <div className="grid lg:grid-cols-2 gap-4">
         <PolicyList title="Allowed by default" items={policy?.permitted_default_access} />
         <PolicyList title="Not allowed by default" items={policy?.prohibited_default_access} />
       </div>
 
-      <div className="card p-5">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h3 className="text-sm font-semibold text-gray-900">Break-glass access</h3>
-            <p className="text-xs text-gray-500 mt-1 max-w-2xl">
-              This is intentionally disabled. Any future PHI access should require a reason, time limit, elevated permission, and immutable audit log before showing records.
-            </p>
-          </div>
-          <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700">
-            Disabled
-          </span>
-        </div>
-
-        <div className="mt-4 grid md:grid-cols-[180px_1fr_auto] gap-3 items-start">
+      <AdminCard
+        title="Break-glass access"
+        subtitle="This is intentionally disabled. Any future PHI access should require a reason, time limit, elevated permission, and immutable audit log before showing records."
+        action={<AdminStatusBadge status="warn" label="Disabled" />}
+      >
+        <div className="grid md:grid-cols-[180px_1fr_auto] gap-3 items-start">
           <input
             className="input text-sm"
             inputMode="numeric"
             placeholder="Therapist ID"
+            aria-label="Therapist ID"
             value={targetTherapistId}
             onChange={e => setTargetTherapistId(e.target.value)}
           />
@@ -129,19 +124,20 @@ export default function AdminSecurity() {
             className="textarea text-sm"
             rows={2}
             placeholder="Reason for access request"
+            aria-label="Reason for access request"
             value={reason}
             onChange={e => setReason(e.target.value)}
           />
-          <button
-            type="button"
+          <AdminButton
             disabled={busy || reason.trim().length < 12}
+            loading={busy}
             onClick={requestBreakGlass}
-            className="btn-secondary text-sm disabled:opacity-50"
+            size="sm"
           >
             Record request
-          </button>
+          </AdminButton>
         </div>
-      </div>
+      </AdminCard>
     </div>
   )
 }
