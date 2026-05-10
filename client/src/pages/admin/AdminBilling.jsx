@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 import { adminApiFetch } from '../../lib/api'
 import { AdminBanners } from './adminUtils'
+import {
+  AdminButton,
+  AdminCard,
+  AdminPageHeader,
+  AdminStat,
+  AdminStatusBadge,
+} from '../../components/admin'
 
 export default function AdminBilling() {
   const [loading, setLoading] = useState(true)
@@ -56,40 +63,40 @@ export default function AdminBilling() {
     )
   })
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading billing…</div>
+  if (loading) return <div className="p-8 text-sm text-gray-500">Loading billing...</div>
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-gray-900">Billing</h2>
-        <button onClick={load} className="btn-secondary text-sm">Refresh</button>
-      </div>
+    <div className="p-8 max-w-7xl mx-auto space-y-6">
+      <AdminPageHeader
+        title="Billing"
+        subtitle="Review Stripe readiness, subscription health, and billing status across accounts."
+        actions={
+          <AdminButton variant="secondary" size="sm" onClick={load}>
+            Refresh
+          </AdminButton>
+        }
+      />
 
       <AdminBanners error={error} />
 
-      <div className="card p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900">Stripe launch check</h2>
-            <p className="mt-1 text-xs text-gray-500">
-              Confirms the API key, webhook secret, app URL, and plan prices without showing secrets.
-            </p>
-          </div>
-          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
-            stripeStatus?.ok ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'
-          }`}>
-            {stripeStatus?.ok ? 'Ready' : 'Needs review'}
-          </span>
-        </div>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
+      <AdminCard
+        title="Stripe launch check"
+        subtitle="Confirms the API key, webhook secret, app URL, and plan prices without showing secrets."
+        action={
+          <AdminStatusBadge
+            status={stripeStatus?.ok ? 'pass' : 'warn'}
+            label={stripeStatus?.ok ? 'Ready' : 'Needs review'}
+          />
+        }
+      >
+        <div className="grid gap-3 md:grid-cols-4">
           {[
             ['Mode', stripeStatus?.mode || 'unknown'],
             ['API account', stripeStatus?.account?.reachable ? 'reachable' : 'not verified'],
             ['Webhook', stripeStatus?.webhook?.configured ? 'configured' : 'missing'],
             ['App URL', stripeStatus?.app_url?.canonical ? 'miwa.care' : 'review'],
           ].map(([label, value]) => (
-            <div key={label} className="rounded-md border border-gray-100 p-3">
+            <div key={label} className="rounded-lg border border-gray-100 p-3">
               <p className="text-xs uppercase tracking-wide text-gray-400">{label}</p>
               <p className="mt-1 text-sm font-semibold text-gray-900">{value}</p>
             </div>
@@ -109,26 +116,33 @@ export default function AdminBilling() {
               </tr>
             </thead>
             <tbody>
-              {(stripeStatus?.prices || []).map(price => (
-                <tr key={price.env} className="border-b border-gray-100">
-                  <td className="py-2 pr-3 font-medium text-gray-900">{price.name}</td>
-                  <td className="py-2 pr-3 text-gray-500">{price.env}</td>
-                  <td className="py-2 pr-3 text-gray-600">{price.type}</td>
-                  <td className="py-2 pr-3">
-                    {price.status === 'ready' || (price.configured && price.exists !== false && price.active !== false && price.recurring !== false) ? (
-                      <span className="text-green-700">ready</span>
-                    ) : (
-                      <span className="text-amber-700">{price.configured ? 'review' : 'missing'}</span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-3 text-gray-500">{price.currency || '-'}</td>
-                  <td className="py-2 pr-3 text-gray-500 max-w-xs">{price.review_reason || '-'}</td>
-                </tr>
-              ))}
+              {(stripeStatus?.prices || []).map(price => {
+                const ready = price.status === 'ready' || (
+                  price.configured &&
+                  price.exists !== false &&
+                  price.active !== false &&
+                  price.recurring !== false
+                )
+                return (
+                  <tr key={price.env} className="border-b border-gray-100">
+                    <td className="py-2 pr-3 font-medium text-gray-900">{price.name}</td>
+                    <td className="py-2 pr-3 text-gray-500">{price.env}</td>
+                    <td className="py-2 pr-3 text-gray-600">{price.type}</td>
+                    <td className="py-2 pr-3">
+                      <AdminStatusBadge
+                        status={ready ? 'pass' : price.configured ? 'warn' : 'fail'}
+                        label={ready ? 'ready' : price.configured ? 'review' : 'missing'}
+                      />
+                    </td>
+                    <td className="py-2 pr-3 text-gray-500">{price.currency || '-'}</td>
+                    <td className="py-2 pr-3 text-gray-500 max-w-xs">{price.review_reason || '-'}</td>
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
-      </div>
+      </AdminCard>
 
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {[
@@ -138,15 +152,11 @@ export default function AdminBilling() {
           ['Expired', billing?.summary?.expired_accounts || 0],
           ['Stripe connected', billing?.summary?.stripe_connected_accounts || 0],
         ].map(([label, value]) => (
-          <div key={label} className="card p-4">
-            <p className="text-xs uppercase tracking-wide text-gray-400">{label}</p>
-            <p className="mt-2 text-2xl font-bold text-gray-900">{value}</p>
-          </div>
+          <AdminStat key={label} label={label} value={value} />
         ))}
       </div>
 
-      <div className="card p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-3">Trial ending soon</h2>
+      <AdminCard title="Trial ending soon" subtitle="Accounts nearing the end of their trial usage allowance.">
         <div className="space-y-3">
           {(billing?.trial_ending_soon || []).map(account => (
             <div key={account.id} className="flex items-center justify-between gap-3 border-b border-gray-100 pb-2 last:border-0 text-sm">
@@ -154,24 +164,23 @@ export default function AdminBilling() {
                 <p className="font-medium text-gray-900">{account.full_name || account.email}</p>
                 <p className="text-xs text-gray-500">{account.email}</p>
               </div>
-              <div className="text-xs text-gray-600">{Math.max(0, (account.trial_limit || 10) - (account.workspace_uses || 0))} trial uses remaining</div>
+              <div className="text-xs text-gray-600">
+                {Math.max(0, (account.trial_limit || 10) - (account.workspace_uses || 0))} trial uses remaining
+              </div>
             </div>
           ))}
         </div>
-      </div>
+      </AdminCard>
 
-      <div className="card p-5">
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-sm font-semibold text-gray-900">All accounts</h2>
-          <button
-            onClick={loadAllAccounts}
-            className="btn-secondary text-sm"
-            disabled={loadingAccounts}
-          >
-            {loadingAccounts ? 'Loading…' : (allAccounts.length > 0 ? 'Refresh' : 'Load')}
-          </button>
-        </div>
-
+      <AdminCard
+        title="All accounts"
+        subtitle="Load and search account billing status on demand."
+        action={
+          <AdminButton onClick={loadAllAccounts} size="sm" loading={loadingAccounts}>
+            {loadingAccounts ? 'Loading...' : (allAccounts.length > 0 ? 'Refresh' : 'Load')}
+          </AdminButton>
+        }
+      >
         {allAccounts.length === 0 ? (
           <p className="text-sm text-gray-500">Click "Load" to view all accounts with their billing status</p>
         ) : (
@@ -179,7 +188,7 @@ export default function AdminBilling() {
             <div className="mb-4">
               <input
                 type="text"
-                placeholder="Search by name or email…"
+                placeholder="Search by name or email..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="input text-sm"
@@ -215,21 +224,11 @@ export default function AdminBilling() {
                           </td>
                           <td className="py-3 px-3 text-gray-600">{account.email}</td>
                           <td className="py-3 px-3">
-                            {isOnTrial ? (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">
-                                Trial
-                              </span>
-                            ) : (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-50 text-green-700">
-                                Active
-                              </span>
-                            )}
+                            <AdminStatusBadge status={isOnTrial ? 'trial' : 'active'} />
                           </td>
                           <td className="py-3 px-3">
                             {hasStripe ? (
-                              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700">
-                                ✓ Connected
-                              </span>
+                              <AdminStatusBadge status="pass" label="Connected" />
                             ) : (
                               <span className="text-xs text-gray-400">, </span>
                             )}
@@ -254,7 +253,7 @@ export default function AdminBilling() {
             </p>
           </>
         )}
-      </div>
+      </AdminCard>
     </div>
   )
 }
