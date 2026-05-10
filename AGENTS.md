@@ -1,4 +1,9 @@
-# Miwa API — Project Notes for Codex
+# Miwa API — Project Notes for AI Agents
+
+This file is the single source of truth for project conventions, read by
+both Claude Code (via a one-line `@AGENTS.md` import in `CLAUDE.md`) and
+Codex Cloud (which reads `AGENTS.md` natively). Update this file when
+conventions change; the other file does not need to be touched.
 
 ## User identity
 
@@ -22,8 +27,11 @@ each time. The flow is:
 
 1. Run `git status` to confirm what changed
 2. Stage the relevant files (named, not `git add .`)
-3. Commit with a short, intent-focused message + the standard
-   `Co-Authored-By: Codex Sonnet 4.6 <noreply@anthropic.com>` trailer
+3. Commit with a short, intent-focused message + a
+   `Co-Authored-By:` trailer that names the agent + model doing the
+   work. Examples:
+   - `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`
+   - `Co-Authored-By: Codex Sonnet 4.6 <noreply@anthropic.com>`
 4. Push: `git push origin HEAD:main` (the working branch usually tracks
    origin/main but the local branch name differs from `main`, so
    `HEAD:main` is required)
@@ -52,7 +60,7 @@ change is clearly experimental / scratch work. When in doubt, push.
   - `gh run view --log-failed` — failure logs
   - `gh run view --web` — open in browser
 
-## Product direction (as of April 2026)
+## Product direction
 
 - **Solo therapist focus.** Group practice is intentionally NOT offered
   as a purchasable plan — it's a "Coming soon" waitlist on
@@ -65,11 +73,32 @@ change is clearly experimental / scratch work. When in doubt, push.
 ## Codebase conventions
 
 - **Frontend:** `client/src/pages/*.jsx` (React + Tailwind). Mobile
-  variants live in `client/src/pages/mobile/`.
-- **Backend:** `server/routes/*.js` (Express). DB is SQLite via
-  `server/db.js`; schema migrations are append-only `ALTER TABLE ADD
-  COLUMN` blocks.
+  variants live in `client/src/pages/mobile/`. Admin pages live in
+  `client/src/pages/admin/` and use shared primitives from
+  `client/src/components/admin/` (`AdminButton`, `AdminCard`,
+  `AdminPageHeader`, `AdminStat`, `AdminStatusBadge`, `ConfirmModal`).
+  See `client/src/components/admin/README.md` for the admin design
+  pattern.
+- **Backend:** `server/routes/*.js` (Express). The agent route lives
+  at `server/routes/agent.js` as a thin entrypoint that delegates to
+  modules under `server/routes/agent/`.
+- **Database:** Production runs on **Azure Database for PostgreSQL**
+  (Flexible Server). The codebase supports both adapters, gated by the
+  `DB_PROVIDER` env var:
+  - `DB_PROVIDER=postgres` — production. Uses
+    `server/db/postgresAdapter.js` against `DATABASE_URL`.
+  - `DB_PROVIDER=sqlite` — local dev / test fallback only. Uses
+    `server/db.js` (sql.js, file persistence at `DB_PATH`).
+  Schema migrations are append-only `ALTER TABLE ADD COLUMN` blocks
+  applied through both adapters. Do not assume SQLite-only behavior in
+  new code.
 - **Patient schema:** `email`, `phone`, `sms_consent`, `session_modality`,
   `session_duration` are all on the `patients` table. New fields go
   through the migration block in `db.js` AND the destructure + UPDATE
   in `server/routes/patients.js` PUT handler.
+
+## Frontend tests
+
+- Run `npm run test:client` for the Vitest + React Testing Library
+  smoke suite in `client/src/__tests__/`. Covers auth, AI consult, and
+  patient list flows. Keep it green on every PR; CI enforces.
