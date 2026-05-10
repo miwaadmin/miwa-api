@@ -1,16 +1,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { adminApiFetch } from '../../lib/api'
 import { formatDate, AdminBanners } from './adminUtils'
+import {
+  AdminButton,
+  AdminCard,
+  AdminPageHeader,
+  AdminStatusBadge,
+} from '../../components/admin'
 
-const STATUS_COLORS = {
-  new: 'bg-amber-100 text-amber-800 border-amber-200',
-  read: 'bg-blue-100 text-blue-800 border-blue-200',
-  resolved: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-}
 const CATEGORY_LABELS = {
-  bug: { label: 'Bug', cls: 'bg-rose-100 text-rose-800 border-rose-200' },
-  feature: { label: 'Feature', cls: 'bg-indigo-100 text-indigo-800 border-indigo-200' },
-  general: { label: 'General', cls: 'bg-gray-100 text-gray-700 border-gray-200' },
+  bug: 'Bug',
+  feature: 'Feature',
+  general: 'General',
+}
+
+function feedbackStatus(status) {
+  if (status === 'resolved') return 'pass'
+  if (status === 'read') return 'warn'
+  return 'fail'
 }
 
 export default function AdminSupport() {
@@ -69,14 +76,19 @@ export default function AdminSupport() {
     }
   }
 
-  if (loading) return <div className="p-6 text-sm text-gray-500">Loading support…</div>
+  if (loading) return <div className="p-8 text-sm text-gray-500">Loading support...</div>
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-gray-900">Support</h2>
-        <button onClick={load} className="btn-secondary text-sm">Refresh</button>
-      </div>
+    <div className="p-8 max-w-7xl mx-auto space-y-6">
+      <AdminPageHeader
+        title="Support"
+        subtitle="Review clinician feedback, flagged accounts, support notes, and recent system events."
+        actions={
+          <AdminButton variant="secondary" size="sm" onClick={load}>
+            Refresh
+          </AdminButton>
+        }
+      />
 
       <AdminBanners error={error} />
 
@@ -84,16 +96,11 @@ export default function AdminSupport() {
         Support feedback may contain PHI if a clinician typed it into a ticket. Keep replies minimum-necessary and do not copy clinical details into admin notes.
       </div>
 
-      {/* ── User Feedback ────────────────────────────────────────────────── */}
-      <div className="card p-5">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
-          <div>
-            <h2 className="text-sm font-semibold text-gray-900">User Feedback</h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Bug reports, feature requests, and general feedback submitted through Miwa chat.
-            </p>
-          </div>
-          <div className="flex items-center gap-1 flex-wrap">
+      <AdminCard
+        title="User feedback"
+        subtitle="Bug reports, feature requests, and general feedback submitted through Miwa chat."
+        action={
+          <div className="flex items-center gap-1 flex-wrap justify-end">
             {[
               ['open', `Open (${counts.open})`],
               ['new', `New (${counts.new})`],
@@ -101,21 +108,18 @@ export default function AdminSupport() {
               ['resolved', `Resolved (${counts.resolved})`],
               ['all', `All (${counts.all})`],
             ].map(([key, label]) => (
-              <button
+              <AdminButton
                 key={key}
+                size="sm"
+                variant={filter === key ? 'primary' : 'secondary'}
                 onClick={() => setFilter(key)}
-                className={`text-[11px] font-semibold px-2.5 py-1 rounded-full transition-colors ${
-                  filter === key
-                    ? 'bg-brand-600 text-white'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
               >
                 {label}
-              </button>
+              </AdminButton>
             ))}
           </div>
-        </div>
-
+        }
+      >
         {filteredFeedback.length === 0 ? (
           <div className="rounded-xl bg-gray-50 border border-gray-100 px-4 py-10 text-center">
             <p className="text-sm text-gray-500">
@@ -123,20 +127,15 @@ export default function AdminSupport() {
             </p>
           </div>
         ) : (
-          <div className="space-y-3 max-h-[40rem] overflow-y-auto">
+          <div className="space-y-3 max-h-[40rem] overflow-y-auto -mr-2 pr-2">
             {filteredFeedback.map(item => {
-              const cat = CATEGORY_LABELS[item.category] || CATEGORY_LABELS.general
-              const statusCls = STATUS_COLORS[item.status] || STATUS_COLORS.new
+              const categoryLabel = CATEGORY_LABELS[item.category] || CATEGORY_LABELS.general
               return (
                 <div key={item.id} className="border border-gray-200 rounded-xl p-4 bg-white">
                   <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${cat.cls}`}>
-                        {cat.label}
-                      </span>
-                      <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${statusCls}`}>
-                        {item.status || 'new'}
-                      </span>
+                      <AdminStatusBadge status="warn" label={categoryLabel} />
+                      <AdminStatusBadge status={feedbackStatus(item.status)} label={item.status || 'new'} />
                       <span className="text-[10px] text-gray-500">via {item.source || 'chat'}</span>
                     </div>
                     <span className="text-[11px] text-gray-500">{formatDate(item.created_at)}</span>
@@ -159,34 +158,32 @@ export default function AdminSupport() {
 
                   <div className="mt-3 flex items-center gap-2 flex-wrap">
                     {item.status === 'new' && (
-                      <button
-                        type="button"
+                      <AdminButton
+                        size="sm"
                         onClick={() => updateFeedback(item.id, { status: 'read' })}
                         disabled={busyId === item.id}
-                        className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 disabled:opacity-50 transition-colors"
                       >
-                        Mark Read
-                      </button>
+                        Mark read
+                      </AdminButton>
                     )}
                     {item.status !== 'resolved' && (
-                      <button
-                        type="button"
+                      <AdminButton
+                        size="sm"
+                        variant="primary"
                         onClick={() => updateFeedback(item.id, { status: 'resolved' })}
                         disabled={busyId === item.id}
-                        className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 disabled:opacity-50 transition-colors"
                       >
                         Resolve
-                      </button>
+                      </AdminButton>
                     )}
                     {item.status === 'resolved' && (
-                      <button
-                        type="button"
+                      <AdminButton
+                        size="sm"
                         onClick={() => updateFeedback(item.id, { status: 'read' })}
                         disabled={busyId === item.id}
-                        className="text-xs font-semibold px-2.5 py-1 rounded-lg bg-gray-50 text-gray-700 border border-gray-200 hover:bg-gray-100 disabled:opacity-50 transition-colors"
                       >
                         Reopen
-                      </button>
+                      </AdminButton>
                     )}
 
                     <details className="ml-auto">
@@ -199,31 +196,30 @@ export default function AdminSupport() {
                           value={draftResponse[item.id] ?? item.admin_response ?? ''}
                           onChange={e => setDraftResponse(d => ({ ...d, [item.id]: e.target.value }))}
                           className="w-full text-xs px-2 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-400/20"
-                          placeholder="Write a short reply, the user will receive this by email when you mark this Resolved…"
+                          placeholder="Write a short reply, the user will receive this by email when you mark this Resolved..."
                         />
                         <p className="text-[10px] text-gray-500 leading-relaxed">
                           Saves the reply. Emails the user when you click <strong>Resolve</strong> (or now, if it's already resolved and you re-resolve below).
                         </p>
                         <div className="flex items-center gap-2">
-                          <button
-                            type="button"
+                          <AdminButton
+                            size="sm"
                             onClick={() => updateFeedback(item.id, { admin_response: draftResponse[item.id] ?? '' })}
                             disabled={busyId === item.id}
-                            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-gray-100 text-gray-800 hover:bg-gray-200 disabled:opacity-50 transition-colors"
                           >
                             Save reply (no email)
-                          </button>
-                          <button
-                            type="button"
+                          </AdminButton>
+                          <AdminButton
+                            size="sm"
+                            variant="primary"
                             onClick={() => updateFeedback(item.id, {
                               admin_response: draftResponse[item.id] ?? item.admin_response ?? '',
                               status: 'resolved',
                             })}
                             disabled={busyId === item.id}
-                            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 transition-colors"
                           >
-                            Save + Resolve + Email
-                          </button>
+                            Save + resolve + email
+                          </AdminButton>
                         </div>
                       </div>
                     </details>
@@ -233,13 +229,11 @@ export default function AdminSupport() {
             })}
           </div>
         )}
-      </div>
+      </AdminCard>
 
-      {/* ── Existing sections ───────────────────────────────────────────── */}
       <div className="grid lg:grid-cols-2 gap-6">
-        <div className="card p-5">
-          <h2 className="text-sm font-semibold text-gray-900 mb-3">Flagged accounts</h2>
-          <div className="space-y-3 max-h-[30rem] overflow-y-auto">
+        <AdminCard title="Flagged accounts" subtitle="Accounts that may need admin review.">
+          <div className="space-y-3 max-h-[30rem] overflow-y-auto -mr-2 pr-2">
             {(support?.flagged_accounts || []).length === 0 && (
               <p className="text-xs text-gray-400 italic">No flagged accounts.</p>
             )}
@@ -247,38 +241,48 @@ export default function AdminSupport() {
               <div key={account.id} className="border border-gray-100 rounded-xl p-3">
                 <p className="text-sm font-medium text-gray-900">{account.full_name || account.email}</p>
                 <p className="text-xs text-gray-500 mt-1">{account.email}</p>
-                <p className="text-xs text-gray-600 mt-1">{account.account_status} · {account.subscription_status}</p>
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  <AdminStatusBadge status={account.account_status === 'suspended' ? 'suspended' : 'active'} />
+                  <AdminStatusBadge
+                    status={account.subscription_status === 'trial' || account.subscription_status === 'past_due' ? account.subscription_status : 'active'}
+                    label={account.subscription_status}
+                  />
+                </div>
               </div>
             ))}
           </div>
-        </div>
+        </AdminCard>
+
         <div className="space-y-6">
-          <div className="card p-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">Recent support notes</h2>
-            <div className="space-y-3 max-h-64 overflow-y-auto">
+          <AdminCard title="Recent support notes" subtitle="Internal notes added by admins.">
+            <div className="space-y-3 max-h-64 overflow-y-auto -mr-2 pr-2">
               {(support?.notes || []).length === 0 && (
                 <p className="text-xs text-gray-400 italic">No support notes.</p>
               )}
               {(support?.notes || []).map(note => (
-                <div key={note.id} className="border-b border-gray-100 pb-2 last:border-0">
+                <div key={note.id} className="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
                   <p className="text-sm text-gray-800">{note.note}</p>
-                  <p className="text-xs text-gray-500 mt-1">{note.therapist_name || note.therapist_email} · {note.author_email || 'admin'} · {formatDate(note.created_at)}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {note.therapist_name || note.therapist_email} | {note.author_email || 'admin'} | {formatDate(note.created_at)}
+                  </p>
                 </div>
               ))}
             </div>
-          </div>
-          <div className="card p-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">Recent system events</h2>
-            <div className="space-y-3 max-h-64 overflow-y-auto">
+          </AdminCard>
+
+          <AdminCard title="Recent system events" subtitle="Latest account and system activity related to support.">
+            <div className="space-y-3 max-h-64 overflow-y-auto -mr-2 pr-2">
               {(support?.events || []).map(event => (
-                <div key={event.id} className="border-b border-gray-100 pb-2 last:border-0">
+                <div key={event.id} className="border-b border-gray-100 pb-3 last:border-0 last:pb-0">
                   <p className="text-sm text-gray-800">{event.event_type}</p>
-                  <p className="text-xs text-gray-500 mt-1">{event.full_name || event.email || 'System'} · {event.status || ', '} · {formatDate(event.created_at)}</p>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {event.full_name || event.email || 'System'} | {event.status || ', '} | {formatDate(event.created_at)}
+                  </p>
                   {event.message && <p className="text-xs text-gray-600 mt-1">{event.message}</p>}
                 </div>
               ))}
             </div>
-          </div>
+          </AdminCard>
         </div>
       </div>
     </div>
