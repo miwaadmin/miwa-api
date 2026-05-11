@@ -115,11 +115,17 @@ function safeProfile(row) {
     credential_type: row.credential_type || 'licensed',
     credential_number: row.credential_number || null,
     school_email: row.school_email || null,
+    school_email_verified: !!row.school_email_verified,
     credential_verified: !!row.credential_verified,
     credential_verified_at: row.credential_verified_at || null,
     email_verified: !!row.email_verified,
     email_verified_at: row.email_verified_at || null,
     telehealth_url: row.telehealth_url || null,
+    // Trainee onboarding wizard state — see /api/onboarding routes and
+    // client/src/pages/trainee/TraineeWelcome.jsx.
+    onboarding_step: typeof row.onboarding_step === 'number' ? row.onboarding_step : 0,
+    onboarded_at: row.onboarded_at || null,
+    expected_graduation_year: row.expected_graduation_year || null,
     // Group practice
     practice_id: row.practice_id || null,
     practice_role: row.practice_role || null,
