@@ -249,6 +249,7 @@ async function loadTraineeRow(db, id) {
     `SELECT id, email, first_name, last_name, full_name, credential_type,
             workspace_mode, training_program, expected_graduation_year,
             school_email, school_email_verified,
+            tracks_school_hours, tracks_bbs_hours,
             onboarding_step, onboarded_at, onboarding_skipped_steps,
             created_at
        FROM therapists WHERE id = ?`,
@@ -284,6 +285,9 @@ async function buildTraineeState(db, therapistId) {
       school_email_verified: !!row.school_email_verified,
       training_program: row.training_program || null,
       expected_graduation_year: row.expected_graduation_year || null,
+      // null means "not asked yet" — the wizard shows defaults in that case
+      tracks_school_hours: row.tracks_school_hours == null ? null : !!row.tracks_school_hours,
+      tracks_bbs_hours: row.tracks_bbs_hours == null ? null : !!row.tracks_bbs_hours,
       supervisors,
     },
   };
@@ -357,10 +361,22 @@ router.put('/step/:n', async (req, res) => {
         break;
       }
       case 3: {
-        // Hours-tracking toggles. We don't yet have a dedicated prefs table
-        // for these; the dashboard infers what to show from training_program
-        // + workspace_mode. Persisting the user's intent is a no-op today
-        // but the route still advances the step.
+        // Hours-tracking toggles → therapists.tracks_school_hours +
+        // therapists.tracks_bbs_hours. NULL preserves "never asked".
+        const updates = [];
+        const params = [];
+        if (payload.track_school !== undefined) {
+          updates.push('tracks_school_hours = ?');
+          params.push(payload.track_school ? 1 : 0);
+        }
+        if (payload.track_bbs !== undefined) {
+          updates.push('tracks_bbs_hours = ?');
+          params.push(payload.track_bbs ? 1 : 0);
+        }
+        if (updates.length) {
+          params.push(therapistId);
+          await db.run(`UPDATE therapists SET ${updates.join(', ')} WHERE id = ?`, ...params);
+        }
         break;
       }
       case 4: {

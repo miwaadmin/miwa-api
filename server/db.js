@@ -112,6 +112,8 @@ function createSchema() {
       onboarding_skipped_steps TEXT NOT NULL DEFAULT '[]',
       expected_graduation_year INTEGER,
       school_email_verified INTEGER NOT NULL DEFAULT 0,
+      tracks_school_hours INTEGER,
+      tracks_bbs_hours INTEGER,
       last_login_at DATETIME,
       last_seen_at  DATETIME,
       created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -1310,6 +1312,11 @@ function runMigrations() {
     // Trainee program details collected in wizard screen 2.
     ['expected_graduation_year', 'INTEGER'],
     ['school_email_verified', 'INTEGER NOT NULL DEFAULT 0'],
+    // Hours-tracking preferences collected in wizard screen 3. NULL means
+    // the trainee hasn't been asked yet; the dashboard treats NULL the
+    // same as 1 (show both ladders) for legacy rows.
+    ['tracks_school_hours', 'INTEGER'],
+    ['tracks_bbs_hours', 'INTEGER'],
   ];
   for (const [col, def] of subCols) {
     if (!therapistCols.includes(col)) {

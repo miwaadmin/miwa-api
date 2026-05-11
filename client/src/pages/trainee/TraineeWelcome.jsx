@@ -390,12 +390,16 @@ function Step2School({ state, saving, saveStep, skipStep }) {
 }
 
 function Step3Hours({ state, saving, saveStep, skipStep }) {
-  // Defaults: if the trainee already has a training_program set, both ladders
-  // are on. Without one, just BBS (since every CA trainee logs supervised
-  // experience whether or not they're in a degree program).
+  // Honor stored values when the trainee is revisiting screen 3. NULL means
+  // they haven't been asked yet — default to school = on (when a program is
+  // set) and BBS = on (every CA trainee logs supervised experience).
   const hasProgram = !!state?.data?.training_program
-  const [trackSchool, setTrackSchool] = useState(hasProgram)
-  const [trackBbs, setTrackBbs] = useState(true)
+  const storedSchool = state?.data?.tracks_school_hours
+  const storedBbs = state?.data?.tracks_bbs_hours
+  const [trackSchool, setTrackSchool] = useState(
+    storedSchool == null ? hasProgram : !!storedSchool,
+  )
+  const [trackBbs, setTrackBbs] = useState(storedBbs == null ? true : !!storedBbs)
 
   async function handleNext() {
     await saveStep(3, { track_school: trackSchool, track_bbs: trackBbs })

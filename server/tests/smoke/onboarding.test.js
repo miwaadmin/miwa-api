@@ -62,7 +62,22 @@ test('trainee onboarding wizard backend flow', async (t) => {
     assert.equal(r.body.data.school_email_verified, false);
   });
 
-  await t.test('POST /skip/3 marks step 3 as skipped but advances', async () => {
+  await t.test('PUT /step/3 persists hours-tracking toggles', async () => {
+    const r = await api(
+      'PUT',
+      '/api/onboarding/step/3',
+      { track_school: true, track_bbs: false },
+      cookie,
+    );
+    assert.equal(r.status, 200);
+    assert.equal(r.body.step, 3);
+    assert.equal(r.body.data.tracks_school_hours, true);
+    assert.equal(r.body.data.tracks_bbs_hours, false);
+  });
+
+  await t.test('POST /skip/3 still works after a step has been saved', async () => {
+    // Skipping a step that's already been saved is a no-op for that step's
+    // data but still marks it skipped, so the dashboard can prompt later.
     const r = await api('POST', '/api/onboarding/skip/3', null, cookie);
     assert.equal(r.status, 200);
     assert.equal(r.body.step, 3);
