@@ -107,6 +107,11 @@ function createSchema() {
       training_program TEXT,
       site_policy_acknowledged_at DATETIME,
       workspace_mode_selected_at DATETIME,
+      onboarding_step INTEGER NOT NULL DEFAULT 0,
+      onboarded_at DATETIME,
+      onboarding_skipped_steps TEXT NOT NULL DEFAULT '[]',
+      expected_graduation_year INTEGER,
+      school_email_verified INTEGER NOT NULL DEFAULT 0,
       last_login_at DATETIME,
       last_seen_at  DATETIME,
       created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -174,6 +179,7 @@ function createSchema() {
       modality_lens TEXT,
       supervision_questions TEXT,
       private_reflection TEXT,
+      is_sample INTEGER NOT NULL DEFAULT 0,
       therapist_id INTEGER REFERENCES therapists(id),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -1293,6 +1299,17 @@ function runMigrations() {
     ['billing_card_on_file_enabled', 'INTEGER NOT NULL DEFAULT 1'],
     ['billing_no_show_fee_cents', 'INTEGER'],
     ['billing_policy_json', "TEXT DEFAULT '{}'"],
+    // Trainee onboarding wizard state — see /api/onboarding routes and
+    // client/src/pages/trainee/TraineeWelcome.jsx for the 5-step flow.
+    // step 0 = not started, 1–5 = in progress, 6 = complete.
+    ['onboarding_step', 'INTEGER NOT NULL DEFAULT 0'],
+    ['onboarded_at', 'DATETIME'],
+    // JSON array of step numbers the trainee skipped (e.g. "[2,4]") so the
+    // dashboard can surface "finish your setup" prompts later.
+    ['onboarding_skipped_steps', "TEXT NOT NULL DEFAULT '[]'"],
+    // Trainee program details collected in wizard screen 2.
+    ['expected_graduation_year', 'INTEGER'],
+    ['school_email_verified', 'INTEGER NOT NULL DEFAULT 0'],
   ];
   for (const [col, def] of subCols) {
     if (!therapistCols.includes(col)) {
@@ -1513,6 +1530,23 @@ function runMigrations() {
     created_at       DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
 
+  // Trainee supervisors — captured during the onboarding wizard (screen 4).
+  // role = 'site' (placement-site clinical supervisor) or 'school' (university
+  // program supervisor). No outreach is sent to these contacts today; the data
+  // is stored for the trainee's own reference and so that future supervisor
+  // accounts can be linked when that feature ships.
+  db.run(`CREATE TABLE IF NOT EXISTS trainee_supervisors (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    therapist_id  INTEGER NOT NULL REFERENCES therapists(id),
+    role          TEXT NOT NULL,
+    name          TEXT,
+    email         TEXT,
+    site_name     TEXT,
+    created_at    DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at    DATETIME DEFAULT CURRENT_TIMESTAMP
+  )`);
+  try { db.run(`CREATE INDEX IF NOT EXISTS idx_trainee_supervisors_therapist ON trainee_supervisors(therapist_id)`); } catch {}
+
   const adminEmail = (process.env.ADMIN_EMAIL || '').trim().toLowerCase();
   if (adminEmail) {
     try { db.run('UPDATE therapists SET is_admin = 1 WHERE lower(email) = ?', adminEmail); } catch {}
@@ -1617,6 +1651,9 @@ function runMigrations() {
     ['modality_lens', 'TEXT'],
     ['supervision_questions', 'TEXT'],
     ['private_reflection', 'TEXT'],
+    // Sample cases created by the trainee onboarding wizard (screen 5).
+    // Surface a "Sample" badge wherever this patient appears.
+    ['is_sample', 'INTEGER NOT NULL DEFAULT 0'],
   ];
   for (const [col, def] of patientAdditions) {
     if (!patientCols.includes(col)) {
