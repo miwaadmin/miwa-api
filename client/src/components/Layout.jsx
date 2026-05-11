@@ -1,4 +1,4 @@
-import { Outlet, useLocation } from 'react-router-dom'
+import { Outlet } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import Header from './Header'
 import BottomNav from './BottomNav'
@@ -8,10 +8,6 @@ import WorkspaceModeOnboarding from './WorkspaceModeOnboarding'
 import { TourProvider } from '../context/TourContext'
 
 export default function Layout() {
-  const location = useLocation()
-  // Hide MiwaChat on Consult page, Consult IS the deep thinking interface
-  const hideChat = location.pathname === '/consult'
-
   return (
     <TourProvider>
       <div className="app-shell flex h-screen overflow-hidden">
@@ -30,8 +26,8 @@ export default function Layout() {
         {/* Bottom nav, only on mobile */}
         <BottomNav />
 
-        {/* Floating Miwa chat, hidden on Consult page (Consult has its own chat) */}
-        {!hideChat && <MiwaChat />}
+        {/* Floating Miwa chat includes Live voice controls, including on Consult. */}
+        <MiwaChat />
 
         {/* Spotlight tour overlay */}
         <AppTour />

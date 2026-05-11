@@ -66,10 +66,11 @@ test('conversation mode includes clinical and page context instructions', () => 
   assert.equal(session.type, 'realtime');
   assert.equal(session.model, 'gpt-realtime-2');
   assert.match(session.instructions, /HIPAA-focused clinical copilot/);
+  assert.match(session.instructions, /one continuous response/);
   assert.match(session.instructions, /Current Miwa UI context: page=Patients/);
   assert.equal(session.audio.output.voice, getRealtimeConfig(phiRealtimeEnv()).voice);
   assert.equal(session.audio.input.turn_detection.type, 'server_vad');
-  assert.equal(session.audio.input.turn_detection.silence_duration_ms, 1800);
+  assert.equal(session.audio.input.turn_detection.silence_duration_ms, 2200);
 });
 
 test('client secret request sends only session config and returns Miwa connection metadata', async () => {
@@ -133,8 +134,42 @@ test('unified realtime call sends SDP and session config from the server', async
   assert.equal(session.type, 'realtime');
   assert.equal(session.model, 'gpt-realtime-2');
   assert.deepEqual(Object.keys(session.audio).sort(), ['input', 'output']);
-  assert.equal(session.audio.input.turn_detection.silence_duration_ms, 1800);
+  assert.equal(session.audio.input.turn_detection.silence_duration_ms, 2200);
   assert.doesNotMatch(JSON.stringify(session), /OPENAI_PHI_API_KEY|phi-key/);
+});
+
+test('consult live voice uses trainee supervision style in agency companion mode', () => {
+  const session = sessionForMode({
+    mode: 'conversation',
+    pageContext: {
+      label: 'Consult',
+      surface: 'consult',
+      credentialType: 'trainee',
+      workspaceMode: 'agency_companion',
+      responseStyle: 'concise',
+    },
+  }, phiRealtimeEnv());
+
+  assert.match(session.instructions, /page=Consult/);
+  assert.match(session.instructions, /credential=trainee/);
+  assert.match(session.instructions, /supportive clinical supervisor/);
+  assert.match(session.instructions, /Socratic prompts/);
+  assert.match(session.instructions, /avoid long monologues/);
+});
+
+test('consult live voice uses peer consultant style for licensed clinicians', () => {
+  const session = sessionForMode({
+    mode: 'conversation',
+    pageContext: {
+      label: 'Consult',
+      surface: 'consult',
+      credentialType: 'licensed',
+      workspaceMode: 'private_practice',
+    },
+  }, phiRealtimeEnv());
+
+  assert.match(session.instructions, /collaborative peer consultant/);
+  assert.doesNotMatch(session.instructions, /supportive clinical supervisor/);
 });
 
 test('unified realtime call retries configured fallback model for model access failures', async () => {

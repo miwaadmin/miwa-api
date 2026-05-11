@@ -226,6 +226,7 @@ function usePatientContext() {
 }
 
 function pageSurface(pathname) {
+  if (pathname === '/consult') return { surface: 'consult', label: 'Consult' }
   if (pathname.startsWith('/t/dashboard') || pathname.startsWith('/t/today')) return { surface: 'trainee_dashboard', label: 'Trainee Dashboard' }
   if (pathname.startsWith('/t/cases')) return { surface: 'trainee_cases', label: 'Cases' }
   if (pathname.startsWith('/t/drafts')) return { surface: 'trainee_drafts', label: 'Note Drafts' }
@@ -244,6 +245,16 @@ function pageSurface(pathname) {
   if (pathname === '/contacts') return { surface: 'contacts', label: 'Contacts' }
   if (pathname === '/settings') return { surface: 'settings', label: 'Settings' }
   return { surface: 'miwa', label: 'Miwa' }
+}
+
+function isLiveGoodbye(text) {
+  const normalized = String(text || '')
+    .toLowerCase()
+    .replace(/[^\w\s']/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!normalized) return false
+  return /\b(?:bye|goodbye|talk to you later|i(?:'| wi)?ll talk to you later|i will talk to you later|talk later|see you later|see ya|that(?:'| i)?s all for now|that is all for now|we(?:'| a)?re done|we are done|end the live session|stop live)\b/.test(normalized)
 }
 
 const PAGE_ACTIONS = {
@@ -317,6 +328,11 @@ const PAGE_ACTIONS = {
     ['Assessment catch-up', 'Find which clients need fresh measures and suggest a batch plan.'],
     ['Supervision summary', 'Create a supervision-style outcomes summary from the current data.'],
   ],
+  consult: [
+    ['Think through a case', 'Help me think through a case conceptualization and ask only the highest-yield follow-up questions.'],
+    ['Supervision prep', 'Help me prepare a concise supervision question from the clinical concern I am describing.'],
+    ['Risk consult', 'Help me think through risk, protective factors, documentation, and next-step options.'],
+  ],
 }
 
 // Floating Miwa is always the agent, action-first, concise.
@@ -371,10 +387,13 @@ export default function MiwaChat() {
       path: location.pathname,
       patientId: patientId ? Number(patientId) : null,
       patientName,
+      credentialType: therapist?.credential_type || 'licensed',
+      workspaceMode: agencyMode ? 'agency_companion' : 'private_practice',
+      responseStyle: therapist?.assistant_verbosity || 'balanced',
       visibleClients,
       suggestedActions: (PAGE_ACTIONS[meta.surface] || []).map(([label]) => label),
     }
-  }, [location.pathname, patientId, patientName, patients])
+  }, [agencyMode, location.pathname, patientId, patientName, patients, therapist?.assistant_verbosity, therapist?.credential_type])
 
   const contextActions = PAGE_ACTIONS[currentPageContext.surface] || PAGE_ACTIONS.dashboard
 
@@ -649,6 +668,9 @@ export default function MiwaChat() {
   const liveOutputMonitorRef = useRef(null)
   const liveOutputHeardAudioRef = useRef(false)
   const liveOutputSilentSinceRef = useRef(null)
+  const liveResponseInProgressRef = useRef(false)
+  const liveAssistantMessageCommittedRef = useRef(false)
+  const liveEndingRef = useRef(false)
 
   // Keep voiceEnabled ref in sync
   useEffect(() => { voiceEnabledRef.current = voiceEnabled }, [voiceEnabled])
@@ -1361,7 +1383,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
           liveOutputHeardAudioRef.current = true
           liveOutputSilentSinceRef.current = null
           if (!liveAssistantSpeakingRef.current) setRealtimeAssistantSpeaking(true)
-        } else if (liveAssistantSpeakingRef.current && liveOutputHeardAudioRef.current) {
+        } else if (liveAssistantSpeakingRef.current && liveOutputHeardAudioRef.current && !liveResponseInProgressRef.current) {
           if (!liveOutputSilentSinceRef.current) liveOutputSilentSinceRef.current = now
           if (now - liveOutputSilentSinceRef.current > silenceMs) {
             setRealtimeAssistantSpeaking(false)
@@ -1402,6 +1424,9 @@ When you're done, I'll save this as your profile and refer back to it in every c
     }
     liveManualMuteRef.current = false
     liveAssistantSpeakingRef.current = false
+    liveResponseInProgressRef.current = false
+    liveAssistantMessageCommittedRef.current = false
+    liveEndingRef.current = false
     setLiveVoice(false)
     setLiveVoiceStatus('')
     setLiveMicMuted(false)
@@ -1416,6 +1441,8 @@ When you're done, I'll save this as your profile and refer back to it in every c
       || event.type === 'response.output_audio.delta'
       || event.type === 'output_audio_buffer.started'
     ) {
+      liveResponseInProgressRef.current = true
+      if (event.type === 'response.created') liveAssistantMessageCommittedRef.current = false
       setRealtimeAssistantSpeaking(true)
     }
     if (
@@ -1423,9 +1450,15 @@ When you're done, I'll save this as your profile and refer back to it in every c
       || event.type === 'response.done'
       || event.type === 'output_audio_buffer.stopped'
     ) {
-      if (!liveOutputHeardAudioRef.current) scheduleLiveAutoUnmute(12000)
+      if (event.type === 'response.done') liveResponseInProgressRef.current = false
+      if (liveEndingRef.current) {
+        window.setTimeout(() => stopLiveVoice(), 900)
+      } else if (!liveResponseInProgressRef.current) {
+        scheduleLiveAutoUnmute(liveOutputHeardAudioRef.current ? 900 : 12000)
+      }
     }
     if (event.type === 'response.cancelled' || event.type === 'response.failed') {
+      liveResponseInProgressRef.current = false
       scheduleLiveAutoUnmute(800)
     }
     if (event.type === 'conversation.item.input_audio_transcription.delta' && event.delta) {
@@ -1435,6 +1468,13 @@ When you're done, I'll save this as your profile and refer back to it in every c
     if (event.type === 'conversation.item.input_audio_transcription.completed' && event.transcript) {
       const transcript = event.transcript.trim()
       setLiveTranscript(transcript)
+      if (mode !== 'dictation' && isLiveGoodbye(transcript)) {
+        setMessages(prev => [...prev, { id: Date.now(), role: 'user', content: transcript }])
+        liveEndingRef.current = true
+        setLiveVoiceStatus('Ending Miwa Live...')
+        window.setTimeout(() => stopLiveVoice(), liveResponseInProgressRef.current ? 1800 : 3000)
+        return
+      }
       if (mode === 'dictation') {
         setInput(prev => [prev, transcript].filter(Boolean).join(prev ? '\n' : ''))
       } else {
@@ -1449,11 +1489,14 @@ When you're done, I'll save this as your profile and refer back to it in every c
     }
     if (event.type === 'response.done' || event.type === 'response.audio_transcript.done' || event.type === 'response.output_audio_transcript.done') {
       const text = (event.transcript || realtimeAssistantRef.current || '').trim()
-      if (text) setMessages(prev => [...prev, { id: Date.now() + 1, role: 'assistant', content: text }])
-      realtimeAssistantRef.current = ''
-      setStreamingText('')
+      if (text && !liveAssistantMessageCommittedRef.current) {
+        liveAssistantMessageCommittedRef.current = true
+        setMessages(prev => [...prev, { id: Date.now() + 1, role: 'assistant', content: text }])
+        realtimeAssistantRef.current = ''
+        setStreamingText('')
+      }
     }
-  }, [scheduleLiveAutoUnmute, setRealtimeAssistantSpeaking])
+  }, [scheduleLiveAutoUnmute, setRealtimeAssistantSpeaking, stopLiveVoice])
 
   const startLiveVoice = useCallback(async (mode = 'conversation') => {
     if (streaming || !realtimeSupported || liveStartingRef.current) return
