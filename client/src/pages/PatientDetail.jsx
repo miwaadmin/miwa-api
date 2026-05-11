@@ -2638,6 +2638,11 @@ export default function PatientDetail() {
         <span className="text-gray-900 font-medium">
           {patient.display_name || patient.client_id}
           {patient.display_name && <span className="text-gray-400 font-mono text-xs ml-1.5">{patient.client_id}</span>}
+          {patient.is_sample && (
+            <span className="ml-2 inline-flex items-center text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+              Sample
+            </span>
+          )}
         </span>
       </nav>
 

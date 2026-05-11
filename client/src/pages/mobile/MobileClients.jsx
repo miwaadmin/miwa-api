@@ -135,7 +135,14 @@ export default function MobileClients() {
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="text-sm font-semibold text-gray-900 truncate">{name}</p>
+                      <p className="text-sm font-semibold text-gray-900 truncate flex items-center gap-1.5">
+                        {name}
+                        {patient.is_sample && (
+                          <span className="inline-flex items-center text-[9px] font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 shrink-0">
+                            Sample
+                          </span>
+                        )}
+                      </p>
                       {lastDate && (
                         <span className="text-[11px] text-gray-400 shrink-0">{lastDate}</span>
                       )}

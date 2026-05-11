@@ -72,7 +72,7 @@ router.get('/appointments', async (req, res) => {
   try {
     const db = getAsyncDb();
     const rows = await db.all(
-      `SELECT a.*, p.client_id, p.display_name
+      `SELECT a.*, p.client_id, p.display_name, p.is_sample
        FROM appointments a
        LEFT JOIN patients p ON p.id = a.patient_id
        WHERE a.therapist_id = ?
@@ -81,10 +81,12 @@ router.get('/appointments', async (req, res) => {
     );
     // Fallback chain: live patient.display_name → appointment's denormalized
     // client_display_name → client_code → client_id. Calendar always shows
-    // the best available name.
+    // the best available name. is_sample passes through so the calendar can
+    // badge sample-case appointments.
     res.json(rows.map(r => ({
       ...r,
       display_name: r.display_name || r.client_display_name || r.client_code || r.client_id || null,
+      is_sample: r.is_sample ? 1 : 0,
     })));
   } catch (err) {
     sendRouteError(res, err);

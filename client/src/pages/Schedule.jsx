@@ -271,6 +271,7 @@ function EventBlock({ appt, onClick }) {
         )}
         <p className="text-[11px] font-bold truncate leading-tight" style={{ color: p.text }}>
           {tiny ? fmtTime(start) + ' ' : ''}{appt.display_name || appt.client_id || ', '}
+          {appt.is_sample ? <span className="ml-1 text-[9px] uppercase tracking-wider opacity-70">Â· sample</span> : null}
         </p>
         {h >= 54 && (
           <p className="text-[10px] truncate mt-auto opacity-70" style={{ color: p.text }}>
@@ -827,7 +828,7 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
                   }}
                   className="flex-1 py-2 rounded-xl text-xs font-bold text-white bg-red-500 hover:bg-red-600 transition-colors"
                 >
-                  âœ- No-Show
+                  ï¿½- No-Show
                 </button>
               </div>
             </div>
