@@ -581,6 +581,9 @@ export default function Patients() {
                       {patient.client_type === 'couple' ? 'Couple' : 'Family'}
                     </span>
                   )}
+                  {patient.is_sample && (
+                    <span className="badge bg-amber-50 text-amber-700 border border-amber-200">Sample</span>
+                  )}
                   {patient.age && <span className="badge bg-gray-100 text-gray-500">Age {patient.age}</span>}
                   {patient.gender && <span className="badge bg-gray-100 text-gray-500">{patient.gender}</span>}
                   <span className="badge bg-gray-100 text-gray-500">

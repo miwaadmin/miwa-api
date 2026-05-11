@@ -57,7 +57,7 @@ import ScrollToTop from './components/ScrollToTop'
 import Resources from './pages/Resources'
 import DashboardResources from './pages/DashboardResources'
 import { isNativeApp } from './lib/api'
-import { isAgencyCompanionMode, needsWorkspaceModeOnboarding } from './lib/workspaceMode'
+import { isAgencyCompanionMode, needsTraineeOnboarding, needsWorkspaceModeOnboarding } from './lib/workspaceMode'
 import {
   TraineeCases,
   TraineeDrafts,
@@ -65,6 +65,7 @@ import {
   TraineeSupervision,
   TraineeToday,
 } from './pages/trainee/TraineePages'
+import TraineeWelcome from './pages/trainee/TraineeWelcome'
 // Practice pages removed — group practice is a separate product (practice.miwa.care)
 
 // Mobile-optimized experience
@@ -175,10 +176,27 @@ function MobileDashboardRedirect() {
 
 function DashboardRedirect() {
   const { therapist } = useAuth()
+  // Trainees and associates with an incomplete onboarding wizard land on
+  // /t/welcome before anything else. This catches both fresh signups and
+  // existing trainees migrating to the new wizard.
+  if (therapist && needsTraineeOnboarding(therapist)) {
+    return <Navigate to="/t/welcome" replace />
+  }
   if (!isMobileDevice() && therapist && !needsWorkspaceModeOnboarding(therapist) && isAgencyCompanionMode(therapist)) {
     return <Navigate to="/t/dashboard" replace />
   }
   return <MobileDashboardRedirect />
+}
+
+// Wraps every /t/* page (except /t/welcome itself) and routes any trainee with
+// an incomplete onboarding wizard into /t/welcome. Keeps the wizard on the
+// critical path without requiring a check inside each trainee page component.
+function TraineeOnboardingGuard({ children }) {
+  const { therapist } = useAuth()
+  if (therapist && needsTraineeOnboarding(therapist)) {
+    return <Navigate to="/t/welcome" replace />
+  }
+  return children
 }
 
 export default function App() {
@@ -255,16 +273,24 @@ export default function App() {
                 <Route path="tasks/:id" element={<MobileTaskDetail />} />
               </Route>
 
+              {/* Trainee onboarding wizard — full-page, renders outside the
+                  standard Layout so the sidebar/header/floating chat are all
+                  suppressed for a clean focused experience. */}
+              <Route
+                path="/t/welcome"
+                element={<ProtectedRoute><TraineeWelcome /></ProtectedRoute>}
+              />
+
               {/* Protected clinician routes */}
               <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                 <Route path="/dashboard" element={<DashboardRedirect />} />
                 <Route path="/t" element={<Navigate to="/t/dashboard" replace />} />
-                <Route path="/t/dashboard" element={<TraineeToday />} />
+                <Route path="/t/dashboard" element={<TraineeOnboardingGuard><TraineeToday /></TraineeOnboardingGuard>} />
                 <Route path="/t/today" element={<Navigate to="/t/dashboard" replace />} />
-                <Route path="/t/cases" element={<TraineeCases />} />
-                <Route path="/t/drafts" element={<TraineeDrafts />} />
-                <Route path="/t/supervision" element={<TraineeSupervision />} />
-                <Route path="/t/hours" element={<TraineeHours />} />
+                <Route path="/t/cases" element={<TraineeOnboardingGuard><TraineeCases /></TraineeOnboardingGuard>} />
+                <Route path="/t/drafts" element={<TraineeOnboardingGuard><TraineeDrafts /></TraineeOnboardingGuard>} />
+                <Route path="/t/supervision" element={<TraineeOnboardingGuard><TraineeSupervision /></TraineeOnboardingGuard>} />
+                <Route path="/t/hours" element={<TraineeOnboardingGuard><TraineeHours /></TraineeOnboardingGuard>} />
                 <Route path="/t/learning" element={<Navigate to="/consult" replace />} />
                 <Route path="/workspace" element={<Workspace />} />
                 <Route path="/patients" element={<Patients />} />

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../../lib/api'
 import { useAuth } from '../../context/AuthContext'
 import { renderClinical } from '../../lib/renderClinical'
@@ -178,6 +178,19 @@ export function TraineeToday() {
   const [briefLoading, setBriefLoading] = useState(false)
   const [now, setNow] = useState(() => new Date())
   const navigate = useNavigate()
+  const location = useLocation()
+  // Friendly "You're all set" toast after finishing the trainee onboarding
+  // wizard. Auto-dismisses after a few seconds.
+  const [showWelcomeToast, setShowWelcomeToast] = useState(!!location.state?.onboardingComplete)
+  useEffect(() => {
+    if (!showWelcomeToast) return undefined
+    const id = setTimeout(() => setShowWelcomeToast(false), 6000)
+    // Clear the navigation state so a refresh doesn't show the toast again
+    if (location.state?.onboardingComplete) {
+      window.history.replaceState({}, '')
+    }
+    return () => clearTimeout(id)
+  }, [showWelcomeToast, location.state])
   const firstName = therapist?.first_name || therapist?.full_name?.split(' ')[0] || 'there'
   const totalBucket = Array.isArray(hours?.buckets) ? hours.buckets.find(bucket => bucket.id === 'total' || bucket.parent == null) : null
   const totalHours = Number(totalBucket?.hours || 0)
@@ -216,6 +229,21 @@ export function TraineeToday() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
+      {showWelcomeToast && (
+        <div
+          role="status"
+          className="rounded-2xl px-5 py-4 bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm font-medium flex items-center justify-between gap-3"
+        >
+          <span>You're all set. Welcome to your trainee workspace.</span>
+          <button
+            type="button"
+            onClick={() => setShowWelcomeToast(false)}
+            className="text-emerald-700/70 hover:text-emerald-900 text-xs font-semibold uppercase tracking-wider"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
       <section
         className="rounded-2xl p-6 text-white relative overflow-hidden shadow-sm border border-brand-100/40"
         style={{ background: 'linear-gradient(135deg, #4a38d9 0%, #221a6e 55%, #059e85 100%)' }}
@@ -427,7 +455,11 @@ function CaseSnapshotBoard() {
             <label className="text-xs font-bold uppercase tracking-wide text-gray-500">Agentic case snapshot</label>
             <select value={selectedId} onChange={e => setSelectedId(e.target.value)} className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm">
               <option value="">Choose a case</option>
-              {patients.map(p => <option key={p.id} value={p.id}>{p.display_name || p.client_id}</option>)}
+              {patients.map(p => (
+                <option key={p.id} value={p.id}>
+                  {p.display_name || p.client_id}{p.is_sample ? ' (Sample)' : ''}
+                </option>
+              ))}
             </select>
           </div>
           <button onClick={generateSnapshot} disabled={!selectedId} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Generate snapshot</button>

@@ -114,7 +114,7 @@ router.get('/', async (req, res) => {
       patients.case_conceptualization, patients.modality_lens, patients.supervision_questions,
       patients.session_modality, patients.session_duration, patients.therapist_id,
       patients.status, patients.therapy_ended_at, patients.retention_until, patients.retention_basis,
-      patients.archived_at, patients.legal_hold,
+      patients.archived_at, patients.legal_hold, patients.is_sample,
       patients.created_at, patients.updated_at`;
 
     const statusClause = status
