@@ -166,4 +166,18 @@ test('trainee onboarding wizard backend flow', async (t) => {
     assert.equal(r.status, 400);
     assert.match(r.body.error, /step must be 1\.\.5/);
   });
+
+  await t.test('POST /reset re-arms the wizard for a completed account', async () => {
+    // Sanity: we just completed the wizard, so we're at step 6.
+    const before = await api('GET', '/api/onboarding/state', null, cookie);
+    assert.equal(before.body.step, 6);
+    assert.equal(before.body.completed, true);
+
+    const r = await api('POST', '/api/onboarding/reset', null, cookie);
+    assert.equal(r.status, 200);
+    assert.equal(r.body.step, 0);
+    assert.equal(r.body.completed, false);
+    assert.equal(r.body.onboarded_at, null);
+    assert.deepEqual(r.body.skipped_steps, []);
+  });
 });

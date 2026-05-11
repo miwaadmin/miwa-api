@@ -466,6 +466,29 @@ router.post('/skip/:n', async (req, res) => {
   }
 });
 
+// POST /api/onboarding/reset — re-arm the wizard for an account that already
+// completed it. Resets step to 0, clears onboarded_at, clears the skipped
+// list. Used by the Settings entry point so a trainee can re-run the welcome
+// flow (e.g. to revisit their hours-tracking choice, supervisor info, etc.).
+router.post('/reset', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    await db.run(
+      `UPDATE therapists
+          SET onboarding_step = 0,
+              onboarded_at = NULL,
+              onboarding_skipped_steps = '[]'
+        WHERE id = ?`,
+      req.therapist.id,
+    );
+    await persistIfNeeded();
+    res.json(await buildTraineeState(db, req.therapist.id));
+  } catch (err) {
+    console.error('[onboarding] POST /reset', err);
+    res.status(500).json({ error: 'Could not reset onboarding.' });
+  }
+});
+
 // POST /api/onboarding/complete — mark wizard finished
 router.post('/complete', async (req, res) => {
   try {

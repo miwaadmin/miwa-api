@@ -7,6 +7,7 @@ import { therapistInitials } from '../lib/avatar'
 import { COMMON_TIMEZONES } from '../lib/dateUtils'
 import OutreachSettings from '../components/OutreachSettings'
 import { TransitionPanel } from './trainee/TraineePages'
+import { isTraineeCredential } from '../lib/workspaceMode'
 
 const API = API_BASE
 
@@ -38,6 +39,62 @@ const ASSISTANT_PERMISSION_CHOICES = [
   { id: 'assessments', label: 'Assessments' },
   { id: 'supervision_notes', label: 'Supervision notes' },
 ]
+
+// Re-arms the trainee onboarding wizard for an account that already
+// completed it. Calls POST /api/onboarding/reset then navigates to
+// /t/welcome so the trainee can revisit their answers. Visible only on
+// trainee / associate accounts.
+function TraineeWelcomeRerunCard() {
+  const navigate = useNavigate()
+  const { refreshTherapist } = useAuth()
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function rerun() {
+    setBusy(true)
+    setError('')
+    try {
+      const res = await apiFetch('/onboarding/reset', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not restart the welcome tour.')
+      // Refresh the AuthContext therapist row so the onboarding guards see
+      // the freshly-reset state and the wizard is the only path forward.
+      try {
+        const me = await apiFetch('/auth/me').then((r) => (r.ok ? r.json() : null))
+        if (me) refreshTherapist(me, null)
+      } catch {
+        // Non-fatal — navigate anyway; the wizard pulls its own state.
+      }
+      navigate('/t/welcome', { replace: false })
+    } catch (err) {
+      setError(err.message)
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="card p-6">
+      <div className="flex items-start gap-3 mb-4">
+        <div className="w-9 h-9 rounded-lg bg-violet-50 flex items-center justify-center flex-shrink-0">
+          <svg className="w-5 h-5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </div>
+        <div>
+          <h2 className="text-sm font-semibold text-gray-900">Re-run welcome tour</h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Want to revisit your program, hours, or supervisor answers? Restart the
+            5-screen welcome flow — your saved info stays where it is, you can edit it.
+          </p>
+          {error && <p className="text-xs text-red-700 mt-1">{error}</p>}
+        </div>
+      </div>
+      <button onClick={rerun} disabled={busy} className="btn-primary text-sm disabled:opacity-60">
+        {busy ? 'Starting…' : 'Re-run welcome tour'}
+      </button>
+    </div>
+  )
+}
 
 function HelpTourCard() {
   const { startTour, tourCompleted } = useTour()
@@ -1114,6 +1171,9 @@ export default function Settings() {
       <OutreachSettings />
 
       {therapist?.workspace_mode === 'agency_companion' && <TransitionPanel />}
+
+      {/* Re-run trainee onboarding wizard — trainees + associates only */}
+      {isTraineeCredential(therapist) && <TraineeWelcomeRerunCard />}
 
       {/* Help & App Tour */}
       <HelpTourCard />
