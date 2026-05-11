@@ -96,6 +96,32 @@ change is clearly experimental / scratch work. When in doubt, push.
   `session_duration` are all on the `patients` table. New fields go
   through the migration block in `db.js` AND the destructure + UPDATE
   in `server/routes/patients.js` PUT handler.
+- **Trainee onboarding wizard:** A five-screen flow at route
+  `/t/welcome`, rendered outside `<Layout>` for a clean focused page.
+  Trainees and associates with an incomplete wizard land here on
+  every sign-in until they finish. Each `/t/*` page is wrapped in a
+  `TraineeOnboardingGuard` that bounces partial trainees back to
+  `/t/welcome` if they jump straight to a trainee URL.
+  - **Frontend:** `client/src/pages/trainee/TraineeWelcome.jsx` is the
+    single-file wizard; primitives live in
+    `client/src/components/trainee/` (`TraineeButton`, `TraineeCard`,
+    `WizardLayout`, `WizardProgress`). Mirror this primitives pattern
+    for new trainee surfaces — don't reinvent.
+  - **Backend:** routes are appended to `server/routes/onboarding.js`
+    under `/api/onboarding/{state,step/:n,skip/:n,complete,
+    school-email/verify-send,school-email/verify/:token,sample-case}`.
+    All are auth-gated except the verify-by-token endpoint, which the
+    trainee hits from their email client.
+  - **State columns** (on `therapists`): `onboarding_step` (0 = not
+    started, 1–5 = in progress, 6 = complete), `onboarded_at`,
+    `onboarding_skipped_steps` (JSON array text), plus
+    `expected_graduation_year` and `school_email_verified`.
+  - **Supervisor info** persists to a new `trainee_supervisors` table.
+    No outreach is sent — Miwa never emails a supervisor today; the
+    data is stored for the trainee's own reference.
+  - **Sample cases** are flagged on `patients.is_sample = 1` and show a
+    small amber "Sample" badge in the patient list and pickers. The
+    seeder lives in the `POST /api/onboarding/sample-case` route.
 
 ## Frontend tests
 
