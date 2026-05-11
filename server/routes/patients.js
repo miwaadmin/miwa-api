@@ -407,6 +407,30 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+// POST /api/patients/:id/promote-sample — flip is_sample off on a patient
+// that was originally created by the trainee onboarding wizard. Used when
+// the trainee wants to keep the seeded notes/sessions but treat the row as
+// a real case going forward.
+router.post('/:id/promote-sample', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const patient = await db.get(
+      'SELECT id, is_sample FROM patients WHERE id = ? AND therapist_id = ?',
+      req.params.id, req.therapist.id,
+    );
+    if (!patient) return res.status(404).json({ error: 'Patient not found' });
+    if (!patient.is_sample) return res.status(400).json({ error: 'Patient is not a sample case.' });
+
+    await db.run('UPDATE patients SET is_sample = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?', patient.id);
+    await persistIfNeeded();
+    const updated = await db.get('SELECT * FROM patients WHERE id = ?', patient.id);
+    res.json({ ok: true, patient: updated });
+  } catch (err) {
+    console.error('[patients] promote-sample', err);
+    res.status(500).json({ error: 'Could not promote sample case.' });
+  }
+});
+
 router.post('/:id/close', async (req, res) => {
   try {
     const db = getAsyncDb();

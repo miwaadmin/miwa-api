@@ -131,6 +131,19 @@ test('trainee onboarding wizard backend flow', async (t) => {
     assert.equal(sample.is_sample, 1);
   });
 
+  await t.test('POST /api/patients/:id/promote-sample flips is_sample off', async () => {
+    const r = await api('POST', `/api/patients/${sampleCaseId}/promote-sample`, null, cookie);
+    assert.equal(r.status, 200);
+    assert.equal(r.body.ok, true);
+    assert.equal(r.body.patient.is_sample, 0);
+  });
+
+  await t.test('POST /promote-sample on a non-sample row returns 400', async () => {
+    const r = await api('POST', `/api/patients/${sampleCaseId}/promote-sample`, null, cookie);
+    assert.equal(r.status, 400);
+    assert.match(r.body.error, /not a sample/i);
+  });
+
   await t.test('POST /complete sets step=6 + onboarded_at', async () => {
     const r = await api('POST', '/api/onboarding/complete', null, cookie);
     assert.equal(r.status, 200);

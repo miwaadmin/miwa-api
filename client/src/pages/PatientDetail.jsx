@@ -2298,6 +2298,26 @@ export default function PatientDetail() {
   const [profileError, setProfileError] = useState('')
   const [showExportModal, setShowExportModal] = useState(false)
   const [showLetterModal, setShowLetterModal] = useState(false)
+  // Promote-sample-to-real-case action (only visible when patient.is_sample
+  // is true). The route flips is_sample off and we refresh the local row so
+  // the badge disappears immediately.
+  const [promoting, setPromoting] = useState(false)
+  const [promoteError, setPromoteError] = useState('')
+  async function promoteSampleToReal() {
+    if (!patient?.id) return
+    setPromoting(true)
+    setPromoteError('')
+    try {
+      const res = await apiFetch(`/patients/${patient.id}/promote-sample`, { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not promote sample case.')
+      setPatient(data.patient)
+    } catch (err) {
+      setPromoteError(err.message)
+    } finally {
+      setPromoting(false)
+    }
+  }
 
   useEffect(() => {
     Promise.all([
@@ -2645,6 +2665,29 @@ export default function PatientDetail() {
           )}
         </span>
       </nav>
+
+      {/* Sample-case banner — surfaces the convert-to-real-case action so a
+          trainee who wants to keep the seeded sessions doesn't have to delete
+          and recreate the row. Hidden once promotion succeeds. */}
+      {patient.is_sample && (
+        <div className="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 flex flex-wrap items-center justify-between gap-3">
+          <div className="text-sm text-amber-900">
+            <p className="font-semibold">This is a sample case.</p>
+            <p className="text-xs text-amber-800 mt-0.5">Created by the trainee welcome tour. Convert it to a real case to keep working with the seeded sessions.</p>
+            {promoteError && (
+              <p className="text-xs text-red-700 mt-1">{promoteError}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={promoteSampleToReal}
+            disabled={promoting}
+            className="inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-60"
+          >
+            {promoting ? 'Converting…' : 'Convert to real case'}
+          </button>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
         <div>
