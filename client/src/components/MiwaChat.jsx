@@ -659,6 +659,7 @@ export default function MiwaChat() {
   const realtimePcRef = useRef(null)
   const realtimeStreamRef = useRef(null)
   const realtimeAudioElRef = useRef(null)
+  const realtimeDataChannelRef = useRef(null)
   const realtimeAssistantRef = useRef('')
   const liveStartingRef = useRef(false)
   const liveManualMuteRef = useRef(false)
@@ -671,6 +672,8 @@ export default function MiwaChat() {
   const liveResponseInProgressRef = useRef(false)
   const liveAssistantMessageCommittedRef = useRef(false)
   const liveAssistantCommitTimerRef = useRef(null)
+  const livePendingUserTranscriptRef = useRef('')
+  const livePendingResponseTimerRef = useRef(null)
   const liveEndingRef = useRef(false)
 
   // Keep voiceEnabled ref in sync
@@ -1355,6 +1358,29 @@ When you're done, I'll save this as your profile and refer back to it in every c
     }, delayMs)
   }, [])
 
+  const requestLiveResponse = useCallback((delayMs = 900) => {
+    if (livePendingResponseTimerRef.current) clearTimeout(livePendingResponseTimerRef.current)
+    livePendingResponseTimerRef.current = setTimeout(() => {
+      livePendingResponseTimerRef.current = null
+      const transcript = livePendingUserTranscriptRef.current.trim()
+      livePendingUserTranscriptRef.current = ''
+      if (!transcript || liveEndingRef.current) return
+      setMessages(prev => [...prev, { id: Date.now(), role: 'user', content: transcript }])
+      try {
+        realtimeDataChannelRef.current?.send(JSON.stringify({
+          type: 'response.create',
+          response: {
+            instructions: [
+              'Respond to the full latest clinician turn as one smooth spoken reply.',
+              'Do not split this answer into separate spoken responses.',
+              'Keep it conversational, brief, and focused on the exact case topic.',
+            ].join(' '),
+          },
+        }))
+      } catch {}
+    }, delayMs)
+  }, [])
+
   const cleanupLiveOutputMonitor = useCallback(() => {
     if (liveOutputMonitorRef.current) {
       cancelAnimationFrame(liveOutputMonitorRef.current)
@@ -1422,6 +1448,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
     liveStartingRef.current = false
     try { realtimePcRef.current?.close() } catch {}
     realtimePcRef.current = null
+    realtimeDataChannelRef.current = null
     if (realtimeStreamRef.current) {
       realtimeStreamRef.current.getTracks().forEach(track => track.stop())
       realtimeStreamRef.current = null
@@ -1440,6 +1467,11 @@ When you're done, I'll save this as your profile and refer back to it in every c
       clearTimeout(liveAssistantCommitTimerRef.current)
       liveAssistantCommitTimerRef.current = null
     }
+    if (livePendingResponseTimerRef.current) {
+      clearTimeout(livePendingResponseTimerRef.current)
+      livePendingResponseTimerRef.current = null
+    }
+    livePendingUserTranscriptRef.current = ''
     liveManualMuteRef.current = false
     liveAssistantSpeakingRef.current = false
     liveResponseInProgressRef.current = false
@@ -1496,6 +1528,11 @@ When you're done, I'll save this as your profile and refer back to it in every c
       if (mode !== 'dictation' && isLiveGoodbye(transcript)) {
         setMessages(prev => [...prev, { id: Date.now(), role: 'user', content: transcript }])
         liveEndingRef.current = true
+        livePendingUserTranscriptRef.current = ''
+        if (livePendingResponseTimerRef.current) {
+          clearTimeout(livePendingResponseTimerRef.current)
+          livePendingResponseTimerRef.current = null
+        }
         setLiveVoiceStatus('Ending Miwa Live...')
         window.setTimeout(() => stopLiveVoice(), liveResponseInProgressRef.current ? 1800 : 3000)
         return
@@ -1503,7 +1540,8 @@ When you're done, I'll save this as your profile and refer back to it in every c
       if (mode === 'dictation') {
         setInput(prev => [prev, transcript].filter(Boolean).join(prev ? '\n' : ''))
       } else {
-        setMessages(prev => [...prev, { id: Date.now(), role: 'user', content: transcript }])
+        livePendingUserTranscriptRef.current = [livePendingUserTranscriptRef.current, transcript].filter(Boolean).join(' ')
+        requestLiveResponse()
       }
       return
     }
@@ -1522,7 +1560,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
         scheduleLiveAssistantCommit()
       }
     }
-  }, [scheduleLiveAssistantCommit, scheduleLiveAutoUnmute, setRealtimeAssistantSpeaking, stopLiveVoice])
+  }, [requestLiveResponse, scheduleLiveAssistantCommit, scheduleLiveAutoUnmute, setRealtimeAssistantSpeaking, stopLiveVoice])
 
   const startLiveVoice = useCallback(async (mode = 'conversation') => {
     if (streaming || !realtimeSupported || liveStartingRef.current) return
@@ -1553,6 +1591,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
       stream.getTracks().forEach(track => pc.addTrack(track, stream))
 
       const dc = pc.createDataChannel('oai-events')
+      realtimeDataChannelRef.current = dc
       dc.addEventListener('open', () => {
         setLiveVoiceStatus(mode === 'dictation' ? 'Listening live. Transcript appears in the composer.' : 'Live. Speak naturally.')
         const greetingInstructions = buildLiveGreetingInstructions(mode)

@@ -177,7 +177,9 @@ function sessionForMode({ mode = 'conversation', pageContext = {}, modelOverride
           type: 'server_vad',
           threshold: 0.5,
           prefix_padding_ms: 500,
-          silence_duration_ms: 2200,
+          silence_duration_ms: 2600,
+          create_response: false,
+          interrupt_response: false,
         },
       },
       output: {
