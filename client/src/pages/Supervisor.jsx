@@ -519,6 +519,10 @@ export default function Supervisor() {
     setConversations([])
   }
 
+  const startConsultLive = useCallback(() => {
+    window.dispatchEvent(new CustomEvent('miwa-live-start', { detail: { mode: 'conversation' } }))
+  }, [])
+
   return (
     <div className="flex h-full min-h-0 bg-gray-50 dark:bg-slate-950">
       <aside className="hidden lg:flex w-72 xl:w-80 shrink-0 flex-col border-r border-gray-200 dark:border-white/10 bg-white dark:bg-slate-950">
@@ -592,16 +596,28 @@ export default function Supervisor() {
           </div>
           <div>
             <div className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
-              <span>{activeConversation ? conversationTitle(activeConversation) : 'Miwa'}</span>
+              <span>Miwa</span>
               <span title="Miwa is online" className="h-2 w-2 rounded-full bg-teal-500 shadow-[0_0_0_3px_rgba(20,184,166,0.15)]" />
             </div>
             <div className="text-xs text-gray-500 dark:text-slate-400">
-              {activeConversation ? 'Opened from consult history' : 'Miwa Live is ready to think with you'}
+              {activeConversation ? conversationTitle(activeConversation) : 'Consult Live is ready to think with you'}
             </div>
           </div>
         </div>
 
         <div className="flex items-center gap-4 ml-auto flex-wrap">
+          <button
+            type="button"
+            onClick={startConsultLive}
+            className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-600"
+            title="Start Miwa Live on the Consult page"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6.75 6.75 0 0 0 6.75-6.75M12 18.75A6.75 6.75 0 0 1 5.25 12M12 18.75V21m0 0h3m-3 0H9m3-5.25a3.75 3.75 0 0 1-3.75-3.75V6.75a3.75 3.75 0 1 1 7.5 0V12A3.75 3.75 0 0 1 12 15.75Z" />
+            </svg>
+            Miwa Live
+          </button>
+
           {/* Response style pills */}
           <div className="flex items-center gap-1.5">
             <label className="text-xs text-gray-400 font-medium mr-0.5">Style:</label>

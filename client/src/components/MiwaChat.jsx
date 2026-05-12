@@ -670,6 +670,7 @@ export default function MiwaChat() {
   const liveOutputSilentSinceRef = useRef(null)
   const liveResponseInProgressRef = useRef(false)
   const liveAssistantMessageCommittedRef = useRef(false)
+  const liveAssistantCommitTimerRef = useRef(null)
   const liveEndingRef = useRef(false)
 
   // Keep voiceEnabled ref in sync
@@ -1341,6 +1342,19 @@ When you're done, I'll save this as your profile and refer back to it in every c
     }, delayMs)
   }, [applyLiveMicState])
 
+  const scheduleLiveAssistantCommit = useCallback((delayMs = 2400) => {
+    if (liveAssistantCommitTimerRef.current) clearTimeout(liveAssistantCommitTimerRef.current)
+    liveAssistantCommitTimerRef.current = setTimeout(() => {
+      liveAssistantCommitTimerRef.current = null
+      const text = (realtimeAssistantRef.current || '').trim()
+      if (!text) return
+      setMessages(prev => [...prev, { id: Date.now() + 1, role: 'assistant', content: text }])
+      realtimeAssistantRef.current = ''
+      liveAssistantMessageCommittedRef.current = true
+      setStreamingText('')
+    }, delayMs)
+  }, [])
+
   const cleanupLiveOutputMonitor = useCallback(() => {
     if (liveOutputMonitorRef.current) {
       cancelAnimationFrame(liveOutputMonitorRef.current)
@@ -1422,6 +1436,10 @@ When you're done, I'll save this as your profile and refer back to it in every c
       clearTimeout(liveAutoUnmuteTimerRef.current)
       liveAutoUnmuteTimerRef.current = null
     }
+    if (liveAssistantCommitTimerRef.current) {
+      clearTimeout(liveAssistantCommitTimerRef.current)
+      liveAssistantCommitTimerRef.current = null
+    }
     liveManualMuteRef.current = false
     liveAssistantSpeakingRef.current = false
     liveResponseInProgressRef.current = false
@@ -1442,7 +1460,13 @@ When you're done, I'll save this as your profile and refer back to it in every c
       || event.type === 'output_audio_buffer.started'
     ) {
       liveResponseInProgressRef.current = true
-      if (event.type === 'response.created') liveAssistantMessageCommittedRef.current = false
+      if (event.type === 'response.created') {
+        liveAssistantMessageCommittedRef.current = false
+        if (liveAssistantCommitTimerRef.current) {
+          clearTimeout(liveAssistantCommitTimerRef.current)
+          liveAssistantCommitTimerRef.current = null
+        }
+      }
       setRealtimeAssistantSpeaking(true)
     }
     if (
@@ -1456,6 +1480,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
       } else if (!liveResponseInProgressRef.current) {
         scheduleLiveAutoUnmute(liveOutputHeardAudioRef.current ? 900 : 12000)
       }
+      if (event.type === 'response.done') scheduleLiveAssistantCommit()
     }
     if (event.type === 'response.cancelled' || event.type === 'response.failed') {
       liveResponseInProgressRef.current = false
@@ -1487,16 +1512,17 @@ When you're done, I'll save this as your profile and refer back to it in every c
       setStreamingText(realtimeAssistantRef.current)
       return
     }
-    if (event.type === 'response.done' || event.type === 'response.audio_transcript.done' || event.type === 'response.output_audio_transcript.done') {
-      const text = (event.transcript || realtimeAssistantRef.current || '').trim()
-      if (text && !liveAssistantMessageCommittedRef.current) {
-        liveAssistantMessageCommittedRef.current = true
-        setMessages(prev => [...prev, { id: Date.now() + 1, role: 'assistant', content: text }])
-        realtimeAssistantRef.current = ''
-        setStreamingText('')
+    if (event.type === 'response.audio_transcript.done' || event.type === 'response.output_audio_transcript.done') {
+      const transcript = (event.transcript || '').trim()
+      if (transcript && !realtimeAssistantRef.current.includes(transcript)) {
+        realtimeAssistantRef.current = [realtimeAssistantRef.current.trim(), transcript].filter(Boolean).join(' ')
+        setStreamingText(realtimeAssistantRef.current)
+      }
+      if (!liveResponseInProgressRef.current && !liveAssistantMessageCommittedRef.current) {
+        scheduleLiveAssistantCommit()
       }
     }
-  }, [scheduleLiveAutoUnmute, setRealtimeAssistantSpeaking, stopLiveVoice])
+  }, [scheduleLiveAssistantCommit, scheduleLiveAutoUnmute, setRealtimeAssistantSpeaking, stopLiveVoice])
 
   const startLiveVoice = useCallback(async (mode = 'conversation') => {
     if (streaming || !realtimeSupported || liveStartingRef.current) return
@@ -1576,6 +1602,21 @@ When you're done, I'll save this as your profile and refer back to it in every c
       liveStartingRef.current = false
     }
   }, [buildLiveGreetingInstructions, currentPageContext, handleRealtimeEvent, liveVoice, realtimeSupported, startLiveOutputMonitor, stopLiveVoice, stopSpeaking, streaming])
+
+  useEffect(() => {
+    const startFromPage = event => {
+      const mode = event?.detail?.mode || 'conversation'
+      setIsOpen(true)
+      startLiveVoice(mode)
+    }
+    const stopFromPage = () => stopLiveVoice()
+    window.addEventListener('miwa-live-start', startFromPage)
+    window.addEventListener('miwa-live-stop', stopFromPage)
+    return () => {
+      window.removeEventListener('miwa-live-start', startFromPage)
+      window.removeEventListener('miwa-live-stop', stopFromPage)
+    }
+  }, [startLiveVoice, stopLiveVoice])
 
   useEffect(() => () => stopLiveVoice(), [stopLiveVoice])
 

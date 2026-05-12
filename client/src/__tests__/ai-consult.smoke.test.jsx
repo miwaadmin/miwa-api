@@ -56,6 +56,7 @@ describe('AI consult smoke tests', () => {
 
     renderWithProviders(<Supervisor />, { route: '/consult' })
 
+    expect(await screen.findByRole('button', { name: /miwa live/i })).toBeInTheDocument()
     const input = await screen.findByPlaceholderText(/ask miwa a clinical question/i)
     await user.type(input, 'How should I think about this case?')
     await user.click(screen.getByRole('button', { name: /send message/i }))
