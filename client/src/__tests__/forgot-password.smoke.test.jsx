@@ -71,7 +71,8 @@ describe('forgot password smoke tests', () => {
 
     renderAt(<ResetPassword />, '/reset-password?token=reset-token-123')
 
-    const [password, confirm] = screen.getAllByDisplayValue('')
+    const password = screen.getByLabelText(/^new password$/i)
+    const confirm = screen.getByLabelText(/confirm new password/i)
     await user.type(password, 'short')
     await user.type(confirm, 'different')
     await user.click(screen.getByRole('button', { name: /update password/i }))
@@ -101,7 +102,8 @@ describe('forgot password smoke tests', () => {
     )
 
     renderAt(<ResetPassword />, '/reset-password?token=expired-token')
-    const [password, confirm] = screen.getAllByDisplayValue('')
+    const password = screen.getByLabelText(/^new password$/i)
+    const confirm = screen.getByLabelText(/confirm new password/i)
     await user.type(password, 'new-password-1234')
     await user.type(confirm, 'new-password-1234')
     await user.click(screen.getByRole('button', { name: /update password/i }))

@@ -20,9 +20,11 @@ describe('pricing smoke tests', () => {
 
     const planLinks = screen.getAllByRole('link', { name: /start free trial/i })
     expect(planLinks).toHaveLength(3)
-    planLinks.forEach(link => {
-      expect(link).toHaveAttribute('href', '/register')
-    })
+    expect(planLinks.map(link => link.getAttribute('href'))).toEqual([
+      '/register?tier=trainee',
+      '/register?tier=associate',
+      '/register?tier=licensed',
+    ])
 
     expect(screen.queryByText(/group practice/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: /group/i })).not.toBeInTheDocument()

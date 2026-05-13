@@ -21,6 +21,14 @@ function renderRegister() {
   )
 }
 
+function renderRegisterAt(route) {
+  return render(
+    <MemoryRouter initialEntries={[route]}>
+      <Register />
+    </MemoryRouter>,
+  )
+}
+
 async function submitTier(user, tierName, fields = {}) {
   await user.click(screen.getByRole('button', { name: tierName }))
   await user.type(screen.getByLabelText(/first name/i), fields.firstName || 'Jane')
@@ -47,6 +55,14 @@ describe('register tier smoke tests', () => {
     expect(screen.getByRole('button', { name: /associate/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /licensed therapist/i })).toBeInTheDocument()
     expect(screen.queryByText(/group practice/i)).not.toBeInTheDocument()
+  })
+
+  it('opens directly to a tier form when pricing passes a tier param', () => {
+    renderRegisterAt('/register?tier=associate')
+
+    expect(screen.getByText(/associate .* free trial/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/associate number/i)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /trainee \/ intern/i })).not.toBeInTheDocument()
   })
 
   it.each([

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, Link, Navigate } from 'react-router-dom'
+import { useNavigate, Link, Navigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { MiwaLogo } from '../components/Sidebar'
 import { API_BASE } from '../lib/api'
@@ -36,9 +36,13 @@ const CREDENTIAL_TYPES = [
 export default function Register() {
   const { therapist, login } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const initialTier = CREDENTIAL_TYPES.some(ct => ct.id === searchParams.get('tier'))
+    ? searchParams.get('tier')
+    : 'licensed'
 
-  const [step, setStep] = useState(1)
-  const [credType, setCredType] = useState('licensed')
+  const [step, setStep] = useState(searchParams.has('tier') ? 2 : 1)
+  const [credType, setCredType] = useState(initialTier)
   const [form, setForm] = useState({
     first_name: '', last_name: '',
     email: '', password: '', confirm_password: '',

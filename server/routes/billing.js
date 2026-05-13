@@ -26,6 +26,7 @@ const PRICE_IDS = {
 };
 
 const VALID_PLANS = ['trainee', 'associate', 'solo', 'group'];
+const SELF_SERVE_CHECKOUT_PLANS = ['trainee', 'associate', 'solo'];
 const INVOICE_STATUSES = ['draft', 'open', 'paid', 'void', 'refunded', 'failed'];
 
 function sanitizeStripeError(err) {
@@ -658,14 +659,14 @@ router.get('/status', requireAuth, async (req, res) => {
   }
 });
 
-router.post('/create-checkout-session', requireAuth, async (req, res) => {
+async function createSubscriptionCheckoutSession(req, res) {
   try {
     const stripe = getStripe();
     const db = getAsyncDb();
-    const { plan, additionalSeats = 0 } = req.body;
+    const { plan } = req.body;
 
-    if (!VALID_PLANS.includes(plan)) {
-      return res.status(400).json({ error: `Invalid plan. Choose one of: ${VALID_PLANS.join(', ')}.` });
+    if (!SELF_SERVE_CHECKOUT_PLANS.includes(plan)) {
+      return res.status(400).json({ error: `Invalid plan. Choose one of: ${SELF_SERVE_CHECKOUT_PLANS.join(', ')}.` });
     }
 
     const appUrl = process.env.APP_URL || 'http://localhost:3000';
@@ -685,22 +686,10 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
       await persistIfNeeded();
     }
 
-    let lineItems;
-    if (plan === 'group' && typeof priceVal === 'object') {
-      const { base, perSeat } = priceVal;
-      if (!base) throw new Error('STRIPE_PRICE_GROUP_BASE is not configured.');
-      lineItems = [{ price: base, quantity: 1 }];
-      if (perSeat && additionalSeats > 0) {
-        lineItems.push({ price: perSeat, quantity: additionalSeats });
-      }
-    } else {
-      lineItems = [{ price: priceVal, quantity: 1 }];
-    }
-
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       customer: customerId,
-      line_items: lineItems,
+      line_items: [{ price: priceVal, quantity: 1 }],
       success_url: `${appUrl}/settings?subscribed=1`,
       cancel_url: `${appUrl}/settings?canceled=1`,
       subscription_data: {
@@ -714,7 +703,10 @@ router.post('/create-checkout-session', requireAuth, async (req, res) => {
     console.error('[billing] create-checkout-session error:', sanitizeStripeError(err));
     res.status(500).json({ error: 'Internal server error' });
   }
-});
+}
+
+router.post('/create-checkout-session', requireAuth, createSubscriptionCheckoutSession);
+router.post('/checkout', requireAuth, createSubscriptionCheckoutSession);
 
 router.post('/portal', requireAuth, async (req, res) => {
   try {

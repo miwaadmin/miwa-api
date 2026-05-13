@@ -63,7 +63,7 @@ test('subscription checkout creates Stripe customers and sessions for purchasabl
         password: 'test-password-1234',
       });
 
-      const res = await api('POST', '/api/billing/create-checkout-session', { plan }, cookie);
+      const res = await api('POST', '/api/billing/checkout', { plan }, cookie);
       assert.equal(res.status, 200);
       assert.match(res.body.url, /^https:\/\/checkout\.stripe\.test\/session\//);
 
@@ -84,7 +84,7 @@ test('subscription checkout creates Stripe customers and sessions for purchasabl
   }
 });
 
-test('subscription checkout validates plan names and keeps group as legacy-only backend path', async (t) => {
+test('subscription checkout validates plan names and rejects group from self-serve checkout', async (t) => {
   await startTestServer();
   t.after(stopTestServer);
 
@@ -93,18 +93,15 @@ test('subscription checkout validates plan names and keeps group as legacy-only 
     password: 'test-password-1234',
   });
 
-  const invalid = await api('POST', '/api/billing/create-checkout-session', { plan: 'family' }, cookie);
+  const invalid = await api('POST', '/api/billing/checkout', { plan: 'family' }, cookie);
   assert.equal(invalid.status, 400);
   assert.match(invalid.body.error, /Invalid plan/);
 
-  const group = await api('POST', '/api/billing/create-checkout-session', {
+  const group = await api('POST', '/api/billing/checkout', {
     plan: 'group',
     additionalSeats: 2,
   }, cookie);
-  assert.equal(group.status, 200);
-  const session = stripeState.sessions.at(-1);
-  assert.deepEqual(session.line_items, [
-    { price: 'price_group_base_smoke', quantity: 1 },
-    { price: 'price_group_seat_smoke', quantity: 2 },
-  ]);
+  assert.equal(group.status, 400);
+  assert.match(group.body.error, /Invalid plan/);
+  assert.equal(group.body.error.includes('group'), false);
 });
