@@ -52,6 +52,7 @@ const updateTreatmentGoalHandler = require('./handlers/update_treatment_goal');
 const delegateAnalysisHandler = require('./handlers/delegate_analysis');
 const searchPracticeInsightsHandler = require('./handlers/search_practice_insights');
 const scheduleTaskHandler = require('./handlers/schedule_task');
+const listScheduledTasksHandler = require('./handlers/list_scheduled_tasks');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -147,15 +148,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     case 'schedule_task':
       return await scheduleTaskHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
-    case 'list_scheduled_tasks': {
-      const status = args.status || 'pending';
-      const where = status === 'all' ? '' : "AND status = 'pending'";
-      const tasks = await db.all(
-        `SELECT id, task_type, description, scheduled_for, status, created_at FROM agent_scheduled_tasks WHERE therapist_id = ? ${where} ORDER BY scheduled_for ASC LIMIT 20`,
-        therapistId
-      );
-      return { tasks, count: tasks.length };
-    }
+    case 'list_scheduled_tasks':
+      return await listScheduledTasksHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     // Feature 4: Background Tasks with Notifications
     case 'run_background_task': {
