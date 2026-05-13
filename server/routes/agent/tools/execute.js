@@ -29,6 +29,7 @@ const { runBackgroundTask } = require('../lib/background-tasks');
 const { AGENT_RESOURCES } = require('./data/resources');
 const { APP_HELP_KB } = require('./data/help-kb');
 const { PORTAL_LINK_TTL_DAYS } = require('./definitions');
+const getClientAssessmentsHandler = require('./handlers/get_client_assessments');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -40,28 +41,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
   }
 
   switch (name) {
-    case 'get_client_assessments': {
-      const patient = await resolvePatient(args.client_id);
-      if (!patient) return { error: 'Client not found' };
-      const data = await getClientAssessments(db, therapistId, patient.id, args.limit || 5);
-      if (data) {
-        const latest = data.assessments?.[data.assessments.length - 1];
-        emitAssistantAction(send, createAssistantAction('risk_review', {
-          title: `Review ${data.clientName}'s scores`,
-          summary: latest
-            ? `${latest.type || 'Assessment'} ${latest.score ?? 'n/a'}${latest.severity ? ` (${latest.severity})` : ''}`
-            : 'No recent assessment scores available.',
-          status: data.assessments?.length ? 'ready' : 'empty',
-          payload: {
-            patientId: patient.id,
-            clientId: data.clientId,
-            clientName: data.clientName,
-            assessments: data.assessments || [],
-          },
-        }));
-      }
-      return data || { error: 'No assessment data found' };
-    }
+    case 'get_client_assessments':
+      return await getClientAssessmentsHandler({ args, db, therapistId, send, resolvePatient });
 
     case 'get_client_sessions': {
       const patient = await resolvePatient(args.client_id);
