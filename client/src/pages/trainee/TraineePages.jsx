@@ -823,50 +823,11 @@ function GrowthEventForm({ onSaved }) {
   )
 }
 
-export function TransitionPanel() {
-  const [plan, setPlan] = useState(null)
-  const [selected, setSelected] = useState([])
-  const [done, setDone] = useState(false)
-  const load = () => apiFetch('/agent/trainee/transition-plan').then(r => r.ok ? r.json() : null).then(setPlan).catch(() => {})
-  useEffect(() => { load() }, [])
-  const toggle = id => setSelected(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id])
-  const convert = async () => {
-    const res = await apiFetch('/agent/trainee/transition-to-licensed', { method: 'POST', body: JSON.stringify({ case_ids: selected }) })
-    if (res.ok) {
-      setDone(true)
-      load()
-    }
-  }
-  if (!plan) return null
-  return (
-    <section className="rounded-2xl border border-brand-100 bg-white p-5">
-      <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Transition to licensed mode</p>
-      <h2 className="mt-1 text-sm font-bold text-gray-950">Carry your clinical operating system forward</h2>
-      <div className="mt-3 grid md:grid-cols-2 gap-3">
-        <div className="rounded-xl bg-brand-50 p-3">
-          <p className="text-xs font-bold text-brand-800">Preserved</p>
-          <ul className="mt-2 space-y-1 text-xs text-brand-900">{plan.preserved?.map(item => <li key={item}>- {item}</li>)}</ul>
-        </div>
-        <div className="rounded-xl bg-teal-50 p-3">
-          <p className="text-xs font-bold text-teal-800">Unlocked</p>
-          <ul className="mt-2 space-y-1 text-xs text-teal-900">{plan.unlocks?.map(item => <li key={item}>- {item}</li>)}</ul>
-        </div>
-      </div>
-      <div className="mt-4 space-y-2">
-        <p className="text-xs font-bold text-gray-700">Optional case conversion</p>
-        {plan.convertible_cases?.slice(0, 8).map(c => (
-          <label key={c.id} className="flex items-start gap-2 rounded-xl border border-gray-200 px-3 py-2 text-xs text-gray-700">
-            <input type="checkbox" checked={selected.includes(c.id)} onChange={() => toggle(c.id)} className="mt-0.5" />
-            <span><strong>{c.label}</strong>: {c.recommendation}</span>
-          </label>
-        ))}
-      </div>
-      <button onClick={convert} className="mt-3 rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white">
-        {done ? 'Transition saved' : 'Switch to private-practice mode'}
-      </button>
-    </section>
-  )
-}
+// TransitionPanel was removed — trainees now stay in trainee mode for as
+// long as they're trainees. The backend routes
+// /api/agent/trainee/transition-plan and /api/agent/trainee/transition-to-licensed
+// in server/routes/agent/trainee.js are still mounted but no longer reachable
+// from the UI; flagged as a candidate for follow-up cleanup.
 
 export function TraineeLearning() {
   const navigate = useNavigate()

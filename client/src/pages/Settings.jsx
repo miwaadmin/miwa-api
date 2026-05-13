@@ -6,7 +6,6 @@ import { API_BASE, apiFetch } from '../lib/api'
 import { therapistInitials } from '../lib/avatar'
 import { COMMON_TIMEZONES } from '../lib/dateUtils'
 import OutreachSettings from '../components/OutreachSettings'
-import { TransitionPanel } from './trainee/TraineePages'
 import { isTraineeCredential } from '../lib/workspaceMode'
 
 const API = API_BASE
@@ -1170,7 +1169,9 @@ export default function Settings() {
       {/* Proactive Outreach Settings */}
       <OutreachSettings />
 
-      {therapist?.workspace_mode === 'agency_companion' && <TransitionPanel />}
+      {/* TransitionPanel removed — trainees no longer have a self-serve switch
+          to licensed mode from Settings. The /api/agent/trainee/transition-* routes
+          remain mounted but are no longer reachable from UI. */}
 
       {/* Re-run trainee onboarding wizard — trainees + associates only */}
       {isTraineeCredential(therapist) && <TraineeWelcomeRerunCard />}
