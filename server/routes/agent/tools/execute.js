@@ -41,6 +41,7 @@ const generateReportHandler = require('./handlers/generate_report');
 const getResourcesHandler = require('./handlers/get_resources');
 const getBillingStatusHandler = require('./handlers/get_billing_status');
 const getOutcomesDashboardHandler = require('./handlers/get_outcomes_dashboard');
+const getScheduleHandler = require('./handlers/get_schedule');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -89,36 +90,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     case 'get_outcomes_dashboard':
       return await getOutcomesDashboardHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
-    case 'get_schedule': {
-      const daysAhead = args.days_ahead || 7;
-      const limit = args.limit || 10;
-      const rows = await db.all(
-        `SELECT a.scheduled_start, a.duration_minutes, a.appointment_type, a.location, a.status, a.notes, p.client_id, p.display_name
-         FROM appointments a JOIN patients p ON p.id = a.patient_id
-         WHERE a.therapist_id = ? AND a.status != 'cancelled'
-           AND a.scheduled_start >= datetime('now') AND a.scheduled_start <= datetime('now', '+' || ? || ' days')
-         ORDER BY a.scheduled_start ASC LIMIT ?`,
-        therapistId, daysAhead, limit
-      );
-      const appointments = rows.map(r => ({
-        client: r.client_id || r.display_name,
-        type: r.appointment_type,
-        start: r.scheduled_start,
-        duration: r.duration_minutes,
-        location: r.location || 'Not specified',
-        status: r.status,
-      }));
-      emitAssistantAction(send, createAssistantAction('prepare_session', {
-        title: rows.length ? 'Upcoming sessions' : 'No upcoming sessions',
-        summary: rows.length ? `${rows.length} appointment${rows.length === 1 ? '' : 's'} in the next ${daysAhead} days.` : 'Your schedule is clear for that window.',
-        status: rows.length ? 'ready' : 'empty',
-        payload: {
-          appointments,
-          focusAreas: appointments.slice(0, 3).map(a => `${a.client} · ${a.type || 'session'} · ${a.start ? new Date(a.start).toLocaleString('en-US', { weekday: 'short', hour: 'numeric', minute: '2-digit' }) : 'unscheduled'}`),
-        },
-      }));
-      return { count: rows.length, days_ahead: daysAhead, appointments };
-    }
+    case 'get_schedule':
+      return await getScheduleHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     case 'get_app_help': {
       const topic = (args.topic || '').toLowerCase();
