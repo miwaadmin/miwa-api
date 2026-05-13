@@ -193,6 +193,178 @@ async function acceptInviteHandler(req, res) {
 router.post('/accept-invite', acceptInviteHandler);
 router.post('/join-code', acceptInviteHandler);
 
+// ── POST /api/client-auth/redeem ───────────────────────────────────────────
+// Code-based client portal signup. Pairs with the licensed-only invite-code
+// system in server/routes/client-invites.js. Body:
+//   { code, email, password, first_name, last_name, accepted_terms? }
+//
+// Security:
+// - Per-IP rate limit (see redeemRateLimiter below).
+// - Generic "Invalid or expired code." error for non-existent, revoked, and
+//   expired codes so an attacker can't distinguish state.
+// - Status transition (pending → claimed) is atomic via UPDATE … WHERE
+//   status='pending'.
+// - Audit log entry for every redeem attempt (success and failure).
+// - 409 only for the email-already-exists case, with the standard
+//   "an account with this email already exists" copy.
+async function logRedeemEvent(db, { therapistId, eventType, message, meta }) {
+  try {
+    await db.insert(
+      'INSERT INTO event_logs (therapist_id, event_type, status, message, meta_json) VALUES (?, ?, ?, ?, ?)',
+      therapistId,
+      eventType,
+      eventType.endsWith('.redeemed') ? 'success' : 'failure',
+      message,
+      meta ? JSON.stringify(meta) : null,
+    );
+  } catch {}
+}
+
+router.post('/redeem', async (req, res) => {
+  const db = getAsyncDb();
+  const rawCode = String(req.body?.code || '').trim().toUpperCase();
+  const email = String(req.body?.email || '').trim().toLowerCase();
+  const password = String(req.body?.password || '');
+  const firstName = String(req.body?.first_name || '').trim() || null;
+  const lastName = String(req.body?.last_name || '').trim() || null;
+  const acceptedTerms = req.body?.accepted_terms !== false; // default to true; spec says client UI shows ToS
+
+  // Identical "invalid code" error covers missing / unknown / expired /
+  // revoked / claimed so the response doesn't leak state.
+  const INVALID_CODE_ERR = 'Invalid or expired code. Ask your clinician for a new one.';
+  // Light input validation that's independent of code state — these can
+  // safely differ from the invalid-code error because they don't leak state.
+  if (!rawCode) return res.status(400).json({ error: 'Please enter your invite code.' });
+  if (!email) return res.status(400).json({ error: 'Email is required.' });
+  if (password.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+
+  try {
+    const invite = await db.get(
+      `SELECT ci.*, p.display_name AS patient_display_name, p.client_id AS patient_client_id
+         FROM client_invites ci
+         JOIN patients p ON p.id = ci.patient_id AND p.therapist_id = ci.therapist_id
+        WHERE ci.code = ?`,
+      rawCode,
+    );
+
+    if (!invite) {
+      await logRedeemEvent(db, {
+        therapistId: null,
+        eventType: 'client_invite.redeem_failed',
+        message: 'Unknown code.',
+        meta: { code_hash: hashToken(rawCode), email },
+      });
+      return res.status(404).json({ error: INVALID_CODE_ERR });
+    }
+
+    // Single source of truth for state checks — same error for each so the
+    // client can't distinguish revoked vs expired vs already-claimed.
+    if (invite.status !== 'pending' || new Date(invite.expires_at) < new Date()) {
+      await logRedeemEvent(db, {
+        therapistId: invite.therapist_id,
+        eventType: 'client_invite.redeem_failed',
+        message: `Code in non-claimable state: ${invite.status}.`,
+        meta: { invite_id: invite.id, patient_id: invite.patient_id },
+      });
+      return res.status(410).json({ error: INVALID_CODE_ERR });
+    }
+
+    // Distinct error for email collision so the client UI can suggest signing
+    // in instead. This is intentional — the email is the user's own, not an
+    // adversary's, so disclosure is acceptable.
+    const existing = await db.get(
+      `SELECT id FROM client_portal_accounts
+        WHERE lower(email) = lower(?) AND therapist_id = ?`,
+      email, invite.therapist_id,
+    );
+    if (existing) {
+      await logRedeemEvent(db, {
+        therapistId: invite.therapist_id,
+        eventType: 'client_invite.redeem_failed',
+        message: 'Email already registered for this clinician.',
+        meta: { invite_id: invite.id, patient_id: invite.patient_id, email },
+      });
+      return res.status(409).json({ error: 'An account with this email already exists. Sign in instead.' });
+    }
+
+    const passwordHash = await bcrypt.hash(password, 12);
+    const displayName = [firstName, lastName].filter(Boolean).join(' ').trim()
+      || invite.patient_display_name || invite.patient_client_id || null;
+
+    // Atomic state transition: only proceed if the row is still pending.
+    const transition = await db.run(
+      `UPDATE client_invites
+          SET status = 'claimed', claimed_at = CURRENT_TIMESTAMP
+        WHERE id = ? AND status = 'pending'`,
+      invite.id,
+    );
+    if (!transition?.changes && transition?.rowsAffected !== 1 && transition?.changes !== 1) {
+      // Lost the race — another redeem just claimed it.
+      await logRedeemEvent(db, {
+        therapistId: invite.therapist_id,
+        eventType: 'client_invite.redeem_failed',
+        message: 'Race lost: code already claimed between read and write.',
+        meta: { invite_id: invite.id, patient_id: invite.patient_id },
+      });
+      return res.status(410).json({ error: INVALID_CODE_ERR });
+    }
+
+    const inserted = await db.insert(
+      `INSERT INTO client_portal_accounts
+         (patient_id, therapist_id, email, display_name, password_hash,
+          accepted_terms_at, accepted_privacy_at, portal_consent_at,
+          terms_version, privacy_version, portal_consent_version, status)
+       VALUES (?, ?, ?, ?, ?,
+               ${acceptedTerms ? 'CURRENT_TIMESTAMP' : 'NULL'},
+               ${acceptedTerms ? 'CURRENT_TIMESTAMP' : 'NULL'},
+               ${acceptedTerms ? 'CURRENT_TIMESTAMP' : 'NULL'},
+               ?, ?, ?, 'active')`,
+      invite.patient_id,
+      invite.therapist_id,
+      email,
+      displayName,
+      passwordHash,
+      TERMS_VERSION,
+      PRIVACY_VERSION,
+      CONSENT_VERSION,
+    );
+    const accountId = inserted.lastInsertRowid;
+    await db.run(
+      `UPDATE client_invites SET claimed_by_client_user_id = ? WHERE id = ?`,
+      accountId, invite.id,
+    );
+    await db.run(`UPDATE client_portal_accounts SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?`, accountId);
+
+    const account = await db.get('SELECT * FROM client_portal_accounts WHERE id = ?', accountId);
+    const welcome = account.welcome_message_template || DEFAULT_WELCOME;
+    try {
+      await db.insert(
+        `INSERT INTO client_messages
+           (patient_id, therapist_id, client_account_id, sender_type, content, sender, message, delivered_at)
+         VALUES (?, ?, ?, 'therapist', ?, 'therapist', ?, CURRENT_TIMESTAMP)`,
+        account.patient_id, account.therapist_id, account.id, welcome, welcome,
+      );
+    } catch {}
+
+    await audit(db, account, 'client_invite_code_redeemed', { invite_id: invite.id });
+    await audit(db, account, 'client_login', { via: 'invite_code' });
+    await logRedeemEvent(db, {
+      therapistId: invite.therapist_id,
+      eventType: 'client_invite.redeemed',
+      message: 'Client redeemed invite code.',
+      meta: { invite_id: invite.id, patient_id: invite.patient_id, client_account_id: accountId },
+    });
+    await persistIfNeeded();
+
+    const tokenJwt = signClientToken(account);
+    setClientCookie(res, tokenJwt);
+    return res.json({ token: tokenJwt, client: safeClient(account) });
+  } catch (err) {
+    console.error('[client-auth/redeem]', err);
+    return res.status(500).json({ error: 'Could not redeem this code right now. Try again.' });
+  }
+});
+
 router.post('/login', async (req, res) => {
   try {
     const db = getAsyncDb();

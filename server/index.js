@@ -133,6 +133,17 @@ app.use('/api/auth/forgot-password',  authLimiter);
 app.use('/api/auth/reset-password',   authLimiter);
 app.use('/api/client-auth/login',     authLimiter);
 app.use('/api/client-auth/accept-invite', authLimiter);
+// Brute-force protection on invite-code redemption: 10 attempts/min/IP
+// matches the spec. Errors are intentionally generic ("invalid or expired
+// code") so a successful brute-force can't distinguish unknown vs revoked
+// vs expired from the response body.
+app.use('/api/client-auth/redeem', rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many invite-code attempts. Please wait a minute and try again.' },
+}));
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/client-auth', clientPortalEnabled, require('./routes/client-auth'));
 app.use('/api/public', publicLimiter, require('./routes/public')); // client-facing assessment links
