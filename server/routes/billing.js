@@ -38,6 +38,80 @@ function sanitizeStripeError(err) {
   };
 }
 
+function sanitizedWebhookErrorMessage(err) {
+  return JSON.stringify(sanitizeStripeError(err)).slice(0, 500);
+}
+
+function isUniqueConstraintError(err) {
+  const code = String(err?.code || err?.errno || '');
+  const message = String(err?.message || '');
+  return code === '23505' || /unique/i.test(message);
+}
+
+async function recordStripeWebhookEvent(db, event) {
+  try {
+    const result = await db.insert(
+      `INSERT INTO stripe_webhook_events (stripe_event_id, event_type, status)
+       VALUES (?, ?, 'received')`,
+      event.id,
+      event.type,
+    );
+    return { inserted: true, id: result.lastInsertRowid };
+  } catch (err) {
+    if (isUniqueConstraintError(err)) {
+      console.warn(`[billing] Duplicate webhook event ignored: ${event.id}`);
+      return { inserted: false, duplicate: true };
+    }
+    throw err;
+  }
+}
+
+async function markStripeWebhookEventProcessed(db, eventRowId) {
+  if (!eventRowId) return;
+  await db.run(
+    `UPDATE stripe_webhook_events
+        SET status = 'processed', processed_at = CURRENT_TIMESTAMP, error_message = NULL
+      WHERE id = ?`,
+    eventRowId,
+  );
+}
+
+async function markStripeWebhookEventFailed(db, eventRowId, err) {
+  if (!eventRowId) return;
+  await db.run(
+    `UPDATE stripe_webhook_events
+        SET status = 'failed', error_message = ?
+      WHERE id = ?`,
+    sanitizedWebhookErrorMessage(err),
+    eventRowId,
+  );
+}
+
+async function auditStripeWebhookSignatureFailure(db, req, sig, err) {
+  try {
+    await db.insert(
+      `INSERT INTO event_logs (therapist_id, event_type, status, message, meta_json)
+       VALUES (?, ?, ?, ?, ?)`,
+      null,
+      'stripe_webhook_signature_failure',
+      'blocked',
+      'Stripe webhook signature verification failed',
+      JSON.stringify({
+        ip: req.ip || null,
+        signature_prefix: sig ? `${String(sig).slice(0, 20)}...` : null,
+        error: sanitizedWebhookErrorMessage(err),
+      }),
+    );
+  } catch {}
+}
+
+let forceHandlerErrorForTest = null;
+
+async function dispatchStripeEvent(db, event) {
+  if (forceHandlerErrorForTest) throw forceHandlerErrorForTest;
+  return handleStripeEvent(db, event);
+}
+
 function centsFromDollars(value) {
   const num = Number(value);
   if (!Number.isFinite(num) || num <= 0) return null;
@@ -1290,11 +1364,21 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     event = stripe.webhooks.constructEvent(req.body, sig, secret);
   } catch (err) {
     console.error('[billing] Webhook signature error:', sanitizeStripeError(err));
+    await auditStripeWebhookSignatureFailure(getAsyncDb(), req, sig, err);
     return res.status(400).send('Webhook signature verification failed');
   }
 
+  const db = getAsyncDb();
+  let stripeEventRowId = null;
   try {
-    const result = await handleStripeEvent(getAsyncDb(), event);
+    const recorded = await recordStripeWebhookEvent(db, event);
+    if (recorded.duplicate) {
+      return res.json({ received: true });
+    }
+    stripeEventRowId = recorded.id;
+
+    const result = await dispatchStripeEvent(db, event);
+    await markStripeWebhookEventProcessed(db, stripeEventRowId);
     if (result.handled) {
       console.log('[billing] Stripe webhook handled:', {
         type: result.type,
@@ -1306,16 +1390,26 @@ router.post('/webhook', express.raw({ type: 'application/json' }), async (req, r
     }
   } catch (handlerErr) {
     console.error('[billing] Webhook handler error:', sanitizeStripeError(handlerErr));
+    try { await markStripeWebhookEventFailed(db, stripeEventRowId, handlerErr); } catch {}
+    return res.status(500).send('Webhook handler error');
   }
 
-  try { await persistIfNeeded(); } catch {}
+  try {
+    await persistIfNeeded();
+  } catch (err) {
+    console.warn('[billing] persistIfNeeded after webhook failed:', err?.message || err);
+  }
   res.json({ received: true });
 });
 
 router._test = {
   handleStripeEvent,
+  recordStripeWebhookEvent,
   resolvePriceId,
   sanitizeStripeError,
+  _forceHandlerError(err) {
+    forceHandlerErrorForTest = err || null;
+  },
 };
 
 module.exports = router;
