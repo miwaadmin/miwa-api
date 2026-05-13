@@ -34,6 +34,7 @@ const getClientSessionsHandler = require('./handlers/get_client_sessions');
 const getCaseloadSummaryHandler = require('./handlers/get_caseload_summary');
 const scheduleAppointmentHandler = require('./handlers/schedule_appointment');
 const cancelAppointmentHandler = require('./handlers/cancel_appointment');
+const sendAssessmentSmsHandler = require('./handlers/send_assessment_sms');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -60,41 +61,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     case 'cancel_appointment':
       return await cancelAppointmentHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
-    case 'send_assessment_sms': {
-      const patient = await resolvePatient(args.client_id);
-      if (!patient) return { error: 'Client not found' };
-
-      const phone = normalisePhone(patient.phone);
-      if (!phone) return { error: `${patient.client_id} has no mobile number on file` };
-      if (!patient.sms_consent) return { error: `${patient.client_id} does not have recorded SMS consent` };
-
-      const ASSESSMENT_TEMPLATES = { 'PHQ-9': 'phq9', 'GAD-7': 'gad7', 'PCL-5': 'pcl5' };
-      const asmtType = args.assessment_type || 'PHQ-9';
-      const templateKey = ASSESSMENT_TEMPLATES[asmtType] || asmtType.toLowerCase().replace(/[^a-z0-9]/g, '');
-      const token = crypto.randomBytes(24).toString('base64url');
-      const sendAt = args.send_at ? new Date(args.send_at).toISOString() : new Date().toISOString();
-
-      await db.run(
-        `INSERT INTO assessment_links (token, patient_id, therapist_id, template_type, expires_at)
-         VALUES (?, ?, ?, ?, datetime('now', '+30 days'))`,
-        token, patient.id, therapistId, templateKey
-      );
-      await db.insert(
-        `INSERT INTO scheduled_sends (therapist_id, patient_id, assessment_type, token, phone, send_at, custom_message)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        therapistId, patient.id, asmtType, token, phone, sendAt, null
-      );
-      await persistIfNeeded();
-
-      const isNow = new Date(sendAt) <= new Date(Date.now() + 60_000);
-      return {
-        status: 'queued',
-        assessment_type: asmtType,
-        client_id: patient.client_id,
-        send_timing: isNow ? 'immediately' : `scheduled for ${new Date(sendAt).toLocaleString()}`,
-        phone_masked: phone.replace(/\d(?=\d{4})/g, '•'),
-      };
-    }
+    case 'send_assessment_sms':
+      return await sendAssessmentSmsHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     case 'batch_send_assessments': {
       const candidates = await findPatientsForBatchAssessment(db, therapistId, args.filter || null);
