@@ -45,6 +45,7 @@ const getScheduleHandler = require('./handlers/get_schedule');
 const getAppHelpHandler = require('./handlers/get_app_help');
 const getSessionBriefHandler = require('./handlers/get_session_brief');
 const executeWorkflowHandler = require('./handlers/execute_workflow');
+const getWorkflowStatusHandler = require('./handlers/get_workflow_status');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -111,28 +112,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     case 'execute_workflow':
       return await executeWorkflowHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
-    case 'get_workflow_status': {
-      try {
-        const { getWorkflowStatus, listWorkflows } = require('../services/workflow-engine');
-        if (args.workflow_id) {
-          const status = await getWorkflowStatus(args.workflow_id, therapistId);
-          if (!status) return { error: 'Workflow not found' };
-          return {
-            id: status.id,
-            type: status.workflow_type,
-            label: status.label,
-            status: status.status,
-            progress: `${status.completedSteps}/${status.totalSteps} steps completed`,
-            current_step: status.current_step,
-            steps: status.steps.map(s => ({ step: s.step_number, tool: s.tool_name, description: s.description, status: s.status })),
-          };
-        }
-        const workflows = await listWorkflows(therapistId);
-        return { workflows: workflows.map(w => ({ id: w.id, type: w.workflow_type, label: w.label, status: w.status, created_at: w.created_at })) };
-      } catch (err) {
-        return { error: `Workflow status: ${err.message}` };
-      }
-    }
+    case 'get_workflow_status':
+      return await getWorkflowStatusHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     // Pillar 3: Treatment Plan Agent
     case 'create_treatment_plan': {
