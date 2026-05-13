@@ -2,6 +2,8 @@ import { useState, useMemo, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch, apiUpload } from '../lib/api'
 import { renderClinical } from '../lib/renderClinical'
+import { useAuth } from '../context/AuthContext'
+import { isTraineeCredential } from '../lib/workspaceMode'
 
 
 const ORIENTATIONS = [
@@ -266,6 +268,14 @@ function importedFieldTargetKey(key) {
 
 export default function Workspace() {
   const navigate = useNavigate()
+  const { therapist } = useAuth()
+  // Trainee mode is "lightly trainee-fied": the page header acknowledges that
+  // the agency EHR is the system of record, and licensed-mode-only CTAs (send
+  // to client portal, dispatch outcome measure, billing line item, SMS from
+  // the note) are gated. Today's Workspace doesn't bake in those CTAs, so the
+  // current trainee gate primarily adjusts the framing copy. Future licensed-
+  // only features should look at `isTrainee` before rendering.
+  const isTrainee = isTraineeCredential(therapist)
   const draft = useMemo(() => loadWorkspaceDraft(), [])
   const [patients, setPatients] = useState([])
   const [linkedPatientId, setLinkedPatientId] = useState('')
@@ -930,9 +940,13 @@ export default function Workspace() {
         <div>
           <h1 className="text-xl font-bold text-gray-900">Session Workspace</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {sessionType === 'intake'
-              ? 'Complete an intake assessment. Generates a biopsychosocial, clinical formulation, diagnostic impressions, treatment plan, and supervision guidance. Progress notes (SOAP/BIRP/DAP/GIRP/DMH SIR) are for ongoing sessions.'
-              : `Enter session notes and get a polished ${form.noteFormat} progress note, clinical thinking, diagnosis support, and supervision guidance.`}
+            {isTrainee
+              ? (sessionType === 'intake'
+                  ? 'Draft a biopsychosocial, clinical formulation, diagnostic impressions, and supervision questions. Your agency EHR remains the system of record — copy the polished output back into it when ready.'
+                  : `Draft a polished ${form.noteFormat} progress note, clinical thinking, and supervision questions. Your agency EHR remains the system of record — copy the polished output back into it when ready.`)
+              : (sessionType === 'intake'
+                  ? 'Complete an intake assessment. Generates a biopsychosocial, clinical formulation, diagnostic impressions, treatment plan, and supervision guidance. Progress notes (SOAP/BIRP/DAP/GIRP/DMH SIR) are for ongoing sessions.'
+                  : `Enter session notes and get a polished ${form.noteFormat} progress note, clinical thinking, diagnosis support, and supervision guidance.`)}
           </p>
         </div>
         {Object.values(form).some(v => v) && (
@@ -1924,7 +1938,11 @@ export default function Workspace() {
                             disabled={savingToChart}
                             className="btn-primary text-xs"
                           >
-                            {savingToChart ? 'Saving…' : linkedPatientId ? 'Save to client' : 'Save & create client'}
+                            {savingToChart
+                              ? 'Saving…'
+                              : linkedPatientId
+                                ? (isTrainee ? 'Save to Miwa chart' : 'Save to client')
+                                : (isTrainee ? 'Save & create Miwa chart' : 'Save & create client')}
                           </button>
                         </div>
                       </div>
