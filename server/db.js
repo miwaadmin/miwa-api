@@ -1143,6 +1143,27 @@ function createSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_client_portal_invites_patient ON client_portal_invites(patient_id, therapist_id, created_at);
 
+    -- Code-based client invites (licensed-only feature). Distinct from
+    -- client_portal_invites above, which is the legacy token-link mechanism.
+    -- The clinician generates a human-readable code (MIWA-XXXX-XXXX), hands
+    -- it to the client out-of-band, and the client redeems it at the portal
+    -- signup page. See server/routes/client-invites.js for the generate /
+    -- list / revoke endpoints and client-auth.js POST /redeem for the
+    -- claim flow.
+    CREATE TABLE IF NOT EXISTS client_invites (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_id INTEGER NOT NULL REFERENCES patients(id),
+      therapist_id INTEGER NOT NULL REFERENCES therapists(id),
+      code TEXT UNIQUE NOT NULL,
+      generated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      expires_at DATETIME NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      claimed_by_client_user_id INTEGER REFERENCES client_portal_accounts(id),
+      claimed_at DATETIME
+    );
+    CREATE INDEX IF NOT EXISTS idx_client_invites_patient ON client_invites(patient_id, therapist_id);
+    CREATE INDEX IF NOT EXISTS idx_client_invites_therapist ON client_invites(therapist_id, generated_at);
+
     CREATE TABLE IF NOT EXISTS client_portal_password_resets (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       client_account_id INTEGER NOT NULL REFERENCES client_portal_accounts(id),
