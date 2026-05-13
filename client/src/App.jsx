@@ -60,7 +60,6 @@ import { isNativeApp } from './lib/api'
 import { isAgencyCompanionMode, needsTraineeOnboarding, needsWorkspaceModeOnboarding } from './lib/workspaceMode'
 import {
   TraineeCases,
-  TraineeDrafts,
   TraineeHours,
   TraineeSupervision,
   TraineeToday,
@@ -288,7 +287,8 @@ export default function App() {
                 <Route path="/t/dashboard" element={<TraineeOnboardingGuard><TraineeToday /></TraineeOnboardingGuard>} />
                 <Route path="/t/today" element={<Navigate to="/t/dashboard" replace />} />
                 <Route path="/t/cases" element={<TraineeOnboardingGuard><TraineeCases /></TraineeOnboardingGuard>} />
-                <Route path="/t/drafts" element={<TraineeOnboardingGuard><TraineeDrafts /></TraineeOnboardingGuard>} />
+                {/* /t/drafts removed — drafting now lives inside Session Workspace */}
+                <Route path="/t/drafts" element={<Navigate to="/t/workspace" replace />} />
                 <Route path="/t/supervision" element={<TraineeOnboardingGuard><TraineeSupervision /></TraineeOnboardingGuard>} />
                 <Route path="/t/hours" element={<TraineeOnboardingGuard><TraineeHours /></TraineeOnboardingGuard>} />
                 <Route path="/t/learning" element={<Navigate to="/consult" replace />} />

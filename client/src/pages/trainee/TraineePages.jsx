@@ -308,7 +308,7 @@ export function TraineeToday() {
               <h2 className="text-sm font-bold text-gray-950">Notes to draft or copy</h2>
               <p className="text-xs text-gray-500">Unsigned notes are your trainee drafting queue for now.</p>
             </div>
-            <Link to="/t/drafts" className="text-xs font-bold text-brand-600 hover:text-brand-700">View drafts</Link>
+            <Link to="/t/workspace" className="text-xs font-bold text-brand-600 hover:text-brand-700">Open workspace</Link>
           </div>
           {sessions.length === 0 ? (
             <div className="p-8 text-center text-sm text-gray-500">No active note drafts. Quiet is allowed.</div>
@@ -494,66 +494,10 @@ function CaseSnapshotBoard() {
   )
 }
 
-export function TraineeDrafts() {
-  return (
-    <div className="p-6 max-w-5xl mx-auto space-y-5">
-      <div>
-        <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Note drafts</p>
-        <h1 className="mt-1 text-2xl font-bold text-gray-950">Drafts to review and copy</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Draft, tighten, discuss in supervision, then copy clean notes into the required agency EHR.
-        </p>
-      </div>
-      <AgencyProfilePanel />
-      <DraftQueue />
-    </div>
-  )
-}
-
-function DraftQueue() {
-  const { loading, sessions } = useTraineeData()
-  const navigate = useNavigate()
-  if (loading) return <div className="rounded-2xl border border-gray-200 bg-white p-6 text-sm text-gray-500">Loading drafts...</div>
-  if (!sessions.length) {
-    return <EmptyState title="Draft a note for your agency EHR" body="Bring your clinical thinking here, not to random AI tools. Miwa keeps note drafting structured around supervision, risk, and copy-to-EHR readiness." to="/workspace" cta="Open session workspace" />
-  }
-  return (
-    <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden divide-y divide-gray-100">
-      {sessions.map(session => {
-        const checklist = (() => {
-          try { return session.copy_to_ehr_checklist_json ? JSON.parse(session.copy_to_ehr_checklist_json) : {} } catch { return {} }
-        })()
-        const happenedAt = session.session_date || session.created_at
-        const copiedAt = session.copied_to_ehr_at
-        const daysLate = happenedAt && !copiedAt
-          ? Math.max(0, Math.floor((Date.now() - new Date(happenedAt).getTime()) / 86400000))
-          : 0
-        const complete = [
-          checklist.draft_completed || session.draft_completed_at,
-          checklist.reviewed_by_trainee || session.reviewed_by_trainee_at,
-          checklist.risk_safety_checked || session.risk_safety_checked_at,
-          checklist.copied_to_agency_ehr || session.copied_to_ehr_at,
-        ].filter(Boolean).length
-        return (
-        <button
-          key={session.id}
-          type="button"
-          onClick={() => navigate(`/patients/${session.patient_id}/sessions/${session.id}`)}
-          className="w-full px-5 py-4 text-left hover:bg-gray-50 transition-colors"
-        >
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-bold text-gray-950">{session.display_name || session.client_id || 'Case'}</span>
-            <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">{session.trainee_note_status || 'Draft'}</span>
-            {daysLate > 0 && <span className="rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-700">{daysLate}d since session</span>}
-            {session.needs_supervision && <span className="rounded-full bg-brand-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-brand-700">Bring to supervision</span>}
-          </div>
-          <p className="mt-1 text-xs text-gray-500">{complete}/4 copy-to-EHR checks complete. Open to make it more clinical, concise, aligned with goals, or ready to copy.</p>
-        </button>
-        )
-      })}
-    </div>
-  )
-}
+// TraineeDrafts page and its DraftQueue were removed — the 4-step copy-to-EHR
+// pipeline now lives inside Session Workspace (/t/workspace) where the editor
+// and the queue share the same surface. The session-row data model (per-step
+// timestamps on sessions plus copy_to_ehr_checklist_json) is unchanged.
 
 function isUsefulSupervisionItem(item) {
   const title = String(item?.title || '')
