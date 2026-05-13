@@ -30,6 +30,7 @@ const { AGENT_RESOURCES } = require('./data/resources');
 const { APP_HELP_KB } = require('./data/help-kb');
 const { PORTAL_LINK_TTL_DAYS } = require('./definitions');
 const getClientAssessmentsHandler = require('./handlers/get_client_assessments');
+const getClientSessionsHandler = require('./handlers/get_client_sessions');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -44,12 +45,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     case 'get_client_assessments':
       return await getClientAssessmentsHandler({ args, db, therapistId, send, resolvePatient });
 
-    case 'get_client_sessions': {
-      const patient = await resolvePatient(args.client_id);
-      if (!patient) return { error: 'Client not found' };
-      const data = await getClientSessions(db, therapistId, patient.id, args.limit || 5);
-      return data || { error: 'No session data found' };
-    }
+    case 'get_client_sessions':
+      return await getClientSessionsHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     case 'get_caseload_summary': {
       return await getCaseloadSummaryFiltered(db, therapistId, args.filter || null);
