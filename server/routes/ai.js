@@ -270,6 +270,17 @@ function cleanJson(text) {
     .trim();
 }
 
+function formatClinicalInput(value) {
+  if (Array.isArray(value)) return value.filter(Boolean).join(', ');
+  if (value && typeof value === 'object') {
+    return Object.entries(value)
+      .filter(([, v]) => v)
+      .map(([key, v]) => `${key}: ${v}`)
+      .join('; ');
+  }
+  return value || '';
+}
+
 function normalizeFormFieldValue(field) {
   try {
     const name = field.getName?.() || '';
@@ -335,7 +346,11 @@ Return valid JSON only with exactly this shape:
     "ageRange": string,
     "referralSource": string,
     "livingSituation": string,
+    "reasonForTherapy": string,
     "symptomOnsetDurationSeverity": string,
+    "symptomChecklist": string,
+    "symptomOnsetDetail": string,
+    "problemTypes": string,
     "precipitatingMaintainingFactors": string,
     "culturalIdentityContext": string,
     "educationEmploymentContext": string,
@@ -345,12 +360,40 @@ Return valid JSON only with exactly this shape:
     "medicalHistory": string,
     "medications": string,
     "substanceUse": string,
+    "substanceRows": string,
     "riskScreening": string,
+    "riskFlags": string,
+    "expandedRiskSafety": string,
+    "weaponsAccess": string,
+    "systemInvolvement": string,
+    "previousTreatmentSystems": string,
     "familySocialHistory": string,
+    "familyDiagnosisHistory": string,
+    "familyHistoryDetail": string,
     "traumaHistory": string,
+    "traumaIncidentDetail": string,
+    "reportingDisclosureDetail": string,
     "mentalStatusObservations": string,
+    "mseStructured": string,
+    "structuredMseDetail": string,
     "strengthsProtectiveFactors": string,
+    "copingSkills": string,
+    "currentCopingRating": string,
+    "bestCopingRating": string,
+    "copingRatingRationale": string,
+    "pastHelpfulSolutions": string,
+    "protectiveResiliencyDetail": string,
     "functionalImpairments": string,
+    "identitySexualOrientation": string,
+    "identityGender": string,
+    "identityPersonalDefinitions": string,
+    "workSchoolDetails": string,
+    "interpersonalRecreation": string,
+    "medicalConditionChecklist": string,
+    "medicalConditionsDetail": string,
+    "medicationRows": string,
+    "emergencyContactsAvailability": string,
+    "childYouthDetail": string,
     "treatmentGoal": string,
     "firstName": string,
     "lastName": string,
@@ -408,7 +451,11 @@ ${extractedText.substring(0, 24000)}
       ageRange: fields.ageRange || '',
       referralSource: fields.referralSource || '',
       livingSituation: fields.livingSituation || '',
+      reasonForTherapy: fields.reasonForTherapy || '',
       symptomOnsetDurationSeverity: fields.symptomOnsetDurationSeverity || '',
+      symptomChecklist: fields.symptomChecklist || '',
+      symptomOnsetDetail: fields.symptomOnsetDetail || '',
+      problemTypes: fields.problemTypes || '',
       precipitatingMaintainingFactors: fields.precipitatingMaintainingFactors || '',
       culturalIdentityContext: fields.culturalIdentityContext || '',
       educationEmploymentContext: fields.educationEmploymentContext || '',
@@ -418,12 +465,40 @@ ${extractedText.substring(0, 24000)}
       medicalHistory: fields.medicalHistory || '',
       medications: fields.medications || '',
       substanceUse: fields.substanceUse || '',
+      substanceRows: fields.substanceRows || '',
       riskScreening: fields.riskScreening || '',
+      riskFlags: fields.riskFlags || '',
+      expandedRiskSafety: fields.expandedRiskSafety || '',
+      weaponsAccess: fields.weaponsAccess || '',
+      systemInvolvement: fields.systemInvolvement || '',
+      previousTreatmentSystems: fields.previousTreatmentSystems || '',
       familySocialHistory: fields.familySocialHistory || '',
+      familyDiagnosisHistory: fields.familyDiagnosisHistory || '',
+      familyHistoryDetail: fields.familyHistoryDetail || '',
       traumaHistory: fields.traumaHistory || '',
+      traumaIncidentDetail: fields.traumaIncidentDetail || '',
+      reportingDisclosureDetail: fields.reportingDisclosureDetail || '',
       mentalStatusObservations: fields.mentalStatusObservations || '',
+      mseStructured: fields.mseStructured || '',
+      structuredMseDetail: fields.structuredMseDetail || '',
       strengthsProtectiveFactors: fields.strengthsProtectiveFactors || '',
+      copingSkills: fields.copingSkills || '',
+      currentCopingRating: fields.currentCopingRating || '',
+      bestCopingRating: fields.bestCopingRating || '',
+      copingRatingRationale: fields.copingRatingRationale || '',
+      pastHelpfulSolutions: fields.pastHelpfulSolutions || '',
+      protectiveResiliencyDetail: fields.protectiveResiliencyDetail || '',
       functionalImpairments: fields.functionalImpairments || '',
+      identitySexualOrientation: fields.identitySexualOrientation || '',
+      identityGender: fields.identityGender || '',
+      identityPersonalDefinitions: fields.identityPersonalDefinitions || '',
+      workSchoolDetails: fields.workSchoolDetails || '',
+      interpersonalRecreation: fields.interpersonalRecreation || '',
+      medicalConditionChecklist: fields.medicalConditionChecklist || '',
+      medicalConditionsDetail: fields.medicalConditionsDetail || '',
+      medicationRows: fields.medicationRows || '',
+      emergencyContactsAvailability: fields.emergencyContactsAvailability || '',
+      childYouthDetail: fields.childYouthDetail || '',
       treatmentGoal: fields.treatmentGoal || '',
       firstName: fields.firstName || '',
       lastName: fields.lastName || '',
@@ -1520,6 +1595,8 @@ router.post('/workspace', async (req, res) => {
       verbosity = 'standard',
       // intake-specific
       ageRange, referralSource, livingSituation,
+      intakeLevel = 'standard', intakeAddons = [],
+      reasonForTherapy, symptomChecklist, symptomOnsetDetail, problemTypes,
       symptomOnsetDurationSeverity, precipitatingMaintainingFactors,
       culturalIdentityContext, educationEmploymentContext,
       legalMandatedContext, safetyPlanDetails,
@@ -1527,10 +1604,22 @@ router.post('/workspace', async (req, res) => {
       familySocialHistory, mentalStatusObservations,
       medicalHistory, medications, traumaHistory,
       strengthsProtectiveFactors, functionalImpairments,
+      copingSkills, copingInventoryDetail, currentCopingRating, bestCopingRating,
+      copingRatingRationale, pastHelpfulSolutions, riskFlags, expandedRiskSafety,
+      weaponsAccess, systemInvolvement, previousTreatmentSystems,
+      identitySexualOrientation, identityGender, identityPersonalDefinitions,
+      workSchoolDetails, interpersonalRecreation, familyDiagnosisHistory,
+      familyHistoryDetail, medicalConditionChecklist, medicalConditionsDetail,
+      medicationRows, substanceRows, mseStructured, structuredMseDetail,
+      emergencyContactsAvailability, childYouthDetail, traumaIncidentDetail,
+      reportingDisclosureDetail, protectiveResiliencyDetail,
     } = _b2;
     const userRole = req.therapist.user_role || 'licensed';
     const isTrainee = userRole === 'trainee';
     const isIntake = sessionType === 'intake';
+    const intakeAddonsList = Array.isArray(intakeAddons)
+      ? intakeAddons
+      : String(intakeAddons || '').split(',').map(item => item.trim()).filter(Boolean);
 
     // ── Supervision section (shared across both modes) ────────────────────
     const supervisionSection = `===SUPERVISION===
@@ -1555,49 +1644,87 @@ ${isIntake
 5. **Red flags or priorities** — Safety, ethical, legal, or documentation concerns — name them directly. If none, note what you'd be watching for.`}`;
 
     // ── INTAKE prompt ─────────────────────────────────────────────────────
-    const intakePrompt = `You are Miwa, an expert clinical supervisor with 25+ years of experience. The clinician has just completed an intake session. Using the de-identified intake information below, generate four clearly separated clinical sections using the exact markers provided.
+    const intakePrompt = `You are Miwa, an expert clinical supervisor with 25+ years of experience. The clinician has just completed an intake session. Using the de-identified intake information below, generate five clearly separated clinical sections using the exact markers provided.
 
 **Intake Information:**
 - Case Type: ${caseType || 'Individual'}
 - Therapeutic Orientation: ${therapeuticOrientation || 'Integrative'}
 - Clinician Role: ${isTrainee ? 'Trainee / Pre-Licensed' : 'Licensed Clinician'}
+- Intake Depth: ${intakeLevel || 'standard'}
+- Selected Intake Add-ons: ${intakeAddonsList.length ? intakeAddonsList.join(', ') : '(none selected)'}
 - Age Range: ${ageRange || '(not provided)'}
 - Referral Source: ${referralSource || '(not provided)'}
 - Living Situation: ${livingSituation || '(not provided)'}
 - Presenting Problem: ${presentingProblem || '(not provided)'}
+- Reason for Therapy Checklist: ${formatClinicalInput(reasonForTherapy) || '(not provided)'}
 - Symptom Onset / Duration / Severity: ${symptomOnsetDurationSeverity || '(not provided)'}
+- Symptom Checklist: ${formatClinicalInput(symptomChecklist) || '(not provided)'}
+- Symptom Onset Detail: ${symptomOnsetDetail || '(not provided)'}
+- Problem Types: ${formatClinicalInput(problemTypes) || '(not provided)'}
 - Precipitating / Maintaining Factors: ${precipitatingMaintainingFactors || '(not provided)'}
 - Cultural / Identity Context: ${culturalIdentityContext || '(not provided)'}
+- Sexual Orientation: ${identitySexualOrientation || '(not provided)'}
+- Gender Identity: ${identityGender || '(not provided)'}
+- Personal Identity Definitions: ${identityPersonalDefinitions || '(not provided)'}
 - School / Work / Role Functioning: ${educationEmploymentContext || '(not provided)'}
+- Work / School Detail: ${workSchoolDetails || '(not provided)'}
 - Legal / Mandated Reporting Context: ${legalMandatedContext || '(not provided)'}
 - Mental Health History: ${mentalHealthHistory || '(not provided)'}
+- Prior Treatment / Systems Involvement: ${formatClinicalInput(systemInvolvement) || '(not provided)'}
+- Prior Treatment / Systems Detail: ${previousTreatmentSystems || '(not provided)'}
 - Medical History: ${medicalHistory || '(not provided)'}
+- Medical Condition Checklist: ${formatClinicalInput(medicalConditionChecklist) || '(not provided)'}
+- Medical Detail: ${medicalConditionsDetail || '(not provided)'}
 - Medications: ${medications || '(not provided)'}
+- Medication Detail: ${medicationRows || '(not provided)'}
 - Substance Use: ${substanceUse || '(not provided)'}
+- Substance Detail: ${substanceRows || '(not provided)'}
 - Risk Screening: ${riskScreening || '(not provided)'}
+- Risk Flags: ${formatClinicalInput(riskFlags) || '(not provided)'}
+- Expanded Risk / Safety Detail: ${expandedRiskSafety || '(not provided)'}
+- Weapons / Means Safety: ${weaponsAccess || '(not provided)'}
 - Safety Plan / Crisis Plan: ${safetyPlanDetails || '(not provided)'}
 - Family / Social History: ${familySocialHistory || '(not provided)'}
+- Family Diagnosis History: ${formatClinicalInput(familyDiagnosisHistory) || '(not provided)'}
+- Family History Detail: ${familyHistoryDetail || '(not provided)'}
+- Relationships / Recreation: ${interpersonalRecreation || '(not provided)'}
 - Trauma History: ${traumaHistory || '(not provided)'}
+- Trauma Incident Detail: ${traumaIncidentDetail || '(not provided)'}
+- Reporting / Disclosure Detail: ${reportingDisclosureDetail || '(not provided)'}
 - Mental Status Observations: ${mentalStatusObservations || '(not provided)'}
+- Structured MSE: ${formatClinicalInput(mseStructured) || '(not provided)'}
+- Structured MSE Detail: ${structuredMseDetail || '(not provided)'}
 - Strengths / Protective Factors: ${strengthsProtectiveFactors || '(not provided)'}
+- Coping Skills: ${formatClinicalInput(copingSkills) || '(not provided)'}
+- Coping Scale: current ${currentCopingRating || '(not provided)'} / best last year ${bestCopingRating || '(not provided)'}
+- Coping Rating Rationale: ${copingRatingRationale || '(not provided)'}
+- Past Helpful Solutions: ${pastHelpfulSolutions || '(not provided)'}
+- Protective / Resiliency Detail: ${protectiveResiliencyDetail || '(not provided)'}
 - Functional Impairments / Medical Necessity: ${functionalImpairments || '(not provided)'}
+- Emergency Contacts / Availability: ${emergencyContactsAvailability || '(not provided)'}
+- Child / Youth Detail: ${childYouthDetail || '(not provided)'}
 - Initial Treatment Goals: ${treatmentGoal || '(not provided)'}
 
 Return exactly five sections using these markers (do not change the markers):
 
 ===DOCUMENTATION===
-Write a comprehensive biopsychosocial intake assessment. This is the primary intake document — it stays as-is and is NOT converted into a SOAP/BIRP note. Use professional clinical language. Include:
+Write a biopsychosocial intake assessment matched to the selected intake depth. Quick = concise clinical snapshot. Standard = full biopsychosocial with core domains. Comprehensive = detailed licensed-mode assessment with selected add-on modules integrated as organized subsections. This is the primary intake document — it stays as-is and is NOT converted into a SOAP/BIRP note. Use professional clinical language. Include:
 - Identifying Information and Referral: brief de-identified demographics and reason for referral
-- Presenting Problem: detailed clinical description of chief complaint, onset, duration, severity, precipitating and maintaining factors
-- Mental Health History: prior diagnoses, hospitalizations, treatment history, current medications
-- Substance Use History: current and past use, patterns, impact on functioning
-- Medical History: relevant medical conditions noted
+- Presenting Problem: detailed clinical description of chief complaint, selected reason-for-therapy categories, onset, duration, severity, precipitating and maintaining factors
+- Symptom / Problem Checklist: summarize selected symptoms and problem types only when provided, including onset/detail when available
+- Coping / Functioning Scale: include coping skills, current/best ratings, rationale, and past helpful solutions only when provided
+- Mental Health History: prior diagnoses, hospitalizations, treatment history, systems involvement, and current medications
+- Substance Use History: current and past use, patterns, impact on functioning, and detail rows if provided
+- Medical History: relevant medical conditions, medication detail, head injury/surgery/hospitalization detail when provided
 - Family and Social History: family mental health history, key relationships, cultural/social context, support system
-- Cultural / Identity / Role Context: cultural identity, language, spirituality, school/work, caregiving, legal, financial, and role-functioning context when provided
-- Mental Status Examination: appearance, behavior, affect, mood, speech, thought process/content, cognition, insight, judgment
-- Risk Assessment: SI, HI, self-harm, abuse/neglect, mandated reporting/legal considerations, safety planning, crisis plan, protective actions
+- Cultural / Identity / Role Context: cultural identity, sexual orientation, gender identity, personal definition of identity labels, language, spirituality, school/work, caregiving, legal, financial, and role-functioning context when provided
+- Mental Status Examination: integrate structured MSE dropdowns and free-text observations
+- Risk Assessment: SI, HI, self-harm, abuse/neglect, means safety, mandated reporting/legal considerations, safety planning, crisis plan, protective actions
+- Trauma / Reporting: incident details, DCFS/CPS/police/VOC/reporting details only when provided
+- Emergency / Youth Detail: emergency contacts, availability, custody, foster/school/discipline detail only when provided
 - Functional Assessment: impact on work, relationships, daily living
 - Strengths and Protective Factors: client resources and resilience factors
+Do not create empty headings for add-ons that have no data.
 
 ===CLINICAL_THINKING===
 Write a concise clinical formulation in short paragraphs. Include:
@@ -1606,6 +1733,7 @@ Write a concise clinical formulation in short paragraphs. Include:
 - Perpetuating factors (what maintains the problem)
 - Protective factors (strengths, supports, resilience)
 - Case conceptualization within the ${therapeuticOrientation || 'integrative'} framework
+- Intake completeness: 2-4 high-yield missing questions or add-on modules to complete next, based on the selected intake depth
 Aim for about 180-260 words total.
 
 ===DIAGNOSIS===
@@ -1623,6 +1751,7 @@ Write initial treatment plan recommendations. Include:
 - Recommended therapeutic approach based on presentation and ${therapeuticOrientation || 'integrative'} orientation
 - Initial treatment goals (3-5 measurable goals with target metrics if applicable)
 - Recommended standardized assessments to administer (PHQ-9, GAD-7, PCL-5, etc.)
+- Recommended follow-up assessment modules or checklist domains to complete if gaps remain
 - Referrals needed (psychiatry, medical, social services, etc.)
 - Safety planning considerations if risk factors present
 Aim for about 200-300 words total.
@@ -1713,7 +1842,7 @@ Formatting rules for ALL sections:
 IMPORTANT FORMATTING: Write naturally like a colleague talking. Do NOT use markdown headers (##, ###), bold markers (**), or numbered lists unless absolutely necessary. Just write in clean, conversational paragraphs. Use dashes sparingly for short lists only.`,
         },
         { role: 'user', content: prompt },
-      ], { maxTokens: isIntake ? 5000 : 3500 });
+      ], { maxTokens: isIntake ? 6500 : 3500 });
     const text = (result.text || '').replace(/[\u2014\u2013]/g, ' ');
     if (text) {
       fullText += text;

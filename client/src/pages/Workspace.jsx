@@ -13,6 +13,92 @@ const ORIENTATIONS = [
   'Psychodynamic', 'Attachment-Based', 'Motivational Interviewing', 'ACT', 'Integrative / Other',
 ]
 
+const INTAKE_LEVELS = [
+  { id: 'quick', label: 'Quick', desc: 'Fast first-session snapshot', addons: [] },
+  { id: 'standard', label: 'Standard', desc: 'Core biopsychosocial intake', addons: ['symptoms', 'risk', 'systems', 'mse'] },
+  {
+    id: 'comprehensive',
+    label: 'Comprehensive',
+    desc: 'Full licensed-mode assessment',
+    addons: ['symptoms', 'coping', 'risk', 'systems', 'identity', 'workSchool', 'relationships', 'family', 'medical', 'substance', 'mse', 'emergency', 'trauma'],
+  },
+]
+
+const INTAKE_ADDONS = [
+  { id: 'symptoms', label: 'Symptom Onset', desc: 'Checklist plus onset/severity detail' },
+  { id: 'coping', label: 'Coping Scale', desc: 'Skills inventory and 1-100 rating' },
+  { id: 'risk', label: 'Risk & Safety', desc: 'Expanded SI/HI/self-harm/means review' },
+  { id: 'systems', label: 'Treatment / Systems', desc: 'Prior therapy, courts, CPS, medical systems' },
+  { id: 'identity', label: 'Identity', desc: 'Culture, gender, orientation, lived context' },
+  { id: 'workSchool', label: 'Work / School', desc: 'Role functioning and performance impact' },
+  { id: 'relationships', label: 'Relationships', desc: 'Supports, important people, recreation' },
+  { id: 'family', label: 'Family History', desc: 'Family mental health and life events' },
+  { id: 'medical', label: 'Medical Detail', desc: 'Conditions, surgeries, head injury, exams' },
+  { id: 'substance', label: 'Substance Detail', desc: 'Substances, frequency, amount, impact' },
+  { id: 'mse', label: 'Structured MSE', desc: 'Dropdown-ready mental status observations' },
+  { id: 'emergency', label: 'Emergency', desc: 'Contacts, availability, crisis logistics' },
+  { id: 'youth', label: 'Child / Youth', desc: 'Custody, placement, discipline, school' },
+  { id: 'trauma', label: 'Trauma Detail', desc: 'Incident, reports, VOC/DCFS/police details' },
+]
+
+const REASON_FOR_THERAPY_OPTIONS = [
+  'Anxiety', 'Depression', 'Trauma / PTSD', 'Relationship conflict', 'Family conflict',
+  'Grief / loss', 'Life transition', 'Work / school stress', 'Parenting', 'Court ordered',
+  'Domestic violence', 'Sexual assault', 'Abuse / neglect', 'Substance use', 'Other',
+]
+
+const SYMPTOM_OPTIONS = [
+  'Depressed mood', 'Anxiety / worry', 'Panic attacks', 'Sleep changes', 'Appetite changes',
+  'Irritability / anger', 'Mood swings', 'Social withdrawal', 'Low self-esteem', 'Somatic complaints',
+  'Intrusive memories', 'Avoidance', 'Hypervigilance', 'Concentration problems', 'Impulsivity',
+  'Hearing or seeing things others do not', 'Paranoid thoughts', 'Grandiose thoughts',
+]
+
+const PROBLEM_TYPE_OPTIONS = [
+  'Communication', 'Financial stress', 'Legal stress', 'Marital / partner conflict',
+  'Family violence', 'Conflict with children', 'Threatened violence', 'Sibling conflict',
+  'Death of loved one', 'Blended family stress', 'School / learning', 'Work / unemployment',
+  'Relationship loss', 'Major life loss', 'Housing instability', 'Other',
+]
+
+const COPING_OPTIONS = [
+  'Talking to friend/family', 'Exercise', 'Walking', 'Music', 'Reading', 'Writing / journaling',
+  'Meditation / breathing', 'Yoga', 'Faith / spirituality', 'Watching movies / shows',
+  'Bath / self-care', 'Driving', 'Dancing', 'Massage/bodywork', 'Avoidance / distraction',
+]
+
+const RISK_FLAG_OPTIONS = [
+  'Past suicide attempt', 'Current suicidal ideation', 'Self-harm history', 'Current self-harm urges',
+  'Homicidal ideation', 'Weapons access', 'Domestic violence concern', 'Child abuse / neglect concern',
+  'Elder/dependent adult abuse concern', 'Bullying', 'Gang exposure', 'Substance-related safety risk',
+]
+
+const SYSTEM_INVOLVEMENT_OPTIONS = [
+  'Prior outpatient therapy', 'Psychiatry / medication management', 'Psychiatric hospitalization',
+  'Emergency / crisis services', 'Criminal court', 'Family court', 'Children\'s court',
+  'CPS / DCFS', 'Probation / parole', 'School support team', '12-step / recovery support',
+]
+
+const FAMILY_DIAGNOSIS_OPTIONS = [
+  'Depression', 'Anxiety', 'Bipolar disorder', 'Schizophrenia / psychosis', 'Alcohol use disorder',
+  'Drug use disorder', 'Suicide attempt/death', 'Trauma history', 'Domestic violence',
+]
+
+const MEDICAL_CONDITION_OPTIONS = [
+  'Chronic pain', 'Sleep disorder', 'Head injury / concussion', 'Seizures', 'Diabetes',
+  'Cardiac condition', 'Autoimmune condition', 'Pregnancy / postpartum', 'Eating / nutrition concern',
+  'Recent surgery/hospitalization', 'Medication side effects', 'None reported',
+]
+
+const MSE_OPTIONS = {
+  appearance: ['Appropriate', 'Disheveled', 'Guarded', 'Tearful', 'Agitated', 'Unable to assess'],
+  attitude: ['Cooperative', 'Guarded', 'Withdrawn', 'Hostile', 'Suspicious', 'Engaged'],
+  affect: ['Full range', 'Constricted', 'Flat', 'Labile', 'Tearful', 'Anxious'],
+  mood: ['Euthymic', 'Anxious', 'Depressed', 'Irritable', 'Angry', 'Elevated'],
+  thoughtProcess: ['Linear', 'Circumstantial', 'Tangential', 'Disorganized', 'Racing thoughts'],
+  insightJudgment: ['Good', 'Fair', 'Limited', 'Poor', 'Unable to assess'],
+}
+
 const ONGOING_TABS = [
   { id: 'documentation', label: 'Documentation' },
   { id: 'clinicalThinking', label: 'Clinical Thinking' },
@@ -48,6 +134,17 @@ function createEmptyWorkspaceForm() {
     members: [],
     noteFormat: 'SOAP',
     therapeuticOrientation: 'Integrative / Other',
+    intakeLevel: 'standard',
+    intakeAddons: INTAKE_LEVELS.find(level => level.id === 'standard')?.addons || [],
+    reasonForTherapy: [],
+    symptomChecklist: [],
+    problemTypes: [],
+    copingSkills: [],
+    riskFlags: [],
+    systemInvolvement: [],
+    familyDiagnosisHistory: [],
+    medicalConditionChecklist: [],
+    mseStructured: {},
     presentingProblem: '',
     treatmentGoal: '',
     sessionNotes: '',
@@ -76,6 +173,30 @@ function createEmptyWorkspaceForm() {
     traumaHistory: '',
     strengthsProtectiveFactors: '',
     functionalImpairments: '',
+    symptomOnsetDetail: '',
+    copingInventoryDetail: '',
+    currentCopingRating: '',
+    bestCopingRating: '',
+    copingRatingRationale: '',
+    pastHelpfulSolutions: '',
+    expandedRiskSafety: '',
+    weaponsAccess: '',
+    previousTreatmentSystems: '',
+    identitySexualOrientation: '',
+    identityGender: '',
+    identityPersonalDefinitions: '',
+    workSchoolDetails: '',
+    interpersonalRecreation: '',
+    familyHistoryDetail: '',
+    medicalConditionsDetail: '',
+    medicationRows: '',
+    substanceRows: '',
+    structuredMseDetail: '',
+    emergencyContactsAvailability: '',
+    childYouthDetail: '',
+    traumaIncidentDetail: '',
+    reportingDisclosureDetail: '',
+    protectiveResiliencyDetail: '',
     newClientFirstName: '',
     newClientLastName: '',
     newClientPhone: '',
@@ -152,8 +273,15 @@ function cleanPlainText(text) {
 
 function combineLabeledParts(parts) {
   return parts
-    .filter(([, value]) => value && value.trim())
-    .map(([label, value]) => `${label}: ${value.trim()}`)
+    .map(([label, value]) => {
+      if (Array.isArray(value)) return [label, value.filter(Boolean).join(', ')]
+      if (value && typeof value === 'object') {
+        return [label, Object.entries(value).filter(([, v]) => v).map(([k, v]) => `${k}: ${v}`).join('; ')]
+      }
+      return [label, value]
+    })
+    .filter(([, value]) => value && String(value).trim())
+    .map(([label, value]) => `${label}: ${String(value).trim()}`)
     .join('\n\n')
 }
 
@@ -204,6 +332,40 @@ const IMPORT_FIELD_LABELS = {
   phone: 'Phone',
   email: 'Email',
   gender: 'Gender',
+  intakeLevel: 'Intake Depth',
+  reasonForTherapy: 'Reason for Therapy',
+  symptomChecklist: 'Symptom Checklist',
+  symptomOnsetDetail: 'Symptom Onset Detail',
+  problemTypes: 'Problem Types',
+  copingSkills: 'Coping Skills',
+  copingInventoryDetail: 'Coping Detail',
+  currentCopingRating: 'Current Coping Rating',
+  bestCopingRating: 'Best Coping Rating',
+  copingRatingRationale: 'Coping Rating Rationale',
+  pastHelpfulSolutions: 'Past Helpful Solutions',
+  riskFlags: 'Risk Flags',
+  expandedRiskSafety: 'Expanded Risk / Safety',
+  weaponsAccess: 'Weapons / Means Safety',
+  systemInvolvement: 'Systems Involvement',
+  previousTreatmentSystems: 'Previous Treatment / Systems Detail',
+  identitySexualOrientation: 'Sexual Orientation',
+  identityGender: 'Gender Identity',
+  identityPersonalDefinitions: 'Personal Identity Definitions',
+  workSchoolDetails: 'Work / School Detail',
+  interpersonalRecreation: 'Relationships / Recreation',
+  familyDiagnosisHistory: 'Family Diagnosis History',
+  familyHistoryDetail: 'Family History Detail',
+  medicalConditionChecklist: 'Medical Condition Checklist',
+  medicalConditionsDetail: 'Medical Detail',
+  medicationRows: 'Medication Detail',
+  substanceRows: 'Substance Detail',
+  mseStructured: 'Structured MSE',
+  structuredMseDetail: 'MSE Detail',
+  emergencyContactsAvailability: 'Emergency Contacts / Availability',
+  childYouthDetail: 'Child / Youth Detail',
+  traumaIncidentDetail: 'Trauma Incident Detail',
+  reportingDisclosureDetail: 'Reporting / Disclosure Detail',
+  protectiveResiliencyDetail: 'Protective / Resiliency Detail',
 }
 
 const IMPORT_SECTION_CONFIG = [
@@ -220,28 +382,40 @@ const IMPORT_SECTION_CONFIG = [
     fields: ['presentingProblem', 'symptomOnsetDurationSeverity', 'precipitatingMaintainingFactors', 'functionalImpairments'],
   },
   {
+    key: 'structuredExpansion',
+    label: 'Structured Expansion',
+    description: 'Checklist-style intake details imported from richer assessment forms.',
+    fields: ['reasonForTherapy', 'symptomChecklist', 'symptomOnsetDetail', 'problemTypes', 'copingSkills', 'currentCopingRating', 'bestCopingRating', 'copingRatingRationale', 'pastHelpfulSolutions'],
+  },
+  {
     key: 'historyContext',
     label: 'History & Context',
     description: 'Mental health, medical, medication, family/social, trauma, and substance-use context.',
-    fields: ['mentalHealthHistory', 'medicalHistory', 'medications', 'substanceUse', 'familySocialHistory', 'traumaHistory', 'culturalIdentityContext', 'educationEmploymentContext'],
+    fields: ['mentalHealthHistory', 'medicalHistory', 'medicalConditionChecklist', 'medicalConditionsDetail', 'medications', 'medicationRows', 'substanceUse', 'substanceRows', 'familySocialHistory', 'familyDiagnosisHistory', 'familyHistoryDetail', 'traumaHistory', 'traumaIncidentDetail', 'culturalIdentityContext', 'educationEmploymentContext'],
   },
   {
     key: 'riskAndSafety',
     label: 'Risk & Safety',
     description: 'Suicide risk, self-harm risk, abuse concerns, and safety planning details.',
-    fields: ['riskScreening', 'safetyPlanDetails', 'legalMandatedContext'],
+    fields: ['riskScreening', 'riskFlags', 'expandedRiskSafety', 'weaponsAccess', 'safetyPlanDetails', 'legalMandatedContext', 'reportingDisclosureDetail'],
+  },
+  {
+    key: 'systemsIdentity',
+    label: 'Systems & Identity',
+    description: 'Prior treatment, agency/court involvement, identity, relationships, and youth-specific context.',
+    fields: ['systemInvolvement', 'previousTreatmentSystems', 'identitySexualOrientation', 'identityGender', 'identityPersonalDefinitions', 'workSchoolDetails', 'interpersonalRecreation', 'childYouthDetail', 'emergencyContactsAvailability'],
   },
   {
     key: 'clinicalObservations',
     label: 'Clinical Observations',
     description: 'Mental status and other observed clinical findings.',
-    fields: ['mentalStatusObservations'],
+    fields: ['mentalStatusObservations', 'mseStructured', 'structuredMseDetail'],
   },
   {
     key: 'strengthsAndGoals',
     label: 'Strengths & Goals',
     description: 'Protective factors, resilience, and initial treatment goals.',
-    fields: ['strengthsProtectiveFactors', 'treatmentGoal'],
+    fields: ['strengthsProtectiveFactors', 'protectiveResiliencyDetail', 'treatmentGoal'],
   },
 ]
 
@@ -489,6 +663,62 @@ export default function Workspace() {
   }, [])
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }))
+
+  const toggleArrayField = (key, value) => {
+    setForm(f => {
+      const current = Array.isArray(f[key]) ? f[key] : []
+      const next = current.includes(value)
+        ? current.filter(item => item !== value)
+        : [...current, value]
+      return { ...f, [key]: next }
+    })
+  }
+
+  const setIntakeLevel = (levelId) => {
+    const level = INTAKE_LEVELS.find(item => item.id === levelId) || INTAKE_LEVELS[1]
+    setForm(f => ({ ...f, intakeLevel: level.id, intakeAddons: level.addons }))
+  }
+
+  const toggleIntakeAddon = (addonId) => {
+    setForm(f => {
+      const current = Array.isArray(f.intakeAddons) ? f.intakeAddons : []
+      const next = current.includes(addonId)
+        ? current.filter(item => item !== addonId)
+        : [...current, addonId]
+      return { ...f, intakeLevel: f.intakeLevel || 'custom', intakeAddons: next }
+    })
+  }
+
+  const hasIntakeAddon = (addonId) => {
+    const current = Array.isArray(form.intakeAddons) ? form.intakeAddons : []
+    return current.includes(addonId)
+  }
+
+  const setMseField = (key, value) => {
+    setForm(f => ({ ...f, mseStructured: { ...(f.mseStructured || {}), [key]: value } }))
+  }
+
+  const renderCheckboxGrid = (fieldKey, options, columns = 'grid-cols-2') => (
+    <div className={`grid ${columns} gap-1.5`}>
+      {options.map(option => {
+        const selected = (form[fieldKey] || []).includes(option)
+        return (
+          <button
+            key={option}
+            type="button"
+            onClick={() => toggleArrayField(fieldKey, option)}
+            className={`rounded-md border px-2 py-1.5 text-left text-xs transition-colors ${
+              selected
+                ? 'border-brand-400 bg-brand-50 text-brand-700 dark:border-brand-500/50 dark:bg-brand-500/10 dark:text-brand-100'
+                : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-white/10 dark:text-slate-300'
+            }`}
+          >
+            {option}
+          </button>
+        )
+      })}
+    </div>
+  )
 
   const applyImportedFields = (fieldsToApply) => {
     setForm(f => {
@@ -838,7 +1068,7 @@ export default function Workspace() {
   }, [loading])
 
   // Parse sections live from streaming text so tabs work during generation
-  const SECTION_MARKERS = ['===DOCUMENTATION===', '===INTAKE_NOTE===', '===CLINICAL_THINKING===', '===DIAGNOSIS===', '===SUPERVISION===']
+  const SECTION_MARKERS = ['===DOCUMENTATION===', '===INTAKE_NOTE===', '===CLINICAL_THINKING===', '===DIAGNOSIS===', '===TREATMENT_REC===', '===SUPERVISION===']
   const parseSections = (text) => {
     const parse = (marker) => {
       const start = text.indexOf(marker)
@@ -856,6 +1086,7 @@ export default function Workspace() {
       intakeNote: parse('===INTAKE_NOTE==='),
       clinicalThinking: parse('===CLINICAL_THINKING==='),
       diagnosis: parse('===DIAGNOSIS==='),
+      treatmentRec: parse('===TREATMENT_REC==='),
       supervision: parse('===SUPERVISION==='),
     }
   }
@@ -898,6 +1129,41 @@ export default function Workspace() {
     traumaHistory: form.traumaHistory,
     strengthsProtectiveFactors: form.strengthsProtectiveFactors,
     functionalImpairments: form.functionalImpairments,
+    intakeLevel: form.intakeLevel,
+    intakeAddons: form.intakeAddons,
+    reasonForTherapy: form.reasonForTherapy,
+    symptomChecklist: form.symptomChecklist,
+    symptomOnsetDetail: form.symptomOnsetDetail,
+    problemTypes: form.problemTypes,
+    copingSkills: form.copingSkills,
+    copingInventoryDetail: form.copingInventoryDetail,
+    currentCopingRating: form.currentCopingRating,
+    bestCopingRating: form.bestCopingRating,
+    copingRatingRationale: form.copingRatingRationale,
+    pastHelpfulSolutions: form.pastHelpfulSolutions,
+    riskFlags: form.riskFlags,
+    expandedRiskSafety: form.expandedRiskSafety,
+    weaponsAccess: form.weaponsAccess,
+    systemInvolvement: form.systemInvolvement,
+    previousTreatmentSystems: form.previousTreatmentSystems,
+    identitySexualOrientation: form.identitySexualOrientation,
+    identityGender: form.identityGender,
+    identityPersonalDefinitions: form.identityPersonalDefinitions,
+    workSchoolDetails: form.workSchoolDetails,
+    interpersonalRecreation: form.interpersonalRecreation,
+    familyDiagnosisHistory: form.familyDiagnosisHistory,
+    familyHistoryDetail: form.familyHistoryDetail,
+    medicalConditionChecklist: form.medicalConditionChecklist,
+    medicalConditionsDetail: form.medicalConditionsDetail,
+    medicationRows: form.medicationRows,
+    substanceRows: form.substanceRows,
+    mseStructured: form.mseStructured,
+    structuredMseDetail: form.structuredMseDetail,
+    emergencyContactsAvailability: form.emergencyContactsAvailability,
+    childYouthDetail: form.childYouthDetail,
+    traumaIncidentDetail: form.traumaIncidentDetail,
+    reportingDisclosureDetail: form.reportingDisclosureDetail,
+    protectiveResiliencyDetail: form.protectiveResiliencyDetail,
   }
 
   const handleSaveToChart = async () => {
@@ -915,19 +1181,74 @@ export default function Workspace() {
       const icd10_codes = extractIcdCodes(diagnosis).join(', ')
       const profilePresentingConcerns = combineLabeledParts([
         ['Presenting problem', form.presentingProblem],
+        ['Reason for therapy', form.reasonForTherapy],
         ['Onset / duration / severity', form.symptomOnsetDurationSeverity],
+        ['Symptom checklist', form.symptomChecklist],
+        ['Symptom onset detail', form.symptomOnsetDetail],
+        ['Problem types', form.problemTypes],
         ['Precipitating / maintaining factors', form.precipitatingMaintainingFactors],
+        ['Trauma incident detail', form.traumaIncidentDetail],
+        ['Reporting / disclosure detail', form.reportingDisclosureDetail],
       ]) || form.presentingProblem || null
       const profileRiskScreening = combineLabeledParts([
         ['Risk screening', form.riskScreening],
+        ['Risk flags', form.riskFlags],
+        ['Expanded risk / safety', form.expandedRiskSafety],
+        ['Weapons / means safety', form.weaponsAccess],
         ['Safety plan / crisis plan', form.safetyPlanDetails],
         ['Legal / mandated reporting context', form.legalMandatedContext],
       ]) || form.riskScreening || null
       const profileFamilySocialHistory = combineLabeledParts([
         ['Family / social history', form.familySocialHistory],
+        ['Family diagnosis history', form.familyDiagnosisHistory],
+        ['Family history detail', form.familyHistoryDetail],
         ['Cultural / identity context', form.culturalIdentityContext],
+        ['Sexual orientation', form.identitySexualOrientation],
+        ['Gender identity', form.identityGender],
+        ['Personal identity definitions', form.identityPersonalDefinitions],
         ['School / work / role functioning', form.educationEmploymentContext],
+        ['Work / school detail', form.workSchoolDetails],
+        ['Relationships / recreation', form.interpersonalRecreation],
+        ['Child / youth detail', form.childYouthDetail],
+        ['Emergency contacts / availability', form.emergencyContactsAvailability],
       ]) || form.familySocialHistory || null
+      const profileMentalHealthHistory = combineLabeledParts([
+        ['Mental health history', form.mentalHealthHistory],
+        ['Systems involvement', form.systemInvolvement],
+        ['Previous treatment / systems detail', form.previousTreatmentSystems],
+      ]) || form.mentalHealthHistory || null
+      const profileMedicalHistory = combineLabeledParts([
+        ['Medical history', form.medicalHistory],
+        ['Medical condition checklist', form.medicalConditionChecklist],
+        ['Medical detail', form.medicalConditionsDetail],
+      ]) || form.medicalHistory || null
+      const profileMedications = combineLabeledParts([
+        ['Medications', form.medications],
+        ['Medication detail', form.medicationRows],
+      ]) || form.medications || null
+      const profileSubstanceUse = combineLabeledParts([
+        ['Substance use', form.substanceUse],
+        ['Substance detail', form.substanceRows],
+      ]) || form.substanceUse || null
+      const profileMse = combineLabeledParts([
+        ['Mental status observations', form.mentalStatusObservations],
+        ['Structured MSE', form.mseStructured],
+        ['MSE detail', form.structuredMseDetail],
+      ]) || form.mentalStatusObservations || null
+      const profileStrengths = combineLabeledParts([
+        ['Strengths / protective factors', form.strengthsProtectiveFactors],
+        ['Coping skills', form.copingSkills],
+        ['Coping detail', form.copingInventoryDetail],
+        ['Current coping rating', form.currentCopingRating],
+        ['Best coping rating', form.bestCopingRating],
+        ['Coping rating rationale', form.copingRatingRationale],
+        ['Past helpful solutions', form.pastHelpfulSolutions],
+        ['Protective / resiliency detail', form.protectiveResiliencyDetail],
+      ]) || form.strengthsProtectiveFactors || null
+      const profileFunctionalImpairments = combineLabeledParts([
+        ['Functional impairments', form.functionalImpairments],
+        ['Work / school detail', form.workSchoolDetails],
+      ]) || form.functionalImpairments || null
 
       let patientId = linkedPatientId
       let patientRecord = selectedPatient
@@ -959,17 +1280,17 @@ export default function Workspace() {
             notes: documentation || clinicalThinking || null,
             client_overview: '',
             client_overview_signature: '',
-            mental_health_history: form.mentalHealthHistory || null,
-            substance_use: form.substanceUse || null,
+            mental_health_history: profileMentalHealthHistory,
+            substance_use: profileSubstanceUse,
             risk_screening: profileRiskScreening,
             family_social_history: profileFamilySocialHistory,
-            mental_status_observations: form.mentalStatusObservations || null,
+            mental_status_observations: profileMse,
             treatment_goals: form.treatmentGoal || null,
-            medical_history: form.medicalHistory || null,
-            medications: form.medications || null,
+            medical_history: profileMedicalHistory,
+            medications: profileMedications,
             trauma_history: form.traumaHistory || null,
-            strengths_protective_factors: form.strengthsProtectiveFactors || null,
-            functional_impairments: form.functionalImpairments || null,
+            strengths_protective_factors: profileStrengths,
+            functional_impairments: profileFunctionalImpairments,
           }),
         })
         const newPatient = await patientRes.json()
@@ -995,17 +1316,17 @@ export default function Workspace() {
             notes: clinicalThinking || documentation || patientRecord.notes,
             client_overview: '',
             client_overview_signature: '',
-            mental_health_history: form.mentalHealthHistory || patientRecord.mental_health_history,
-            substance_use: form.substanceUse || patientRecord.substance_use,
+            mental_health_history: profileMentalHealthHistory || patientRecord.mental_health_history,
+            substance_use: profileSubstanceUse || patientRecord.substance_use,
             risk_screening: profileRiskScreening || patientRecord.risk_screening,
             family_social_history: profileFamilySocialHistory || patientRecord.family_social_history,
-            mental_status_observations: form.mentalStatusObservations || patientRecord.mental_status_observations,
+            mental_status_observations: profileMse || patientRecord.mental_status_observations,
             treatment_goals: form.treatmentGoal || patientRecord.treatment_goals,
-            medical_history: form.medicalHistory || patientRecord.medical_history,
-            medications: form.medications || patientRecord.medications,
+            medical_history: profileMedicalHistory || patientRecord.medical_history,
+            medications: profileMedications || patientRecord.medications,
             trauma_history: form.traumaHistory || patientRecord.trauma_history,
-            strengths_protective_factors: form.strengthsProtectiveFactors || patientRecord.strengths_protective_factors,
-            functional_impairments: form.functionalImpairments || patientRecord.functional_impairments,
+            strengths_protective_factors: profileStrengths || patientRecord.strengths_protective_factors,
+            functional_impairments: profileFunctionalImpairments || patientRecord.functional_impairments,
           }),
         })
         const updatedPatient = await patientUpdateRes.json()
@@ -1689,6 +2010,59 @@ export default function Workspace() {
               </div>
             </div>
 
+            {sessionType === 'intake' && (
+              <div className="space-y-3 rounded-xl border border-brand-100 dark:border-brand-500/20 bg-brand-50/40 dark:bg-brand-500/5 p-3">
+                <div>
+                  <p className="text-xs font-semibold text-gray-500 dark:text-slate-300 uppercase tracking-wide">Intake depth</p>
+                  <p className="text-xs text-gray-400 dark:text-slate-400 mt-1">Start quick, then add only the modules you need for this client.</p>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {INTAKE_LEVELS.map(level => (
+                    <button
+                      key={level.id}
+                      type="button"
+                      onClick={() => setIntakeLevel(level.id)}
+                      className={`rounded-lg border px-2 py-2 text-left transition-colors ${
+                        (form.intakeLevel || 'standard') === level.id
+                          ? 'border-brand-500 bg-white dark:bg-slate-900 text-brand-700 dark:text-white shadow-sm'
+                          : 'border-gray-200 dark:border-white/10 bg-white/70 dark:bg-slate-900/40 text-gray-600 dark:text-slate-300 hover:border-brand-200'
+                      }`}
+                    >
+                      <span className="block text-xs font-semibold">{level.label}</span>
+                      <span className="block text-[11px] text-gray-400 dark:text-slate-500 mt-0.5">{level.desc}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  {INTAKE_ADDONS.map(addon => {
+                    const active = hasIntakeAddon(addon.id)
+                    return (
+                      <button
+                        key={addon.id}
+                        type="button"
+                        onClick={() => toggleIntakeAddon(addon.id)}
+                        className={`flex items-start gap-2 rounded-lg border px-2.5 py-2 text-left transition-colors ${
+                          active
+                            ? 'border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200'
+                            : 'border-gray-200 dark:border-white/10 bg-white/70 dark:bg-slate-900/30 text-gray-600 dark:text-slate-300 hover:border-gray-300'
+                        }`}
+                      >
+                        <span className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border text-[10px] ${
+                          active ? 'border-emerald-500 bg-emerald-500 text-white' : 'border-gray-300 dark:border-slate-600'
+                        }`}>
+                          {active ? '✓' : ''}
+                        </span>
+                        <span>
+                          <span className="block text-xs font-semibold">{addon.label}</span>
+                          <span className="block text-[11px] opacity-70">{addon.desc}</span>
+                        </span>
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+
             {/* Presenting problem, always shown */}
             <div>
               <label className="label">
@@ -1705,6 +2079,31 @@ export default function Workspace() {
                 onChange={e => set('presentingProblem', e.target.value)}
               />
             </div>
+
+            {sessionType === 'intake' && (
+              <div className="space-y-2">
+                <label className="label">Reason for Therapy</label>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {REASON_FOR_THERAPY_OPTIONS.map(option => {
+                    const selected = (form.reasonForTherapy || []).includes(option)
+                    return (
+                      <button
+                        key={option}
+                        type="button"
+                        onClick={() => toggleArrayField('reasonForTherapy', option)}
+                        className={`rounded-md border px-2 py-1.5 text-left text-xs transition-colors ${
+                          selected
+                            ? 'border-brand-400 bg-brand-50 text-brand-700 dark:border-brand-500/50 dark:bg-brand-500/10 dark:text-brand-100'
+                            : 'border-gray-200 text-gray-600 hover:border-gray-300 dark:border-white/10 dark:text-slate-300'
+                        }`}
+                      >
+                        {option}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* ── ONGOING SESSION fields ── */}
             {sessionType === 'ongoing' && (
@@ -1924,6 +2323,170 @@ export default function Workspace() {
                     </div>
                   </div>
                 </div>
+
+                {hasIntakeAddon('symptoms') && (
+                  <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Symptom onset checklist</p>
+                      <p className="text-xs text-gray-400 mt-1">Fast-select symptoms, then add onset dates or severity notes only where useful.</p>
+                    </div>
+                    {renderCheckboxGrid('symptomChecklist', SYMPTOM_OPTIONS)}
+                    <textarea
+                      className="textarea"
+                      rows={2}
+                      placeholder="Onset/date, duration, severity, frequency, and course for selected symptoms."
+                      value={form.symptomOnsetDetail}
+                      onChange={e => set('symptomOnsetDetail', e.target.value)}
+                    />
+                    <div>
+                      <label className="label">Problem Types</label>
+                      {renderCheckboxGrid('problemTypes', PROBLEM_TYPE_OPTIONS)}
+                    </div>
+                  </div>
+                )}
+
+                {hasIntakeAddon('coping') && (
+                  <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Coping and functioning scale</p>
+                      <p className="text-xs text-gray-400 mt-1">Borrowed from strong agency-style intakes, but made quick for private practice.</p>
+                    </div>
+                    {renderCheckboxGrid('copingSkills', COPING_OPTIONS)}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="label">Current Coping (1-100)</label>
+                        <input className="input" inputMode="numeric" value={form.currentCopingRating} onChange={e => set('currentCopingRating', e.target.value)} placeholder="e.g., 45" />
+                      </div>
+                      <div>
+                        <label className="label">Best in Last Year (1-100)</label>
+                        <input className="input" inputMode="numeric" value={form.bestCopingRating} onChange={e => set('bestCopingRating', e.target.value)} placeholder="e.g., 75" />
+                      </div>
+                    </div>
+                    <textarea className="textarea" rows={2} value={form.copingRatingRationale} onChange={e => set('copingRatingRationale', e.target.value)} placeholder="Why this rating? What changes the number up or down?" />
+                    <textarea className="textarea" rows={2} value={form.pastHelpfulSolutions} onChange={e => set('pastHelpfulSolutions', e.target.value)} placeholder="What has helped before, even a little?" />
+                  </div>
+                )}
+
+                {hasIntakeAddon('risk') && (
+                  <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Expanded risk and safety</p>
+                      <p className="text-xs text-gray-400 mt-1">Use checkboxes to avoid missing high-liability safety domains.</p>
+                    </div>
+                    {renderCheckboxGrid('riskFlags', RISK_FLAG_OPTIONS)}
+                    <div className="grid grid-cols-2 gap-3">
+                      <textarea className="textarea" rows={3} value={form.expandedRiskSafety} onChange={e => set('expandedRiskSafety', e.target.value)} placeholder="Context, recency, intent/plan/access, protective factors, supervisor/consultation needs." />
+                      <textarea className="textarea" rows={3} value={form.weaponsAccess} onChange={e => set('weaponsAccess', e.target.value)} placeholder="Means safety: weapons, medications, ligatures, driving risk, household access, safety steps." />
+                    </div>
+                  </div>
+                )}
+
+                {hasIntakeAddon('systems') && (
+                  <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Prior treatment and systems</p>
+                    {renderCheckboxGrid('systemInvolvement', SYSTEM_INVOLVEMENT_OPTIONS)}
+                    <textarea className="textarea" rows={3} value={form.previousTreatmentSystems} onChange={e => set('previousTreatmentSystems', e.target.value)} placeholder="Prior providers, dates, focus of treatment, outcomes, court/CPS/school involvement, releases or collateral needs." />
+                  </div>
+                )}
+
+                {hasIntakeAddon('identity') && (
+                  <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Identity and lived context</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <input className="input" value={form.identitySexualOrientation} onChange={e => set('identitySexualOrientation', e.target.value)} placeholder="Sexual orientation, if shared" />
+                      <input className="input" value={form.identityGender} onChange={e => set('identityGender', e.target.value)} placeholder="Gender identity, if shared" />
+                    </div>
+                    <textarea className="textarea" rows={2} value={form.identityPersonalDefinitions} onChange={e => set('identityPersonalDefinitions', e.target.value)} placeholder="How does the client personally define these labels, identities, culture, language, faith, or community?" />
+                  </div>
+                )}
+
+                {hasIntakeAddon('workSchool') && (
+                  <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Work, school, and role functioning</p>
+                    <textarea className="textarea" rows={3} value={form.workSchoolDetails} onChange={e => set('workSchoolDetails', e.target.value)} placeholder="Job/school setting, performance, attendance, accommodations, satisfaction rating, parenting/caregiving role, impairment." />
+                  </div>
+                )}
+
+                {hasIntakeAddon('relationships') && (
+                  <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Relationships and recreation</p>
+                    <textarea className="textarea" rows={3} value={form.interpersonalRecreation} onChange={e => set('interpersonalRecreation', e.target.value)} placeholder="Important people, support quality, conflict patterns, isolation, friends, free time, recreation, community." />
+                  </div>
+                )}
+
+                {hasIntakeAddon('family') && (
+                  <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Family history</p>
+                    {renderCheckboxGrid('familyDiagnosisHistory', FAMILY_DIAGNOSIS_OPTIONS)}
+                    <textarea className="textarea" rows={3} value={form.familyHistoryDetail} onChange={e => set('familyHistoryDetail', e.target.value)} placeholder="Family mental health/substance history, closeness/estrangement, major losses, divorce, moves, homelessness, illness, financial strain." />
+                  </div>
+                )}
+
+                {hasIntakeAddon('medical') && (
+                  <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Medical detail</p>
+                    {renderCheckboxGrid('medicalConditionChecklist', MEDICAL_CONDITION_OPTIONS)}
+                    <textarea className="textarea" rows={3} value={form.medicalConditionsDetail} onChange={e => set('medicalConditionsDetail', e.target.value)} placeholder="Hospitalizations, surgeries, accidents, fevers/head injuries, last physical, pain/sleep/appetite, clinical relevance." />
+                    <textarea className="textarea" rows={2} value={form.medicationRows} onChange={e => set('medicationRows', e.target.value)} placeholder="Medication rows: name, dose/frequency, dates, reason, adherence/side effects." />
+                  </div>
+                )}
+
+                {hasIntakeAddon('substance') && (
+                  <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Substance detail</p>
+                    <textarea className="textarea" rows={3} value={form.substanceRows} onChange={e => set('substanceRows', e.target.value)} placeholder="Substance, last use, period of use, frequency, amount, impact, recovery supports, risk." />
+                  </div>
+                )}
+
+                {hasIntakeAddon('mse') && (
+                  <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Structured mental status exam</p>
+                    <div className="grid grid-cols-2 gap-3">
+                      {Object.entries(MSE_OPTIONS).map(([key, options]) => (
+                        <div key={key}>
+                          <label className="label">{IMPORT_FIELD_LABELS[key] || key.replace(/([A-Z])/g, ' $1')}</label>
+                          <select className="input" value={(form.mseStructured || {})[key] || ''} onChange={e => setMseField(key, e.target.value)}>
+                            <option value="">Select...</option>
+                            {options.map(option => <option key={option} value={option}>{option}</option>)}
+                          </select>
+                        </div>
+                      ))}
+                    </div>
+                    <textarea className="textarea" rows={2} value={form.structuredMseDetail} onChange={e => set('structuredMseDetail', e.target.value)} placeholder="Additional MSE observations: speech, thought content, hallucinations, cognition, orientation, memory, reliability." />
+                  </div>
+                )}
+
+                {hasIntakeAddon('trauma') && (
+                  <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Trauma incident and reporting</p>
+                    <textarea className="textarea" rows={3} value={form.traumaIncidentDetail} onChange={e => set('traumaIncidentDetail', e.target.value)} placeholder="Incident type, perpetrator relationship, threats/coercion, discovery/disclosure, ambivalence, client meaning-making." />
+                    <textarea className="textarea" rows={2} value={form.reportingDisclosureDetail} onChange={e => set('reportingDisclosureDetail', e.target.value)} placeholder="DCFS/CPS report, police report, VOC claim, mandated report date, report number, releases, collateral needs." />
+                  </div>
+                )}
+
+                {(hasIntakeAddon('emergency') || hasIntakeAddon('youth')) && (
+                  <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
+                    {hasIntakeAddon('emergency') && (
+                      <>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Emergency contacts and availability</p>
+                        <textarea className="textarea" rows={3} value={form.emergencyContactsAvailability} onChange={e => set('emergencyContactsAvailability', e.target.value)} placeholder="Emergency contacts, relationship, phone, preferred contact method, availability, preferred location/telehealth times." />
+                      </>
+                    )}
+                    {hasIntakeAddon('youth') && (
+                      <>
+                        <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Child / youth details</p>
+                        <textarea className="textarea" rows={3} value={form.childYouthDetail} onChange={e => set('childYouthDetail', e.target.value)} placeholder="Legal/physical custody, foster placement, school, teacher, discipline methods, number of moves, child reaction, caregiver context." />
+                      </>
+                    )}
+                  </div>
+                )}
+
+                {(form.intakeLevel === 'comprehensive' || hasIntakeAddon('family') || hasIntakeAddon('youth')) && (
+                  <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Protective factors and resiliency</p>
+                    <textarea className="textarea" rows={2} value={form.protectiveResiliencyDetail} onChange={e => set('protectiveResiliencyDetail', e.target.value)} placeholder="Parental resiliency, social connections, concrete support, parenting knowledge, nurturing/attachment, social-emotional competence." />
+                  </div>
+                )}
 
                 <div>
                   <label className="label">Mental Health History</label>
