@@ -54,6 +54,7 @@ const searchPracticeInsightsHandler = require('./handlers/search_practice_insigh
 const scheduleTaskHandler = require('./handlers/schedule_task');
 const listScheduledTasksHandler = require('./handlers/list_scheduled_tasks');
 const runBackgroundTaskHandler = require('./handlers/run_background_task');
+const checkBackgroundTasksHandler = require('./handlers/check_background_tasks');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -156,26 +157,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     case 'run_background_task':
       return await runBackgroundTaskHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
-    case 'check_background_tasks': {
-      const tasks = await db.all(
-        "SELECT id, task_type, description, status, progress, created_at, completed_at FROM background_tasks WHERE therapist_id = ? ORDER BY created_at DESC LIMIT 10",
-        therapistId
-      );
-      const running = tasks.filter(t => t.status === 'running').length;
-      const completed = tasks.filter(t => t.status === 'completed').length;
-      // Include result for recently completed tasks
-      const withResults = [];
-      for (const t of tasks) {
-        if (t.status === 'completed') {
-          const full = await db.get('SELECT result_json FROM background_tasks WHERE id = ?', t.id);
-          if (full?.result_json) {
-            try { t.result_preview = JSON.parse(full.result_json); } catch {}
-          }
-        }
-        withResults.push(t);
-      }
-      return { tasks: withResults, running, completed };
-    }
+    case 'check_background_tasks':
+      return await checkBackgroundTasksHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     // Feature 5: Event Trigger Management
     case 'manage_event_triggers': {
