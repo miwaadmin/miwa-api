@@ -31,6 +31,7 @@ require.cache[require.resolve('stripe')] = {
 
 const { startTestServer, stopTestServer, bootstrapAdminAndLogin } = require('./_helpers');
 const { getAsyncDb } = require('../../db/asyncDb');
+const billingRouter = require('../../routes/billing');
 
 async function postWebhook(event, signature = 'valid-signature') {
   const baseUrl = await startTestServer();
@@ -155,4 +156,124 @@ test('Stripe webhook handles checkout and subscription lifecycle events', async 
   assert.equal(therapistRow.subscription_status, 'expired');
   assert.equal(therapistRow.subscription_tier, null);
   assert.equal(therapistRow.stripe_subscription_id, null);
+});
+
+test('Stripe webhook ignores duplicate event ids after first processing', async (t) => {
+  await startTestServer();
+  t.after(stopTestServer);
+
+  const { therapist } = await bootstrapAdminAndLogin({
+    email: 'webhook-duplicate@miwa.test',
+    password: 'test-password-1234',
+  });
+  const db = getAsyncDb();
+  await db.run("UPDATE therapists SET credential_type = 'licensed' WHERE id = ?", therapist.id);
+
+  const patient = await db.insert(
+    'INSERT INTO patients (client_id, display_name, therapist_id) VALUES (?, ?, ?)',
+    'DUP-001',
+    'Duplicate Webhook Client',
+    therapist.id,
+  );
+  const invoice = await db.insert(
+    `INSERT INTO client_invoices
+       (therapist_id, patient_id, invoice_number, status, amount_cents, generic_description)
+     VALUES (?, ?, ?, 'open', 9900, 'Professional services')`,
+    therapist.id,
+    patient.lastInsertRowid,
+    `MIWA-${therapist.id}-DUP`,
+  );
+
+  const event = {
+    id: 'evt_duplicate_checkout',
+    type: 'checkout.session.completed',
+    account: 'acct_duplicate_connected',
+    data: {
+      object: {
+        id: 'cs_duplicate_paid',
+        mode: 'payment',
+        payment_intent: 'pi_duplicate_paid',
+        amount_total: 9900,
+        currency: 'usd',
+        metadata: {
+          miwa_invoice_id: String(invoice.lastInsertRowid),
+          miwa_therapist_id: String(therapist.id),
+          miwa_patient_id: String(patient.lastInsertRowid),
+        },
+      },
+    },
+  };
+
+  const first = await postWebhook(event);
+  const second = await postWebhook(event);
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 200);
+
+  const payments = await db.get(
+    'SELECT COUNT(*) AS count FROM client_payments WHERE invoice_id = ?',
+    invoice.lastInsertRowid,
+  );
+  assert.equal(payments.count, 1);
+
+  const tracked = await db.get(
+    'SELECT status, processed_at FROM stripe_webhook_events WHERE stripe_event_id = ?',
+    event.id,
+  );
+  assert.equal(tracked.status, 'processed');
+  assert.ok(tracked.processed_at);
+});
+
+test('Stripe webhook handler exceptions return 500 and mark event failed', async (t) => {
+  await startTestServer();
+  t.after(() => {
+    billingRouter._test._forceHandlerError(null);
+    return stopTestServer();
+  });
+
+  billingRouter._test._forceHandlerError(Object.assign(new Error('forced webhook handler failure'), { code: 'forced_test' }));
+  const db = getAsyncDb();
+
+  const res = await postWebhook({
+    id: 'evt_forced_handler_failure',
+    type: 'customer.subscription.updated',
+    data: { object: { id: 'sub_forced_failure', customer: 'cus_forced_failure', status: 'active', metadata: { plan: 'solo' } } },
+  });
+
+  assert.equal(res.status, 500);
+  assert.match(res.body, /Webhook handler error/);
+
+  const tracked = await db.get(
+    'SELECT status, error_message FROM stripe_webhook_events WHERE stripe_event_id = ?',
+    'evt_forced_handler_failure',
+  );
+  assert.equal(tracked.status, 'failed');
+  assert.match(tracked.error_message, /forced_test/);
+  assert.equal(tracked.error_message.includes('forced webhook handler failure'), false);
+});
+
+test('Stripe webhook signature failures are written to event_logs', async (t) => {
+  await startTestServer();
+  t.after(stopTestServer);
+
+  const db = getAsyncDb();
+  const res = await postWebhook({
+    id: 'evt_audit_signature_failure',
+    type: 'customer.subscription.updated',
+    data: { object: { customer: 'cus_should_not_process' } },
+  }, 'invalid-signature-for-audit-test');
+
+  assert.equal(res.status, 400);
+
+  const audit = await db.get(
+    `SELECT event_type, status, meta_json
+       FROM event_logs
+      WHERE event_type = 'stripe_webhook_signature_failure'
+      ORDER BY id DESC
+      LIMIT 1`,
+  );
+  assert.equal(audit.event_type, 'stripe_webhook_signature_failure');
+  assert.equal(audit.status, 'blocked');
+  const meta = JSON.parse(audit.meta_json);
+  assert.equal(meta.signature_prefix, 'invalid-signature-fo...');
+  assert.match(meta.error, /StripeSignatureVerificationError/);
 });

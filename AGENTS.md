@@ -82,6 +82,11 @@ change is clearly experimental / scratch work. When in doubt, push.
 - **Backend:** `server/routes/*.js` (Express). The agent route lives
   at `server/routes/agent.js` as a thin entrypoint that delegates to
   modules under `server/routes/agent/`.
+- **Stripe webhooks:** `/api/billing/webhook` uses raw-body parsing,
+  a dedicated generous rate limiter, `stripe_webhook_events` idempotency
+  tracking, 500 responses on handler failures so Stripe can retry safely,
+  and `event_logs` audit rows for signature failures. Preserve that
+  pattern when adding webhook event types.
 - **Database:** Production runs on **Azure Database for PostgreSQL**
   (Flexible Server). The codebase supports both adapters, gated by the
   `DB_PROVIDER` env var:
