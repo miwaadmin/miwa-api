@@ -308,7 +308,7 @@ function importedFieldTargetKey(key) {
 
 // Filter options for the Session Workspace list view. Buckets are derived
 // from the 4-step pipeline:
-//   in-progress = >0 steps done, <4 steps done
+//   in-progress = started but not yet ready for EHR
 //   ready       = exactly 3 of 4 done (everything except "Copied to EHR")
 //   done        = 4 of 4
 //   all         = no filter
@@ -324,7 +324,7 @@ function matchesWorkspaceFilter(session, filter) {
   const done = steps.filter(Boolean).length
   switch (filter) {
     case 'in-progress':
-      return done > 0 && done < 4
+      return done > 0 && done < 3
     case 'ready':
       // "Ready for EHR" = the trainee finished draft/review/risk steps but
       // hasn't copied to the agency EHR yet. Strict 3-of-4 with the EHR step

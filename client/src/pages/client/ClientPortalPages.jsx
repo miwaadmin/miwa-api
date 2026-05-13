@@ -147,7 +147,8 @@ export function ClientAcceptInvite() {
 // (anything outside A-Z0-9), uppercases, caps at 8 body characters.
 function formatInviteCode(raw) {
   const cleaned = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
-  const stripped = cleaned.startsWith('MIWA') ? cleaned.slice(4) : cleaned
+  let stripped = cleaned
+  while (stripped.startsWith('MIWA')) stripped = stripped.slice(4)
   const body = stripped.slice(0, 8)
   if (body.length === 0) return ''
   if (body.length <= 4) return `MIWA-${body}`
