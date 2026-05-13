@@ -14,6 +14,7 @@ function patientLabel(message) {
 
 export default function Inbox() {
   const [messages, setMessages] = useState([])
+  const [appointmentRequests, setAppointmentRequests] = useState([])
   const [patients, setPatients] = useState([])
   const [selectedId, setSelectedId] = useState(null)
   const [reply, setReply] = useState('')
@@ -44,10 +45,13 @@ export default function Inbox() {
         apiFetch('/inbox/messages?limit=100'),
         apiFetch('/patients'),
       ])
+      const reqRes = await apiFetch('/inbox/appointment-requests?status=pending')
       const msgData = await msgRes.json()
       const ptData = await ptRes.json()
+      const reqData = await reqRes.json().catch(() => ({}))
       if (!msgRes.ok) throw new Error(msgData.error || 'Could not load inbox')
       setMessages(Array.isArray(msgData.messages) ? msgData.messages : [])
+      setAppointmentRequests(Array.isArray(reqData.requests) ? reqData.requests : [])
       setPatients(Array.isArray(ptData) ? ptData : [])
       setSelectedId(current => current || msgData.messages?.[0]?.id || null)
     } catch (err) {
@@ -88,6 +92,21 @@ export default function Inbox() {
       setError(err.message || 'Could not send message')
     } finally {
       setSending(false)
+    }
+  }
+
+  async function resolveAppointmentRequest(requestId, status, therapistResponse = '') {
+    setError('')
+    try {
+      const res = await apiFetch(`/inbox/appointment-requests/${requestId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ status, therapist_response: therapistResponse }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Could not update appointment request')
+      await load()
+    } catch (err) {
+      setError(err.message || 'Could not update appointment request')
     }
   }
 
@@ -138,6 +157,26 @@ export default function Inbox() {
             SMS is best for prompts and notifications, like "you have a message" or "complete this check-in." The inbox is the HIPAA-safe clinical thread where the actual conversation, replies, risk review, and follow-up history live.
           </p>
         </div>
+
+        {appointmentRequests.length > 0 && (
+          <section className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-amber-950 dark:border-amber-400/30 dark:bg-amber-500/10 dark:text-amber-50">
+            <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="text-sm font-bold">Appointment requests</h3>
+                <p className="text-xs text-amber-800 dark:text-amber-100/80">{appointmentRequests.length} pending client request{appointmentRequests.length === 1 ? '' : 's'}</p>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-3">
+              {appointmentRequests.map(request => (
+                <AppointmentRequestCard
+                  key={request.id}
+                  request={request}
+                  onResolve={resolveAppointmentRequest}
+                />
+              ))}
+            </div>
+          </section>
+        )}
 
         <div className="mt-6 grid gap-4 lg:grid-cols-[360px_1fr]">
           <aside className="rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-slate-900/80 dark:shadow-xl">
@@ -290,6 +329,68 @@ export default function Inbox() {
           </div>
         </section>
       </div>
+    </div>
+  )
+}
+
+function AppointmentRequestCard({ request, onResolve }) {
+  const [response, setResponse] = useState('')
+  const [busy, setBusy] = useState('')
+  const clientName = request.display_name || request.client_id || 'Client'
+
+  async function act(status) {
+    setBusy(status)
+    try {
+      await onResolve(request.id, status, response.trim())
+      setResponse('')
+    } finally {
+      setBusy('')
+    }
+  }
+
+  return (
+    <div className="rounded-xl border border-amber-200 bg-white p-3 text-gray-900 shadow-sm dark:border-amber-400/20 dark:bg-slate-950/70 dark:text-white">
+      <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-sm font-bold">{clientName}</p>
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-slate-400">
+            {request.request_type === 'cancel' ? 'Cancel request' : 'Reschedule request'} · {formatTime(request.scheduled_start || request.created_at)}
+          </p>
+          {request.message && <p className="mt-2 text-sm text-gray-700 dark:text-slate-200">{request.message}</p>}
+        </div>
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={() => act('approved')}
+            disabled={!!busy}
+            className="rounded-lg bg-teal-600 px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+          >
+            {busy === 'approved' ? 'Saving...' : 'Approve'}
+          </button>
+          <button
+            type="button"
+            onClick={() => act('declined')}
+            disabled={!!busy}
+            className="rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 disabled:opacity-50 dark:border-white/10 dark:text-slate-200"
+          >
+            Decline
+          </button>
+        </div>
+      </div>
+      <input
+        value={response}
+        onChange={e => setResponse(e.target.value)}
+        className="mt-3 w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm outline-none placeholder:text-gray-400 focus:border-teal-500 dark:border-white/10 dark:bg-slate-950"
+        placeholder="Optional response visible to client"
+      />
+      <button
+        type="button"
+        onClick={() => act('countered')}
+        disabled={!!busy || !response.trim()}
+        className="mt-2 rounded-lg border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700 disabled:opacity-40 dark:border-white/10 dark:text-slate-200"
+      >
+        {busy === 'countered' ? 'Saving...' : 'Send counter offer'}
+      </button>
     </div>
   )
 }
