@@ -923,6 +923,17 @@ function createSchema() {
     );
     CREATE INDEX IF NOT EXISTS idx_client_billing_events_invoice ON client_billing_events(invoice_id, created_at DESC);
 
+    CREATE TABLE IF NOT EXISTS stripe_webhook_events (
+      id                         INTEGER PRIMARY KEY AUTOINCREMENT,
+      stripe_event_id             TEXT UNIQUE NOT NULL,
+      event_type                  TEXT NOT NULL,
+      received_at                 DATETIME DEFAULT CURRENT_TIMESTAMP,
+      status                      TEXT NOT NULL DEFAULT 'received' CHECK (status IN ('received','processed','failed','duplicate')),
+      processed_at                DATETIME,
+      error_message               TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_stripe_webhook_events_type_received ON stripe_webhook_events(event_type, received_at);
+
     -- ═══════════════════════════════════════════════════════════════════════
     -- GROUP PRACTICE MULTI-TENANCY
     -- ═══════════════════════════════════════════════════════════════════════

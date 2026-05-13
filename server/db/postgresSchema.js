@@ -225,6 +225,15 @@ async function applyPostgresSchema(db) {
       console.warn(`[postgres-schema] skipped backfill: ${err.message}`);
     }
   }
+
+  try {
+    await db.run(`
+      CREATE INDEX IF NOT EXISTS idx_stripe_webhook_events_type_received
+      ON stripe_webhook_events (event_type, received_at)
+    `);
+  } catch (err) {
+    console.warn(`[postgres-schema] skipped Stripe webhook event index: ${err.message}`);
+  }
 }
 
 module.exports = {
