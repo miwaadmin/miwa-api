@@ -2084,7 +2084,9 @@ function getDb() {
   return {
     run(sql, ...params) {
       db.run(sql, flattenParams(params));
+      const changes = typeof db.getRowsModified === 'function' ? db.getRowsModified() : 0;
       persist();
+      return { changes, rowCount: changes };
     },
     all(sql, ...params) {
       const stmt = db.prepare(sql);
