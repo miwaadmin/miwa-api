@@ -50,6 +50,7 @@ const createTreatmentPlanHandler = require('./handlers/create_treatment_plan');
 const getTreatmentPlanHandler = require('./handlers/get_treatment_plan');
 const updateTreatmentGoalHandler = require('./handlers/update_treatment_goal');
 const delegateAnalysisHandler = require('./handlers/delegate_analysis');
+const searchPracticeInsightsHandler = require('./handlers/search_practice_insights');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -134,23 +135,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       return await delegateAnalysisHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     // Pillar 5: Practice Intelligence
-    case 'search_practice_insights': {
-      try {
-        const { searchInsights, getInsightsSummary } = require('../services/practice-intelligence');
-        if (args.insight_type) {
-          const insights = await db.all(
-            'SELECT * FROM practice_insights WHERE therapist_id = ? AND insight_type = ? AND is_active = 1 ORDER BY confidence_score DESC LIMIT 10',
-            therapistId, args.insight_type
-          );
-          return { insights: insights.map(i => ({ type: i.insight_type, insight: i.insight_text, confidence: i.confidence_score, generated: i.created_at })) };
-        }
-        const results = await searchInsights(therapistId, args.query);
-        if (!results.length) return { message: 'No practice insights found yet. Insights are generated weekly from your session notes and assessment data. Keep documenting — patterns will emerge!' };
-        return { insights: results.map(i => ({ type: i.insight_type, insight: i.insight_text, confidence: i.confidence_score, generated: i.created_at })) };
-      } catch (err) {
-        return { message: 'Practice intelligence is building — insights generate weekly from your documentation patterns. No insights available yet.' };
-      }
-    }
+    case 'search_practice_insights':
+      return await searchPracticeInsightsHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     // ═══════════════════════════════════════════════════════════════════════
     // TIER 1 AGENTIC UPGRADES — Tool Implementations
