@@ -57,6 +57,7 @@ const runBackgroundTaskHandler = require('./handlers/run_background_task');
 const checkBackgroundTasksHandler = require('./handlers/check_background_tasks');
 const manageEventTriggersHandler = require('./handlers/manage_event_triggers');
 const sendPortalLinkHandler = require('./handlers/send_portal_link');
+const submitFeedbackHandler = require('./handlers/submit_feedback');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -169,22 +170,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     case 'send_portal_link':
       return await sendPortalLinkHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
-    case 'submit_feedback': {
-      const feedbackMsg = String(args.message || '').trim();
-      if (!feedbackMsg) return { error: 'No feedback message provided.' };
-      const validCats = ['bug', 'feature', 'general'];
-      const cat = validCats.includes(args.category) ? args.category : 'general';
-      try {
-        await db.insert(
-          `INSERT INTO user_feedback (therapist_id, message, category, source) VALUES (?, ?, ?, 'chat')`,
-          therapistId, feedbackMsg, cat,
-        );
-        await persistIfNeeded();
-        return { ok: true, category: cat };
-      } catch (err) {
-        return { error: `Failed to save feedback: ${err.message}` };
-      }
-    }
+    case 'submit_feedback':
+      return await submitFeedbackHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     default:
       return { error: `Unknown tool: ${name}` };
