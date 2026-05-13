@@ -42,6 +42,7 @@ const getResourcesHandler = require('./handlers/get_resources');
 const getBillingStatusHandler = require('./handlers/get_billing_status');
 const getOutcomesDashboardHandler = require('./handlers/get_outcomes_dashboard');
 const getScheduleHandler = require('./handlers/get_schedule');
+const getAppHelpHandler = require('./handlers/get_app_help');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -93,24 +94,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     case 'get_schedule':
       return await getScheduleHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
-    case 'get_app_help': {
-      const topic = (args.topic || '').toLowerCase();
-      const matches = [];
-      for (const section of APP_HELP_KB) {
-        const titleMatch = section.title.toLowerCase().includes(topic) || section.id.includes(topic);
-        for (const entry of section.content) {
-          const headingMatch = entry.heading.toLowerCase().includes(topic);
-          const bodyMatch = entry.body.toLowerCase().includes(topic);
-          if (titleMatch || headingMatch || bodyMatch) {
-            matches.push({ section: section.title, heading: entry.heading, body: entry.body });
-          }
-        }
-      }
-      if (matches.length === 0) {
-        return { message: 'No exact match found. Here are all help topics:', topics: APP_HELP_KB.map(s => s.title) };
-      }
-      return { matches: matches.slice(0, 3) };
-    }
+    case 'get_app_help':
+      return await getAppHelpHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     // ═══════════════════════════════════════════════════════════════════════
     // AGENTIC PILLAR TOOL IMPLEMENTATIONS
