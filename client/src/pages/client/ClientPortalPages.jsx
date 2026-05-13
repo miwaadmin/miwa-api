@@ -73,7 +73,8 @@ export function ClientLogin() {
             {loading ? 'Signing in...' : 'Continue as Client'}
           </button>
         </form>
-        <div className="mt-4 flex justify-center gap-4 text-sm font-semibold">
+        <div className="mt-4 flex justify-center gap-4 text-sm font-semibold flex-wrap">
+          <Link className="text-indigo-700" to="/portal/redeem">Have a code?</Link>
           <Link className="text-indigo-700" to="/client/join">Create account</Link>
           <Link className="text-indigo-700" to="/client/reset-password">Reset password</Link>
         </div>
@@ -136,6 +137,131 @@ export function ClientAcceptInvite() {
             {loading ? 'Creating portal...' : 'Accept Invite'}
           </button>
         </form>
+      </div>
+    </ClientShell>
+  )
+}
+
+// Format an invite code while the user types. Keeps the MIWA- prefix and
+// inserts the dash after 4 chars in the body. Strips invalid characters
+// (anything outside A-Z0-9), uppercases, caps at 8 body characters.
+function formatInviteCode(raw) {
+  const cleaned = String(raw || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  const stripped = cleaned.startsWith('MIWA') ? cleaned.slice(4) : cleaned
+  const body = stripped.slice(0, 8)
+  if (body.length === 0) return ''
+  if (body.length <= 4) return `MIWA-${body}`
+  return `MIWA-${body.slice(0, 4)}-${body.slice(4)}`
+}
+
+const INVITE_CODE_PATTERN = /^MIWA-[A-Z0-9]{4}-[A-Z0-9]{4}$/
+
+// Code-based portal signup. Pairs with the licensed-only client_invites
+// system — the clinician generates a code in PatientDetail and hands it
+// off out-of-band; the client lands here to redeem it.
+export function ClientRedeem() {
+  const { login } = useClientAuth()
+  const navigate = useNavigate()
+  const [params] = useSearchParams()
+  const [code, setCode] = useState(formatInviteCode(params.get('code') || ''))
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [firstName, setFirstName] = useState('')
+  const [lastName, setLastName] = useState('')
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
+
+  const codeValid = INVITE_CODE_PATTERN.test(code.trim())
+
+  async function submit(e) {
+    e.preventDefault()
+    setError('')
+    if (!codeValid) {
+      setError('That code does not look right. It should look like MIWA-XXXX-XXXX.')
+      return
+    }
+    setLoading(true)
+    try {
+      const res = await fetch(`${API_BASE}/client-auth/redeem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          code: code.trim(),
+          email: email.trim(),
+          password,
+          first_name: firstName.trim() || null,
+          last_name: lastName.trim() || null,
+          accepted_terms: true,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'We could not redeem that code.')
+      login(data.token, data.client)
+      navigate('/client/home', { replace: true })
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <ClientShell centered>
+      <div className="w-full max-w-sm px-5">
+        <HeaderMark
+          title="Have an invite code?"
+          subtitle="Enter the code your clinician gave you to set up your client portal."
+        />
+        <form
+          data-testid="client-redeem-form"
+          onSubmit={submit}
+          className="mt-7 rounded-2xl bg-white border border-gray-200 p-5 space-y-4 shadow-sm"
+        >
+          <label className="block">
+            <span className="text-sm font-semibold text-gray-700">Invite code</span>
+            <input
+              type="text"
+              autoFocus
+              value={code}
+              onChange={e => setCode(formatInviteCode(e.target.value))}
+              placeholder="MIWA-XXXX-XXXX"
+              data-testid="redeem-code-input"
+              className="mt-1 w-full rounded-xl border border-gray-200 bg-white px-4 py-3 font-mono text-base tracking-wider outline-none focus:border-teal-500 uppercase"
+              maxLength={14}
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="First name" value={firstName} onChange={setFirstName} />
+            <Field label="Last name" value={lastName} onChange={setLastName} />
+          </div>
+          <Field label="Email" type="email" value={email} onChange={setEmail} />
+          <Field label="Password" type="password" value={password} onChange={setPassword} placeholder="Min 8 characters" />
+          <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-xs text-gray-700 space-y-1">
+            <p>Miwa is not for emergencies. Your therapist may not respond instantly.</p>
+            <p>For crisis needs, call 988, 911, or local emergency services.</p>
+          </div>
+          {error && (
+            <p
+              data-testid="redeem-error"
+              className="rounded-xl bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700"
+              role="alert"
+            >
+              {error}
+            </p>
+          )}
+          <button
+            type="submit"
+            disabled={loading || !codeValid || !email || password.length < 8}
+            data-testid="redeem-submit"
+            className="w-full rounded-xl bg-gray-950 text-white font-semibold py-3 disabled:opacity-50"
+          >
+            {loading ? 'Creating portal…' : 'Create account'}
+          </button>
+        </form>
+        <p className="mt-4 text-center text-sm font-semibold">
+          <Link className="text-indigo-700" to="/client/login">Already set up? Sign in</Link>
+        </p>
       </div>
     </ClientShell>
   )

@@ -106,6 +106,7 @@ import {
   ClientMessages,
   ClientProtectedRoute,
   ClientPreview,
+  ClientRedeem,
   ClientResources,
   ClientResetPassword,
   ClientSettings,
@@ -239,6 +240,9 @@ export default function App() {
               <Route path="/client/login" element={<ClientLogin />} />
               <Route path="/client/accept-invite" element={<ClientAcceptInvite />} />
               <Route path="/client/join" element={<ClientAcceptInvite />} />
+              {/* Code-based portal signup (pairs with /api/client-auth/redeem) */}
+              <Route path="/portal/redeem" element={<ClientRedeem />} />
+              <Route path="/client/redeem" element={<ClientRedeem />} />
               <Route path="/client/reset-password" element={<ClientResetPassword />} />
               <Route path="/client/home" element={<ClientProtectedRoute><ClientHome /></ClientProtectedRoute>} />
               <Route path="/client/messages" element={<ClientProtectedRoute><ClientMessages /></ClientProtectedRoute>} />
