@@ -96,6 +96,21 @@ change is clearly experimental / scratch work. When in doubt, push.
   `session_duration` are all on the `patients` table. New fields go
   through the migration block in `db.js` AND the destructure + UPDATE
   in `server/routes/patients.js` PUT handler.
+- **Trainee sidebar:** In Agency Companion / trainee mode, the sidebar
+  order is fixed: Dashboard, Session Workspace, Consult, Supervision,
+  Cases, Hours, Learning, Resources. Do not re-add Drafts or Transition;
+  trainee drafting lives inside Session Workspace.
+- **Session Workspace status pipeline:** The trainee copy-to-EHR workflow
+  uses four steps: draft complete, trainee review, risk/safety check,
+  copied to EHR. Surface this pipeline in Workspace list views and editor
+  controls rather than rebuilding a separate Drafts page.
+- **Client invite codes:** Licensed clinicians can generate single-use
+  `MIWA-XXXX-XXXX` portal invite codes from a patient chart. Codes live in
+  `client_invites`, are redeemed through `POST /api/client-auth/redeem`,
+  and link the client portal account back to the patient via
+  `linked_patient_id`. This feature is licensed-only; trainees and
+  associates must not see invite-code UI and should receive 403s from the
+  clinician invite API.
 - **Trainee onboarding wizard:** A five-screen flow at route
   `/t/welcome`, rendered outside `<Layout>` for a clean focused page.
   Trainees and associates with an incomplete wizard land here on

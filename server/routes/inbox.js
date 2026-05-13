@@ -39,7 +39,98 @@ router.get('/summary', async (req, res) => {
       WHERE therapist_id = ?`,
       req.therapist.id,
     );
-    res.json({ unread: row?.unread || 0, risk_unread: row?.risk_unread || 0, total: row?.total || 0 });
+    const apptRequests = await db.get(
+      `SELECT COUNT(*) AS c
+       FROM client_appointment_requests
+       WHERE therapist_id = ? AND status = 'pending'`,
+      req.therapist.id,
+    );
+    res.json({
+      unread: row?.unread || 0,
+      risk_unread: row?.risk_unread || 0,
+      appointment_requests: apptRequests?.c || 0,
+      total: row?.total || 0,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/appointment-requests', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const status = req.query.status || null;
+    const where = ['car.therapist_id = ?'];
+    const params = [req.therapist.id];
+    if (status) {
+      where.push('car.status = ?');
+      params.push(status);
+    }
+    const rows = await db.all(
+      `SELECT car.id, car.patient_id, car.appointment_id, car.request_type, car.message, car.status,
+              car.therapist_response, car.created_at, car.reviewed_at, car.updated_at,
+              p.client_id, p.display_name,
+              a.scheduled_start, a.scheduled_end, a.appointment_type
+       FROM client_appointment_requests car
+       JOIN patients p ON p.id = car.patient_id
+       LEFT JOIN appointments a ON a.id = car.appointment_id
+       WHERE ${where.join(' AND ')}
+       ORDER BY CASE car.status WHEN 'pending' THEN 0 ELSE 1 END, car.created_at DESC
+       LIMIT 100`,
+      ...params,
+    );
+    res.json({ requests: rows });
+  } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.patch('/appointment-requests/:id', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const status = ['approved', 'declined', 'countered', 'pending'].includes(req.body?.status)
+      ? req.body.status
+      : null;
+    if (!status) return res.status(400).json({ error: 'Valid status is required.' });
+    const request = await db.get(
+      `SELECT * FROM client_appointment_requests WHERE id = ? AND therapist_id = ?`,
+      req.params.id,
+      req.therapist.id,
+    );
+    if (!request) return res.status(404).json({ error: 'Appointment request not found.' });
+    const response = cleanMessage(req.body?.therapist_response).slice(0, 1000) || null;
+    await db.run(
+      `UPDATE client_appointment_requests
+       SET status = ?, therapist_response = ?, reviewed_at = CASE WHEN ? = 'pending' THEN reviewed_at ELSE CURRENT_TIMESTAMP END,
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND therapist_id = ?`,
+      status,
+      response,
+      status,
+      req.params.id,
+      req.therapist.id,
+    );
+    await db.insert(
+      `INSERT INTO client_messages
+         (patient_id, therapist_id, client_account_id, sender, sender_type, message, content, delivered_at)
+       VALUES (?, ?, ?, 'system', 'system', ?, ?, CURRENT_TIMESTAMP)`,
+      request.patient_id,
+      req.therapist.id,
+      request.client_account_id || null,
+      `Appointment request ${status}.${response ? ` ${response}` : ''}`,
+      `Appointment request ${status}.${response ? ` ${response}` : ''}`,
+    );
+    await db.insert(
+      `INSERT INTO client_portal_audit_log
+         (patient_id, therapist_id, client_account_id, action, metadata_json)
+       VALUES (?, ?, ?, 'therapist_appointment_request_updated', ?)`,
+      request.patient_id,
+      req.therapist.id,
+      request.client_account_id || null,
+      JSON.stringify({ appointment_request_id: request.id, status }),
+    );
+    await persistIfNeeded();
+    res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Internal server error' });
   }

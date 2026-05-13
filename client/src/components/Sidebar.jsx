@@ -234,7 +234,6 @@ export default function Sidebar() {
   //   6. Hours
   //   7. Learning
   //   8. Resources
-  // Settings sits below as a footer item via the existing chrome.
   const traineeNavItems = [
     {
       to: '/t/dashboard',
@@ -284,12 +283,6 @@ export default function Sidebar() {
       label: 'Resources',
       activeColor: 'text-amber-300',
       icon: navItems.find(i => i.to === '/library')?.icon,
-    },
-    {
-      to: '/settings',
-      label: 'Settings',
-      activeColor: 'text-gray-300',
-      icon: navItems.find(i => i.to === '/settings')?.icon,
     },
   ]
   const renderedNavItems = agencyMode ? traineeNavItems : visibleNavItems

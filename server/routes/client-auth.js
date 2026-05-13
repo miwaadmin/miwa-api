@@ -311,14 +311,15 @@ router.post('/redeem', async (req, res) => {
 
     const inserted = await db.insert(
       `INSERT INTO client_portal_accounts
-         (patient_id, therapist_id, email, display_name, password_hash,
+         (patient_id, linked_patient_id, therapist_id, email, display_name, password_hash,
           accepted_terms_at, accepted_privacy_at, portal_consent_at,
           terms_version, privacy_version, portal_consent_version, status)
-       VALUES (?, ?, ?, ?, ?,
+       VALUES (?, ?, ?, ?, ?, ?,
                ${acceptedTerms ? 'CURRENT_TIMESTAMP' : 'NULL'},
                ${acceptedTerms ? 'CURRENT_TIMESTAMP' : 'NULL'},
                ${acceptedTerms ? 'CURRENT_TIMESTAMP' : 'NULL'},
                ?, ?, ?, 'active')`,
+      invite.patient_id,
       invite.patient_id,
       invite.therapist_id,
       email,

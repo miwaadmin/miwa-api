@@ -308,7 +308,7 @@ function createSchema() {
       therapist_id INTEGER NOT NULL REFERENCES therapists(id),
       kind TEXT NOT NULL,
       payload_json TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'pending',
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','claimed','expired','revoked')),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       completed_at DATETIME
     );
@@ -1095,6 +1095,7 @@ function createSchema() {
     CREATE TABLE IF NOT EXISTS client_portal_accounts (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       patient_id INTEGER NOT NULL REFERENCES patients(id),
+      linked_patient_id INTEGER REFERENCES patients(id),
       therapist_id INTEGER NOT NULL REFERENCES therapists(id),
       email TEXT NOT NULL,
       phone TEXT,
@@ -1231,9 +1232,11 @@ function createSchema() {
       appointment_id INTEGER REFERENCES appointments(id),
       request_type TEXT NOT NULL,
       message TEXT,
-      status TEXT NOT NULL DEFAULT 'pending',
+      therapist_response TEXT,
+      status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','approved','declined','countered')),
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      reviewed_at DATETIME
+      reviewed_at DATETIME,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_client_appointment_requests ON client_appointment_requests(therapist_id, patient_id, status);
   `);
@@ -1934,6 +1937,8 @@ function runMigrations() {
   try { db.run('ALTER TABLE treatment_goals ADD COLUMN shared_with_client INTEGER DEFAULT 0'); } catch {}
   try { db.run('ALTER TABLE treatment_goals ADD COLUMN client_visible_label TEXT'); } catch {}
   try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN accepted_privacy_at DATETIME'); } catch {}
+  try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN linked_patient_id INTEGER'); } catch {}
+  try { db.run('UPDATE client_portal_accounts SET linked_patient_id = patient_id WHERE linked_patient_id IS NULL'); } catch {}
   try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN portal_consent_at DATETIME'); } catch {}
   try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN notification_email_enabled INTEGER NOT NULL DEFAULT 1'); } catch {}
   try { db.run('ALTER TABLE client_portal_accounts ADD COLUMN notification_sms_enabled INTEGER NOT NULL DEFAULT 0'); } catch {}
@@ -1956,6 +1961,8 @@ function runMigrations() {
   try { db.run('ALTER TABLE client_homework_assignments ADD COLUMN client_reflection TEXT'); } catch {}
   try { db.run('ALTER TABLE client_homework_assignments ADD COLUMN therapist_reflection_notes TEXT'); } catch {}
   try { db.run('ALTER TABLE client_homework_assignments ADD COLUMN therapist_reviewed_at DATETIME'); } catch {}
+  try { db.run('ALTER TABLE client_appointment_requests ADD COLUMN therapist_response TEXT'); } catch {}
+  try { db.run('ALTER TABLE client_appointment_requests ADD COLUMN updated_at DATETIME'); } catch {}
   try { db.run('ALTER TABLE documents ADD COLUMN client_visible INTEGER NOT NULL DEFAULT 0'); } catch {}
   try { db.run('ALTER TABLE documents ADD COLUMN client_uploaded INTEGER NOT NULL DEFAULT 0'); } catch {}
   try { db.run('ALTER TABLE documents ADD COLUMN requested_from_client INTEGER NOT NULL DEFAULT 0'); } catch {}

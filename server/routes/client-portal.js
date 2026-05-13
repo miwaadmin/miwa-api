@@ -62,6 +62,12 @@ function hasCrisisLanguage(text) {
   return /\b(kill myself|suicide|suicidal|end my life|want to die|hurt myself|self harm|overdose|can't go on|no reason to live)\b/i.test(String(text || ''));
 }
 
+function trendDirection(first, last, higherIsBetter = false) {
+  if (first === null || first === undefined || last === null || last === undefined || first === last) return 'stable';
+  const improved = higherIsBetter ? last > first : last < first;
+  return improved ? 'improving' : 'increasing';
+}
+
 async function portalPayload(db, req) {
   const patient = await getOwnedPatient(db, req);
   if (!patient) return null;
@@ -96,10 +102,47 @@ async function portalPayload(db, req) {
     req.client.id,
   );
   const messages = await db.all(
-    `SELECT id, sender_type, content, sender, message, read_at, created_at
+    `SELECT id, sender_type, content, sender, message, read_at, client_viewed_at, therapist_viewed_at, created_at
      FROM client_messages
      WHERE patient_id = ? AND therapist_id = ? AND (client_account_id IS NULL OR client_account_id = ?)
      ORDER BY created_at ASC LIMIT 100`,
+    req.client.patient_id,
+    req.client.therapist_id,
+    req.client.id,
+  );
+  const unreadRow = await db.get(
+    `SELECT COUNT(*) AS c
+     FROM client_messages
+     WHERE patient_id = ? AND therapist_id = ? AND (client_account_id IS NULL OR client_account_id = ?)
+       AND sender_type = 'therapist' AND client_viewed_at IS NULL`,
+    req.client.patient_id,
+    req.client.therapist_id,
+    req.client.id,
+  );
+  const appointmentRequests = await db.all(
+    `SELECT car.id, car.appointment_id, car.request_type, car.message, car.status, car.therapist_response,
+            car.created_at, car.reviewed_at, car.updated_at,
+            a.scheduled_start, a.scheduled_end, a.appointment_type
+     FROM client_appointment_requests car
+     LEFT JOIN appointments a ON a.id = car.appointment_id
+     WHERE car.patient_id = ? AND car.therapist_id = ? AND (car.client_account_id IS NULL OR car.client_account_id = ?)
+     ORDER BY car.created_at DESC LIMIT 10`,
+    req.client.patient_id,
+    req.client.therapist_id,
+    req.client.id,
+  );
+  const assessmentRows = await db.all(
+    `SELECT id, template_type, total_score, severity_level, severity_color, administered_at, member_label
+     FROM assessments
+     WHERE patient_id = ? AND therapist_id = ?
+     ORDER BY administered_at ASC, id ASC`,
+    req.client.patient_id,
+    req.client.therapist_id,
+  );
+  const homeworkStats = await db.get(
+    `SELECT COUNT(*) AS total, SUM(CASE WHEN completed_at IS NOT NULL THEN 1 ELSE 0 END) AS completed
+     FROM client_homework_assignments
+     WHERE patient_id = ? AND therapist_id = ? AND (client_account_id IS NULL OR client_account_id = ?)`,
     req.client.patient_id,
     req.client.therapist_id,
     req.client.id,
@@ -127,6 +170,10 @@ async function portalPayload(db, req) {
       telehealth_url: therapist?.telehealth_url || null,
     },
     appointments: req.client.appointment_visibility_enabled === 0 ? [] : appointments,
+    appointment_requests: appointmentRequests,
+    unread_counts: {
+      messages: unreadRow?.c || 0,
+    },
     assessments: assessments.map((a) => ({
       ...a,
       name: TEMPLATES[a.template_type]?.name || a.template_type,
@@ -135,6 +182,7 @@ async function portalPayload(db, req) {
     })),
     homework: req.client.homework_enabled === 0 ? [] : homework,
     messages: messages.map(normalizeMessage),
+    outcomes: buildOutcomeSeries(assessmentRows, homeworkStats),
     care_goals: goals,
     safety_resources: {
       emergency: 'If you may hurt yourself or someone else, call 911 or go to the nearest emergency room.',
@@ -153,6 +201,47 @@ async function portalPayload(db, req) {
   };
 }
 
+function buildOutcomeSeries(rows = [], homeworkStats = {}) {
+  const grouped = new Map();
+  for (const row of rows) {
+    const key = row.template_type;
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push({
+      id: row.id,
+      score: row.total_score,
+      severity: row.severity_level,
+      color: row.severity_color,
+      date: row.administered_at,
+      member_label: row.member_label || null,
+    });
+  }
+  const assessments = [...grouped.entries()].map(([template_type, points]) => {
+    const template = TEMPLATES[template_type] || {};
+    const first = points[0]?.score;
+    const latest = points[points.length - 1]?.score;
+    return {
+      template_type,
+      name: template.name || template_type,
+      higher_is_better: !!template.higherIsBetter,
+      points,
+      latest,
+      first,
+      trend: trendDirection(first, latest, !!template.higherIsBetter),
+      latest_severity: points[points.length - 1]?.severity || null,
+    };
+  });
+  const totalHomework = homeworkStats?.total || 0;
+  const completedHomework = homeworkStats?.completed || 0;
+  return {
+    assessments,
+    practice: {
+      total: totalHomework,
+      completed: completedHomework,
+      completion_rate: totalHomework ? Math.round((completedHomework / totalHomework) * 100) : 0,
+    },
+  };
+}
+
 router.get('/home', async (req, res) => {
   const db = getAsyncDb();
   const payload = await portalPayload(db, req);
@@ -165,7 +254,7 @@ router.get('/home', async (req, res) => {
 router.get('/messages', async (req, res) => {
   const db = getAsyncDb();
   const messages = await db.all(
-    `SELECT id, sender_type, content, sender, message, read_at, created_at
+    `SELECT id, sender_type, content, sender, message, read_at, client_viewed_at, therapist_viewed_at, created_at
      FROM client_messages
      WHERE patient_id = ? AND therapist_id = ? AND (client_account_id IS NULL OR client_account_id = ?)
      ORDER BY created_at ASC LIMIT 100`,
@@ -175,9 +264,10 @@ router.get('/messages', async (req, res) => {
   );
   await db.run(
     `UPDATE client_messages SET read_at = COALESCE(read_at, CURRENT_TIMESTAMP), client_viewed_at = COALESCE(client_viewed_at, CURRENT_TIMESTAMP)
-     WHERE patient_id = ? AND therapist_id = ? AND sender_type = 'therapist'`,
+     WHERE patient_id = ? AND therapist_id = ? AND (client_account_id IS NULL OR client_account_id = ?) AND sender_type = 'therapist'`,
     req.client.patient_id,
     req.client.therapist_id,
+    req.client.id,
   );
   await audit(db, req, 'read_messages');
   await persistIfNeeded();
@@ -241,6 +331,29 @@ router.get('/assessments', async (req, res) => {
       expired: new Date(a.expires_at) < new Date(),
     })),
   });
+});
+
+router.get('/outcomes', async (req, res) => {
+  const db = getAsyncDb();
+  const rows = await db.all(
+    `SELECT id, template_type, total_score, severity_level, severity_color, administered_at, member_label
+     FROM assessments
+     WHERE patient_id = ? AND therapist_id = ?
+     ORDER BY administered_at ASC, id ASC`,
+    req.client.patient_id,
+    req.client.therapist_id,
+  );
+  const homeworkStats = await db.get(
+    `SELECT COUNT(*) AS total, SUM(CASE WHEN completed_at IS NOT NULL THEN 1 ELSE 0 END) AS completed
+     FROM client_homework_assignments
+     WHERE patient_id = ? AND therapist_id = ? AND (client_account_id IS NULL OR client_account_id = ?)`,
+    req.client.patient_id,
+    req.client.therapist_id,
+    req.client.id,
+  );
+  await audit(db, req, 'view_outcomes');
+  await persistIfNeeded();
+  return res.json({ outcomes: buildOutcomeSeries(rows, homeworkStats) });
 });
 
 router.get('/assessments/:token', async (req, res) => {
@@ -425,9 +538,19 @@ router.get('/appointments', async (req, res) => {
     req.client.patient_id,
     req.client.therapist_id,
   );
+  const requests = await db.all(
+    `SELECT car.id, car.appointment_id, car.request_type, car.message, car.status, car.therapist_response,
+            car.created_at, car.reviewed_at, car.updated_at
+     FROM client_appointment_requests car
+     WHERE car.patient_id = ? AND car.therapist_id = ? AND (car.client_account_id IS NULL OR car.client_account_id = ?)
+     ORDER BY car.created_at DESC LIMIT 25`,
+    req.client.patient_id,
+    req.client.therapist_id,
+    req.client.id,
+  );
   await audit(db, req, 'view_appointments');
   await persistIfNeeded();
-  return res.json({ appointments });
+  return res.json({ appointments, requests });
 });
 
 router.post('/appointments/:id/request', async (req, res) => {
@@ -440,7 +563,18 @@ router.post('/appointments/:id/request', async (req, res) => {
   );
   if (!appt) return res.status(404).json({ error: 'Appointment not found.' });
   const requestType = ['cancel', 'reschedule'].includes(req.body?.request_type) ? req.body.request_type : 'reschedule';
-  await db.insert(
+  const existing = await db.get(
+    `SELECT id FROM client_appointment_requests
+     WHERE patient_id = ? AND therapist_id = ? AND appointment_id = ?
+       AND (client_account_id IS NULL OR client_account_id = ?) AND status = 'pending'
+     ORDER BY created_at DESC LIMIT 1`,
+    req.client.patient_id,
+    req.client.therapist_id,
+    appt.id,
+    req.client.id,
+  );
+  if (existing) return res.json({ ok: true, request_id: existing.id, status: 'pending' });
+  const result = await db.insert(
     `INSERT INTO client_appointment_requests
        (patient_id, therapist_id, client_account_id, appointment_id, request_type, message)
      VALUES (?, ?, ?, ?, ?, ?)`,
@@ -451,9 +585,15 @@ router.post('/appointments/:id/request', async (req, res) => {
     requestType,
     req.body?.message || null,
   );
+  await db.insert(
+    `INSERT INTO proactive_alerts (therapist_id, patient_id, alert_type, severity, title, description)
+     VALUES (?, ?, 'CLIENT_APPOINTMENT_REQUEST', 'MEDIUM', 'Client requested appointment change', 'A client requested a cancel or reschedule from the portal.')`,
+    req.client.therapist_id,
+    req.client.patient_id,
+  );
   await audit(db, req, 'appointment_request_created', { appointment_id: appt.id, request_type: requestType });
   await persistIfNeeded();
-  return res.json({ ok: true });
+  return res.json({ ok: true, request_id: result.lastInsertRowid, status: 'pending' });
 });
 
 router.get('/resources', async (_req, res) => {

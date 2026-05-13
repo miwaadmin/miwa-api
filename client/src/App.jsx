@@ -292,8 +292,6 @@ export default function App() {
                 <Route path="/t/dashboard" element={<TraineeOnboardingGuard><TraineeToday /></TraineeOnboardingGuard>} />
                 <Route path="/t/today" element={<Navigate to="/t/dashboard" replace />} />
                 <Route path="/t/cases" element={<TraineeOnboardingGuard><TraineeCases /></TraineeOnboardingGuard>} />
-                {/* /t/drafts removed — drafting now lives inside Session Workspace */}
-                <Route path="/t/drafts" element={<Navigate to="/t/workspace" replace />} />
                 <Route path="/t/workspace" element={<TraineeOnboardingGuard><Workspace /></TraineeOnboardingGuard>} />
                 <Route path="/t/supervision" element={<TraineeOnboardingGuard><TraineeSupervision /></TraineeOnboardingGuard>} />
                 <Route path="/t/hours" element={<TraineeOnboardingGuard><TraineeHours /></TraineeOnboardingGuard>} />

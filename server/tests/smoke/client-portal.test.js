@@ -6,7 +6,7 @@ test('client portal auth boundary and vertical slice', async (t) => {
   await startTestServer();
   t.after(stopTestServer);
 
-  const { cookie: therapistCookie } = await bootstrapAdminAndLogin();
+  const { cookie: therapistCookie, therapist } = await bootstrapAdminAndLogin();
 
   const created = await api('POST', '/api/patients', {
     first_name: 'Client',
@@ -52,10 +52,18 @@ test('client portal auth boundary and vertical slice', async (t) => {
   }, therapistCookie);
   assert.equal(therapistMessage.status, 200);
 
+  const homeWithUnread = await api('GET', '/api/client-portal/home', null, clientCookie);
+  assert.equal(homeWithUnread.status, 200);
+  assert.ok(homeWithUnread.body.unread_counts.messages >= 1);
+
   const clientMessages = await api('GET', '/api/client-portal/messages', null, clientCookie);
   assert.equal(clientMessages.status, 200);
   assert.ok(clientMessages.body.messages.length >= 2);
   assert.equal(clientMessages.body.messages.at(-1).sender_type, 'therapist');
+
+  const homeAfterRead = await api('GET', '/api/client-portal/home', null, clientCookie);
+  assert.equal(homeAfterRead.status, 200);
+  assert.equal(homeAfterRead.body.unread_counts.messages, 0);
 
   const reply = await api('POST', '/api/client-portal/messages', { content: 'I will do that today.' }, clientCookie);
   assert.equal(reply.status, 200);
@@ -86,10 +94,60 @@ test('client portal auth boundary and vertical slice', async (t) => {
   }, therapistCookie);
   assert.equal(assessment.status, 200);
 
+  const assessmentTemplate = await api('GET', `/api/client-portal/assessments/${assessment.body.token}`, null, clientCookie);
+  assert.equal(assessmentTemplate.status, 200);
+  const assessmentComplete = await api('POST', `/api/client-portal/assessments/${assessment.body.token}`, {
+    responses: assessmentTemplate.body.questions.map((q) => ({ question_id: q.id, value: 1 })),
+  }, clientCookie);
+  assert.equal(assessmentComplete.status, 200);
+
+  const outcomes = await api('GET', '/api/client-portal/outcomes', null, clientCookie);
+  assert.equal(outcomes.status, 200);
+  assert.equal(outcomes.body.outcomes.assessments.some(a => a.template_type === 'gad-7' && a.points.length === 1), true);
+  assert.equal(outcomes.body.outcomes.practice.completed, 1);
+
   const home = await api('GET', '/api/client-portal/home', null, clientCookie);
   assert.equal(home.status, 200);
   assert.equal(home.body.client.email, 'client.portal@example.com');
   assert.equal(home.body.assessments.some(a => a.template_type === 'gad-7'), true);
+  assert.equal(home.body.outcomes.assessments.some(a => a.template_type === 'gad-7'), true);
+
+  const patientRow = await db.get('SELECT client_id FROM patients WHERE id = ?', patientId);
+  const appointmentInsert = await db.insert(
+    `INSERT INTO appointments
+       (therapist_id, patient_id, client_code, appointment_type, scheduled_start, scheduled_end, duration_minutes, location, meet_url, status)
+     VALUES (?, ?, ?, 'therapy_session', ?, ?, 50, 'Telehealth', 'https://meet.test/client-portal', 'scheduled')`,
+    therapist.id,
+    patientId,
+    patientRow.client_id,
+    new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toISOString(),
+    new Date(Date.now() + 3 * 24 * 60 * 60 * 1000 + 50 * 60 * 1000).toISOString(),
+  );
+
+  const appointmentRequest = await api('POST', `/api/client-portal/appointments/${appointmentInsert.lastInsertRowid}/request`, {
+    request_type: 'reschedule',
+    message: 'Could we move this appointment?',
+  }, clientCookie);
+  assert.equal(appointmentRequest.status, 200);
+  assert.equal(appointmentRequest.body.status, 'pending');
+
+  const clientAppointments = await api('GET', '/api/client-portal/appointments', null, clientCookie);
+  assert.equal(clientAppointments.status, 200);
+  assert.equal(clientAppointments.body.requests.some(r => r.id === appointmentRequest.body.request_id && r.status === 'pending'), true);
+
+  const inboxWithAppointment = await api('GET', '/api/inbox/summary', null, therapistCookie);
+  assert.equal(inboxWithAppointment.status, 200);
+  assert.ok(inboxWithAppointment.body.appointment_requests >= 1);
+
+  const resolvedRequest = await api('PATCH', `/api/inbox/appointment-requests/${appointmentRequest.body.request_id}`, {
+    status: 'approved',
+    therapist_response: 'Yes, I will follow up with a new time.',
+  }, therapistCookie);
+  assert.equal(resolvedRequest.status, 200);
+
+  const updatedAppointments = await api('GET', '/api/client-portal/appointments', null, clientCookie);
+  assert.equal(updatedAppointments.status, 200);
+  assert.equal(updatedAppointments.body.requests.some(r => r.status === 'approved' && /new time/.test(r.therapist_response)), true);
 
   const settings = await api('PUT', '/api/client-portal/settings', {
     notification_email_enabled: false,

@@ -6,9 +6,9 @@ import { MiwaLogo } from '../../components/Sidebar'
 
 const tabs = [
   { to: '/client/home', label: 'Home' },
-  { to: '/client/messages', label: 'Messages' },
+  { to: '/client/messages', label: 'Messages', badgeKey: 'messages' },
   { to: '/client/assessments', label: 'Check-ins' },
-  { to: '/client/homework', label: 'Homework' },
+  { to: '/client/homework', label: 'Practice' },
   { to: '/client/documents', label: 'Docs' },
   { to: '/client/resources', label: 'Safety' },
 ]
@@ -339,15 +339,36 @@ function usePortalHome() {
   return { data, setData, loading, error, load }
 }
 
+function usePortalBadges() {
+  const [badges, setBadges] = useState({})
+  useEffect(() => {
+    let active = true
+    clientApiFetch('/client-portal/home')
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!active || !data) return
+        setBadges({
+          messages: data.unread_counts?.messages || 0,
+          appointmentRequests: (data.appointment_requests || []).filter(r => r.status === 'pending').length,
+        })
+      })
+      .catch(() => {})
+    return () => { active = false }
+  }, [])
+  return badges
+}
+
 export function ClientHome() {
   const portal = usePortalHome()
   if (portal.loading) return <ClientFrame><Loading label="Opening your home..." /></ClientFrame>
   if (portal.error) return <ClientFrame><Empty title="Could not load portal" body={portal.error} /></ClientFrame>
   const data = portal.data
   const next = (data.appointments || []).filter(a => new Date(a.scheduled_start) > new Date())[0]
-  const unread = (data.messages || []).filter(m => m.sender_type === 'therapist' && !m.read_at)[0]
+  const unreadCount = data.unread_counts?.messages || 0
+  const unread = (data.messages || []).find(m => m.sender_type === 'therapist' && !m.client_viewed_at)
   const pendingAssessments = (data.assessments || []).filter(a => !a.completed_at && !a.expired)
   const incomplete = (data.homework || []).filter(h => !h.completed_at)
+  const outcome = data.outcomes?.assessments?.[data.outcomes.assessments.length - 1]
 
   return (
     <ClientFrame>
@@ -366,9 +387,10 @@ export function ClientHome() {
         )}
         <Checklist data={data} />
         <HomeCard title="Next appointment" to="/client/appointments" value={next ? `${fmtDate(next.scheduled_start)} at ${new Date(next.scheduled_start).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}` : 'No upcoming appointment'} />
-        <HomeCard title="Unread message" to="/client/messages" value={unread ? unread.content : 'No unread messages'} />
+        <HomeCard title="Messages" to="/client/messages" value={unreadCount ? `${unreadCount} unread ${unreadCount === 1 ? 'message' : 'messages'}` : 'No unread messages'} detail={unread?.content} />
         <HomeCard title="Check-ins" to="/client/assessments" value={pendingAssessments.length ? `${pendingAssessments.length} waiting for you` : 'Nothing due'} />
-        <HomeCard title="Homework and resources" to="/client/homework" value={incomplete.length ? `${incomplete.length} incomplete` : 'All caught up'} />
+        <HomeCard title="Progress" to="/client/assessments" value={outcome ? `${outcome.name}: ${outcome.latest}${outcome.latest_severity ? `, ${outcome.latest_severity}` : ''}` : 'No check-in history yet'} />
+        <HomeCard title="Practice and tools" to="/client/homework" value={incomplete.length ? `${incomplete.length} incomplete` : 'All caught up'} />
         <HomeCard title="Forms and documents" to="/client/documents" value="Shared files and requested forms" />
         {data.care_goals?.length > 0 && (
           <section className="rounded-2xl bg-white border border-gray-200 p-4">
@@ -434,11 +456,12 @@ export function ClientPreview() {
   )
 }
 
-function HomeCard({ title, value, to }) {
+function HomeCard({ title, value, detail, to }) {
   return (
     <Link to={to} className="block rounded-2xl bg-white border border-gray-200 p-4 active:bg-gray-50">
       <p className="text-xs font-bold uppercase tracking-wide text-gray-500">{title}</p>
       <p className="mt-1 text-base font-semibold text-gray-950">{value}</p>
+      {detail && <p className="mt-1 line-clamp-2 text-sm text-gray-500">{detail}</p>}
     </Link>
   )
 }
@@ -512,15 +535,21 @@ export function ClientAssessments() {
   const [params] = useSearchParams()
   const activeToken = params.get('token')
   const [items, setItems] = useState([])
+  const [outcomes, setOutcomes] = useState(null)
   const [loading, setLoading] = useState(true)
   useEffect(() => {
     if (activeToken) {
       setLoading(false)
       return
     }
-    clientApiFetch('/client-portal/assessments')
-      .then(r => r.json())
-      .then(j => setItems(j.assessments || []))
+    Promise.all([
+      clientApiFetch('/client-portal/assessments').then(r => r.json()),
+      clientApiFetch('/client-portal/outcomes').then(r => r.json()).catch(() => ({})),
+    ])
+      .then(([assessmentData, outcomeData]) => {
+        setItems(assessmentData.assessments || [])
+        setOutcomes(outcomeData.outcomes || null)
+      })
       .finally(() => setLoading(false))
   }, [activeToken])
   if (activeToken) return <AssessmentRunner token={activeToken} />
@@ -528,15 +557,90 @@ export function ClientAssessments() {
   const done = items.filter(a => a.completed_at)
   return (
     <ClientFrame>
-      <ListPage title="Check-ins" loading={loading} empty={!items.length} emptyTitle="No check-ins yet">
-        {[...pending, ...done].map(a => (
-          <Link key={a.id} to={a.completed_at ? '#' : `/client/assessments?token=${a.token}`} className="block rounded-2xl bg-white border border-gray-200 p-4">
-            <p className="font-semibold text-gray-950">{a.name}</p>
-            <p className="text-sm text-gray-500">{a.completed_at ? `Completed ${fmtDate(a.completed_at)}` : `Due by ${fmtDate(a.expires_at)}`}</p>
-          </Link>
-        ))}
-      </ListPage>
+      <div className="px-4 py-5 space-y-3">
+        <h1 className="text-xl font-bold text-gray-950">Check-ins</h1>
+        {loading ? <Loading label="Loading..." /> : (
+          <>
+            <OutcomeOverview outcomes={outcomes} />
+            {!items.length ? <Empty title="No check-ins yet" /> : [...pending, ...done].map(a => (
+              <Link key={a.id} to={a.completed_at ? '#' : `/client/assessments?token=${a.token}`} className="block rounded-2xl bg-white border border-gray-200 p-4">
+                <p className="font-semibold text-gray-950">{a.name}</p>
+                <p className="text-sm text-gray-500">{a.completed_at ? `Completed ${fmtDate(a.completed_at)}` : `Due by ${fmtDate(a.expires_at)}`}</p>
+              </Link>
+            ))}
+          </>
+        )}
+      </div>
     </ClientFrame>
+  )
+}
+
+function OutcomeOverview({ outcomes }) {
+  const series = outcomes?.assessments || []
+  const practice = outcomes?.practice || { total: 0, completed: 0, completion_rate: 0 }
+  if (!series.length && !practice.total) {
+    return (
+      <section className="rounded-2xl bg-white border border-gray-200 p-4">
+        <p className="font-semibold text-gray-950">Progress</p>
+        <p className="mt-1 text-sm text-gray-500">Your check-in history will show here after you complete one.</p>
+      </section>
+    )
+  }
+  return (
+    <section className="rounded-2xl bg-white border border-gray-200 p-4 space-y-4">
+      <div>
+        <p className="font-semibold text-gray-950">Progress</p>
+        <p className="mt-1 text-sm text-gray-500">These scores are a snapshot. Talk with your clinician about what they mean.</p>
+      </div>
+      {series.map(s => (
+        <div key={s.template_type} className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-gray-950">{s.name}</p>
+              <p className="text-xs text-gray-500">
+                Latest: {s.latest ?? 'Not scored'}{s.latest_severity ? `, ${s.latest_severity}` : ''}
+              </p>
+            </div>
+            {s.points?.length > 1 && <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-gray-600">{trendLabel(s.trend)}</span>}
+          </div>
+          <MiniLineChart points={s.points || []} />
+        </div>
+      ))}
+      {practice.total > 0 && (
+        <div className="rounded-xl border border-gray-100 bg-gray-50 p-3">
+          <p className="text-sm font-semibold text-gray-950">Practice</p>
+          <p className="mt-1 text-xs text-gray-500">{practice.completed} of {practice.total} complete</p>
+          <div className="mt-3 h-2 rounded-full bg-gray-200">
+            <div className="h-2 rounded-full bg-teal-600" style={{ width: `${practice.completion_rate}%` }} />
+          </div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+function trendLabel(trend) {
+  if (trend === 'improving') return 'Moving down'
+  if (trend === 'increasing') return 'Moving up'
+  return 'Stable'
+}
+
+function MiniLineChart({ points }) {
+  const clean = points.filter(p => Number.isFinite(Number(p.score)))
+  if (!clean.length) return null
+  const max = Math.max(...clean.map(p => Number(p.score)), 1)
+  const coords = clean.map((p, index) => {
+    const x = clean.length === 1 ? 50 : (index / (clean.length - 1)) * 100
+    const y = 88 - (Number(p.score) / max) * 72
+    return { x, y }
+  })
+  const line = coords.map(p => `${p.x},${p.y}`).join(' ')
+  return (
+    <svg viewBox="0 0 100 100" className="mt-3 h-24 w-full" role="img" aria-label="Check-in score trend">
+      <line x1="0" y1="88" x2="100" y2="88" stroke="#e5e7eb" strokeWidth="2" />
+      {coords.length > 1 && <polyline points={line} fill="none" stroke="#0f766e" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round" />}
+      {coords.map((p, index) => <circle key={index} cx={p.x} cy={p.y} r="4" fill="#0f766e" />)}
+    </svg>
   )
 }
 
@@ -601,7 +705,7 @@ export function ClientHomework() {
   }
   return (
     <ClientFrame>
-      <ListPage title="Homework" loading={loading} empty={!items.length} emptyTitle="No homework assigned">
+      <ListPage title="Practice" loading={loading} empty={!items.length} emptyTitle="No practice items yet">
         {items.map(h => (
           <section key={h.id} className="rounded-2xl bg-white border border-gray-200 p-4">
             <div className="flex justify-between gap-3">
@@ -621,10 +725,22 @@ export function ClientHomework() {
 
 export function ClientAppointments() {
   const [items, setItems] = useState([])
+  const [requests, setRequests] = useState([])
   const [loading, setLoading] = useState(true)
-  useEffect(() => {
-    clientApiFetch('/client-portal/appointments').then(r => r.json()).then(j => setItems(j.appointments || [])).finally(() => setLoading(false))
-  }, [])
+  async function load() {
+    const res = await clientApiFetch('/client-portal/appointments')
+    const json = await res.json()
+    setItems(json.appointments || [])
+    setRequests(json.requests || [])
+  }
+  useEffect(() => { load().finally(() => setLoading(false)) }, [])
+  const requestByAppointment = useMemo(() => {
+    const map = new Map()
+    requests.forEach(r => {
+      if (!map.has(r.appointment_id)) map.set(r.appointment_id, r)
+    })
+    return map
+  }, [requests])
   return (
     <ClientFrame>
       <ListPage title="Appointments" loading={loading} empty={!items.length} emptyTitle="No appointments scheduled">
@@ -633,7 +749,7 @@ export function ClientAppointments() {
             <p className="font-semibold text-gray-950">{fmtDateTime(a.scheduled_start)}</p>
             <p className="text-sm text-gray-500">{a.appointment_type?.replace(/_/g, ' ') || 'Session'} {a.location ? `- ${a.location}` : ''}</p>
             {a.meet_url && <a href={a.meet_url} target="_blank" rel="noreferrer" className="mt-3 inline-block rounded-xl bg-indigo-600 px-4 py-2 text-sm font-semibold text-white">Join telehealth</a>}
-            <AppointmentRequestButton appointmentId={a.id} />
+            <AppointmentRequestButton appointmentId={a.id} request={requestByAppointment.get(a.id)} onRequested={load} />
           </section>
         ))}
       </ListPage>
@@ -641,18 +757,41 @@ export function ClientAppointments() {
   )
 }
 
-function AppointmentRequestButton({ appointmentId }) {
-  const [sent, setSent] = useState(false)
+function AppointmentRequestButton({ appointmentId, request, onRequested }) {
+  const [sending, setSending] = useState(false)
   async function requestChange() {
-    await clientApiFetch(`/client-portal/appointments/${appointmentId}/request`, {
-      method: 'POST',
-      body: JSON.stringify({ request_type: 'reschedule', message: 'Client requested a schedule change.' }),
-    })
-    setSent(true)
+    setSending(true)
+    try {
+      await clientApiFetch(`/client-portal/appointments/${appointmentId}/request`, {
+        method: 'POST',
+        body: JSON.stringify({ request_type: 'reschedule', message: 'Client requested a schedule change.' }),
+      })
+      await onRequested?.()
+    } finally {
+      setSending(false)
+    }
   }
-  return sent
-    ? <p className="mt-3 text-sm font-semibold text-emerald-700">Request sent</p>
-    : <button onClick={requestChange} className="mt-3 block rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700">Request cancel or reschedule</button>
+  if (request) {
+    return (
+      <div className="mt-3 rounded-xl bg-gray-50 border border-gray-200 p-3">
+        <p className="text-sm font-semibold text-gray-950">{appointmentRequestStatus(request.status)}</p>
+        {request.therapist_response && <p className="mt-1 text-sm text-gray-600">{request.therapist_response}</p>}
+        {request.status !== 'pending' && (
+          <button onClick={requestChange} disabled={sending} className="mt-3 rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 disabled:opacity-50">
+            {sending ? 'Sending...' : 'Send another request'}
+          </button>
+        )}
+      </div>
+    )
+  }
+  return <button onClick={requestChange} disabled={sending} className="mt-3 block rounded-xl border border-gray-200 px-4 py-2 text-sm font-semibold text-gray-700 disabled:opacity-50">{sending ? 'Sending...' : 'Request cancel or reschedule'}</button>
+}
+
+function appointmentRequestStatus(status) {
+  if (status === 'approved') return 'Request approved'
+  if (status === 'declined') return 'Request declined'
+  if (status === 'countered') return 'Your clinician suggested another option'
+  return 'Request pending'
 }
 
 export function ClientDocuments() {
@@ -733,7 +872,7 @@ export function ClientSettings() {
             <Toggle label="SMS notifications" checked={settings.notification_sms_enabled} onChange={v => save({ ...settings, notification_sms_enabled: v })} />
             <Toggle label="Appointment reminders" checked={settings.appointment_reminders_enabled} onChange={v => save({ ...settings, appointment_reminders_enabled: v })} />
             <Toggle label="Assessment reminders" checked={settings.assessment_reminders_enabled} onChange={v => save({ ...settings, assessment_reminders_enabled: v })} />
-            <Toggle label="Homework reminders" checked={settings.homework_reminders_enabled} onChange={v => save({ ...settings, homework_reminders_enabled: v })} />
+            <Toggle label="Practice reminders" checked={settings.homework_reminders_enabled} onChange={v => save({ ...settings, homework_reminders_enabled: v })} />
             <p className="text-xs text-gray-500">Notifications only say there is a secure item in Miwa. They do not include clinical details.</p>
           </section>
         )}
@@ -770,13 +909,23 @@ function CrisisButton() {
 }
 
 function ClientFrame({ children }) {
+  const badges = usePortalBadges()
   return (
     <ClientShell>
       <main className="mx-auto w-full max-w-xl min-h-screen pb-20 bg-gray-50">{children}</main>
       <CrisisButton />
       <nav className="fixed bottom-0 left-0 right-0 bg-white/95 border-t border-gray-200">
         <div className="mx-auto flex max-w-xl justify-around px-2 py-2">
-          {tabs.map(t => <Link key={t.to} to={t.to} className="px-2 py-2 text-[11px] font-semibold text-gray-600">{t.label}</Link>)}
+          {tabs.map(t => (
+            <Link key={t.to} to={t.to} className="relative px-2 py-2 text-[11px] font-semibold text-gray-600">
+              {t.label}
+              {t.badgeKey && badges[t.badgeKey] > 0 && (
+                <span className="absolute -top-0.5 -right-1 min-w-4 rounded-full bg-teal-600 px-1 text-center text-[10px] leading-4 text-white">
+                  {badges[t.badgeKey] > 9 ? '9+' : badges[t.badgeKey]}
+                </span>
+              )}
+            </Link>
+          ))}
         </div>
       </nav>
     </ClientShell>
