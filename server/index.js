@@ -118,6 +118,14 @@ const publicLimiter = rateLimit({
   message: { error: 'Too many requests. Please try again in a few minutes.' },
 });
 
+const webhookLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: Number(process.env.WEBHOOK_RATE_LIMIT_MAX || 600),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Webhook rate limit exceeded' },
+});
+
 function clientPortalEnabled(req, res, next) {
   if (String(process.env.CLIENT_PORTAL_ENABLED || 'true').toLowerCase() === 'false') {
     return res.status(404).json({ error: 'Client portal is not enabled.' });
@@ -174,6 +182,7 @@ app.get('/api/_diag/discord', (req, res) => {
 });
 
 // ── Billing routes (JSON-parsed; requireAuth is applied inside the router) ───
+app.use('/api/billing/webhook', webhookLimiter);
 app.use('/api/billing', require('./routes/billing'));
 
 // ── Protected routes ─────────────────────────────────────────────────────────
