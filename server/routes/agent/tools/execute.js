@@ -39,6 +39,7 @@ const batchSendAssessmentsHandler = require('./handlers/batch_send_assessments')
 const createClientHandler = require('./handlers/create_client');
 const generateReportHandler = require('./handlers/generate_report');
 const getResourcesHandler = require('./handlers/get_resources');
+const getBillingStatusHandler = require('./handlers/get_billing_status');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -81,20 +82,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     case 'get_resources':
       return await getResourcesHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
-    case 'get_billing_status': {
-      const row = await db.get('SELECT subscription_status, subscription_tier, workspace_uses FROM therapists WHERE id = ?', therapistId);
-      if (!row) return { error: 'Therapist not found' };
-      const trialLimit = 20;
-      const isActive = row.subscription_status === 'active' || row.subscription_status === 'trialing';
-      return {
-        status: row.subscription_status || 'none',
-        tier: row.subscription_tier || 'free_trial',
-        workspace_uses: row.workspace_uses || 0,
-        trial_limit: trialLimit,
-        trial_remaining: Math.max(0, trialLimit - (row.workspace_uses || 0)),
-        is_active: isActive,
-      };
-    }
+    case 'get_billing_status':
+      return await getBillingStatusHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     case 'get_outcomes_dashboard': {
       const totalAssessments = (await db.get('SELECT COUNT(*) as c FROM assessments WHERE therapist_id = ?', therapistId))?.c || 0;
