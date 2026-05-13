@@ -53,6 +53,7 @@ const delegateAnalysisHandler = require('./handlers/delegate_analysis');
 const searchPracticeInsightsHandler = require('./handlers/search_practice_insights');
 const scheduleTaskHandler = require('./handlers/schedule_task');
 const listScheduledTasksHandler = require('./handlers/list_scheduled_tasks');
+const runBackgroundTaskHandler = require('./handlers/run_background_task');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -152,23 +153,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       return await listScheduledTasksHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     // Feature 4: Background Tasks with Notifications
-    case 'run_background_task': {
-      const { lastInsertRowid: bgTaskId } = await db.insert(
-        'INSERT INTO background_tasks (therapist_id, task_type, description) VALUES (?, ?, ?)',
-        therapistId, args.task_type, args.description
-      );
-
-      // Fire and forget — run in background
-      runBackgroundTask(db, bgTaskId, therapistId, args.task_type).catch(async err => {
-        await db.run("UPDATE background_tasks SET status = 'failed', error = ? WHERE id = ?", err.message, bgTaskId);
-      });
-
-      return {
-        task_id: bgTaskId,
-        status: 'running',
-        message: `Background task started: "${args.description}". I'll notify you when it's done. You can keep chatting.`,
-      };
-    }
+    case 'run_background_task':
+      return await runBackgroundTaskHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     case 'check_background_tasks': {
       const tasks = await db.all(
