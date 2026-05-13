@@ -39,6 +39,42 @@ const ASSISTANT_PERMISSION_CHOICES = [
   { id: 'supervision_notes', label: 'Supervision notes' },
 ]
 
+const ACCOUNT_STAGE_OPTIONS = [
+  {
+    value: 'trainee',
+    label: 'Trainee / practicum',
+    desc: 'For students and interns still practicing under school and site supervision. Keeps Agency Companion, supervision, hours, and Socratic guidance front-and-center.',
+    badge: 'Pre-licensed',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422A12.083 12.083 0 0118.825 17 11.952 11.952 0 0012 20.055 11.952 11.952 0 005.176 17a12.078 12.078 0 01.665-6.479L12 14z" />
+      </svg>
+    ),
+  },
+  {
+    value: 'associate',
+    label: 'Associate / registered intern',
+    desc: 'For AMFT, ACSW, APCC, and similar pre-licensed clinicians accruing hours. Preserves hour tracking and supervision-aware workflows while feeling less student-oriented.',
+    badge: 'Hours tracking',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
+  {
+    value: 'licensed',
+    label: 'Licensed clinician',
+    desc: 'For LMFT, LCSW, LPCC, psychologists, and other independently licensed clinicians. Unlocks private-practice mode and licensed-only client invite workflows.',
+    badge: 'Private practice',
+    icon: (
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
+      </svg>
+    ),
+  },
+]
+
 // Re-arms the trainee onboarding wizard for an account that already
 // completed it. Calls POST /api/onboarding/reset then navigates to
 // /t/welcome so the trainee can revisit their answers. Visible only on
@@ -292,7 +328,7 @@ export default function Settings() {
     apiFetch('/settings')
       .then(r => r.json())
       .then(data => {
-        setUserRole(data.user_role || 'licensed')
+        setUserRole(data.credential_type || data.user_role || therapist?.credential_type || 'licensed')
         setReferralCode(data.referral_code || therapist?.referral_code || '')
         setAssistantActionMode(data.assistant_action_mode || therapist?.assistant_action_mode || 'draft_only')
         setAssistantTone(data.assistant_tone || therapist?.assistant_tone || 'calm, clinical, and collaborative')
@@ -345,7 +381,14 @@ export default function Settings() {
         method: 'POST',
         body: JSON.stringify({ key, value }),
       })
-      if (!res.ok) throw new Error('Failed to save')
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Failed to save')
+      if (key === 'credential_type' || key === 'account_stage' || key === 'user_role') {
+        try {
+          const me = await apiFetch('/auth/me').then((r) => (r.ok ? r.json() : null))
+          if (me) refreshTherapist(me, null)
+        } catch {}
+      }
       setSaved(key)
       setTimeout(() => setSaved(''), 2500)
     } catch (err) {
@@ -355,7 +398,7 @@ export default function Settings() {
     }
   }
 
-  const handleSaveRole = () => saveSetting('user_role', userRole)
+  const handleSaveRole = () => saveSetting('account_stage', userRole)
 
   const handleSaveAssistantPrefs = async () => {
     setSaving(true)
@@ -728,34 +771,13 @@ export default function Settings() {
             </svg>
           </div>
           <div>
-            <h2 className="text-sm font-semibold text-gray-900">Clinician Role</h2>
-            <p className="text-xs text-gray-500 mt-0.5">Controls how Miwa tailors its responses. Socratic for trainees, direct for licensed clinicians.</p>
+            <h2 className="text-sm font-semibold text-gray-900">Account stage</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Controls Miwa mode, navigation, permissions, and assistant style. Your clients, notes, hours, and chat history stay attached to this same account.</p>
           </div>
         </div>
 
         <div className="space-y-2">
-          {[
-            {
-              value: 'trainee',
-              label: 'Trainee / Pre-Licensed',
-              desc: 'Associate MFT, intern, or practicum student. Miwa uses Socratic questioning to develop your clinical reasoning.',
-              icon: (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
-                </svg>
-              ),
-            },
-            {
-              value: 'licensed',
-              label: 'Licensed Clinician',
-              desc: 'LMFT, LCSW, LPC, psychologist, or other licensed professional. Miwa acts as a peer consultant with direct responses.',
-              icon: (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
-                </svg>
-              ),
-            },
-          ].map(opt => (
+          {ACCOUNT_STAGE_OPTIONS.map(opt => (
             <label
               key={opt.value}
               className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition-colors ${
@@ -776,6 +798,13 @@ export default function Settings() {
                 <div className="flex items-center gap-2">
                   <span className={userRole === opt.value ? 'text-brand-600' : 'text-gray-400'}>{opt.icon}</span>
                   <span className="text-sm font-medium text-gray-900">{opt.label}</span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    userRole === opt.value
+                      ? 'bg-white text-brand-700 border border-brand-100'
+                      : 'bg-gray-50 text-gray-500 border border-gray-100'
+                  }`}>
+                    {opt.badge}
+                  </span>
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{opt.desc}</p>
               </div>
@@ -783,11 +812,18 @@ export default function Settings() {
           ))}
         </div>
 
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
+          <p className="font-semibold">Transition path</p>
+          <p className="mt-1">
+            Moving trainee to associate to licensed should be a status change on the therapist record, not a new account. Miwa keeps the same therapist id, preserves cases, sessions, documents, hours, supervision history, and assistant memory, then switches the workspace defaults and licensed-only features when the stage becomes licensed.
+          </p>
+        </div>
+
         <div className="mt-4 flex items-center gap-3">
           <button onClick={handleSaveRole} disabled={saving} className="btn-primary">
-            {saving ? 'Saving…' : 'Save Role'}
+            {saving ? 'Saving…' : 'Save stage'}
           </button>
-          {saved === 'user_role' && <span className="text-sm text-green-600 font-medium">Saved!</span>}
+          {saved === 'account_stage' && <span className="text-sm text-green-600 font-medium">Saved!</span>}
         </div>
       </div>
 

@@ -214,7 +214,7 @@ app.get('/api/settings', requireAuth, async (req, res) => {
   try {
     const db = getAsyncDb();
     const row = await db.get(
-      `SELECT user_role, referral_code, assistant_action_mode, assistant_tone,
+      `SELECT user_role, credential_type, credential_verified, referral_code, assistant_action_mode, assistant_tone,
               assistant_orientation, assistant_verbosity, assistant_memory,
               assistant_permissions_json, training_data_opt_out,
               onboarding_completed, soul_markdown
@@ -236,6 +236,8 @@ app.get('/api/settings', requireAuth, async (req, res) => {
     }
     res.json({
       user_role: row?.user_role || 'licensed',
+      credential_type: row?.credential_type || row?.user_role || 'licensed',
+      credential_verified: !!row?.credential_verified,
       referral_code: row?.referral_code || null,
       assistant_action_mode: row?.assistant_action_mode || 'draft_only',
       assistant_tone: row?.assistant_tone || 'calm, clinical, and collaborative',
@@ -269,6 +271,41 @@ app.post('/api/settings', requireAuth, async (req, res) => {
     if (!key) return res.status(400).json({ error: 'key is required' });
     if (key === 'user_role') {
       await db.run('UPDATE therapists SET user_role = ? WHERE id = ?', value, req.therapist.id);
+    }
+    if (key === 'credential_type' || key === 'account_stage') {
+      const next = String(value || '').trim();
+      const validStages = new Set(['trainee', 'associate', 'licensed']);
+      if (!validStages.has(next)) {
+        return res.status(400).json({ error: 'Invalid account stage.' });
+      }
+
+      const now = new Date().toISOString();
+      if (next === 'licensed') {
+        await db.run(
+          `UPDATE therapists
+              SET credential_type = ?,
+                  user_role = ?,
+                  credential_verified = CASE WHEN credential_verified IS NULL OR credential_verified = 0 THEN 1 ELSE credential_verified END,
+                  workspace_mode = 'private_practice',
+                  client_record_mode = 'miwa_system_of_record',
+                  workspace_mode_selected_at = COALESCE(workspace_mode_selected_at, ?),
+                  onboarding_step = CASE WHEN onboarded_at IS NULL AND COALESCE(onboarding_step, 0) < 6 THEN 6 ELSE onboarding_step END,
+                  onboarded_at = COALESCE(onboarded_at, ?)
+            WHERE id = ?`,
+          next, next, now, now, req.therapist.id
+        );
+      } else {
+        await db.run(
+          `UPDATE therapists
+              SET credential_type = ?,
+                  user_role = ?,
+                  workspace_mode = 'agency_companion',
+                  client_record_mode = 'agency_ehr_companion',
+                  workspace_mode_selected_at = COALESCE(workspace_mode_selected_at, ?)
+            WHERE id = ?`,
+          next, next, now, req.therapist.id
+        );
+      }
     }
     if (key === 'assistant_verbosity') {
       await db.run('UPDATE therapists SET assistant_verbosity = ? WHERE id = ?', value, req.therapist.id);
@@ -306,6 +343,7 @@ app.post('/api/settings', requireAuth, async (req, res) => {
     await persistIfNeeded();
     res.json({ message: 'Setting saved' });
   } catch (err) {
+    console.error('[settings/post]', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
