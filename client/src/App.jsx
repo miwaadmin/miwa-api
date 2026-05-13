@@ -61,6 +61,7 @@ import { isAgencyCompanionMode, needsTraineeOnboarding, needsWorkspaceModeOnboar
 import {
   TraineeCases,
   TraineeHours,
+  TraineeLearning,
   TraineeSupervision,
   TraineeToday,
 } from './pages/trainee/TraineePages'
@@ -289,9 +290,10 @@ export default function App() {
                 <Route path="/t/cases" element={<TraineeOnboardingGuard><TraineeCases /></TraineeOnboardingGuard>} />
                 {/* /t/drafts removed — drafting now lives inside Session Workspace */}
                 <Route path="/t/drafts" element={<Navigate to="/t/workspace" replace />} />
+                <Route path="/t/workspace" element={<TraineeOnboardingGuard><Workspace /></TraineeOnboardingGuard>} />
                 <Route path="/t/supervision" element={<TraineeOnboardingGuard><TraineeSupervision /></TraineeOnboardingGuard>} />
                 <Route path="/t/hours" element={<TraineeOnboardingGuard><TraineeHours /></TraineeOnboardingGuard>} />
-                <Route path="/t/learning" element={<Navigate to="/consult" replace />} />
+                <Route path="/t/learning" element={<TraineeOnboardingGuard><TraineeLearning /></TraineeOnboardingGuard>} />
                 <Route path="/workspace" element={<Workspace />} />
                 <Route path="/patients" element={<Patients />} />
                 <Route path="/patients/:id" element={<PatientDetail />} />
