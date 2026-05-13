@@ -56,6 +56,7 @@ const listScheduledTasksHandler = require('./handlers/list_scheduled_tasks');
 const runBackgroundTaskHandler = require('./handlers/run_background_task');
 const checkBackgroundTasksHandler = require('./handlers/check_background_tasks');
 const manageEventTriggersHandler = require('./handlers/manage_event_triggers');
+const sendPortalLinkHandler = require('./handlers/send_portal_link');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -165,42 +166,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     case 'manage_event_triggers':
       return await manageEventTriggersHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
-    case 'send_portal_link': {
-      const patient = await resolvePatient(args.client_id);
-      if (!patient) return { error: 'Client not found' };
-
-      const crypto = require('crypto');
-      const token = crypto.randomBytes(24).toString('base64url');
-
-      await db.insert(
-        `INSERT INTO client_portal_tokens (token, patient_id, therapist_id, expires_at)
-         VALUES (?, ?, ?, datetime('now', '+7 days'))`,
-        token, patient.id, therapistId,
-      );
-      await persistIfNeeded();
-
-      const baseUrl = process.env.APP_URL || 'https://miwa.care';
-      const portalUrl = `${baseUrl}/portal/${token}`;
-
-      // Try text delivery only when SMS is explicitly enabled and configured
-      const phone = patient.phone ? normalisePhone(patient.phone) : null;
-      let deliveryMethod = 'link_only';
-      if (phone && patient.sms_consent) {
-        try {
-          const result = await sendPortalSms(phone, portalUrl);
-          if (result.status !== 'skipped') deliveryMethod = 'sms';
-        } catch {}
-      }
-
-      return {
-        portal_url: portalUrl,
-        client_id: patient.client_id,
-        display_name: patient.display_name || patient.client_id,
-        delivery: deliveryMethod,
-        expires_in: `${PORTAL_LINK_TTL_DAYS} days`,
-        phone_masked: phone ? phone.replace(/\d(?=\d{4})/g, '\u2022') : null,
-      };
-    }
+    case 'send_portal_link':
+      return await sendPortalLinkHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     case 'submit_feedback': {
       const feedbackMsg = String(args.message || '').trim();
