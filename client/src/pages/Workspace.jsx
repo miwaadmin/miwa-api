@@ -83,11 +83,50 @@ function createEmptyWorkspaceForm() {
   }
 }
 
-function loadWorkspaceDraft() {
-  return null
+// ── localStorage autosave for Workspace drafts ──────────────────────────────
+// Drafts include PHI; we accept that risk for trainee/licensed users on their
+// own device (it's already their working copy) so a refresh or accidental
+// tab-close doesn't lose work. Key is namespaced by therapist + linked
+// patient (or 'new' for a fresh intake) so two browser tabs editing different
+// patients don't trample each other.
+const WORKSPACE_DRAFT_KEY_PREFIX = 'miwa.workspaceDraft'
+const WORKSPACE_DRAFT_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+
+function workspaceDraftKey({ therapistId, patientId }) {
+  const t = therapistId ? String(therapistId) : 'anon'
+  const p = patientId ? String(patientId) : 'new'
+  return `${WORKSPACE_DRAFT_KEY_PREFIX}:${t}:${p}`
 }
 
-function clearWorkspaceDraft() {
+function loadWorkspaceDraft(key) {
+  if (typeof window === 'undefined' || !key) return null
+  try {
+    const raw = window.localStorage.getItem(key)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    if (!parsed || typeof parsed !== 'object') return null
+    if (parsed.savedAt && Date.now() - new Date(parsed.savedAt).getTime() > WORKSPACE_DRAFT_TTL_MS) {
+      window.localStorage.removeItem(key)
+      return null
+    }
+    return parsed
+  } catch {
+    return null
+  }
+}
+
+function saveWorkspaceDraft(key, payload) {
+  if (typeof window === 'undefined' || !key) return
+  try {
+    window.localStorage.setItem(key, JSON.stringify(payload))
+  } catch {
+    // Quota exceeded or storage disabled — ignore. Autosave is best-effort.
+  }
+}
+
+function clearWorkspaceDraft(key) {
+  if (typeof window === 'undefined' || !key) return
+  try { window.localStorage.removeItem(key) } catch {}
 }
 
 function extractIcdCodes(text) {
@@ -276,7 +315,17 @@ export default function Workspace() {
   // current trainee gate primarily adjusts the framing copy. Future licensed-
   // only features should look at `isTrainee` before rendering.
   const isTrainee = isTraineeCredential(therapist)
-  const draft = useMemo(() => loadWorkspaceDraft(), [])
+  // Initial mount key — "new" patient context. As the user picks a linked
+  // patient, the key changes (see effect below) so each chart gets its own
+  // draft slot.
+  const initialDraftKey = useMemo(
+    () => workspaceDraftKey({ therapistId: therapist?.id, patientId: null }),
+    [therapist?.id],
+  )
+  const draft = useMemo(() => loadWorkspaceDraft(initialDraftKey), [initialDraftKey])
+  const [draftKey, setDraftKey] = useState(initialDraftKey)
+  const [draftRestored, setDraftRestored] = useState(!!draft)
+  const [lastSavedAt, setLastSavedAt] = useState(draft?.savedAt ? new Date(draft.savedAt) : null)
   const [patients, setPatients] = useState([])
   const [linkedPatientId, setLinkedPatientId] = useState('')
   const [newClientId, setNewClientId] = useState('')
@@ -310,7 +359,9 @@ export default function Workspace() {
   const [uploadedAudioName, setUploadedAudioName] = useState('')
   const [uploadedAudioTranscript, setUploadedAudioTranscript] = useState('')
 
-  // Workspace drafts can include PHI; do not persist them in browser storage.
+  // Workspace drafts can include PHI; we accept that risk for the local
+  // working copy. localStorage autosave is scoped per therapist + linked
+  // patient via WORKSPACE_DRAFT_KEY_PREFIX.
   const mediaRecorderRef = useRef(null)
   const mediaChunksRef = useRef([])
   const mediaStreamRef = useRef(null)
@@ -327,6 +378,40 @@ export default function Workspace() {
       setSessionType('intake')
     }
   }, [draft, patients.length, sessionType, sessionTypeTouched])
+
+  // ── Autosave ─────────────────────────────────────────────────────────────
+  // When the linked patient changes, swap the draft slot. Don't restore from
+  // the new slot automatically once the user has started editing — only the
+  // initial mount restore counts. The new slot starts empty until the next
+  // autosave tick writes to it.
+  useEffect(() => {
+    const nextKey = workspaceDraftKey({ therapistId: therapist?.id, patientId: linkedPatientId || null })
+    if (nextKey !== draftKey) setDraftKey(nextKey)
+  }, [therapist?.id, linkedPatientId, draftKey])
+
+  // Tick autosave every 5 seconds, but only after the user has actually
+  // typed something. The first tick after page load sees empty form state
+  // and skips so we don't blow away a previously saved draft with empties.
+  const formRef = useRef(form)
+  useEffect(() => { formRef.current = form }, [form])
+  const sessionTypeRef = useRef(sessionType)
+  useEffect(() => { sessionTypeRef.current = sessionType }, [sessionType])
+
+  useEffect(() => {
+    const id = setInterval(() => {
+      const snapshot = formRef.current
+      const nonEmpty = Object.values(snapshot || {}).some(v => typeof v === 'string' ? v.trim() : (Array.isArray(v) ? v.length > 0 : !!v))
+      if (!nonEmpty) return
+      const payload = {
+        form: snapshot,
+        sessionType: sessionTypeRef.current,
+        savedAt: new Date().toISOString(),
+      }
+      saveWorkspaceDraft(draftKey, payload)
+      setLastSavedAt(new Date(payload.savedAt))
+    }, 5000)
+    return () => clearInterval(id)
+  }, [draftKey])
 
   useEffect(() => () => {
     if (recordingTimerRef.current) clearInterval(recordingTimerRef.current)
@@ -558,7 +643,9 @@ export default function Workspace() {
   }
 
   const resetWorkspaceComposer = (nextType = 'ongoing') => {
-    clearWorkspaceDraft()
+    clearWorkspaceDraft(draftKey)
+    setDraftRestored(false)
+    setLastSavedAt(null)
     setSessionType(nextType)
     setSessionTypeTouched(true)
     setForm(createEmptyWorkspaceForm())
@@ -885,7 +972,9 @@ export default function Workspace() {
       const savedSession = await sessionRes.json()
       if (!sessionRes.ok) throw new Error(savedSession.error || 'Failed to save the linked session note')
 
-      clearWorkspaceDraft()
+      clearWorkspaceDraft(draftKey)
+      setDraftRestored(false)
+      setLastSavedAt(null)
       setSaveNotice(linkedPatientId
         ? 'Session note, analysis, and planning were linked to the selected client.'
         : 'New client created from this intake and the generated session content was linked automatically.')
@@ -935,6 +1024,35 @@ export default function Workspace() {
         </div>
       )}
 
+      {/* Draft restored banner */}
+      {draftRestored && (
+        <div
+          data-testid="workspace-draft-restored-banner"
+          className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 flex items-center justify-between gap-3"
+        >
+          <p className="text-sm text-emerald-900">
+            Draft restored from your last session.
+            {lastSavedAt && (
+              <span className="text-xs text-emerald-700 ml-1">
+                (saved {lastSavedAt.toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })})
+              </span>
+            )}
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              clearWorkspaceDraft(draftKey)
+              setForm(createEmptyWorkspaceForm())
+              setDraftRestored(false)
+              setLastSavedAt(null)
+            }}
+            className="text-xs font-semibold text-emerald-800 hover:text-emerald-900 underline"
+          >
+            Discard
+          </button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
         <div>
@@ -948,6 +1066,11 @@ export default function Workspace() {
                   ? 'Complete an intake assessment. Generates a biopsychosocial, clinical formulation, diagnostic impressions, treatment plan, and supervision guidance. Progress notes (SOAP/BIRP/DAP/GIRP/DMH SIR) are for ongoing sessions.'
                   : `Enter session notes and get a polished ${form.noteFormat} progress note, clinical thinking, diagnosis support, and supervision guidance.`)}
           </p>
+          {lastSavedAt && (
+            <p className="text-[11px] text-gray-400 mt-1">
+              Last saved locally at {lastSavedAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+            </p>
+          )}
         </div>
         {Object.values(form).some(v => v) && (
           <div className="flex gap-2 flex-shrink-0">
@@ -955,8 +1078,10 @@ export default function Workspace() {
               type="button"
               onClick={() => {
                 setForm(createEmptyWorkspaceForm())
-                clearWorkspaceDraft()
+                clearWorkspaceDraft(draftKey)
                 setResult(null)
+                setDraftRestored(false)
+                setLastSavedAt(null)
               }}
               className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gray-800 hover:bg-gray-900 transition-colors whitespace-nowrap"
             >
@@ -967,8 +1092,10 @@ export default function Workspace() {
               onClick={() => {
                 if (confirm('Clear all workspace fields? This cannot be undone.')) {
                   setForm(createEmptyWorkspaceForm())
-                  clearWorkspaceDraft()
+                  clearWorkspaceDraft(draftKey)
                   setResult(null)
+                  setDraftRestored(false)
+                  setLastSavedAt(null)
                 }
               }}
               className="px-3 py-2 rounded-xl text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors whitespace-nowrap"
