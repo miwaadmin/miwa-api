@@ -47,6 +47,7 @@ const getSessionBriefHandler = require('./handlers/get_session_brief');
 const executeWorkflowHandler = require('./handlers/execute_workflow');
 const getWorkflowStatusHandler = require('./handlers/get_workflow_status');
 const createTreatmentPlanHandler = require('./handlers/create_treatment_plan');
+const getTreatmentPlanHandler = require('./handlers/get_treatment_plan');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -120,33 +121,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     case 'create_treatment_plan':
       return await createTreatmentPlanHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
-    case 'get_treatment_plan': {
-      const patient = await resolvePatient(args.client_id);
-      if (!patient) return { error: 'Client not found' };
-
-      const plan = await db.get("SELECT * FROM treatment_plans WHERE patient_id = ? AND therapist_id = ? AND status = 'active'", patient.id, therapistId);
-      if (!plan) return { message: `No active treatment plan for ${patient.client_id}. Use create_treatment_plan to create one.` };
-
-      const goals = await db.all('SELECT * FROM treatment_goals WHERE plan_id = ? ORDER BY id', plan.id);
-      return {
-        plan_id: plan.id,
-        patient: patient.client_id,
-        status: plan.status,
-        created_at: plan.created_at,
-        last_reviewed: plan.last_reviewed_at,
-        goals: goals.map(g => ({
-          id: g.id,
-          goal: g.goal_text,
-          target: g.target_metric,
-          baseline: g.baseline_value,
-          current: g.current_value,
-          status: g.status,
-          progress_notes: JSON.parse(g.progress_notes_json || '[]').slice(-3),
-          interventions: JSON.parse(g.interventions_json || '[]'),
-        })),
-        summary: `${goals.filter(g => g.status === 'met').length} met, ${goals.filter(g => g.status === 'active').length} active, ${goals.filter(g => g.status === 'revised').length} revised`,
-      };
-    }
+    case 'get_treatment_plan':
+      return await getTreatmentPlanHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     case 'update_treatment_goal': {
       const goal = await db.get('SELECT tg.*, tp.therapist_id FROM treatment_goals tg JOIN treatment_plans tp ON tp.id = tg.plan_id WHERE tg.id = ?', args.goal_id);
