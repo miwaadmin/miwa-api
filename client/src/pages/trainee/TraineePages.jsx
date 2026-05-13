@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { renderClinical } from '../../lib/renderClinical'
 import Patients from '../Patients'
 import Hours from '../Hours'
+import { sessionPipelineSteps } from '../../components/trainee/WorkspaceStatusDots'
 
 const COMPETENCY_LABELS = {
   assessment: 'Assessment',
@@ -174,6 +175,16 @@ function useTraineeData() {
 export function TraineeToday() {
   const { therapist } = useAuth()
   const { loading, stats, sessions, patients, hours, error } = useTraineeData()
+  // Drafts-in-progress count: any unsigned session with at least 1 of 4
+  // pipeline steps done but not yet complete. Matches the "in-progress"
+  // bucket in Session Workspace so the deep-link below pre-filters correctly.
+  const draftsInProgress = useMemo(() => {
+    if (!Array.isArray(sessions)) return 0
+    return sessions.reduce((n, s) => {
+      const done = sessionPipelineSteps(s).filter(Boolean).length
+      return n + (done > 0 && done < 4 ? 1 : 0)
+    }, 0)
+  }, [sessions])
   const [brief, setBrief] = useState(null)
   const [briefLoading, setBriefLoading] = useState(false)
   const [now, setNow] = useState(() => new Date())
@@ -300,6 +311,30 @@ export function TraineeToday() {
       </section>
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+
+      {/* Drafts-in-progress widget — deep-links into Session Workspace filtered
+          to the in-progress bucket of the 4-step pipeline. */}
+      <button
+        type="button"
+        data-testid="drafts-in-progress-widget"
+        onClick={() => navigate('/t/workspace?filter=in-progress')}
+        className="w-full rounded-2xl border border-gray-200 bg-white p-5 text-left hover:border-brand-300 hover:bg-brand-50/40 transition-colors flex items-center justify-between gap-4"
+      >
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Drafts in progress</p>
+          <p className="mt-1 text-sm text-gray-600">
+            {draftsInProgress === 0
+              ? 'Caught up. Nothing mid-pipeline right now.'
+              : `${draftsInProgress} note${draftsInProgress === 1 ? '' : 's'} between draft and copy-to-EHR.`}
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          <span className="text-3xl font-bold tabular-nums text-gray-950">{draftsInProgress}</span>
+          <svg className="w-5 h-5 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+          </svg>
+        </div>
+      </button>
 
       <div className="grid lg:grid-cols-3 gap-5">
         <section className="lg:col-span-2 rounded-2xl border border-gray-200 bg-white overflow-hidden">
