@@ -37,6 +37,7 @@ const cancelAppointmentHandler = require('./handlers/cancel_appointment');
 const sendAssessmentSmsHandler = require('./handlers/send_assessment_sms');
 const batchSendAssessmentsHandler = require('./handlers/batch_send_assessments');
 const createClientHandler = require('./handlers/create_client');
+const generateReportHandler = require('./handlers/generate_report');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -72,45 +73,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     case 'create_client':
       return await createClientHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
-    case 'generate_report': {
-      const patient = await resolvePatient(args.client_id);
-      if (!patient) return { error: 'Client not found' };
-
-      const context = await buildPatientContext(db, therapistId, patient.id);
-      const reportSpec = {
-        viewer: args.viewer || 'therapist',
-        purpose: args.purpose || 'progress review',
-        focus: args.focus || 'balanced progress summary',
-        timeframe: 'all available sessions',
-        includeCharts: true,
-        title: `${patient.client_id} Progress Review`,
-      };
-
-      const report = await buildReviewPayload({
-        patient, sessions: context.sessions, assessments: context.assessments, reportSpec, therapistId,
-      });
-      const chartData = getChartData(context.assessments);
-      const stored = await createAndStoreReport({
-        therapistId, patient,
-        report: { ...report, chartData },
-        chartData,
-        audience: reportSpec.viewer,
-        purpose: reportSpec.purpose,
-      });
-
-      send({
-        type: 'report_ready',
-        reportId: stored.reportId,
-        title: report.title,
-        downloadUrl: `/agent/reports/${stored.reportId}/download`,
-      });
-
-      return {
-        status: 'generated',
-        title: report.title,
-        summary: (report.executiveSummary || '').slice(0, 200),
-      };
-    }
+    case 'generate_report':
+      return await generateReportHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     /* ── New tools ──────────────────────────────────────────────────────── */
     case 'get_resources': {
