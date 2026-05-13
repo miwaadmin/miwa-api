@@ -9,6 +9,8 @@ import {
 import NotesExportModal from '../components/NotesExportModal'
 import LetterGenerator from '../components/LetterGenerator'
 import TreatmentPlanPanel from '../components/TreatmentPlanPanel'
+import ClinicianInvitePanel from '../components/ClinicianInvitePanel'
+import { isTraineeCredential } from '../lib/workspaceMode'
 import { renderClinical } from '../lib/renderClinical'
 
 function formatDate(dateStr) {
@@ -2687,6 +2689,15 @@ export default function PatientDetail() {
             {promoting ? 'Converting…' : 'Convert to real case'}
           </button>
         </div>
+      )}
+
+      {/* Licensed-only: code-based client portal invite. Trainees + associates
+          don't see this panel and the underlying API returns 403 for them. */}
+      {patient && !isTraineeCredential(therapist) && (
+        <ClinicianInvitePanel
+          patientId={patient.id}
+          patientName={patient.display_name || patient.client_id}
+        />
       )}
 
       <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
