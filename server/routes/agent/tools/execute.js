@@ -38,6 +38,7 @@ const sendAssessmentSmsHandler = require('./handlers/send_assessment_sms');
 const batchSendAssessmentsHandler = require('./handlers/batch_send_assessments');
 const createClientHandler = require('./handlers/create_client');
 const generateReportHandler = require('./handlers/generate_report');
+const getResourcesHandler = require('./handlers/get_resources');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -77,23 +78,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       return await generateReportHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     /* ── New tools ──────────────────────────────────────────────────────── */
-    case 'get_resources': {
-      let results = [];
-      const q = (args.query || '').toLowerCase();
-      const cat = args.category;
-      for (const group of AGENT_RESOURCES) {
-        if (cat && group.id !== cat) continue;
-        for (const item of group.items) {
-          if (q && !item.name.toLowerCase().includes(q) && !item.type.toLowerCase().includes(q) && !group.category.toLowerCase().includes(q)) continue;
-          results.push({ name: item.name, type: item.type, url: item.url, source: item.source, category: group.category, urgent: item.urgent || false });
-        }
-      }
-      if (!q && !cat) {
-        // Return category summaries instead of all 72 items
-        return { categories: AGENT_RESOURCES.map(g => ({ category: g.category, id: g.id, count: g.items.length })), total: AGENT_RESOURCES.reduce((s, g) => s + g.items.length, 0) };
-      }
-      return { count: results.length, resources: results.slice(0, 10) };
-    }
+    case 'get_resources':
+      return await getResourcesHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     case 'get_billing_status': {
       const row = await db.get('SELECT subscription_status, subscription_tier, workspace_uses FROM therapists WHERE id = ?', therapistId);
