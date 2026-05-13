@@ -225,6 +225,16 @@ export default function Sidebar() {
         return out
       })()
     : navItems
+  // Trainee sidebar order (per AGENTS.md "Trainee sidebar"):
+  //   1. Dashboard
+  //   2. Session Workspace
+  //   3. Consult
+  //   4. Supervision
+  //   5. Cases
+  //   6. Hours
+  //   7. Learning
+  //   8. Resources
+  // Settings sits below as a footer item via the existing chrome.
   const traineeNavItems = [
     {
       to: '/t/dashboard',
@@ -234,22 +244,28 @@ export default function Sidebar() {
       icon: navItems[0].icon,
     },
     {
-      to: '/t/cases',
-      label: 'Cases',
-      activeColor: 'text-sky-300',
-      icon: navItems.find(i => i.to === '/patients')?.icon,
+      to: '/t/workspace',
+      label: 'Session Workspace',
+      activeColor: 'text-violet-300',
+      icon: navItems.find(i => i.to === '/workspace')?.icon,
     },
     {
-      to: '/t/drafts',
-      label: 'Note Drafts',
-      activeColor: 'text-amber-300',
-      icon: navItems.find(i => i.to === '/briefs')?.icon,
+      to: '/consult',
+      label: 'Consult',
+      activeColor: 'text-orange-300',
+      icon: navItems.find(i => i.to === '/consult')?.icon,
     },
     {
       to: '/t/supervision',
       label: 'Supervision',
       activeColor: 'text-violet-300',
       icon: navItems.find(i => i.to === '/consult')?.icon,
+    },
+    {
+      to: '/t/cases',
+      label: 'Cases',
+      activeColor: 'text-sky-300',
+      icon: navItems.find(i => i.to === '/patients')?.icon,
     },
     ...(showHours ? [{
       to: '/t/hours',
@@ -258,10 +274,16 @@ export default function Sidebar() {
       icon: HOURS_ITEM.icon,
     }] : []),
     {
-      to: '/consult',
-      label: 'Consult',
-      activeColor: 'text-orange-300',
-      icon: navItems.find(i => i.to === '/consult')?.icon,
+      to: '/t/learning',
+      label: 'Learning',
+      activeColor: 'text-emerald-300',
+      icon: navItems.find(i => i.to === '/briefs')?.icon,
+    },
+    {
+      to: '/t/resources',
+      label: 'Resources',
+      activeColor: 'text-amber-300',
+      icon: navItems.find(i => i.to === '/library')?.icon,
     },
     {
       to: '/settings',
