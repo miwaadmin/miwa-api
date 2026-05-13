@@ -44,6 +44,7 @@ const getOutcomesDashboardHandler = require('./handlers/get_outcomes_dashboard')
 const getScheduleHandler = require('./handlers/get_schedule');
 const getAppHelpHandler = require('./handlers/get_app_help');
 const getSessionBriefHandler = require('./handlers/get_session_brief');
+const executeWorkflowHandler = require('./handlers/execute_workflow');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -107,30 +108,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
       return await getSessionBriefHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     // Pillar 2: Workflow Engine
-    case 'execute_workflow': {
-      try {
-        const { createWorkflow } = require('../services/workflow-engine');
-        const params = {};
-        if (args.client_name) params.client_name = args.client_name;
-        if (args.client_id) {
-          const patient = await resolvePatient(args.client_id);
-          if (patient) params.patient_id = patient.id;
-        }
-        if (args.case_type) params.case_type = args.case_type;
-        if (args.concerns) params.concerns = args.concerns;
-
-        const result = await createWorkflow(therapistId, args.workflow_type, params);
-        return {
-          message: `Workflow "${result.label}" started with ${result.steps} steps.`,
-          workflow_id: result.workflowId,
-          label: result.label,
-          total_steps: result.steps,
-          note: 'Steps requiring your approval will pause and ask before proceeding.',
-        };
-      } catch (err) {
-        return { error: `Workflow: ${err.message}` };
-      }
-    }
+    case 'execute_workflow':
+      return await executeWorkflowHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     case 'get_workflow_status': {
       try {
