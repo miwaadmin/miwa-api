@@ -294,6 +294,10 @@ export default function App() {
                 <Route path="/t/supervision" element={<TraineeOnboardingGuard><TraineeSupervision /></TraineeOnboardingGuard>} />
                 <Route path="/t/hours" element={<TraineeOnboardingGuard><TraineeHours /></TraineeOnboardingGuard>} />
                 <Route path="/t/learning" element={<TraineeOnboardingGuard><TraineeLearning /></TraineeOnboardingGuard>} />
+                {/* Trainees get the same logged-in Resources page that licensed
+                    clinicians get at /library (DashboardResources), wrapped in
+                    the standard Layout for consistent chrome. */}
+                <Route path="/t/resources" element={<TraineeOnboardingGuard><DashboardResources /></TraineeOnboardingGuard>} />
                 <Route path="/workspace" element={<Workspace />} />
                 <Route path="/patients" element={<Patients />} />
                 <Route path="/patients/:id" element={<PatientDetail />} />
