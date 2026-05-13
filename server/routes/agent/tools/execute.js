@@ -35,6 +35,7 @@ const getCaseloadSummaryHandler = require('./handlers/get_caseload_summary');
 const scheduleAppointmentHandler = require('./handlers/schedule_appointment');
 const cancelAppointmentHandler = require('./handlers/cancel_appointment');
 const sendAssessmentSmsHandler = require('./handlers/send_assessment_sms');
+const batchSendAssessmentsHandler = require('./handlers/batch_send_assessments');
 
 async function executeAgentTool({ name, args, db, therapistId, nameMap, send, rawMessage }) {
   // Strip brackets from client codes: [DEMO-ABC123] → DEMO-ABC123
@@ -64,41 +65,8 @@ async function executeAgentTool({ name, args, db, therapistId, nameMap, send, ra
     case 'send_assessment_sms':
       return await sendAssessmentSmsHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
-    case 'batch_send_assessments': {
-      const candidates = await findPatientsForBatchAssessment(db, therapistId, args.filter || null);
-      const withPhone = candidates.filter(p => p.phone && p.sms_consent && normalisePhone(p.phone));
-
-      if (withPhone.length === 0) return { error: 'No clients with mobile numbers and recorded SMS consent match that filter' };
-
-      send({
-        type: 'batch_assessment_picker',
-        assessmentType: args.assessment_type || 'PHQ-9',
-        filter: args.filter || 'all',
-        spreadOption: args.spread_over_hours ? 'spread' : 'now',
-        patients: withPhone.map(p => ({
-          id: p.id,
-          name: p.display_name || p.client_id,
-          clientId: p.client_id,
-          phone: p.phone,
-        })),
-      });
-      emitAssistantAction(send, createAssistantAction('assessment_batch_preview', {
-        title: `Batch ${args.assessment_type || 'PHQ-9'}`,
-        summary: `${withPhone.length} eligible clients matched ${args.filter || 'all clients'}.`,
-        payload: {
-          assessmentType: args.assessment_type || 'PHQ-9',
-          filter: args.filter || 'all',
-          spreadOption: args.spread_over_hours ? 'spread' : 'now',
-          patients: withPhone.map(p => ({
-            id: p.id,
-            name: p.display_name || p.client_id,
-            clientId: p.client_id,
-          })),
-        },
-      }));
-
-      return { __requiresPicker: true };
-    }
+    case 'batch_send_assessments':
+      return await batchSendAssessmentsHandler({ args, db, therapistId, nameMap, send, rawMessage, resolvePatient });
 
     case 'create_client': {
       let displayName = (args.display_name || '').trim();
