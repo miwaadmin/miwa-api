@@ -102,6 +102,24 @@ export default function About() {
         </div>
       </section>
 
+      {/* Founder */}
+      <section className="py-20 px-5" style={{ background: 'linear-gradient(160deg, rgba(96,71,238,0.04) 0%, rgba(45,212,191,0.03) 100%)', borderTop: '1px solid rgba(0,0,0,0.07)' }}>
+        <div className="max-w-3xl mx-auto">
+          <p className="text-base font-bold uppercase tracking-widest mb-6" style={{ color: '#2dd4bf' }}>From the founder</p>
+          <blockquote className="text-xl md:text-2xl text-gray-800 leading-relaxed font-medium mb-8" style={{ fontStyle: 'normal' }}>
+            "I built Miwa during my own trainee hours, writing notes late at night after a full day of sessions and school. The documentation load was real. The tools available weren't built for how a trainee actually works — supervised, accruing hours, on a tight budget. I wanted something that could meet me where I was and grow with me toward licensure."
+          </blockquote>
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-bold text-base flex-shrink-0"
+              style={{ background: GRAD }}>V</div>
+            <div>
+              <p className="font-bold text-gray-900">Valdrex Philippe, MFT Trainee</p>
+              <p className="text-gray-500 text-sm">Founder, Miwa</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Values */}
       <section className="py-24 bg-white">
         <div className="max-w-[1400px] mx-auto px-5">
