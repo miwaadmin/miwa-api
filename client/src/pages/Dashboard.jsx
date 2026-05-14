@@ -5,6 +5,7 @@ import { useAuth } from '../context/AuthContext'
 import { patientInitials } from '../lib/avatar'
 import HoursWidget from '../components/HoursWidget'
 import CommunityBanner from '../components/CommunityBanner'
+import ClinicianSelfCareCard from '../components/ClinicianSelfCareCard'
 
 function formatDate(dateStr) {
   if (!dateStr) return ', '
@@ -310,6 +311,8 @@ export default function Dashboard() {
           Lives above Caseload Pulse so trainees see their progress first
           when they open the dashboard, before triaging clients. ── */}
       <HoursWidget />
+
+      <ClinicianSelfCareCard />
 
       {/* ── Caseload Pulse ── */}
       {Array.isArray(dailyBriefing?.caseload) && dailyBriefing.caseload.length > 0 && (

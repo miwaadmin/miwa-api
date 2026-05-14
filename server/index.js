@@ -196,6 +196,7 @@ app.use('/api/inbox',                         apiLimiter, requireAuth, phiAuditL
 app.use('/api/agent',                         aiLimiter,  requireAuth, phiAuditLog, require('./routes/agent'));
 app.use('/api/ai',                            aiLimiter,  requireAuth, phiAuditLog, require('./routes/ai'));
 app.use('/api/assessments',                   apiLimiter, requireAuth, phiAuditLog, require('./routes/assessments'));
+app.use('/api/self-care',                     apiLimiter, requireAuth, require('./routes/self-care'));
 app.use('/api/client-portal',                 apiLimiter, clientPortalEnabled, require('./routes/client-portal'));
 app.use('/api/contacts',                      apiLimiter, requireAuth, require('./routes/contacts'));
 app.use('/api/digest',                        apiLimiter, requireAuth, require('./routes/emaildigest'));

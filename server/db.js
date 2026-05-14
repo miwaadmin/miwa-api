@@ -280,6 +280,18 @@ function createSchema() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS therapist_self_care_assessments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      therapist_id INTEGER NOT NULL REFERENCES therapists(id),
+      responses TEXT NOT NULL,
+      total_score INTEGER,
+      severity_level TEXT,
+      severity_color TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_therapist_self_care_assessments_therapist
+      ON therapist_self_care_assessments(therapist_id, created_at DESC);
+
     CREATE TABLE IF NOT EXISTS appointments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       therapist_id INTEGER NOT NULL REFERENCES therapists(id),

@@ -6,6 +6,7 @@ import { renderClinical } from '../../lib/renderClinical'
 import Patients from '../Patients'
 import Hours from '../Hours'
 import WorkspaceStatusDots, { sessionPipelineSteps } from '../../components/trainee/WorkspaceStatusDots'
+import ClinicianSelfCareCard from '../../components/ClinicianSelfCareCard'
 
 const COMPETENCY_LABELS = {
   assessment: 'Assessment',
@@ -317,6 +318,8 @@ export function TraineeToday() {
       </section>
 
       {error && <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error}</div>}
+
+      <ClinicianSelfCareCard />
 
       {/* Drafts-in-progress widget — deep-links into Session Workspace filtered
           to the in-progress bucket of the 4-step pipeline. */}
