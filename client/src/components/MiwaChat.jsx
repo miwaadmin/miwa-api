@@ -10,6 +10,7 @@ import { renderClinical } from '../lib/renderClinical'
 import AssistantActionCard from './AssistantActionCards'
 import { normalizeAssistantAction } from '../lib/assistantActions'
 import { isAgencyCompanionMode } from '../lib/workspaceMode'
+import { formatOnboardingAnswers } from '../lib/soulFormatter'
 
 /**
  * Heuristic: should this message be run in the background instead of
@@ -194,15 +195,6 @@ First:
     final: true,
   },
 ]
-
-function formatOnboardingAnswers(answers) {
-  return answers
-    .map((answer, index) => {
-      const step = ONBOARDING_STEPS.find(s => s.id === answer.stage) || ONBOARDING_STEPS[index]
-      return `Step ${index + 1}: ${step?.title || answer.stage}\n${answer.response || ''}`
-    })
-    .join('\n\n---\n\n')
-}
 
 function TypingDots() {
   return (
