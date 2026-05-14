@@ -220,14 +220,15 @@ Ready to get started. Try asking me something like *"what's on my schedule today
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
-// Trainee onboarding wizard (5-screen flow at /t/welcome)
-// State columns: therapists.onboarding_step (0..6),
-// therapists.onboarding_skipped_steps (TEXT JSON), therapists.onboarded_at.
+// Trainee onboarding wizard (6-screen flow at /t/welcome)
+// State columns: therapists.onboarding_step (0 = not started, 1-6 = in
+// progress, 7 = complete), therapists.onboarding_skipped_steps (TEXT JSON),
+// therapists.onboarded_at.
 // All these routes share the requireAuth middleware applied above.
 // ──────────────────────────────────────────────────────────────────────────────
 
-const TRAINEE_TOTAL_STEPS = 5;
-const TRAINEE_COMPLETE_STEP = 6;
+const TRAINEE_TOTAL_STEPS = 6;
+const TRAINEE_COMPLETE_STEP = 7;
 
 function parseSkipped(text) {
   if (!text) return [];
@@ -330,6 +331,12 @@ router.put('/step/:n', async (req, res) => {
         break;
       }
       case 2: {
+        // Screen 2 — "Introduce yourself to Miwa". The soul profile POST
+        // (/api/onboarding/soul) is fire-and-forget from the frontend; this
+        // PUT just advances the step counter. No server-side validation needed.
+        break;
+      }
+      case 3: {
         // Body: { school_email?, training_program?, expected_graduation_year? }
         const updates = [];
         const params = [];
@@ -360,7 +367,7 @@ router.put('/step/:n', async (req, res) => {
         }
         break;
       }
-      case 3: {
+      case 4: {
         // Hours-tracking toggles → therapists.tracks_school_hours +
         // therapists.tracks_bbs_hours. NULL preserves "never asked".
         const updates = [];
@@ -379,7 +386,7 @@ router.put('/step/:n', async (req, res) => {
         }
         break;
       }
-      case 4: {
+      case 5: {
         // Body: { site?: {name,email,site_name}, school?: {name,email} }
         const ops = [];
         if (payload.site && typeof payload.site === 'object') ops.push({ role: 'site', ...payload.site });
@@ -410,8 +417,8 @@ router.put('/step/:n', async (req, res) => {
         }
         break;
       }
-      case 5: {
-        // The screen-5 actions (real case / sample case / skip) are handled by
+      case 6: {
+        // The screen-6 actions (real case / sample case / skip) are handled by
         // POST /api/patients and POST /api/onboarding/sample-case directly.
         // This PUT just advances past the screen.
         break;
