@@ -34,18 +34,7 @@ function generateCode() {
   return `MIWA-${chars.slice(0, 4).join('')}-${chars.slice(4, 8).join('')}`;
 }
 
-function isLicensed(req) {
-  return (req.therapist?.credential_type || 'licensed') === 'licensed';
-}
-
-function licensedOnly(req, res, next) {
-  if (!isLicensed(req)) {
-    return res.status(403).json({ error: 'Client portal invites are a licensed-mode feature.' });
-  }
-  next();
-}
-
-// Associate + licensed clinicians (Section 4 will migrate all routes to this).
+// Clinician-mode gate: associate + licensed. Trainees get 403.
 function isClinician(req) {
   return ['associate', 'licensed'].includes(req.therapist?.credential_type || 'licensed');
 }
@@ -119,7 +108,7 @@ function serializeInvite(row) {
 
 // POST /api/client-invites — generate a new code for a patient
 // Body: { patient_id }
-router.post('/', licensedOnly, async (req, res) => {
+router.post('/', clinicianOnly, async (req, res) => {
   try {
     const db = getAsyncDb();
     const therapistId = req.therapist.id;
@@ -214,7 +203,7 @@ router.post('/', licensedOnly, async (req, res) => {
 });
 
 // GET /api/client-invites?patient_id=N — list active invites for a patient
-router.get('/', licensedOnly, async (req, res) => {
+router.get('/', clinicianOnly, async (req, res) => {
   try {
     const db = getAsyncDb();
     const therapistId = req.therapist.id;
@@ -248,7 +237,7 @@ router.get('/', licensedOnly, async (req, res) => {
 });
 
 // DELETE /api/client-invites/:id — revoke a pending invite
-router.delete('/:id', licensedOnly, async (req, res) => {
+router.delete('/:id', clinicianOnly, async (req, res) => {
   try {
     const db = getAsyncDb();
     const therapistId = req.therapist.id;

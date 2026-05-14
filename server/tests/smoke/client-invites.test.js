@@ -132,6 +132,40 @@ test('POST /unlink returns 403 for another clinician\'s patient', async (t) => {
   assert.equal(r.status, 403);
 });
 
+test('invite generation is open to associates and blocked for trainees', async (t) => {
+  await startTestServer();
+  t.after(stopTestServer);
+
+  const { cookie, therapist } = await bootstrapAdminAndLogin({
+    email: 'invite-gating@miwa.test',
+    password: 'test-password-1234',
+  });
+  const db = getAsyncDb();
+
+  const patient = await api('POST', '/api/patients', {
+    first_name: 'Gating',
+    last_name: 'Client',
+  }, cookie);
+  assert.equal(patient.status, 201);
+  const patientId = patient.body.id;
+
+  // Licensed therapist (default): 201
+  await db.run("UPDATE therapists SET credential_type = 'licensed' WHERE id = ?", therapist.id);
+  const asLicensed = await api('POST', '/api/client-invites', { patient_id: patientId }, cookie);
+  assert.equal(asLicensed.status, 201, 'licensed must be able to generate an invite');
+
+  // Associate: 201 — new behavior
+  await db.run("UPDATE therapists SET credential_type = 'associate' WHERE id = ?", therapist.id);
+  const asAssociate = await api('POST', '/api/client-invites', { patient_id: patientId }, cookie);
+  assert.equal(asAssociate.status, 201, 'associate must now be able to generate an invite');
+
+  // Trainee: 403 — still blocked
+  await db.run("UPDATE therapists SET credential_type = 'trainee' WHERE id = ?", therapist.id);
+  const asTrainee = await api('POST', '/api/client-invites', { patient_id: patientId }, cookie);
+  assert.equal(asTrainee.status, 403, 'trainee must still be blocked from generating invites');
+  assert.match(asTrainee.body.error, /clinician account/i);
+});
+
 test('client invite generation enforces clinician daily limit', async (t) => {
   await startTestServer();
   t.after(stopTestServer);

@@ -2691,9 +2691,9 @@ export default function PatientDetail() {
         </div>
       )}
 
-      {/* Licensed-only: code-based client portal invite. Trainees + associates
-          don't see this panel and the underlying API returns 403 for them. */}
-      {patient && !isTraineeCredential(therapist) && (
+      {/* Clinician-mode: invite panel for associate + licensed therapists.
+          Trainees don't see this panel; the API returns 403 for trainees. */}
+      {patient && therapist?.credential_type !== 'trainee' && (
         <ClinicianInvitePanel
           patientId={patient.id}
           patientName={patient.display_name || patient.client_id}
