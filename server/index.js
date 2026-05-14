@@ -392,21 +392,33 @@ app.get('/api/stats', requireAuth, async (req, res) => {
       tid
     )).count;
 
-    const totalSessions = (await db.get('SELECT COUNT(*) as count FROM sessions WHERE therapist_id = ?', tid)).count;
+    const activePatientClause = "COALESCE(NULLIF(p.status, ''), 'active') != 'archived'";
+
+    const totalSessions = (await db.get(
+      `SELECT COUNT(*) as count
+       FROM sessions s JOIN patients p ON s.patient_id = p.id
+       WHERE s.therapist_id = ?
+         AND ${activePatientClause}`,
+      tid
+    )).count;
 
     // Calendar-week Mon-Sun count, by when the session actually happened.
     // COALESCE handles older rows that may not have session_date set.
     const sessionsThisWeek = (await db.get(
-      `SELECT COUNT(*) as count FROM sessions
-       WHERE therapist_id = ?
-         AND ${sessionDateExpr} >= ?`,
+      `SELECT COUNT(*) as count
+       FROM sessions s JOIN patients p ON s.patient_id = p.id
+       WHERE s.therapist_id = ?
+         AND ${activePatientClause}
+         AND ${sessionDateExprForAlias} >= ?`,
       tid, mondayStr
     )).count;
 
     const sessionsThisMonth = (await db.get(
-      `SELECT COUNT(*) as count FROM sessions
-       WHERE therapist_id = ?
-         AND ${sessionDateExpr} >= ?`,
+      `SELECT COUNT(*) as count
+       FROM sessions s JOIN patients p ON s.patient_id = p.id
+       WHERE s.therapist_id = ?
+         AND ${activePatientClause}
+         AND ${sessionDateExprForAlias} >= ?`,
       tid, monthStartStr
     )).count;
 
@@ -423,7 +435,12 @@ app.get('/api/stats', requireAuth, async (req, res) => {
     )).count;
 
     const unsignedNotes = (await db.get(
-      'SELECT COUNT(*) as count FROM sessions WHERE therapist_id = ? AND signed_at IS NULL AND (subjective IS NOT NULL OR assessment IS NOT NULL OR plan IS NOT NULL)',
+      `SELECT COUNT(*) as count
+       FROM sessions s JOIN patients p ON s.patient_id = p.id
+       WHERE s.therapist_id = ?
+         AND ${activePatientClause}
+         AND s.signed_at IS NULL
+         AND (s.subjective IS NOT NULL OR s.assessment IS NOT NULL OR s.plan IS NOT NULL)`,
       tid
     )).count;
 
@@ -438,6 +455,7 @@ app.get('/api/stats', requireAuth, async (req, res) => {
              p.client_id, p.display_name, s.note_format, s.signed_at
       FROM sessions s JOIN patients p ON s.patient_id = p.id
       WHERE s.therapist_id = ?
+        AND ${activePatientClause}
         AND ${sessionDateExprForAlias} >= ?
       ORDER BY ${sessionOrderExpr} DESC
       LIMIT 50
@@ -477,6 +495,7 @@ app.get('/api/sessions/unsigned', requireAuth, async (req, res) => {
              p.client_id, p.display_name
       FROM sessions s JOIN patients p ON s.patient_id = p.id
       WHERE s.therapist_id = ?
+        AND COALESCE(NULLIF(p.status, ''), 'active') != 'archived'
         AND s.signed_at IS NULL
         AND (s.subjective IS NOT NULL OR s.assessment IS NOT NULL OR s.plan IS NOT NULL)
       ORDER BY COALESCE(s.session_date, s.created_at) DESC
@@ -504,6 +523,61 @@ app.get('/api/sessions/unsigned', requireAuth, async (req, res) => {
     }));
     res.json({ count: items.length, sessions: items });
   } catch (err) {
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Archived notes storage: notes attached to archived/former clients only.
+// These remain retrievable for recordkeeping without appearing in active app feeds.
+app.get('/api/sessions/archive', requireAuth, async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const tid = req.therapist.id;
+    const rows = await db.all(`
+      SELECT s.id, s.patient_id, s.session_date, s.created_at, s.note_format,
+             s.subjective, s.assessment, s.plan, s.full_note, s.signed_at,
+             s.trainee_note_status, s.copied_to_ehr_at, s.copied_to_ehr_name,
+             s.needs_supervision, s.draft_completed_at, s.reviewed_by_trainee_at,
+             s.risk_safety_checked_at, s.discussed_in_supervision_at,
+             s.follow_up_completed_at, s.copy_to_ehr_checklist_json,
+             p.client_id, p.display_name, p.status, p.archived_at,
+             p.therapy_ended_at, p.retention_until, p.retention_basis
+      FROM sessions s JOIN patients p ON s.patient_id = p.id
+      WHERE s.therapist_id = ?
+        AND COALESCE(NULLIF(p.status, ''), 'active') = 'archived'
+        AND (s.subjective IS NOT NULL OR s.assessment IS NOT NULL OR s.plan IS NOT NULL OR s.full_note IS NOT NULL)
+      ORDER BY p.archived_at DESC, COALESCE(s.session_date, s.created_at) DESC
+      LIMIT 300
+    `, tid);
+    const sessions = rows.map(r => ({
+      id: r.id,
+      patient_id: r.patient_id,
+      client_id: r.client_id,
+      display_name: r.display_name,
+      status: r.status,
+      archived_at: r.archived_at || null,
+      therapy_ended_at: r.therapy_ended_at || null,
+      retention_until: r.retention_until || null,
+      retention_basis: r.retention_basis || null,
+      session_date: r.session_date,
+      created_at: r.created_at,
+      note_format: r.note_format || 'SOAP',
+      signed_at: r.signed_at || null,
+      trainee_note_status: r.trainee_note_status || null,
+      copied_to_ehr_at: r.copied_to_ehr_at || null,
+      copied_to_ehr_name: r.copied_to_ehr_name || null,
+      needs_supervision: !!r.needs_supervision,
+      draft_completed_at: r.draft_completed_at || null,
+      reviewed_by_trainee_at: r.reviewed_by_trainee_at || null,
+      risk_safety_checked_at: r.risk_safety_checked_at || null,
+      discussed_in_supervision_at: r.discussed_in_supervision_at || null,
+      follow_up_completed_at: r.follow_up_completed_at || null,
+      copy_to_ehr_checklist_json: r.copy_to_ehr_checklist_json || null,
+      preview: (r.full_note || r.assessment || r.plan || r.subjective || '').replace(/\s+/g, ' ').slice(0, 220),
+    }));
+    res.json({ count: sessions.length, sessions });
+  } catch (err) {
+    console.warn('[sessions/archive] failed:', err?.message || err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

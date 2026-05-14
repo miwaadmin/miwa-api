@@ -51,6 +51,12 @@ async function downloadTraineeExport(type, options = {}) {
   return data
 }
 
+function formatShortDate(value) {
+  if (!value) return ''
+  try { return new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) }
+  catch { return '' }
+}
+
 function EmptyState({ title, body, to, cta }) {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white p-8 text-center">
@@ -431,8 +437,146 @@ export function TraineeCases() {
         <p className="mt-1 text-sm text-gray-500">Case conceptualization, supervision questions, EHR status, and learning opportunities live here alongside the underlying chart.</p>
       </div>
       <CaseSnapshotBoard />
+      <ArchivedNotesStorage />
       <Patients />
     </div>
+  )
+}
+
+function ArchivedNotesStorage() {
+  const navigate = useNavigate()
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [sessions, setSessions] = useState([])
+  const [selectedPatientId, setSelectedPatientId] = useState('')
+  const [error, setError] = useState('')
+
+  useEffect(() => {
+    if (!open || sessions.length > 0 || loading || error) return
+    let cancelled = false
+    setLoading(true)
+    setError('')
+    apiFetch('/sessions/archive')
+      .then(r => r.json().then(data => ({ ok: r.ok, data })))
+      .then(({ ok, data }) => {
+        if (cancelled) return
+        if (!ok) throw new Error(data.error || 'Could not load archived notes.')
+        setSessions(Array.isArray(data.sessions) ? data.sessions : [])
+      })
+      .catch(err => { if (!cancelled) setError(err.message) })
+      .finally(() => { if (!cancelled) setLoading(false) })
+    return () => { cancelled = true }
+  }, [open, sessions.length, loading, error])
+
+  const archivedCases = useMemo(() => {
+    const map = new Map()
+    sessions.forEach(session => {
+      if (!map.has(session.patient_id)) {
+        map.set(session.patient_id, {
+          patient_id: session.patient_id,
+          client_id: session.client_id,
+          display_name: session.display_name,
+          archived_at: session.archived_at,
+          therapy_ended_at: session.therapy_ended_at,
+          retention_until: session.retention_until,
+          sessions: [],
+        })
+      }
+      map.get(session.patient_id).sessions.push(session)
+    })
+    return Array.from(map.values())
+  }, [sessions])
+
+  useEffect(() => {
+    if (!selectedPatientId && archivedCases.length > 0) {
+      setSelectedPatientId(String(archivedCases[0].patient_id))
+    }
+  }, [archivedCases, selectedPatientId])
+
+  const selectedCase = archivedCases.find(item => String(item.patient_id) === String(selectedPatientId))
+
+  return (
+    <section className="px-6 pb-5 max-w-6xl mx-auto">
+      <div className="rounded-2xl border border-gray-200 bg-white overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setOpen(value => !value)}
+          className="w-full px-5 py-4 text-left flex items-center justify-between gap-4 hover:bg-gray-50"
+        >
+          <div>
+            <p className="text-xs font-bold uppercase tracking-widest text-gray-500">Archive storage</p>
+            <h2 className="mt-1 text-sm font-bold text-gray-950">Past-client notes</h2>
+            <p className="mt-1 text-xs text-gray-500">Archived case notes are stored here so they do not intrude on active workspace or case views.</p>
+          </div>
+          <span className="text-xs font-bold text-brand-600">{open ? 'Hide' : 'Open archive'}</span>
+        </button>
+
+        {open && (
+          <div className="border-t border-gray-100 p-5">
+            {loading ? (
+              <div className="text-sm text-gray-500">Loading archive...</div>
+            ) : error ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
+            ) : archivedCases.length === 0 ? (
+              <div className="rounded-xl border border-gray-100 bg-gray-50 p-4 text-sm text-gray-500">No archived case notes yet.</div>
+            ) : (
+              <div className="grid lg:grid-cols-[280px,1fr] gap-4">
+                <div className="space-y-2">
+                  {archivedCases.map(item => (
+                    <button
+                      key={item.patient_id}
+                      type="button"
+                      onClick={() => setSelectedPatientId(String(item.patient_id))}
+                      className={`w-full rounded-xl border px-3 py-3 text-left transition-colors ${
+                        String(selectedPatientId) === String(item.patient_id)
+                          ? 'border-brand-200 bg-brand-50'
+                          : 'border-gray-200 bg-white hover:bg-gray-50'
+                      }`}
+                    >
+                      <p className="text-sm font-bold text-gray-950">{item.display_name || item.client_id || 'Archived case'}</p>
+                      <p className="mt-0.5 text-xs text-gray-500">{item.sessions.length} note{item.sessions.length === 1 ? '' : 's'}</p>
+                      {item.archived_at && <p className="mt-1 text-[11px] text-gray-400">Archived {formatShortDate(item.archived_at)}</p>}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="rounded-2xl border border-gray-200 bg-gray-50 overflow-hidden">
+                  <div className="px-4 py-3 bg-white border-b border-gray-200">
+                    <h3 className="text-sm font-bold text-gray-950">{selectedCase?.display_name || selectedCase?.client_id || 'Archived case'}</h3>
+                    <p className="mt-1 text-xs text-gray-500">
+                      {selectedCase?.retention_until
+                        ? `Retention through ${formatShortDate(selectedCase.retention_until)}.`
+                        : 'Retained for recordkeeping.'}
+                    </p>
+                  </div>
+                  <ul className="divide-y divide-gray-200 bg-white">
+                    {(selectedCase?.sessions || []).map(session => (
+                      <li key={session.id}>
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/patients/${session.patient_id}/sessions/${session.id}`)}
+                          className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center gap-4"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-bold uppercase tracking-wide text-gray-500">{session.note_format || 'SOAP'}</span>
+                              <span className="text-[11px] text-gray-400">{formatShortDate(session.session_date || session.created_at)}</span>
+                              {session.signed_at && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">Signed</span>}
+                            </div>
+                            {session.preview && <p className="mt-0.5 text-xs text-gray-600 line-clamp-1">{session.preview}</p>}
+                          </div>
+                          <WorkspaceStatusDots session={session} className="shrink-0" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </section>
   )
 }
 

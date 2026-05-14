@@ -132,6 +132,16 @@ test('patients + sessions CRUD', async (t) => {
     const archivedList = await api('GET', '/api/patients?include_archived=true', null, cookie);
     assert.equal(archivedList.status, 200);
     assert.ok(archivedList.body.some(p => p.id === patientId));
+
+    const activeUnsigned = await api('GET', '/api/sessions/unsigned', null, cookie);
+    assert.equal(activeUnsigned.status, 200);
+    assert.equal(activeUnsigned.body.count, 0);
+
+    const archive = await api('GET', '/api/sessions/archive', null, cookie);
+    assert.equal(archive.status, 200);
+    assert.equal(archive.body.count, 1);
+    assert.equal(archive.body.sessions[0].id, sessionId);
+    assert.equal(archive.body.sessions[0].patient_id, patientId);
   });
 
   await t.test('permanent patient deletion is blocked while retention is active', async () => {
