@@ -132,26 +132,40 @@ change is clearly experimental / scratch work. When in doubt, push.
   not see invite-code UI and will receive 403s from the invite API. Gate
   logic: `['associate', 'licensed'].includes(credential_type)` — the
   helper is `isClinician()` in `server/routes/client-invites.js`.
-- **Trainee onboarding wizard:** A five-screen flow at route
+- **Trainee onboarding wizard:** A six-screen flow at route
   `/t/welcome`, rendered outside `<Layout>` for a clean focused page.
   Trainees and associates with an incomplete wizard land here on
   every sign-in until they finish. Each `/t/*` page is wrapped in a
   `TraineeOnboardingGuard` that bounces partial trainees back to
   `/t/welcome` if they jump straight to a trainee URL.
+  Screen order: 1 Welcome + acknowledgment, 2 Introduce yourself to
+  Miwa (soul profile), 3 School + program, 4 Hours tracking,
+  5 Supervisor info, 6 First case.
   - **Frontend:** `client/src/pages/trainee/TraineeWelcome.jsx` is the
     single-file wizard; primitives live in
     `client/src/components/trainee/` (`TraineeButton`, `TraineeCard`,
     `WizardLayout`, `WizardProgress`). Mirror this primitives pattern
     for new trainee surfaces — don't reinvent.
+  - **Soul screen (screen 2):** Collects 10 questions about the
+    clinician's identity, style, and working preferences. On Next it
+    fires POST `/api/onboarding/soul` as fire-and-forget (no loading
+    state), then advances via PUT `/api/onboarding/step/2`. The shared
+    answer formatter lives in `client/src/lib/soulFormatter.js` and is
+    also used by `MiwaChat.jsx`'s chat-intro flow. If `soul_markdown`
+    is already populated (from the wizard or a prior chat session),
+    MiwaChat skips the chat-intro questionnaire entirely.
   - **Backend:** routes are appended to `server/routes/onboarding.js`
-    under `/api/onboarding/{state,step/:n,skip/:n,complete,
+    under `/api/onboarding/{state,step/:n,skip/:n,complete,soul,
     school-email/verify-send,school-email/verify/:token,sample-case}`.
     All are auth-gated except the verify-by-token endpoint, which the
     trainee hits from their email client.
   - **State columns** (on `therapists`): `onboarding_step` (0 = not
-    started, 1–5 = in progress, 6 = complete), `onboarded_at`,
+    started, 1–6 = in progress, 7 = complete), `onboarded_at`,
     `onboarding_skipped_steps` (JSON array text), plus
     `expected_graduation_year` and `school_email_verified`.
+    The complete sentinel is 7 (was 6 before the 6-screen model).
+    Existing trainees with `onboarding_step` 1–6 are treated as
+    in-progress (< 7); no migration is required.
   - **Supervisor info** persists to a new `trainee_supervisors` table.
     No outreach is sent — Miwa never emails a supervisor today; the
     data is stored for the trainee's own reference.
