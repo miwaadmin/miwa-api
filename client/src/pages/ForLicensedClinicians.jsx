@@ -219,6 +219,11 @@ export default function ForLicensedClinicians() {
               color: '#6047EE',
             },
             {
+              title: 'Ethical escalation scanner',
+              desc: 'Miwa flags notes that contain SI, HI, abuse disclosures, or Tarasoff-relevant language and checks whether the matching screener is on file. Non-blocking — surfaces the nudge, your clinical judgment leads.',
+              color: '#f59e0b',
+            },
+            {
               title: 'Privacy-minded design',
               desc: 'Encrypted clinical data, limited access, and no clinical data used to train AI models.',
               color: '#64748b',
