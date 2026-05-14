@@ -50,6 +50,9 @@ const PRE_LICENSED_TIERS = [
       'Unlimited clients and sessions',
       'Voice to clinical notes',
       'Pre-session briefs and risk monitor',
+      'Session Workspace with 4-step copy-to-EHR pipeline',
+      'Hours tracking (BBS + school dual-track)',
+      'Guided onboarding wizard',
       'Supervision prep and case presentations',
     ],
   },
@@ -165,6 +168,10 @@ export default function ForTrainees() {
             { title: 'Proactive alerts', desc: 'Deterioration detection, risk review flags, overdue assessment alerts between sessions.' },
             { title: 'Supervision documentation', desc: 'Structured case presentations, supervision notes, and progress summaries tailored for your supervisor.' },
             { title: 'Session attendance tracking', desc: 'Check-in, late arrival, no-show, and cancellation tracking for every session.' },
+            { title: 'Guided onboarding wizard', desc: 'A five-screen setup flow walks you through your program, supervisor info, and a sample case so you start oriented, not guessing.' },
+            { title: 'Hours tracking', desc: 'BBS and school dual-track hour logging built in. Track individual and relational hours side by side as you accrue toward licensure.' },
+            { title: 'Session Workspace', desc: 'A dedicated workspace for drafting, reviewing, and completing the risk/safety check before copying notes to your EHR. Four-step pipeline: draft complete → trainee review → risk/safety check → copied to EHR.' },
+            { title: 'AI consult', desc: 'A conversational AI interface that reads your entire caseload and handles multi-step tasks through plain conversation — send assessments, generate reports, check in on a client.' },
           ].map((f, i) => (
             <div key={i} className="flex items-start gap-3 p-4 rounded-xl bg-white" style={{ border: '1px solid rgba(0,0,0,0.07)' }}>
               <div className="w-5 h-5 rounded-full bg-emerald-500 flex-shrink-0 mt-0.5 flex items-center justify-center">
