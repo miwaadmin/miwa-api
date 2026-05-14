@@ -144,9 +144,9 @@ function HeroMockup() {
           <div className="flex items-center gap-2 mb-5">
             <MiwaLogo size={20} /><span className="text-xs font-bold text-white/80">miwa</span>
           </div>
-          {['Dashboard','Patients','Schedule','Briefs'].map(item => (
-            <div key={item} className={`text-xs px-2.5 py-1.5 rounded-lg ${item==='Patients'?'text-white':'text-white/30'}`}
-              style={item==='Patients'?{background:'rgba(96,71,238,0.25)'}:{}}>
+          {['Dashboard','Session Workspace','Consult','Supervision','Cases','Hours','Learning','Resources'].map(item => (
+            <div key={item} className={`text-xs px-2.5 py-1.5 rounded-lg ${item==='Session Workspace'?'text-white':'text-white/30'}`}
+              style={item==='Session Workspace'?{background:'rgba(96,71,238,0.25)'}:{}}>
               {item}
             </div>
           ))}
@@ -371,7 +371,7 @@ function Hero() {
             See how it works →
           </Link>
         </div>
-        <p className="text-sm text-gray-500">14-day free trial · No credit card required · Pre-licensed pricing for trainees</p>
+        <p className="text-sm text-gray-500">14-day free trial · No credit card required · Trainee pricing starting at $39/mo</p>
       </div>
 
       {/* BIG product mockup, the hero visual */}
@@ -393,7 +393,7 @@ function Hero() {
           <span>·</span>
           <span>Privacy-minded design</span>
           <span>·</span>
-          <span>Pre-licensed pricing for interns &amp; associates</span>
+          <span>Trainee pricing for interns &amp; associates</span>
         </div>
       </div>
     </section>
@@ -446,9 +446,9 @@ function FeatureRow({ tag, title, gradWord, desc, items, accent, reversed, mocku
 /* ── Pricing Preview ──────────────────────────────────────────────── */
 function PricingPreview() {
   const tiers = [
-    { name: 'Pre-Licensed', price: '$39', per: '/mo', desc: 'Trainees & associates. The full AI copilot at a trainee-friendly price.', cta: 'Start free trial', href: '/register', highlight: false },
+    { name: 'Trainee', price: '$39', per: '/mo', desc: 'MFT trainees and practicum interns. The full AI copilot at a price that fits a trainee salary.', cta: 'Start free trial', href: '/register', highlight: false },
     { name: 'Licensed Therapist', price: '$129', per: '/mo', desc: 'The full AI copilot: pre-session briefs, treatment plan tracking, risk monitoring, letter generation, and morning caseload briefings.', cta: 'Start free trial', href: '/register', highlight: true },
-    { name: 'Group Practice', price: '$399', per: '/mo', desc: 'Coming soon. 3 clinicians included. +$39/mo each. Join the waitlist.', cta: 'Join waitlist', href: '/for-practices', highlight: false },
+    { name: 'Group Practice', price: '', per: '', desc: 'Coming soon. Join the waitlist for multi-clinician pricing.', cta: 'Join waitlist', href: '/for-practices', highlight: false },
   ]
   return (
     <section className="py-24 lg:py-32 px-8 lg:px-12" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
@@ -471,8 +471,14 @@ function PricingPreview() {
                 : { border: '1px solid rgba(0,0,0,0.08)' }}>
               <h3 className={`font-bold text-lg mb-1 ${t.highlight ? 'text-white' : 'text-gray-900'}`}>{t.name}</h3>
               <div className="flex items-end gap-1 mb-3">
-                <span className={`text-3xl font-extrabold ${t.highlight ? 'text-white' : 'text-gray-900'}`}>{t.price}</span>
-                <span className={`text-sm mb-1 ${t.highlight ? 'text-white/60' : 'text-gray-400'}`}>{t.per}</span>
+                {t.price ? (
+                  <>
+                    <span className={`text-3xl font-extrabold ${t.highlight ? 'text-white' : 'text-gray-900'}`}>{t.price}</span>
+                    <span className={`text-sm mb-1 ${t.highlight ? 'text-white/60' : 'text-gray-400'}`}>{t.per}</span>
+                  </>
+                ) : (
+                  <span className="text-xl font-bold text-gray-400">Coming soon</span>
+                )}
               </div>
               <p className={`text-sm mb-6 flex-1 ${t.highlight ? 'text-white/70' : 'text-gray-500'}`}>{t.desc}</p>
               <Link to={t.href}
@@ -493,7 +499,7 @@ function FAQ() {
   const faqs = [
     { q: 'Is Miwa HIPAA compliant?', a: 'Miwa is built for HIPAA-covered clinical work, with encryption, access controls, and privacy protections around sensitive client information. Practices should complete their own compliance review before using any clinical software.' },
     { q: 'Does Miwa replace my EHR?', a: 'No. Miwa is a clinical assistant, not a full EHR or insurance billing system. Many clinicians use it alongside their existing record system for notes, outcomes, scheduling, and preparation.' },
-    { q: 'Who qualifies for Pre-Licensed pricing?', a: 'Anyone who isn\'t fully licensed yet: practicum interns, MFT trainees, and licensed associates (AMFT, ACSW, APCC). When you get your full license, you can upgrade to Licensed Therapist.' },
+    { q: 'Who qualifies for Trainee pricing?', a: 'Anyone who isn\'t fully licensed yet: practicum interns, MFT trainees, and licensed associates (AMFT, ACSW, APCC). When you get your full license, you can upgrade to Licensed Therapist.' },
     { q: 'What assessments are supported?', a: 'PHQ-9, GAD-7, PCL-5, and C-SSRS can be completed through secure links, scored automatically, and tracked over time.' },
     { q: 'Can I use Miwa on mobile?', a: 'Yes. Miwa is a PWA installable on iOS and Android. Voice dictation works on mobile.' },
   ]
@@ -550,7 +556,7 @@ function FinalCTA() {
           <Link to="/for-trainees"
             className="px-10 py-4 rounded-xl text-lg font-medium text-gray-700 hover:text-gray-900 transition-all"
             style={{ border: '1px solid rgba(0,0,0,0.15)' }}>
-            I'm pre-licensed →
+            I'm a trainee →
           </Link>
         </div>
       </div>
