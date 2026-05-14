@@ -858,12 +858,6 @@ function GrowthEventForm({ onSaved }) {
   )
 }
 
-// TransitionPanel was removed — trainees now stay in trainee mode for as
-// long as they're trainees. The backend routes
-// /api/agent/trainee/transition-plan and /api/agent/trainee/transition-to-licensed
-// in server/routes/agent/trainee.js are still mounted but no longer reachable
-// from the UI; flagged as a candidate for follow-up cleanup.
-
 export function TraineeLearning() {
   const navigate = useNavigate()
   const [growth, setGrowth] = useState({ events: [], competencies: [] })

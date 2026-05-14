@@ -1205,10 +1205,6 @@ export default function Settings() {
       {/* Proactive Outreach Settings */}
       <OutreachSettings />
 
-      {/* TransitionPanel removed — trainees no longer have a self-serve switch
-          to licensed mode from Settings. The /api/agent/trainee/transition-* routes
-          remain mounted but are no longer reachable from UI. */}
-
       {/* Re-run trainee onboarding wizard — trainees + associates only */}
       {isTraineeCredential(therapist) && <TraineeWelcomeRerunCard />}
 

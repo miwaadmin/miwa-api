@@ -4,7 +4,6 @@ const { MODELS, callAI } = require('../../lib/aiExecutor');
 const { scrubText } = require('../../lib/scrubber');
 const { sendRouteError, safeJsonParse } = require('./lib/helpers');
 const {
-  buildLicensedTransitionPlan,
   generateCaseSnapshot,
   generateSupervisionAgenda,
   generateTraineeDailyBrief,
@@ -108,54 +107,6 @@ router.get('/trainee/exports/:type', async (req, res) => {
       timezone: req.therapist.preferred_timezone || 'America/Los_Angeles',
     });
     res.json(result);
-  } catch (err) {
-    sendRouteError(res, err);
-  }
-});
-
-router.get('/trainee/transition-plan', async (req, res) => {
-  try {
-    const db = getAsyncDb();
-    res.json(await buildLicensedTransitionPlan(db, req.therapist.id));
-  } catch (err) {
-    sendRouteError(res, err);
-  }
-});
-
-router.post('/trainee/transition-to-licensed', async (req, res) => {
-  try {
-    const db = getAsyncDb();
-    const caseIds = Array.isArray(req.body?.case_ids) ? req.body.case_ids.map(Number).filter(Boolean) : [];
-    await db.run(
-      `UPDATE therapists
-          SET workspace_mode = 'private_practice',
-              client_record_mode = 'miwa_system_of_record',
-              workspace_mode_selected_at = CURRENT_TIMESTAMP
-        WHERE id = ?`,
-      req.therapist.id
-    );
-    if (caseIds.length) {
-      const placeholders = caseIds.map(() => '?').join(',');
-      await db.run(
-        `UPDATE patients
-            SET record_mode = 'miwa_system_of_record',
-                agency_note_status = COALESCE(agency_note_status, 'converted_from_agency_companion'),
-                updated_at = CURRENT_TIMESTAMP
-          WHERE therapist_id = ? AND id IN (${placeholders})`,
-        req.therapist.id,
-        ...caseIds
-      );
-    }
-    try {
-      await db.insert(
-        `INSERT INTO trainee_growth_events (therapist_id, category, competency, title, details, source)
-         VALUES (?, 'transition', 'professional identity', 'Transitioned Miwa workspace toward licensed private-practice mode', ?, 'transition_to_licensed')`,
-        req.therapist.id,
-        caseIds.length ? `Converted ${caseIds.length} selected case(s) into Miwa system-of-record mode.` : 'Preserved trainee history and switched workspace mode.'
-      );
-    } catch {}
-    await persistIfNeeded();
-    res.json({ ok: true, transition: await buildLicensedTransitionPlan(db, req.therapist.id) });
   } catch (err) {
     sendRouteError(res, err);
   }
