@@ -51,6 +51,7 @@ const PLANS = [
       'Drafted outreach',
       'Multi-step tasks (onboard, close, court prep)',
       'Batch assessment sender',
+      'Client portal invite codes (MIWA-XXXX-XXXX)',
       'Attorney summaries & insurance pre-auth letters',
       'Court, insurance & supervision reports',
       'Practice intelligence (cross-client patterns)',
@@ -99,6 +100,7 @@ const COMPETITORS = [
   { feature: 'Pre-licensed pricing', miwa: '$39/mo', upheal: false, sp: false, tn: false },
   { feature: 'Voice-first mobile app', miwa: true, upheal: true, sp: true, tn: true },
   { feature: 'Client portal', miwa: true, upheal: true, sp: true, tn: true },
+  { feature: 'Client portal invite codes (MIWA-XXXX-XXXX)', miwa: '$69+/mo', upheal: false, sp: false, tn: false },
   { feature: 'Insurance billing', miwa: false, upheal: false, sp: true, tn: true },
   { feature: 'Telehealth scheduling support', miwa: true, upheal: true, sp: true, tn: '$15/mo' },
 ]
