@@ -50,6 +50,88 @@ test('client invite generation/list/revoke lifecycle is licensed-only and audite
   assert.equal(blocked.status, 403);
 });
 
+test('POST /unlink detaches a claimed portal account and audits to event_logs', async (t) => {
+  await startTestServer();
+  t.after(stopTestServer);
+
+  const { cookie, therapist } = await bootstrapAdminAndLogin({
+    email: 'client-invites-unlink@miwa.test',
+    password: 'test-password-1234',
+  });
+  const db = getAsyncDb();
+  await db.run("UPDATE therapists SET credential_type = 'licensed' WHERE id = ?", therapist.id);
+
+  const patient = await api('POST', '/api/patients', {
+    first_name: 'Unlink',
+    last_name: 'Client',
+    email: 'unlink-client@example.test',
+  }, cookie);
+  assert.equal(patient.status, 201);
+  const patientId = patient.body.id;
+
+  // Simulate a claimed portal account directly in the DB (avoids the full
+  // redeem flow which requires a hashed password and cookie dance).
+  const accountInsert = await db.insert(
+    `INSERT INTO client_portal_accounts
+       (patient_id, linked_patient_id, therapist_id, email, display_name, status)
+     VALUES (?, ?, ?, ?, ?, 'active')`,
+    patientId, patientId, therapist.id, 'portal@example.test', 'Unlink Client',
+  );
+  // Mark an invite as claimed pointing to this account
+  const inviteInsert = await db.insert(
+    `INSERT INTO client_invites
+       (patient_id, therapist_id, code, expires_at, status, claimed_by_client_user_id, claimed_at)
+     VALUES (?, ?, 'MIWA-UNLK-TEST', datetime('now', '+7 days'), 'claimed', ?, CURRENT_TIMESTAMP)`,
+    patientId, therapist.id, accountInsert.lastInsertRowid,
+  );
+
+  // Happy path — unlink succeeds
+  const r = await api('POST', '/api/client-invites/unlink', { patient_id: patientId }, cookie);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.ok, true);
+
+  // Portal account is deactivated and link cleared
+  const account = await db.get('SELECT status, linked_patient_id FROM client_portal_accounts WHERE id = ?', accountInsert.lastInsertRowid);
+  assert.equal(account.status, 'deactivated');
+  assert.equal(account.linked_patient_id, null);
+
+  // Invite flipped to revoked
+  const invite = await db.get('SELECT status FROM client_invites WHERE id = ?', inviteInsert.lastInsertRowid);
+  assert.equal(invite.status, 'revoked');
+
+  // Audit row written
+  const audit = await db.get(
+    "SELECT COUNT(*) AS n FROM event_logs WHERE therapist_id = ? AND event_type = 'portal_account_unlinked'",
+    therapist.id,
+  );
+  assert.ok(audit.n >= 1, 'unlink must write an event_logs audit row');
+});
+
+test('POST /unlink returns 403 for another clinician\'s patient', async (t) => {
+  await startTestServer();
+  t.after(stopTestServer);
+
+  // Clinician A owns the patient
+  const { therapist: therapistA } = await bootstrapAdminAndLogin({
+    email: 'unlink-clinician-a@miwa.test',
+    password: 'test-password-1234',
+  });
+  // Clinician B tries to unlink
+  const { cookie: cookieB } = await bootstrapAdminAndLogin({
+    email: 'unlink-clinician-b@miwa.test',
+    password: 'test-password-1234',
+  });
+  const db = getAsyncDb();
+
+  const patientInsert = await db.insert(
+    `INSERT INTO patients (client_id, display_name, therapist_id) VALUES (?, ?, ?)`,
+    'UNLINK-CROSS', 'Cross-Unlink Patient', therapistA.id,
+  );
+
+  const r = await api('POST', '/api/client-invites/unlink', { patient_id: patientInsert.lastInsertRowid }, cookieB);
+  assert.equal(r.status, 403);
+});
+
 test('client invite generation enforces clinician daily limit', async (t) => {
   await startTestServer();
   t.after(stopTestServer);

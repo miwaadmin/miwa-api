@@ -1,11 +1,11 @@
-// Licensed-only invite-code routes. Clinicians generate a MIWA-XXXX-XXXX
+// Clinician invite-code routes. Clinicians generate a MIWA-XXXX-XXXX
 // code, hand it to the client out-of-band (verbal, text, email — clinician's
 // choice; Miwa does not send anything), and the client redeems it at the
 // portal signup page (POST /api/client-auth/redeem in client-auth.js).
 //
-// Trainees and associates do NOT have access to this feature — the panel in
-// PatientDetail is gated by credential_type, and every endpoint here returns
-// 403 to non-licensed callers.
+// Gated to associate + licensed credential types ("clinician mode").
+// Trainees get 403 on every endpoint; the panel in PatientDetail is hidden
+// for trainees on the frontend too.
 
 const express = require('express');
 const crypto = require('crypto');
@@ -41,6 +41,18 @@ function isLicensed(req) {
 function licensedOnly(req, res, next) {
   if (!isLicensed(req)) {
     return res.status(403).json({ error: 'Client portal invites are a licensed-mode feature.' });
+  }
+  next();
+}
+
+// Associate + licensed clinicians (Section 4 will migrate all routes to this).
+function isClinician(req) {
+  return ['associate', 'licensed'].includes(req.therapist?.credential_type || 'licensed');
+}
+
+function clinicianOnly(req, res, next) {
+  if (!isClinician(req)) {
+    return res.status(403).json({ error: 'Client portal invites require a clinician account (associate or licensed).' });
   }
   next();
 }
@@ -259,6 +271,69 @@ router.delete('/:id', licensedOnly, async (req, res) => {
   } catch (err) {
     console.error('[client-invites] DELETE /:id', err);
     res.status(500).json({ error: 'Could not revoke invite.' });
+  }
+});
+
+// POST /api/client-invites/unlink — detach a claimed portal account from a patient
+// Body: { patient_id }
+// Available to associate + licensed clinicians (not trainees).
+// Deactivates the portal account so the client can no longer log in.
+// A new invite can be generated to reconnect after unlinking.
+router.post('/unlink', clinicianOnly, async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const therapistId = req.therapist.id;
+    const patientId = Number(req.body?.patient_id);
+    if (!Number.isInteger(patientId) || patientId < 1) {
+      return res.status(400).json({ error: 'patient_id is required.' });
+    }
+
+    // Explicit ownership check: 404 for nonexistent patient, 403 for another
+    // clinician's patient (prevents silent enumeration of patient IDs).
+    const patient = await db.get('SELECT id, therapist_id FROM patients WHERE id = ?', patientId);
+    if (!patient) return res.status(404).json({ error: 'Patient not found.' });
+    if (patient.therapist_id !== therapistId) {
+      return res.status(403).json({ error: 'Not authorized to unlink this patient\'s portal account.' });
+    }
+
+    // Find the active portal account linked to this patient.
+    const account = await db.get(
+      "SELECT id FROM client_portal_accounts WHERE patient_id = ? AND therapist_id = ? AND status = 'active'",
+      patientId, therapistId,
+    );
+    if (!account) {
+      return res.status(404).json({ error: 'No active portal account linked to this patient.' });
+    }
+
+    // Clear the explicit link column and deactivate the account so the client
+    // can no longer log in. patient_id is NOT NULL so it stays for audit trail.
+    await db.run(
+      `UPDATE client_portal_accounts
+          SET linked_patient_id = NULL, status = 'deactivated', updated_at = CURRENT_TIMESTAMP
+        WHERE id = ?`,
+      account.id,
+    );
+
+    // Flip any claimed invites for this patient to revoked so the UI shows
+    // the fresh "No active invite" state immediately.
+    await db.run(
+      `UPDATE client_invites SET status = 'revoked'
+        WHERE patient_id = ? AND therapist_id = ? AND status = 'claimed'`,
+      patientId, therapistId,
+    );
+
+    await persistIfNeeded();
+    await logInviteEvent(db, {
+      therapistId,
+      eventType: 'portal_account_unlinked',
+      message: 'Clinician unlinked portal account from patient.',
+      meta: { patient_id: patientId, account_id: account.id },
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('[client-invites] POST /unlink', err);
+    res.status(500).json({ error: 'Could not unlink portal account.' });
   }
 });
 

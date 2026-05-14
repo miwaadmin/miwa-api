@@ -1,17 +1,19 @@
 // Clinician-side invite-code panel for the client portal. Mounted in
-// PatientDetail.jsx, visible only when the current therapist's
-// credential_type === 'licensed'. Trainees/associates never render this.
+// PatientDetail.jsx, visible for associate + licensed clinicians.
+// Trainees never see this panel.
 //
 // States:
 // - No active invite: a "Generate portal invite code" button.
 // - Pending: the code is displayed as a large monospace pill with copy +
 //   revoke actions and an "Expires in N days" subtitle.
-// - Claimed: shows the linked client portal account email + claim date.
+// - Claimed: shows the linked client portal account email + claim date,
+//   plus an "Unlink portal account" action with a confirm dialog.
 //
 // Miwa does not send the code anywhere — the clinician hands it to the
 // client out-of-band (verbal, text, email — clinician's choice).
 import { useEffect, useState } from 'react'
 import { apiFetch } from '../lib/api'
+import ConfirmModal from './admin/ConfirmModal'
 
 function daysUntil(iso) {
   if (!iso) return null
@@ -27,6 +29,7 @@ export default function ClinicianInvitePanel({ patientId, patientName }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
+  const [unlinkConfirmOpen, setUnlinkConfirmOpen] = useState(false)
 
   async function load() {
     if (!patientId) return
@@ -90,6 +93,25 @@ export default function ClinicianInvitePanel({ patientId, patientName }) {
     }
   }
 
+  async function unlink() {
+    setBusy(true)
+    setError('')
+    try {
+      const res = await apiFetch('/client-invites/unlink', {
+        method: 'POST',
+        body: JSON.stringify({ patient_id: patientId }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Could not unlink portal account.')
+      setUnlinkConfirmOpen(false)
+      await load()
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const pending = invites.find(i => i.status === 'pending')
   const claimed = invites.find(i => i.status === 'claimed')
 
@@ -116,15 +138,28 @@ export default function ClinicianInvitePanel({ patientId, patientName }) {
       ) : claimed ? (
         <div
           data-testid="invite-claimed-state"
-          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900"
+          className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3"
         >
-          <p className="font-semibold">Linked to portal account</p>
-          <p className="text-xs text-emerald-800 mt-0.5">
-            {claimed.claimed_email || 'Email on file'}
-            {claimed.claimed_at && (
-              <> · claimed {new Date(claimed.claimed_at).toLocaleDateString()}</>
-            )}
-          </p>
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <p className="text-sm font-semibold text-emerald-900">Linked to portal account</p>
+              <p className="text-xs text-emerald-800 mt-0.5">
+                {claimed.claimed_email || 'Email on file'}
+                {claimed.claimed_at && (
+                  <> · claimed {new Date(claimed.claimed_at).toLocaleDateString()}</>
+                )}
+              </p>
+            </div>
+            <button
+              type="button"
+              data-testid="invite-unlink-button"
+              onClick={() => setUnlinkConfirmOpen(true)}
+              disabled={busy}
+              className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60 shrink-0"
+            >
+              Unlink portal account
+            </button>
+          </div>
         </div>
       ) : pending ? (
         <div data-testid="invite-pending-state" className="space-y-3">
@@ -169,6 +204,14 @@ export default function ClinicianInvitePanel({ patientId, patientName }) {
           {busy ? 'Generating…' : 'Generate portal invite code'}
         </button>
       )}
+      <ConfirmModal
+        isOpen={unlinkConfirmOpen}
+        onClose={() => setUnlinkConfirmOpen(false)}
+        onConfirm={unlink}
+        title="Unlink portal account?"
+        body={`This will end ${patientName || 'this client'}'s portal access. Their account will be deactivated and they will not be able to log in. You can generate a fresh invite code to reconnect them at any time.`}
+        variant="danger"
+      />
     </section>
   )
 }
