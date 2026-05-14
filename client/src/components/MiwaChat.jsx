@@ -676,6 +676,8 @@ export default function MiwaChat() {
   const livePendingUserTranscriptRef = useRef('')
   const livePendingResponseTimerRef = useRef(null)
   const liveEndingRef = useRef(false)
+  // When true, the panel stays closed and messages are relayed via CustomEvents
+  const embeddedModeRef = useRef(false)
 
   // Keep voiceEnabled ref in sync
   useEffect(() => { voiceEnabledRef.current = voiceEnabled }, [voiceEnabled])
@@ -1352,7 +1354,11 @@ When you're done, I'll save this as your profile and refer back to it in every c
       liveAssistantCommitTimerRef.current = null
       const text = (realtimeAssistantRef.current || '').trim()
       if (!text) return
-      setMessages(prev => [...prev, { id: Date.now() + 1, role: 'assistant', content: text }])
+      const msg = { id: Date.now() + 1, role: 'assistant', content: text }
+      setMessages(prev => [...prev, msg])
+      if (embeddedModeRef.current) {
+        window.dispatchEvent(new CustomEvent('miwa-live-embedded-message', { detail: { message: msg } }))
+      }
       realtimeAssistantRef.current = ''
       liveAssistantMessageCommittedRef.current = true
       setStreamingText('')
@@ -1366,7 +1372,11 @@ When you're done, I'll save this as your profile and refer back to it in every c
       const transcript = livePendingUserTranscriptRef.current.trim()
       livePendingUserTranscriptRef.current = ''
       if (!transcript || liveEndingRef.current) return
-      setMessages(prev => [...prev, { id: Date.now(), role: 'user', content: transcript }])
+      const userMsg = { id: Date.now(), role: 'user', content: transcript }
+      setMessages(prev => [...prev, userMsg])
+      if (embeddedModeRef.current) {
+        window.dispatchEvent(new CustomEvent('miwa-live-embedded-message', { detail: { message: userMsg } }))
+      }
       try {
         realtimeDataChannelRef.current?.send(JSON.stringify({
           type: 'response.create',
@@ -1478,6 +1488,10 @@ When you're done, I'll save this as your profile and refer back to it in every c
     liveResponseInProgressRef.current = false
     liveAssistantMessageCommittedRef.current = false
     liveEndingRef.current = false
+    if (embeddedModeRef.current) {
+      embeddedModeRef.current = false
+      window.dispatchEvent(new CustomEvent('miwa-live-embedded-stopped'))
+    }
     setLiveVoice(false)
     setLiveVoiceStatus('')
     setLiveMicMuted(false)
@@ -1643,17 +1657,32 @@ When you're done, I'll save this as your profile and refer back to it in every c
     }
   }, [buildLiveGreetingInstructions, currentPageContext, handleRealtimeEvent, liveVoice, realtimeSupported, startLiveOutputMonitor, stopLiveVoice, stopSpeaking, streaming])
 
+  // Relay liveVoiceStatus to Supervisor when running in embedded mode
+  useEffect(() => {
+    if (embeddedModeRef.current && liveVoiceStatus) {
+      window.dispatchEvent(new CustomEvent('miwa-live-embedded-status', { detail: { status: liveVoiceStatus } }))
+    }
+  }, [liveVoiceStatus])
+
   useEffect(() => {
     const startFromPage = event => {
       const mode = event?.detail?.mode || 'conversation'
       setIsOpen(true)
       startLiveVoice(mode)
     }
+    const startEmbedded = event => {
+      const mode = event?.detail?.mode || 'conversation'
+      embeddedModeRef.current = true
+      // Do NOT call setIsOpen(true) — keep the floating panel closed
+      startLiveVoice(mode)
+    }
     const stopFromPage = () => stopLiveVoice()
     window.addEventListener('miwa-live-start', startFromPage)
+    window.addEventListener('miwa-live-start-embedded', startEmbedded)
     window.addEventListener('miwa-live-stop', stopFromPage)
     return () => {
       window.removeEventListener('miwa-live-start', startFromPage)
+      window.removeEventListener('miwa-live-start-embedded', startEmbedded)
       window.removeEventListener('miwa-live-stop', stopFromPage)
     }
   }, [startLiveVoice, stopLiveVoice])

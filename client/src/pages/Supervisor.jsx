@@ -246,6 +246,9 @@ export default function Supervisor() {
   const [imageAttachments, setImageAttachments] = useState([])
   const [savingPlanId, setSavingPlanId] = useState(null)
   const [planSaveNotice, setPlanSaveNotice] = useState('')
+  const [liveEmbedded, setLiveEmbedded] = useState(false)
+  const [liveEmbeddedStatus, setLiveEmbeddedStatus] = useState('Starting…')
+  const [liveEmbeddedMessages, setLiveEmbeddedMessages] = useState([])
   const messagesEndRef = useRef(null)
   const textareaRef = useRef(null)
   const fileInputRef = useRef(null)
@@ -519,8 +522,36 @@ export default function Supervisor() {
     setConversations([])
   }
 
+  // Listen for messages/status/stopped events from MiwaChat embedded mode
+  useEffect(() => {
+    const onMsg = e => {
+      const msg = e?.detail?.message
+      if (msg) setLiveEmbeddedMessages(prev => [...prev, msg])
+    }
+    const onStatus = e => {
+      const status = e?.detail?.status
+      if (status) setLiveEmbeddedStatus(status)
+    }
+    const onStopped = () => {
+      setLiveEmbedded(false)
+      setLiveEmbeddedMessages([])
+      setLiveEmbeddedStatus('Starting…')
+    }
+    window.addEventListener('miwa-live-embedded-message', onMsg)
+    window.addEventListener('miwa-live-embedded-status', onStatus)
+    window.addEventListener('miwa-live-embedded-stopped', onStopped)
+    return () => {
+      window.removeEventListener('miwa-live-embedded-message', onMsg)
+      window.removeEventListener('miwa-live-embedded-status', onStatus)
+      window.removeEventListener('miwa-live-embedded-stopped', onStopped)
+    }
+  }, [])
+
   const startConsultLive = useCallback(() => {
-    window.dispatchEvent(new CustomEvent('miwa-live-start', { detail: { mode: 'conversation' } }))
+    setLiveEmbedded(true)
+    setLiveEmbeddedMessages([])
+    setLiveEmbeddedStatus('Starting…')
+    window.dispatchEvent(new CustomEvent('miwa-live-start-embedded', { detail: { mode: 'conversation' } }))
   }, [])
 
   return (
@@ -608,14 +639,27 @@ export default function Supervisor() {
         <div className="flex items-center gap-4 ml-auto flex-wrap">
           <button
             type="button"
-            onClick={startConsultLive}
-            className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-emerald-600"
-            title="Start Miwa Live on the Consult page"
+            onClick={() => {
+              if (liveEmbedded) {
+                window.dispatchEvent(new CustomEvent('miwa-live-stop'))
+                setLiveEmbedded(false)
+                setLiveEmbeddedMessages([])
+                setLiveEmbeddedStatus('Starting…')
+              } else {
+                startConsultLive()
+              }
+            }}
+            className={`inline-flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs font-semibold text-white shadow-sm transition-colors ${
+              liveEmbedded
+                ? 'bg-red-500 hover:bg-red-600'
+                : 'bg-emerald-500 hover:bg-emerald-600'
+            }`}
+            title={liveEmbedded ? 'Stop Miwa Live' : 'Start Miwa Live on the Consult page'}
           >
             <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.25}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 18.75a6.75 6.75 0 0 0 6.75-6.75M12 18.75A6.75 6.75 0 0 1 5.25 12M12 18.75V21m0 0h3m-3 0H9m3-5.25a3.75 3.75 0 0 1-3.75-3.75V6.75a3.75 3.75 0 1 1 7.5 0V12A3.75 3.75 0 0 1 12 15.75Z" />
             </svg>
-            Miwa Live
+            {liveEmbedded ? 'Stop live' : 'Miwa Live'}
           </button>
 
           {/* Response style pills */}
@@ -673,7 +717,61 @@ export default function Supervisor() {
 
       {/* Messages area */}
       <div className="flex-1 overflow-y-auto px-3 md:px-6 py-4 space-y-4 bg-gray-50 dark:bg-slate-950">
-        {loading ? (
+        {liveEmbedded ? (
+          <div className="flex flex-col h-full -mx-3 md:-mx-6 -my-4">
+            {/* Live header bar */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-white dark:bg-slate-900 dark:border-white/10 flex-shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-sm font-semibold text-gray-800 dark:text-white">Miwa Live</span>
+                <span className="text-xs text-gray-500 dark:text-slate-400">{liveEmbeddedStatus}</span>
+              </div>
+              <button
+                onClick={() => {
+                  window.dispatchEvent(new CustomEvent('miwa-live-stop'))
+                  setLiveEmbedded(false)
+                  setLiveEmbeddedMessages([])
+                  setLiveEmbeddedStatus('Starting…')
+                }}
+                className="rounded-lg border border-red-200 bg-white px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 dark:bg-transparent dark:border-red-500/40 dark:text-red-400 dark:hover:bg-red-500/10"
+              >
+                Stop live
+              </button>
+            </div>
+            {/* Messages area */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+              {liveEmbeddedMessages.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-full gap-3">
+                  <div className="flex items-end gap-1 h-10">
+                    {[0, 1, 2, 3, 4].map(i => (
+                      <div
+                        key={i}
+                        className="w-1.5 rounded-full bg-emerald-400"
+                        style={{
+                          height: `${20 + (i % 3) * 8}px`,
+                          animation: `pulse ${0.6 + i * 0.1}s ease-in-out infinite alternate`,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <p className="text-sm text-gray-500 dark:text-slate-400">{liveEmbeddedStatus}</p>
+                </div>
+              ) : (
+                liveEmbeddedMessages.map((msg, i) => (
+                  <div key={msg.id ?? i} className={`flex gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+                    <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${
+                      msg.role === 'user'
+                        ? 'bg-indigo-600 text-white rounded-tr-sm'
+                        : 'bg-white dark:bg-slate-800 border border-gray-200 dark:border-white/10 text-gray-900 dark:text-slate-100 rounded-tl-sm'
+                    }`}>
+                      {msg.content}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        ) : loading ? (
           <div className="flex items-center justify-center h-full">
             <div className="w-6 h-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
           </div>
