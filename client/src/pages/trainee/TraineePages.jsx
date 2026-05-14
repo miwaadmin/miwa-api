@@ -5,7 +5,7 @@ import { useAuth } from '../../context/AuthContext'
 import { renderClinical } from '../../lib/renderClinical'
 import Patients from '../Patients'
 import Hours from '../Hours'
-import { sessionPipelineSteps } from '../../components/trainee/WorkspaceStatusDots'
+import WorkspaceStatusDots, { sessionPipelineSteps } from '../../components/trainee/WorkspaceStatusDots'
 
 const COMPETENCY_LABELS = {
   assessment: 'Assessment',
@@ -317,7 +317,7 @@ export function TraineeToday() {
       <button
         type="button"
         data-testid="drafts-in-progress-widget"
-        onClick={() => navigate('/t/workspace?filter=in-progress')}
+        onClick={() => navigate('/t/cases')}
         className="w-full rounded-2xl border border-gray-200 bg-white p-5 text-left hover:border-brand-300 hover:bg-brand-50/40 transition-colors flex items-center justify-between gap-4"
       >
         <div>
@@ -340,34 +340,28 @@ export function TraineeToday() {
         <section className="lg:col-span-2 rounded-2xl border border-gray-200 bg-white overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-bold text-gray-950">Notes to draft or copy</h2>
-              <p className="text-xs text-gray-500">Unsigned notes are your trainee drafting queue for now.</p>
+              <h2 className="text-sm font-bold text-gray-950">Case-bound notes</h2>
+              <p className="text-xs text-gray-500">Open a case to review, continue, or copy notes to the agency EHR.</p>
             </div>
-            <Link to="/t/workspace" className="text-xs font-bold text-brand-600 hover:text-brand-700">Open workspace</Link>
+            <Link to="/t/cases" className="text-xs font-bold text-brand-600 hover:text-brand-700">Open cases</Link>
           </div>
-          {sessions.length === 0 ? (
-            <div className="p-8 text-center text-sm text-gray-500">No active note drafts. Quiet is allowed.</div>
-          ) : (
-            <div className="divide-y divide-gray-100">
-              {sessions.slice(0, 5).map(session => (
-                <button
-                  key={session.id}
-                  type="button"
-                  onClick={() => navigate(`/patients/${session.patient_id}/sessions/${session.id}`)}
-                  className="w-full px-5 py-4 text-left hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-gray-950">{session.display_name || session.client_id || 'Case'}</span>
-                    <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-800">Draft</span>
-                    <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600">
-                      Copy to agency EHR
-                    </span>
-                  </div>
-                  {session.preview && <p className="mt-1 text-sm text-gray-600 line-clamp-2">{session.preview}</p>}
-                </button>
-              ))}
+          <div className="p-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div>
+              <p className="text-3xl font-bold text-gray-950">{sessions.length}</p>
+              <p className="mt-1 text-sm text-gray-500">
+                {sessions.length === 0
+                  ? 'No active note drafts right now.'
+                  : `${sessions.length} note${sessions.length === 1 ? '' : 's'} in case charts.`}
+              </p>
             </div>
-          )}
+            <button
+              type="button"
+              onClick={() => navigate('/t/cases')}
+              className="rounded-xl bg-gray-950 px-4 py-2 text-sm font-bold text-white hover:bg-gray-800"
+            >
+              Go to Cases
+            </button>
+          </div>
         </section>
 
         <section className="rounded-2xl border border-gray-200 bg-white p-5 space-y-4">
@@ -443,7 +437,8 @@ export function TraineeCases() {
 }
 
 function CaseSnapshotBoard() {
-  const { patients, loading } = useTraineeData()
+  const navigate = useNavigate()
+  const { patients, sessions, loading } = useTraineeData()
   const [selectedId, setSelectedId] = useState('')
   const [snapshot, setSnapshot] = useState('')
   const [caseForm, setCaseForm] = useState({
@@ -454,6 +449,11 @@ function CaseSnapshotBoard() {
     agency_note_status: '',
   })
   const selected = patients.find(p => String(p.id) === String(selectedId))
+  const selectedSessions = useMemo(() => (
+    sessions
+      .filter(session => String(session.patient_id) === String(selectedId))
+      .sort((a, b) => new Date(b.session_date || b.created_at || 0) - new Date(a.session_date || a.created_at || 0))
+  ), [sessions, selectedId])
   useEffect(() => {
     if (!selected) return
     setCaseForm({
@@ -501,27 +501,70 @@ function CaseSnapshotBoard() {
           <button onClick={() => downloadTraineeExport('case-presentation', { patient_id: selectedId }).catch(() => {})} disabled={!selectedId} className="rounded-xl border border-gray-200 px-4 py-2 text-sm font-bold text-gray-700 disabled:opacity-50">Export case presentation</button>
         </div>
         {selected && (
-          <div className="grid lg:grid-cols-2 gap-3">
-            <textarea className="rounded-xl border border-gray-200 px-3 py-2 text-sm" rows={4} value={caseForm.case_conceptualization} onChange={e => setCaseForm(f => ({ ...f, case_conceptualization: e.target.value }))} placeholder="Case conceptualization" />
-            <textarea className="rounded-xl border border-gray-200 px-3 py-2 text-sm" rows={4} value={caseForm.modality_lens} onChange={e => setCaseForm(f => ({ ...f, modality_lens: e.target.value }))} placeholder="Modality / theory lens" />
-            <textarea className="rounded-xl border border-gray-200 px-3 py-2 text-sm" rows={4} value={caseForm.supervision_questions} onChange={e => setCaseForm(f => ({ ...f, supervision_questions: e.target.value }))} placeholder="Questions to bring to supervision" />
-            <div className="grid sm:grid-cols-2 gap-2">
-              <select className="rounded-xl border border-gray-200 px-3 py-2 text-sm" value={caseForm.supervision_priority} onChange={e => setCaseForm(f => ({ ...f, supervision_priority: e.target.value }))}>
-                <option value="">Supervision priority</option>
-                <option value="high">High</option>
-                <option value="normal">Normal</option>
-                <option value="low">Low</option>
-              </select>
-              <select className="rounded-xl border border-gray-200 px-3 py-2 text-sm" value={caseForm.agency_note_status} onChange={e => setCaseForm(f => ({ ...f, agency_note_status: e.target.value }))}>
-                <option value="">Agency note status</option>
-                <option value="needs_draft">Needs draft</option>
-                <option value="ready_to_copy">Ready to copy</option>
-                <option value="copied_to_agency_ehr">Copied to agency EHR</option>
-                <option value="needs_supervisor_review">Needs supervisor review</option>
-              </select>
-              <button onClick={saveCaseMeta} className="sm:col-span-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-bold text-brand-700">Save case learning fields</button>
+          <>
+            <div className="grid lg:grid-cols-2 gap-3">
+              <textarea className="rounded-xl border border-gray-200 px-3 py-2 text-sm" rows={4} value={caseForm.case_conceptualization} onChange={e => setCaseForm(f => ({ ...f, case_conceptualization: e.target.value }))} placeholder="Case conceptualization" />
+              <textarea className="rounded-xl border border-gray-200 px-3 py-2 text-sm" rows={4} value={caseForm.modality_lens} onChange={e => setCaseForm(f => ({ ...f, modality_lens: e.target.value }))} placeholder="Modality / theory lens" />
+              <textarea className="rounded-xl border border-gray-200 px-3 py-2 text-sm" rows={4} value={caseForm.supervision_questions} onChange={e => setCaseForm(f => ({ ...f, supervision_questions: e.target.value }))} placeholder="Questions to bring to supervision" />
+              <div className="grid sm:grid-cols-2 gap-2">
+                <select className="rounded-xl border border-gray-200 px-3 py-2 text-sm" value={caseForm.supervision_priority} onChange={e => setCaseForm(f => ({ ...f, supervision_priority: e.target.value }))}>
+                  <option value="">Supervision priority</option>
+                  <option value="high">High</option>
+                  <option value="normal">Normal</option>
+                  <option value="low">Low</option>
+                </select>
+                <select className="rounded-xl border border-gray-200 px-3 py-2 text-sm" value={caseForm.agency_note_status} onChange={e => setCaseForm(f => ({ ...f, agency_note_status: e.target.value }))}>
+                  <option value="">Agency note status</option>
+                  <option value="needs_draft">Needs draft</option>
+                  <option value="ready_to_copy">Ready to copy</option>
+                  <option value="copied_to_agency_ehr">Copied to agency EHR</option>
+                  <option value="needs_supervisor_review">Needs supervisor review</option>
+                </select>
+                <button onClick={saveCaseMeta} className="sm:col-span-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-bold text-brand-700">Save case learning fields</button>
+              </div>
             </div>
-          </div>
+
+            <section data-testid="case-notes-panel" className="rounded-2xl border border-gray-200 bg-gray-50 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-200 bg-white flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-bold text-gray-950">Case notes</h3>
+                  <p className="text-xs text-gray-500">Notes stay attached to the selected case. Open a row to continue the copy-to-EHR pipeline.</p>
+                </div>
+                <span className="text-xs font-bold text-gray-500 tabular-nums">{selectedSessions.length}</span>
+              </div>
+              {selectedSessions.length === 0 ? (
+                <div className="px-4 py-5 text-sm text-gray-500">No note drafts for this case yet.</div>
+              ) : (
+                <ul className="divide-y divide-gray-200 bg-white">
+                  {selectedSessions.map(session => (
+                    <li key={session.id}>
+                      <button
+                        type="button"
+                        data-testid="case-note-row"
+                        onClick={() => navigate(`/patients/${session.patient_id}/sessions/${session.id}`)}
+                        className="w-full px-4 py-3 text-left hover:bg-gray-50 transition-colors flex items-center gap-4"
+                      >
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            {session.note_format && (
+                              <span className="text-[10px] font-bold uppercase tracking-wide text-gray-500">{session.note_format}</span>
+                            )}
+                            {session.session_date && (
+                              <span className="text-[11px] text-gray-400">{new Date(session.session_date).toLocaleDateString()}</span>
+                            )}
+                          </div>
+                          {session.preview && (
+                            <p className="mt-0.5 text-xs text-gray-600 line-clamp-1">{session.preview}</p>
+                          )}
+                        </div>
+                        <WorkspaceStatusDots session={session} className="shrink-0" />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          </>
         )}
         {snapshot && <div className="prose-clinical rounded-2xl border border-brand-100 bg-brand-50 p-4 text-sm" dangerouslySetInnerHTML={{ __html: renderClinical(snapshot) }} />}
       </div>

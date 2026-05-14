@@ -1,10 +1,9 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { apiFetch, apiUpload } from '../lib/api'
 import { renderClinical } from '../lib/renderClinical'
 import { useAuth } from '../context/AuthContext'
 import { isTraineeCredential } from '../lib/workspaceMode'
-import WorkspaceStatusDots, { sessionPipelineSteps } from '../components/trainee/WorkspaceStatusDots'
 
 
 const ORIENTATIONS = [
@@ -480,41 +479,8 @@ function importedFieldTargetKey(key) {
   })[key] || key
 }
 
-// Filter options for the Session Workspace list view. Buckets are derived
-// from the 4-step pipeline:
-//   in-progress = started but not yet ready for EHR
-//   ready       = exactly 3 of 4 done (everything except "Copied to EHR")
-//   done        = 4 of 4
-//   all         = no filter
-const WORKSPACE_FILTERS = [
-  { id: 'all', label: 'All notes' },
-  { id: 'in-progress', label: 'Drafts in progress' },
-  { id: 'ready', label: 'Ready for EHR' },
-  { id: 'done', label: 'Done' },
-]
-
-function matchesWorkspaceFilter(session, filter) {
-  const steps = sessionPipelineSteps(session)
-  const done = steps.filter(Boolean).length
-  switch (filter) {
-    case 'in-progress':
-      return done > 0 && done < 3
-    case 'ready':
-      // "Ready for EHR" = the trainee finished draft/review/risk steps but
-      // hasn't copied to the agency EHR yet. Strict 3-of-4 with the EHR step
-      // explicitly unchecked.
-      return done === 3 && !steps[3]
-    case 'done':
-      return done === 4
-    case 'all':
-    default:
-      return true
-  }
-}
-
 export default function Workspace() {
   const navigate = useNavigate()
-  const [searchParams, setSearchParams] = useSearchParams()
   const { therapist } = useAuth()
   // Trainee mode is "lightly trainee-fied": the page header acknowledges that
   // the agency EHR is the system of record, and licensed-mode-only CTAs (send
@@ -566,42 +532,6 @@ export default function Workspace() {
   const [stagedImportedFields, setStagedImportedFields] = useState(null)
   const [uploadedAudioName, setUploadedAudioName] = useState('')
   const [uploadedAudioTranscript, setUploadedAudioTranscript] = useState('')
-
-  // ── List view: recent sessions + 4-step pipeline filter ─────────────
-  // Pre-filtered via ?filter=in-progress|ready|done|all (used by the trainee
-  // dashboard "Drafts in progress" widget to deep-link here). Default is
-  // "all" so the list is visible to anyone landing on the page cold.
-  const initialFilter = (() => {
-    const f = String(searchParams.get('filter') || 'all').toLowerCase()
-    return WORKSPACE_FILTERS.some(x => x.id === f) ? f : 'all'
-  })()
-  const [workspaceFilter, setWorkspaceFilter] = useState(initialFilter)
-  const [recentSessions, setRecentSessions] = useState([])
-  const [recentSessionsLoading, setRecentSessionsLoading] = useState(true)
-  useEffect(() => {
-    let cancelled = false
-    setRecentSessionsLoading(true)
-    apiFetch('/sessions/unsigned')
-      .then(r => r.ok ? r.json() : null)
-      .then(data => {
-        if (cancelled) return
-        const list = Array.isArray(data?.sessions) ? data.sessions : []
-        setRecentSessions(list)
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setRecentSessionsLoading(false) })
-    return () => { cancelled = true }
-  }, [])
-  const filteredRecentSessions = useMemo(() => (
-    recentSessions.filter(s => matchesWorkspaceFilter(s, workspaceFilter))
-  ), [recentSessions, workspaceFilter])
-  function changeWorkspaceFilter(next) {
-    setWorkspaceFilter(next)
-    const sp = new URLSearchParams(searchParams)
-    if (next === 'all') sp.delete('filter')
-    else sp.set('filter', next)
-    setSearchParams(sp, { replace: true })
-  }
 
   // Workspace drafts can include PHI; we accept that risk for the local
   // working copy. localStorage autosave is scoped per therapist + linked
@@ -1506,78 +1436,6 @@ export default function Workspace() {
           AI output is for <strong className="text-amber-900 dark:text-amber-50">clinical support only.</strong> Always review carefully before use in documentation.
         </p>
       </div>
-
-      {/* ── 4-step pipeline filter + recent sessions list ─────────────── */}
-      <section
-        data-testid="workspace-list-view"
-        className="mb-6 rounded-2xl border border-gray-200 bg-white overflow-hidden"
-      >
-        <div className="flex items-center justify-between gap-3 px-5 py-3 border-b border-gray-100 flex-wrap">
-          <div>
-            <h2 className="text-sm font-bold text-gray-900">Your recent notes</h2>
-            <p className="text-xs text-gray-500">Click a row to open it. Dots show the 4-step copy-to-EHR pipeline: draft → review → risk check → copied to EHR.</p>
-          </div>
-          <div role="tablist" aria-label="Workspace filter" className="inline-flex rounded-xl bg-gray-100 p-1 text-xs font-semibold">
-            {WORKSPACE_FILTERS.map(opt => (
-              <button
-                key={opt.id}
-                type="button"
-                role="tab"
-                aria-selected={workspaceFilter === opt.id}
-                onClick={() => changeWorkspaceFilter(opt.id)}
-                data-testid={`workspace-filter-${opt.id}`}
-                className={`px-3 py-1.5 rounded-lg transition-colors ${
-                  workspaceFilter === opt.id
-                    ? 'bg-white text-gray-900 shadow-sm'
-                    : 'text-gray-500 hover:text-gray-800'
-                }`}
-              >
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        </div>
-        {recentSessionsLoading ? (
-          <div className="px-5 py-6 text-sm text-gray-500">Loading recent notes…</div>
-        ) : filteredRecentSessions.length === 0 ? (
-          <div className="px-5 py-6 text-sm text-gray-500">
-            {workspaceFilter === 'all'
-              ? 'No unsigned notes yet. Start drafting below and they\'ll show up here.'
-              : 'Nothing in this bucket right now.'}
-          </div>
-        ) : (
-          <ul className="divide-y divide-gray-100">
-            {filteredRecentSessions.slice(0, 15).map(session => (
-              <li key={session.id}>
-                <button
-                  type="button"
-                  data-testid="workspace-list-row"
-                  onClick={() => navigate(`/patients/${session.patient_id}/sessions/${session.id}`)}
-                  className="w-full px-5 py-3 text-left hover:bg-gray-50 transition-colors flex items-center gap-4"
-                >
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-gray-900 truncate">
-                        {session.display_name || session.client_id || 'Case'}
-                      </span>
-                      {session.note_format && (
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-500">{session.note_format}</span>
-                      )}
-                      {session.session_date && (
-                        <span className="text-[11px] text-gray-400">{new Date(session.session_date).toLocaleDateString()}</span>
-                      )}
-                    </div>
-                    {session.preview && (
-                      <p className="mt-0.5 text-xs text-gray-500 line-clamp-1">{session.preview}</p>
-                    )}
-                  </div>
-                  <WorkspaceStatusDots session={session} className="shrink-0" />
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
 
       {!draft && patients.length === 0 && (
         <div className="mb-6 rounded-2xl border border-brand-100 bg-brand-50/70 px-5 py-4">

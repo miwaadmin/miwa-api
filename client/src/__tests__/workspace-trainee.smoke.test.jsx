@@ -1,5 +1,4 @@
-import { screen, within } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
+import { screen } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
 import { vi } from 'vitest'
 import Workspace from '../pages/Workspace'
@@ -31,8 +30,7 @@ const restoredDraft = {
 }
 
 describe('trainee Workspace smoke tests', () => {
-  it('restores local drafts, hides licensed-only controls, and filters the 4-step note list', async () => {
-    const user = userEvent.setup()
+  it('restores local drafts, hides licensed-only controls, and keeps recent notes out of Session Workspace', async () => {
     localStorage.setItem('miwa.workspaceDraft:99:new', JSON.stringify(restoredDraft))
 
     server.use(
@@ -82,7 +80,7 @@ describe('trainee Workspace smoke tests', () => {
       })),
     )
 
-    renderWithProviders(<Workspace />, { route: '/t/workspace?filter=in-progress' })
+    renderWithProviders(<Workspace />, { route: '/t/workspace' })
 
     expect(await screen.findByTestId('workspace-draft-restored-banner')).toHaveTextContent(/draft restored/i)
     expect(screen.getByText(/last saved locally/i)).toBeInTheDocument()
@@ -92,17 +90,8 @@ describe('trainee Workspace smoke tests', () => {
     expect(screen.queryByText(/share to client portal/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/billing line item/i)).not.toBeInTheDocument()
 
-    const list = await screen.findByTestId('workspace-list-view')
-    expect(within(list).getByText('Draft Client')).toBeInTheDocument()
-    expect(within(list).queryByText('Ready Client')).not.toBeInTheDocument()
-    expect(within(list).queryByText('Done Client')).not.toBeInTheDocument()
-
-    await user.click(screen.getByTestId('workspace-filter-ready'))
-    expect(await within(list).findByText('Ready Client')).toBeInTheDocument()
-    expect(within(list).queryByText('Draft Client')).not.toBeInTheDocument()
-
-    await user.click(screen.getByTestId('workspace-filter-done'))
-    expect(await within(list).findByText('Done Client')).toBeInTheDocument()
-    expect(within(list).queryByText('Ready Client')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('workspace-list-view')).not.toBeInTheDocument()
+    expect(screen.queryByText('Your recent notes')).not.toBeInTheDocument()
+    expect(screen.queryByText('Draft Client')).not.toBeInTheDocument()
   })
 })

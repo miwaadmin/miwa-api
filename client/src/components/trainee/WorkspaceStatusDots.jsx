@@ -4,8 +4,8 @@
 //   3. risk_safety_checked
 //   4. copied_to_agency_ehr (or copied_to_ehr_at on the session row)
 //
-// Used inline in the Session Workspace list view to surface where each note
-// sits in the 4-step pipeline at a glance. Pass either the raw session row
+// Used inline in case-scoped note lists to surface where each note sits in the
+// 4-step pipeline at a glance. Pass either the raw session row
 // (which has the per-step *_at timestamps and copy_to_ehr_checklist_json) or
 // a pre-computed `steps` boolean array of length 4.
 const STEP_LABELS = ['Draft', 'Reviewed', 'Risk check', 'Copied to EHR']
