@@ -294,7 +294,7 @@ const FEATURES = [
     { title: 'Real-time language scanning', desc: 'Miwa watches your session notes for SI, HI, self-harm, and abuse disclosure language as you type, non-blocking, never in your way.' },
     { title: 'Screener-coverage check', desc: 'If the risk matches a screener (C-SSRS, Tarasoff) you haven\'t administered recently, Miwa nudges you to consider one.' },
     { title: 'Knows denial from disclosure', desc: 'It can tell "client denied SI" from "client endorses passive SI", no nagging on routine clearance language.' },
-    { title: 'Liability-aware documentation', desc: 'Helps ensure the right screen is on file when risk content appears in a signed note. Your clinical judgment still leads.' },
+    { title: 'Ethical escalation scanner', desc: 'Notes containing SI, HI, abuse disclosures, or Tarasoff-relevant language trigger a specific flag in the risk/safety check step. Designed so the right screen is on file before you sign.' },
   ]},
   { category: 'Letter & Form Generator', color: '#ec4899', items: [
     { title: 'Five clinical templates', desc: 'ESA letters, school 504 support, insurance pre-authorization, attorney summaries, return-to-work / fitness-for-duty.' },
@@ -342,6 +342,7 @@ const FEATURES = [
     { title: 'Cross-client pattern discovery', desc: 'Miwa identifies patterns across your caseload: common stressors, treatment response trends, and cohort insights.' },
     { title: 'Court & legal reports', desc: 'Professional progress reports formatted for court, attorneys, or probation officers, generated in seconds.' },
     { title: 'Supervision reports', desc: 'Structured supervision notes, case conceptualizations, and training documentation.' },
+    { title: 'Supervision agenda extraction', desc: 'Miwa reads your recent session notes and surfaces the cases, risk flags, and clinical questions most worth bringing to your supervisor — so you go in prepared, not scrambling.' },
     { title: 'Research briefs', desc: 'Weekly peer-reviewed research synthesis tailored to your caseload specialties.' },
     { title: 'Client portal invite codes', desc: 'Generate single-use MIWA-XXXX-XXXX portal codes from any patient chart. Clients redeem the code to access their portal, complete assessments, and view outcome trends. Available on Associate and Licensed plans.' },
   ]},
