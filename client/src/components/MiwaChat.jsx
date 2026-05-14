@@ -1811,14 +1811,14 @@ When you're done, I'll save this as your profile and refer back to it in every c
               // the panel opens toward the opposite side so it stays on screen.
               // Default bottom-right when FAB hasn't been dragged.
               const base = {
-                width: 'min(calc(100vw - 2rem), 390px)',
-                height: 'min(calc(100vh - 8rem), 540px)',
+                width: 'min(calc(100vw - 2rem), 420px)',
+                height: 'min(calc(100vh - 7rem), 600px)',
               };
               // If the user grabbed the panel header and dragged it somewhere
               // explicit, honor that position over the FAB-anchored auto-layout.
               if (panelPos) {
-                const PANEL_W = Math.min(390, (typeof window !== 'undefined' ? window.innerWidth : 800) - 24);
-                const PANEL_H = Math.min(540, (typeof window !== 'undefined' ? window.innerHeight : 700) - 24);
+                const PANEL_W = Math.min(420, (typeof window !== 'undefined' ? window.innerWidth : 800) - 24);
+                const PANEL_H = Math.min(600, (typeof window !== 'undefined' ? window.innerHeight : 700) - 24);
                 return {
                   width: PANEL_W + 'px',
                   height: PANEL_H + 'px',
@@ -1829,8 +1829,8 @@ When you're done, I'll save this as your profile and refer back to it in every c
               if (!fabPos) return { ...base, bottom: '5.5rem', right: '1rem' };
               const FAB_SIZE = 56;
               const GAP = 12;
-              const PANEL_W = Math.min(390, (typeof window !== 'undefined' ? window.innerWidth : 800) - 24);
-              const PANEL_H = Math.min(540, (typeof window !== 'undefined' ? window.innerHeight : 700) - 24);
+              const PANEL_W = Math.min(420, (typeof window !== 'undefined' ? window.innerWidth : 800) - 24);
+              const PANEL_H = Math.min(600, (typeof window !== 'undefined' ? window.innerHeight : 700) - 24);
               const vw = typeof window !== 'undefined' ? window.innerWidth : 800;
               const vh = typeof window !== 'undefined' ? window.innerHeight : 700;
               const fabCenterX = fabPos.x + FAB_SIZE / 2;
@@ -1868,7 +1868,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
               around the viewport. Double-click empty header space to
               snap back to the auto-anchored position next to the FAB. */}
           <div
-            className="flex items-center gap-3 px-4 py-3 flex-shrink-0 select-none"
+            className="flex min-h-[72px] items-center gap-3 px-5 py-4 flex-shrink-0 select-none"
             style={{
               background: 'linear-gradient(135deg, #5746ed, #0ac5a2)',
               cursor: panelDragStateRef.current.dragging ? 'grabbing' : 'grab',
@@ -1879,8 +1879,8 @@ When you're done, I'll save this as your profile and refer back to it in every c
             onDoubleClick={handlePanelHeaderDoubleClick}
             title="Drag to reposition. Double-click to snap back."
           >
-            <div className="w-8 h-8 rounded-xl bg-white/15 flex items-center justify-center flex-shrink-0">
-              <svg width="22" height="22" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <div className="w-10 h-10 rounded-2xl bg-white/15 flex items-center justify-center flex-shrink-0 shadow-[inset_0_0_0_1px_rgba(255,255,255,0.14)]">
+              <svg width="27" height="27" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
                 <path
                   d="M8 28 L8 16 C8 11 12.5 9 16.5 13.5 L20 19.5 L23.5 13.5 C27.5 9 32 11 32 16 L32 28"
                   stroke="white"
@@ -1957,11 +1957,11 @@ When you're done, I'll save this as your profile and refer back to it in every c
           </div>
 
           {/* Messages */}
-          <div className="miwa-chat-scroll flex-1 overflow-y-auto px-4 py-3 space-y-3 bg-gray-50/60">
+          <div className="miwa-chat-scroll flex-1 overflow-y-auto px-4 py-4 space-y-3 bg-gray-50/60">
             {messages.length === 0 && !streaming ? (
-              <div className="flex flex-col items-center justify-center h-full text-center py-4">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-3 shadow-lg" style={{ background: 'linear-gradient(135deg,#5746ed,#0ac5a2)' }}>
-                  <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
+              <div className="flex min-h-full flex-col items-center justify-start text-center pt-5 pb-6">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4 shadow-lg" style={{ background: 'linear-gradient(135deg,#5746ed,#0ac5a2)' }}>
+                  <svg width="32" height="32" viewBox="0 0 40 40" fill="none">
                     <path d="M8 28 L8 16 C8 11 12.5 9 16.5 13.5 L20 19.5 L23.5 13.5 C27.5 9 32 11 32 16 L32 28" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" fill="none" strokeOpacity="0.95" />
                     <circle cx="20" cy="19.5" r="3" fill="#2dd4bf" />
                     <circle cx="20" cy="19.5" r="5.5" fill="#2dd4bf" fillOpacity="0.25" />
