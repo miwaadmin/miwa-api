@@ -201,7 +201,7 @@ app.use('/api/contacts',                      apiLimiter, requireAuth, require('
 app.use('/api/digest',                        apiLimiter, requireAuth, require('./routes/emaildigest'));
 app.use('/api/seed',                          apiLimiter, requireAuth, require('./routes/demo'));
 app.use('/api/research',                      apiLimiter, require('./routes/research'));
-app.use('/api/feedback',                      apiLimiter, requireAuth, require('./routes/feedback'));
+app.use('/api/feedback',                      apiLimiter, require('./routes/feedback'));
 app.use('/api/activity',                      apiLimiter, require('./routes/activity'));
 app.use('/api/onboarding',                    apiLimiter, require('./routes/onboarding'));
 app.use('/api/client-invites',                apiLimiter, requireAuth, require('./routes/client-invites'));

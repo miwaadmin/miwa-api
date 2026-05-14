@@ -109,6 +109,19 @@ change is clearly experimental / scratch work. When in doubt, push.
   uses four steps: draft complete, trainee review, risk/safety check,
   copied to EHR. Surface this pipeline in Workspace list views and editor
   controls rather than rebuilding a separate Drafts page.
+- **Feedback flow:** `POST /api/feedback` accepts `{ category, subject, message, context }`.
+  Categories: `bug | feature_request | help | other` (legacy `feature` and `general` still
+  accepted from the chat agent). Auth is handled inside the route using combined auth — it
+  accepts either a therapist session (`miwa_auth` cookie) OR a client portal session
+  (`miwa_client_auth` cookie). The mount in `server/index.js` has NO `requireAuth` middleware.
+  Rate limited to 5 submissions per hour per user (DB-based). Returns `{ id, ticket_id }`
+  where `ticket_id = 'MIWA-FB-<id>'`. Fires a founder notification email to `FOUNDER_EMAIL`
+  env var (falls back to `ADMIN_EMAIL`). The `user_feedback` table has `subject TEXT`,
+  `context_json TEXT`, and `client_account_id INTEGER` columns (added via ALTER TABLE in
+  `runMigrations()`). Frontend component: `client/src/components/FeedbackModal.jsx` — wired
+  into the therapist Sidebar footer, the trainee wizard footer, and Client portal Settings.
+  Admin inbox (`AdminSupport.jsx`) has status + category filters and shows subject +
+  context metadata on each card.
 - **Client invite codes:** Associate and licensed clinicians ("clinician
   mode") can generate single-use `MIWA-XXXX-XXXX` portal invite codes from
   a patient chart. Codes live in `client_invites`, are redeemed through

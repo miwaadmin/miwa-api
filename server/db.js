@@ -1382,16 +1382,23 @@ function runMigrations() {
 
   // User feedback — submitted via Miwa chat or future feedback form
   db.run(`CREATE TABLE IF NOT EXISTS user_feedback (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    therapist_id INTEGER REFERENCES therapists(id),
-    message      TEXT NOT NULL,
-    category     TEXT NOT NULL DEFAULT 'general',
-    source       TEXT NOT NULL DEFAULT 'chat',
-    status       TEXT NOT NULL DEFAULT 'new',
-    admin_response TEXT,
-    resolved_at  DATETIME,
-    created_at   DATETIME DEFAULT CURRENT_TIMESTAMP
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    therapist_id      INTEGER REFERENCES therapists(id),
+    client_account_id INTEGER REFERENCES client_portal_accounts(id),
+    subject           TEXT,
+    message           TEXT NOT NULL,
+    category          TEXT NOT NULL DEFAULT 'general',
+    context_json      TEXT,
+    source            TEXT NOT NULL DEFAULT 'chat',
+    status            TEXT NOT NULL DEFAULT 'new',
+    admin_response    TEXT,
+    resolved_at       DATETIME,
+    created_at        DATETIME DEFAULT CURRENT_TIMESTAMP
   )`);
+  // Additive columns for feedback 2.0 — extended form fields and client-portal auth.
+  try { db.run('ALTER TABLE user_feedback ADD COLUMN subject TEXT'); } catch {}
+  try { db.run('ALTER TABLE user_feedback ADD COLUMN context_json TEXT'); } catch {}
+  try { db.run('ALTER TABLE user_feedback ADD COLUMN client_account_id INTEGER REFERENCES client_portal_accounts(id)'); } catch {}
 
   // AI cost events — one row per AI call, for per-therapist usage + budget enforcement
   db.run(`CREATE TABLE IF NOT EXISTS cost_events (

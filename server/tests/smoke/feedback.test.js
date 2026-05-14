@@ -60,9 +60,9 @@ test('feedback flow', async (t) => {
       category: 'bug',
       source: 'chat',
     }, cookie);
-    assert.equal(r.status, 200);
-    assert.equal(r.body.ok, true);
-    assert.match(r.body.message, /thank you/i);
+    assert.equal(r.status, 201);
+    assert.ok(typeof r.body.id === 'number', 'response must include numeric id');
+    assert.match(r.body.ticket_id, /^MIWA-FB-\d+$/, 'ticket_id must be MIWA-FB-N format');
   });
 
   await t.test('POST /api/feedback coerces unknown category to general', async () => {
@@ -70,7 +70,7 @@ test('feedback flow', async (t) => {
       message: 'I love the new backup card.',
       category: 'compliment', // not in the allowlist
     }, cookie);
-    assert.equal(r.status, 200);
+    assert.equal(r.status, 201);
   });
 
   await t.test('GET /api/admin/support returns the feedback we just wrote', async () => {

@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-r
 import { API_BASE, apiFetch, clientApiFetch } from '../../lib/api'
 import { useClientAuth } from '../../context/ClientAuthContext'
 import { MiwaLogo } from '../../components/Sidebar'
+import FeedbackModal from '../../components/FeedbackModal'
 
 const tabs = [
   { to: '/client/home', label: 'Home' },
@@ -851,6 +852,7 @@ export function ClientSettings() {
   const { client, logout } = useClientAuth()
   const navigate = useNavigate()
   const [settings, setSettings] = useState(null)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   useEffect(() => {
     clientApiFetch('/client-portal/settings').then(r => r.json()).then(j => setSettings(j.client || null)).catch(() => {})
   }, [])
@@ -877,8 +879,21 @@ export function ClientSettings() {
             <p className="text-xs text-gray-500">Notifications only say there is a secure item in Miwa. They do not include clinical details.</p>
           </section>
         )}
+        <button
+          type="button"
+          onClick={() => setFeedbackOpen(true)}
+          className="w-full rounded-xl border border-gray-200 bg-white text-gray-700 py-3 font-semibold text-sm hover:bg-gray-50 transition-colors"
+          data-testid="client-settings-feedback-button"
+        >
+          Report an issue or send feedback
+        </button>
         <button onClick={() => logout().then(() => navigate('/client/login'))} className="w-full rounded-xl bg-gray-950 text-white py-3 font-semibold">Sign out</button>
       </div>
+      <FeedbackModal
+        isOpen={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        apiFetchFn={clientApiFetch}
+      />
     </ClientFrame>
   )
 }

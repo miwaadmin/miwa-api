@@ -734,6 +734,64 @@ function escapeHtmlBasic(s) {
     .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
+/**
+ * Sends a "new feedback received" notification to the founder/admin email
+ * so they know to check the admin support inbox without having to poll.
+ * Fire-and-forget — failures are logged but do not surface to the submitter.
+ */
+async function sendFeedbackNotificationEmail({
+  toEmail,
+  submitterEmail,
+  submitterType = 'therapist',
+  category,
+  subject,
+  message,
+  ticketId,
+}) {
+  const catLabels = {
+    bug: 'Bug report',
+    feature_request: 'Feature request',
+    help: 'Help / question',
+    other: 'Other',
+    feature: 'Feature request',
+    general: 'General feedback',
+  };
+  const catLabel = catLabels[category] || 'Feedback';
+  const subjectLine = `[Miwa] New ${catLabel} — ${ticketId}`;
+  const trimmedMessage = (message || '').trim();
+  const trimmedSubject = (subject || '').trim();
+  const accountType = submitterType === 'client' ? 'Client portal user' : 'Clinician';
+
+  const text = `New feedback received on Miwa.
+
+Ticket: ${ticketId}
+Category: ${catLabel}
+From: ${submitterEmail} (${accountType})
+${trimmedSubject ? `Subject: ${trimmedSubject}\n` : ''}
+Message:
+"${trimmedMessage}"
+
+Review this ticket in the Miwa admin support inbox.
+`;
+
+  const html = emailShell({
+    preheader: `New ${catLabel} from ${submitterEmail} — ${ticketId}`,
+    body: `
+      <h2>New feedback received</h2>
+      <p class="subtitle">${ticketId} · ${catLabel}</p>
+      <table style="width:100%;border-collapse:collapse;font-size:13px;margin-bottom:16px;">
+        <tr><td style="padding:4px 8px 4px 0;color:#6b7280;white-space:nowrap;">From</td><td style="padding:4px 0;">${escapeHtmlBasic(submitterEmail)} <span style="color:#9ca3af;">(${escapeHtmlBasic(accountType)})</span></td></tr>
+        <tr><td style="padding:4px 8px 4px 0;color:#6b7280;white-space:nowrap;">Category</td><td style="padding:4px 0;">${escapeHtmlBasic(catLabel)}</td></tr>
+        ${trimmedSubject ? `<tr><td style="padding:4px 8px 4px 0;color:#6b7280;white-space:nowrap;">Subject</td><td style="padding:4px 0;">${escapeHtmlBasic(trimmedSubject)}</td></tr>` : ''}
+      </table>
+      <div style="border-left:3px solid #6366f1;padding:8px 12px;background:#eef2ff;border-radius:0 6px 6px 0;white-space:pre-wrap;font-size:13px;color:#312e81;">${escapeHtmlBasic(trimmedMessage)}</div>
+      <p class="muted" style="margin-top:20px;">Review and respond in the <strong>Admin → Support</strong> inbox.</p>
+    `,
+  });
+
+  return sendMail({ to: toEmail, subject: subjectLine, html, text });
+}
+
 module.exports = {
   sendMail,
   sendSchoolEmailVerification,
@@ -744,6 +802,7 @@ module.exports = {
   sendAccountVerificationEmail,
   sendDuplicateRegistrationEmail,
   sendFeedbackResolutionEmail,
+  sendFeedbackNotificationEmail,
   hasHipaaCoveredProvider,
   getMailerConfigStatus,
 };

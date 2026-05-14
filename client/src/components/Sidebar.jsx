@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { apiFetch } from '../lib/api'
 import { COMMUNITY_URL, COMMUNITY_LABEL, HAS_COMMUNITY } from '../lib/community'
 import { isAgencyCompanionMode } from '../lib/workspaceMode'
+import FeedbackModal from './FeedbackModal'
 
 const navItems = [
   {
@@ -174,6 +175,7 @@ export function MiwaLogo({ size = 40 }) {
 export default function Sidebar() {
   const { therapist } = useAuth()
   const [alertCount, setAlertCount] = useState(0)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
 
   // Poll for unread alert count every 5 minutes
   useEffect(() => {
@@ -389,6 +391,17 @@ export default function Sidebar() {
             </svg>
           </a>
         )}
+        <button
+          type="button"
+          onClick={() => setFeedbackOpen(true)}
+          className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-white/35 hover:text-white/60 transition-colors group w-full text-left"
+          data-testid="sidebar-feedback-button"
+        >
+          <svg className="w-3.5 h-3.5 flex-shrink-0 text-white/25 group-hover:text-white/50 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
+          </svg>
+          <span>Send feedback</span>
+        </button>
         <Link
           to="/"
           className="flex items-center gap-2 px-3 py-2 rounded-xl text-xs text-white/35 hover:text-white/60 transition-colors group"
@@ -399,6 +412,11 @@ export default function Sidebar() {
           <span>Back to Homepage</span>
         </Link>
       </div>
+
+      <FeedbackModal
+        isOpen={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+      />
     </aside>
   )
 }

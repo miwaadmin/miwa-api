@@ -10,6 +10,10 @@ import {
 
 const CATEGORY_LABELS = {
   bug: 'Bug',
+  feature_request: 'Feature request',
+  help: 'Help',
+  other: 'Other',
+  // legacy values from early feedback form
   feature: 'Feature',
   general: 'General',
 }
@@ -25,6 +29,7 @@ export default function AdminSupport() {
   const [error, setError] = useState('')
   const [support, setSupport] = useState(null)
   const [filter, setFilter] = useState('open') // 'open' | 'all' | 'new' | 'read' | 'resolved'
+  const [categoryFilter, setCategoryFilter] = useState('all') // 'all' | category value
   const [busyId, setBusyId] = useState(null)
   const [draftResponse, setDraftResponse] = useState({}) // { [feedbackId]: text }
 
@@ -47,10 +52,17 @@ export default function AdminSupport() {
 
   const allFeedback = support?.feedback || []
   const filteredFeedback = useMemo(() => {
-    if (filter === 'all') return allFeedback
-    if (filter === 'open') return allFeedback.filter(f => f.status !== 'resolved')
-    return allFeedback.filter(f => f.status === filter)
-  }, [allFeedback, filter])
+    let list = allFeedback
+    if (filter !== 'all') {
+      list = filter === 'open'
+        ? list.filter(f => f.status !== 'resolved')
+        : list.filter(f => f.status === filter)
+    }
+    if (categoryFilter !== 'all') {
+      list = list.filter(f => f.category === categoryFilter)
+    }
+    return list
+  }, [allFeedback, filter, categoryFilter])
 
   const counts = useMemo(() => ({
     all: allFeedback.length,
@@ -100,23 +112,43 @@ export default function AdminSupport() {
         title="User feedback"
         subtitle="Bug reports, feature requests, and general feedback submitted through Miwa chat."
         action={
-          <div className="flex items-center gap-1 flex-wrap justify-end">
-            {[
-              ['open', `Open (${counts.open})`],
-              ['new', `New (${counts.new})`],
-              ['read', `Read (${counts.read})`],
-              ['resolved', `Resolved (${counts.resolved})`],
-              ['all', `All (${counts.all})`],
-            ].map(([key, label]) => (
-              <AdminButton
-                key={key}
-                size="sm"
-                variant={filter === key ? 'primary' : 'secondary'}
-                onClick={() => setFilter(key)}
-              >
-                {label}
-              </AdminButton>
-            ))}
+          <div className="flex flex-col items-end gap-1.5">
+            <div className="flex items-center gap-1 flex-wrap justify-end">
+              {[
+                ['open', `Open (${counts.open})`],
+                ['new', `New (${counts.new})`],
+                ['read', `Read (${counts.read})`],
+                ['resolved', `Resolved (${counts.resolved})`],
+                ['all', `All (${counts.all})`],
+              ].map(([key, label]) => (
+                <AdminButton
+                  key={key}
+                  size="sm"
+                  variant={filter === key ? 'primary' : 'secondary'}
+                  onClick={() => setFilter(key)}
+                >
+                  {label}
+                </AdminButton>
+              ))}
+            </div>
+            <div className="flex items-center gap-1 flex-wrap justify-end">
+              {[
+                ['all', 'All categories'],
+                ['bug', 'Bug'],
+                ['feature_request', 'Feature'],
+                ['help', 'Help'],
+                ['other', 'Other'],
+              ].map(([key, label]) => (
+                <AdminButton
+                  key={key}
+                  size="sm"
+                  variant={categoryFilter === key ? 'primary' : 'secondary'}
+                  onClick={() => setCategoryFilter(key)}
+                >
+                  {label}
+                </AdminButton>
+              ))}
+            </div>
           </div>
         }
       >
@@ -141,11 +173,35 @@ export default function AdminSupport() {
                     <span className="text-[11px] text-gray-500">{formatDate(item.created_at)}</span>
                   </div>
 
+                  {item.subject && (
+                    <p className="text-sm font-semibold text-gray-800 mb-1">{item.subject}</p>
+                  )}
+
                   <p className="text-sm text-gray-900 leading-relaxed whitespace-pre-wrap">{item.message}</p>
 
                   <div className="mt-2 text-xs text-gray-500">
-                    {item.therapist_name || item.therapist_email || `therapist_id=${item.therapist_id || '?'}`}
+                    {item.therapist_name || item.therapist_email
+                      ? `${item.therapist_name || item.therapist_email} (clinician)`
+                      : item.client_account_id
+                      ? `client_account_id=${item.client_account_id} (portal user)`
+                      : `therapist_id=${item.therapist_id || '?'}`}
                   </div>
+
+                  {(() => {
+                    if (!item.context_json) return null
+                    try {
+                      const ctx = JSON.parse(item.context_json)
+                      return (
+                        <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5">
+                          {Object.entries(ctx).map(([k, v]) => (
+                            <span key={k} className="text-[10px] text-gray-400">
+                              <span className="font-medium text-gray-500">{k}:</span> {String(v)}
+                            </span>
+                          ))}
+                        </div>
+                      )
+                    } catch { return null }
+                  })()}
 
                   {item.admin_response && (
                     <div className="mt-3 rounded-lg bg-indigo-50 border border-indigo-100 px-3 py-2">

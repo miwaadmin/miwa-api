@@ -1,5 +1,7 @@
+import { useState } from 'react'
 import { MiwaLogo } from '../Sidebar'
 import WizardProgress from './WizardProgress'
+import FeedbackModal from '../FeedbackModal'
 
 // Full-page wrapper for the trainee onboarding wizard. The Sidebar/Layout's
 // floating chat and tour overlays are suppressed because WizardLayout renders
@@ -13,6 +15,8 @@ export default function WizardLayout({
   skippedSteps = [],
   children,
 }) {
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
+
   return (
     <div
       className="min-h-screen flex flex-col"
@@ -33,9 +37,21 @@ export default function WizardLayout({
         <div className="w-full max-w-2xl mt-6 sm:mt-10">{children}</div>
       </main>
 
-      <footer className="px-6 sm:px-10 py-4 text-center text-white/40 text-xs">
-        Miwa is your AI clinical workspace. Your agency's EHR remains the official record.
+      <footer className="px-6 sm:px-10 py-4 text-center text-white/40 text-xs space-y-1">
+        <p>Miwa is your AI clinical workspace. Your agency's EHR remains the official record.</p>
+        <p>
+          <button
+            type="button"
+            onClick={() => setFeedbackOpen(true)}
+            className="underline underline-offset-2 hover:text-white/60 transition-colors"
+            data-testid="wizard-feedback-link"
+          >
+            Having trouble? Send us a note
+          </button>
+        </p>
       </footer>
+
+      <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </div>
   )
 }
