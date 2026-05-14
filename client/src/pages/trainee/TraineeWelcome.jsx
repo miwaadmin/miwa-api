@@ -1,4 +1,4 @@
-// Trainee onboarding wizard — five resumable screens at /t/welcome.
+// Trainee onboarding wizard — six resumable screens at /t/welcome.
 //
 // State lives on the server (therapists.onboarding_step,
 // therapists.onboarding_skipped_steps, therapists.onboarded_at) and is
@@ -7,15 +7,26 @@
 // advancing, so the wizard can be resumed on the same step after a refresh
 // or new sign-in.
 //
+// Screen order:
+//   1 — Welcome + acknowledgment
+//   2 — Introduce yourself to Miwa (soul profile)
+//   3 — School + program info
+//   4 — Hours tracking
+//   5 — Supervisor info
+//   6 — First case
+//
+// Step model: onboarding_step 0 = not started, 1-6 = in progress, 7 = complete.
+//
 // Tone is peer-to-peer and warm. Don't reinvent the design system — use the
 // trainee primitives in components/trainee/.
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { apiFetch } from '../../lib/api'
+import { formatOnboardingAnswers } from '../../lib/soulFormatter'
 import { WizardLayout, TraineeCard, TraineeButton } from '../../components/trainee'
 
-const TOTAL_STEPS = 5
+const TOTAL_STEPS = 6
 
 // California-leaning MFT program list; "Other" lets a trainee type their own.
 const PROGRAM_OPTIONS = [
@@ -243,7 +254,222 @@ function Step1Welcome({ firstName, isRetroactive, saving, saveStep, skipStep }) 
   )
 }
 
-function Step2School({ state, saving, saveStep, skipStep }) {
+// ── Step 2 — Introduce yourself to Miwa ──────────────────────────────────────
+// Collects 10 structured questions and POSTs to /api/onboarding/soul as a
+// fire-and-forget. Navigation advances immediately without waiting for the AI.
+
+const DOC_STYLES = ['SOAP', 'DAP', 'BIRP', 'Narrative', 'Other']
+const RESPONSE_STYLES = ['Concise & scannable', 'Balanced', 'Detailed & thorough']
+const TONE_OPTIONS = ['Warm & collegial', 'Clinical & precise', 'Direct & punchy', 'Reflective', 'Other']
+
+function PillGroup({ options, selected, onSelect }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {options.map((opt) => (
+        <button
+          key={opt}
+          type="button"
+          onClick={() => onSelect(opt === selected ? '' : opt)}
+          className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${
+            selected === opt
+              ? 'bg-indigo-600 text-white border-indigo-600'
+              : 'bg-white border-gray-200 text-gray-700 hover:border-indigo-300'
+          }`}
+        >
+          {opt}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function Step2Soul({ saving, saveStep, skipStep }) {
+  const [q1, setQ1] = useState('')  // what brings you to therapy work
+  const [q2, setQ2] = useState('')  // where are you in your training
+  const [q3, setQ3] = useState('')  // client populations
+  const [q4, setQ4] = useState('')  // what you're working on
+  const [q5, setQ5] = useState('')  // documentation style
+  const [q6, setQ6] = useState('')  // what you want from Miwa in session prep
+  const [q7, setQ7] = useState('')  // response style
+  const [q8, setQ8] = useState('')  // tone
+  const [q9, setQ9] = useState('')  // always/never rules
+  const [q10, setQ10] = useState('') // anything else
+
+  const textareaCls =
+    'w-full rounded-xl px-3.5 py-2.5 text-sm bg-white border border-gray-200 focus:outline-none focus:ring-2 focus:ring-violet-400/40 focus:border-violet-400 resize-none'
+  const labelCls = 'block text-sm font-semibold text-gray-800 mb-1.5'
+
+  function buildAnswers() {
+    return [
+      { title: 'What brings you to therapy work?', response: q1 },
+      { title: 'Where are you in your training?', response: q2 },
+      { title: 'Client populations or issues you work with most?', response: q3 },
+      { title: 'What are you working on as a clinician right now?', response: q4 },
+      { title: 'Documentation style', response: q5 },
+      { title: 'What do you want from Miwa in session prep?', response: q6 },
+      { title: 'Response style', response: q7 },
+      { title: 'Tone', response: q8 },
+      { title: 'Anything Miwa should always or never do?', response: q9 },
+      { title: 'Anything else you want Miwa to know about you?', response: q10 },
+    ].filter((a) => a.response.trim())
+  }
+
+  function hasAnyAnswer() {
+    return [q1, q2, q3, q4, q5, q6, q7, q8, q9, q10].some((v) => v.trim())
+  }
+
+  async function handleNext() {
+    if (hasAnyAnswer()) {
+      // Fire-and-forget — advance immediately, don't block on AI
+      const answers = buildAnswers()
+      const response = formatOnboardingAnswers(answers)
+      apiFetch('/onboarding/soul', {
+        method: 'POST',
+        body: JSON.stringify({ response }),
+      }).catch(() => {
+        // Non-fatal — soul profile can be set later via Settings
+      })
+    }
+    await saveStep(2, {})
+  }
+
+  async function handleSkip() {
+    await skipStep(2)
+  }
+
+  return (
+    <TraineeCard
+      title="Introduce yourself to Miwa"
+      subtitle="The more Miwa knows about how you think and work, the less you'll have to explain later. Skip anything that doesn't apply — you can always update this in settings."
+    >
+      <div className="space-y-6">
+
+        {/* Group 1 — About you */}
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-4">About you</p>
+          <div className="space-y-4">
+            <div>
+              <label className={labelCls}>What brings you to therapy work?</label>
+              <textarea
+                data-testid="soul-q1"
+                rows={3}
+                className={textareaCls}
+                placeholder="what drew you to this field, your theoretical orientation, what you're still figuring out..."
+                value={q1}
+                onChange={(e) => setQ1(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Where are you in your training?</label>
+              <textarea
+                data-testid="soul-q2"
+                rows={2}
+                className={textareaCls}
+                placeholder="your program, hours so far, anything about your clinical identity you want Miwa to know..."
+                value={q2}
+                onChange={(e) => setQ2(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>What client populations or issues do you work with most?</label>
+              <textarea
+                data-testid="soul-q3"
+                rows={2}
+                className={textareaCls}
+                placeholder="age ranges, presenting concerns, modalities..."
+                value={q3}
+                onChange={(e) => setQ3(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>What are you working on as a clinician right now?</label>
+              <textarea
+                data-testid="soul-q4"
+                rows={2}
+                className={textareaCls}
+                placeholder="skills you're building, areas that feel hard, what supervision focuses on..."
+                value={q4}
+                onChange={(e) => setQ4(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Group 2 — How you work */}
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-4">How you work</p>
+          <div className="space-y-4">
+            <div>
+              <label className={labelCls}>Documentation style</label>
+              <PillGroup options={DOC_STYLES} selected={q5} onSelect={setQ5} />
+            </div>
+            <div>
+              <label className={labelCls}>What do you want from Miwa in session prep?</label>
+              <textarea
+                data-testid="soul-q6"
+                rows={2}
+                className={textareaCls}
+                placeholder="risk flags, treatment plan check-ins, specific questions to hold..."
+                value={q6}
+                onChange={(e) => setQ6(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Response style</label>
+              <PillGroup options={RESPONSE_STYLES} selected={q7} onSelect={setQ7} />
+            </div>
+            <div>
+              <label className={labelCls}>Tone</label>
+              <PillGroup options={TONE_OPTIONS} selected={q8} onSelect={setQ8} />
+            </div>
+          </div>
+        </div>
+
+        {/* Group 3 — How Miwa should show up */}
+        <div>
+          <p className="text-xs font-bold uppercase tracking-widest text-indigo-500 mb-4">How Miwa should show up</p>
+          <div className="space-y-4">
+            <div>
+              <label className={labelCls}>Anything Miwa should always or never do?</label>
+              <textarea
+                data-testid="soul-q9"
+                rows={2}
+                className={textareaCls}
+                placeholder="e.g. always flag suicidality in SOAP, never suggest diagnoses without asking, always remind me to check in on homework..."
+                value={q9}
+                onChange={(e) => setQ9(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className={labelCls}>Anything else you want Miwa to know about you?</label>
+              <textarea
+                data-testid="soul-q10"
+                rows={2}
+                className={textareaCls}
+                placeholder="personal context, working style, anything that would help Miwa be a better thinking partner..."
+                value={q10}
+                onChange={(e) => setQ10(e.target.value)}
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-7 flex flex-col items-stretch gap-3">
+        <div className="flex items-center justify-between gap-3">
+          <TraineeButton variant="ghost" size="md" onClick={handleSkip} disabled={saving}>
+            Skip for now
+          </TraineeButton>
+          <TraineeButton variant="primary" size="md" loading={saving} onClick={handleNext} disabled={saving}>
+            Next
+          </TraineeButton>
+        </div>
+      </div>
+    </TraineeCard>
+  )
+}
+
+function Step3School({ state, saving, saveStep, skipStep }) {
   const initialEmail = state?.data?.school_email || ''
   const initialProgram = state?.data?.training_program || ''
   const initialYear = state?.data?.expected_graduation_year || ''
@@ -285,7 +511,7 @@ function Step2School({ state, saving, saveStep, skipStep }) {
       training_program: resolvedProgram || null,
       expected_graduation_year: year ? Number(year) : null,
     }
-    await saveStep(2, payload)
+    await saveStep(3, payload)
   }
 
   const years = useMemo(() => {
@@ -378,7 +604,7 @@ function Step2School({ state, saving, saveStep, skipStep }) {
       </div>
 
       <div className="mt-7 flex items-center justify-between gap-3">
-        <TraineeButton variant="ghost" size="md" onClick={() => skipStep(2)} disabled={saving}>
+        <TraineeButton variant="ghost" size="md" onClick={() => skipStep(3)} disabled={saving}>
           Skip for now
         </TraineeButton>
         <TraineeButton variant="primary" size="md" loading={saving} onClick={handleNext} disabled={saving}>
@@ -389,8 +615,8 @@ function Step2School({ state, saving, saveStep, skipStep }) {
   )
 }
 
-function Step3Hours({ state, saving, saveStep, skipStep }) {
-  // Honor stored values when the trainee is revisiting screen 3. NULL means
+function Step4Hours({ state, saving, saveStep, skipStep }) {
+  // Honor stored values when the trainee is revisiting screen 4. NULL means
   // they haven't been asked yet — default to school = on (when a program is
   // set) and BBS = on (every CA trainee logs supervised experience).
   const hasProgram = !!state?.data?.training_program
@@ -402,7 +628,7 @@ function Step3Hours({ state, saving, saveStep, skipStep }) {
   const [trackBbs, setTrackBbs] = useState(storedBbs == null ? true : !!storedBbs)
 
   async function handleNext() {
-    await saveStep(3, { track_school: trackSchool, track_bbs: trackBbs })
+    await saveStep(4, { track_school: trackSchool, track_bbs: trackBbs })
   }
 
   return (
@@ -450,7 +676,7 @@ function Step3Hours({ state, saving, saveStep, skipStep }) {
       </p>
 
       <div className="mt-7 flex items-center justify-between gap-3">
-        <TraineeButton variant="ghost" size="md" onClick={() => skipStep(3)} disabled={saving}>
+        <TraineeButton variant="ghost" size="md" onClick={() => skipStep(4)} disabled={saving}>
           Skip for now
         </TraineeButton>
         <TraineeButton variant="primary" size="md" loading={saving} onClick={handleNext} disabled={saving}>
@@ -461,7 +687,7 @@ function Step3Hours({ state, saving, saveStep, skipStep }) {
   )
 }
 
-function Step4Supervisor({ state, saving, saveStep, skipStep }) {
+function Step5Supervisor({ state, saving, saveStep, skipStep }) {
   const site = state?.data?.supervisors?.find((s) => s.role === 'site') || {}
   const school = state?.data?.supervisors?.find((s) => s.role === 'school') || {}
   const [siteName, setSiteName] = useState(site.name || '')
@@ -478,7 +704,7 @@ function Step4Supervisor({ state, saving, saveStep, skipStep }) {
     if (hasSchoolSup) {
       payload.school = { name: schoolName, email: schoolEmail }
     }
-    await saveStep(4, payload)
+    await saveStep(5, payload)
   }
 
   const inputCls =
@@ -536,7 +762,7 @@ function Step4Supervisor({ state, saving, saveStep, skipStep }) {
       </div>
 
       <div className="mt-7 flex items-center justify-between gap-3">
-        <TraineeButton variant="ghost" size="md" onClick={() => skipStep(4)} disabled={saving}>
+        <TraineeButton variant="ghost" size="md" onClick={() => skipStep(5)} disabled={saving}>
           Skip for now
         </TraineeButton>
         <TraineeButton variant="primary" size="md" loading={saving} onClick={handleNext} disabled={saving}>
@@ -547,7 +773,7 @@ function Step4Supervisor({ state, saving, saveStep, skipStep }) {
   )
 }
 
-function Step5FirstCase({ saving, saveStep, completeWizard }) {
+function Step6FirstCase({ saving, saveStep, completeWizard }) {
   const [mode, setMode] = useState(null) // null | 'real' | 'sample' | 'pending'
   const [busy, setBusy] = useState(false)
   const [submitError, setSubmitError] = useState('')
@@ -584,7 +810,7 @@ function Step5FirstCase({ saving, saveStep, completeWizard }) {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Could not create the case.')
-      await saveStep(5, { created_patient_id: data.id })
+      await saveStep(6, { created_patient_id: data.id })
       await completeWizard()
     } catch (err) {
       setSubmitError(err.message)
@@ -599,7 +825,7 @@ function Step5FirstCase({ saving, saveStep, completeWizard }) {
       const res = await apiFetch('/onboarding/sample-case', { method: 'POST' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Could not create the sample case.')
-      await saveStep(5, { used_sample: true })
+      await saveStep(6, { used_sample: true })
       await completeWizard()
     } catch (err) {
       setSubmitError(err.message)
@@ -611,7 +837,7 @@ function Step5FirstCase({ saving, saveStep, completeWizard }) {
     setBusy(true)
     setSubmitError('')
     try {
-      await saveStep(5, {})
+      await saveStep(6, {})
       await completeWizard()
     } catch (err) {
       setSubmitError(err.message)
@@ -743,8 +969,9 @@ function Step5FirstCase({ saving, saveStep, completeWizard }) {
 
 const SCREENS = {
   1: Step1Welcome,
-  2: Step2School,
-  3: Step3Hours,
-  4: Step4Supervisor,
-  5: Step5FirstCase,
+  2: Step2Soul,
+  3: Step3School,
+  4: Step4Hours,
+  5: Step5Supervisor,
+  6: Step6FirstCase,
 }
