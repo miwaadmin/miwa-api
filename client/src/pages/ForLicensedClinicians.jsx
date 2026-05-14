@@ -214,6 +214,11 @@ export default function ForLicensedClinicians() {
               color: '#14b8a6',
             },
             {
+              title: 'Client portal invite codes',
+              desc: 'Generate single-use MIWA-XXXX-XXXX portal codes directly from a patient chart. Clients redeem the code to access their portal, where they complete assessments and view outcome trends.',
+              color: '#6047EE',
+            },
+            {
               title: 'Privacy-minded design',
               desc: 'Encrypted clinical data, limited access, and no clinical data used to train AI models.',
               color: '#64748b',
