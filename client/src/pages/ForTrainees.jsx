@@ -81,14 +81,14 @@ export default function ForTrainees() {
         <h1 className="text-5xl md:text-6xl font-extrabold text-gray-900 mb-6 leading-[1.05] tracking-tight">
           The full AI copilot.<br />
           <span style={{ background: 'linear-gradient(135deg, #059669, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Pre-licensed pricing.
+            Trainee pricing.
           </span>
         </h1>
         <p className="text-gray-700 text-xl max-w-2xl mx-auto mb-4 leading-relaxed">
           Whether you're a practicum intern, MFT trainee, AMFT, ACSW, or APCC, Miwa gives you the same AI assistant as fully licensed practitioners. Not a limited version. The full thing.
         </p>
         <p className="text-gray-500 text-base max-w-xl mx-auto mb-8">
-          Separate pricing for trainees and associates, with the clinical AI workspace priced for people still accruing hours.
+          Separate pricing for trainees ($39/mo) and associates ($69/mo), with the full clinical AI workspace priced for people still accruing hours.
         </p>
         <Link to="/register"
           className="inline-flex px-10 py-4 rounded-xl text-base font-bold text-white transition-all hover:opacity-90"
@@ -172,6 +172,8 @@ export default function ForTrainees() {
             { title: 'Hours tracking', desc: 'BBS and school dual-track hour logging built in. Track individual and relational hours side by side as you accrue toward licensure.' },
             { title: 'Session Workspace', desc: 'A dedicated workspace for drafting, reviewing, and completing the risk/safety check before copying notes to your EHR. Four-step pipeline: draft complete → trainee review → risk/safety check → copied to EHR.' },
             { title: 'AI consult', desc: 'A conversational AI interface that reads your entire caseload and handles multi-step tasks through plain conversation — send assessments, generate reports, check in on a client.' },
+            { title: 'Supervision agenda extraction', desc: 'Miwa reads your session notes and surfaces the cases, risk flags, and clinical questions most worth bringing to your supervisor. Go into supervision prepared, not scrambling.' },
+            { title: 'Ethical escalation scanner', desc: 'As part of the risk/safety check step, Miwa flags notes that contain SI, HI, abuse disclosures, or Tarasoff-relevant language that may require supervisory review before the note is finalized.' },
           ].map((f, i) => (
             <div key={i} className="flex items-start gap-3 p-4 rounded-xl bg-white" style={{ border: '1px solid rgba(0,0,0,0.07)' }}>
               <div className="w-5 h-5 rounded-full bg-emerald-500 flex-shrink-0 mt-0.5 flex items-center justify-center">
@@ -191,13 +193,13 @@ export default function ForTrainees() {
       {/* Why free */}
       <div className="py-20 px-6" style={{ background: 'rgba(0,0,0,0.02)', borderTop: '1px solid rgba(0,0,0,0.07)' }}>
         <div className="max-w-[1000px] mx-auto text-center">
-          <h2 className="text-2xl font-bold text-gray-900 mb-4">Why does Miwa offer pre-licensed pricing when nobody else does?</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">Why does Miwa offer trainee pricing when nobody else does?</h2>
           <p className="text-gray-500 leading-relaxed mb-6">
-            Interns and associates build the foundation of their clinical identity during training. We want that foundation built with the best tools available, not the ones you could afford on a trainee salary.
+            Trainees and associates build the foundation of their clinical identity during training. We want that foundation built with the best tools available, not the ones they could afford on a trainee stipend.
             SimplePractice starts at $49/mo without AI notes. TherapyNotes starts at $69/mo without AI notes. With those platforms, adding AI notes means paying $84/mo or $109/mo. Miwa starts at $39/mo for trainees and $69/mo for associates, with AI notes, pre-session briefs, treatment plan tracking, proactive alerts, and more built in.
           </p>
           <p className="text-gray-400 text-base">
-            Trainees: $39/mo, or $31/mo billed annually. Associates: $69/mo, or $55/mo billed annually. When you get fully licensed, you can choose to upgrade to Licensed Therapist.
+            Trainee: $39/mo, or $31/mo billed annually. Associate: $69/mo, or $55/mo billed annually. When you get fully licensed, you can choose to upgrade to Licensed Therapist.
           </p>
         </div>
       </div>
