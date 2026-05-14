@@ -750,6 +750,32 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ── Recently shipped ──────────────────────────────────────── */}
+      <section className="py-16 lg:py-20 px-8 lg:px-12" style={{ borderTop: '1px solid rgba(0,0,0,0.06)' }}>
+        <div className="max-w-[1400px] mx-auto">
+          <div className="flex flex-col lg:flex-row lg:items-center gap-8">
+            <div className="flex-shrink-0">
+              <p className="text-sm font-bold uppercase tracking-widest mb-2" style={{ color: TEAL }}>Recently shipped</p>
+              <h2 className="text-2xl font-extrabold text-gray-900">What's new in Miwa</h2>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              {[
+                { label: 'Client portal invite codes', desc: 'Generate a MIWA-XXXX-XXXX code from any chart. Clients redeem it to access their portal and complete assessments.' },
+                { label: 'Guided onboarding wizard', desc: 'A five-screen setup flow for new trainees and associates — program info, supervisor details, and a sample case to start with.' },
+                { label: 'Hours tracking', desc: 'BBS and school dual-track hour logs built into the trainee workspace so you never lose count toward licensure.' },
+                { label: 'Session Workspace pipeline', desc: 'Four-step copy-to-EHR flow: draft complete → trainee review → risk/safety check → copied to EHR. Autosaves throughout.' },
+              ].map((item, i) => (
+                <div key={i} className="rounded-xl p-4 bg-white flex-1 min-w-[220px]"
+                  style={{ border: '1px solid rgba(0,0,0,0.08)', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                  <p className="text-sm font-bold text-gray-900 mb-1">{item.label}</p>
+                  <p className="text-xs text-gray-500 leading-relaxed">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       <PricingPreview />
       <FAQ />
       <FinalCTA />
