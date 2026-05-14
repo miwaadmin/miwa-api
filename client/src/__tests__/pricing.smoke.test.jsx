@@ -7,7 +7,7 @@ describe('pricing smoke tests', () => {
   it('renders the current solo clinician plans and prices', () => {
     renderWithProviders(<Pricing />, { route: '/pricing' })
 
-    expect(screen.getByRole('heading', { name: /trainee \/ intern/i })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: /^trainee$/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /associate/i })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: /licensed therapist/i })).toBeInTheDocument()
     expect(screen.getByText('$39')).toBeInTheDocument()
@@ -30,11 +30,11 @@ describe('pricing smoke tests', () => {
     expect(screen.queryByRole('link', { name: /group/i })).not.toBeInTheDocument()
   })
 
-  it('keeps the pre-licensed CTA separate from purchasable group plans', async () => {
+  it('keeps the trainee CTA separate from purchasable group plans', async () => {
     const user = userEvent.setup()
     renderWithProviders(<Pricing />, { route: '/pricing' })
 
-    const traineeInfo = screen.getByRole('link', { name: /i'm pre-licensed/i })
+    const traineeInfo = screen.getByRole('link', { name: /i'm a trainee/i })
     expect(traineeInfo).toHaveAttribute('href', '/for-trainees')
 
     await user.click(traineeInfo)
