@@ -343,6 +343,7 @@ const FEATURES = [
     { title: 'Court & legal reports', desc: 'Professional progress reports formatted for court, attorneys, or probation officers, generated in seconds.' },
     { title: 'Supervision reports', desc: 'Structured supervision notes, case conceptualizations, and training documentation.' },
     { title: 'Research briefs', desc: 'Weekly peer-reviewed research synthesis tailored to your caseload specialties.' },
+    { title: 'Client portal invite codes', desc: 'Generate single-use MIWA-XXXX-XXXX portal codes from any patient chart. Clients redeem the code to access their portal, complete assessments, and view outcome trends. Available on Associate and Licensed plans.' },
   ]},
 ]
 
