@@ -703,6 +703,9 @@ export default function MiwaChat() {
     apiFetch('/assistant/state?surface=miwa_chat').then(r => r.json()).then(state => {
       setAssistantState(state)
       if (state?.account?.onboarding?.completed) return
+      // Skip if the therapist already has a soul profile from the wizard
+      // (trainee screen 2 or a previous chat-intro session).
+      if (therapist?.soul_markdown) return
       // Skip if we've already shown the onboarding intro this session
       if (sessionStorage.getItem('miwa_onboarding_shown')) return
       sessionStorage.setItem('miwa_onboarding_shown', '1')
