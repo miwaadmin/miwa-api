@@ -223,7 +223,7 @@ export default function PublicAssessment() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-gray-900">{totalQuestions} questions</p>
-                  <p className="text-xs text-gray-500">Usually takes 2–3 minutes</p>
+                  <p className="text-xs text-gray-500">Usually takes {assessment?.timeEstimate || '2-3 minutes'}</p>
                 </div>
               </div>
             </div>
@@ -279,6 +279,9 @@ export default function PublicAssessment() {
                 id={`q-${i}`}
                 className={`rounded-2xl bg-white border p-4 scroll-mt-20 transition-colors ${answered ? 'border-emerald-200' : 'border-gray-200'}`}
               >
+                {q.section && q.section !== assessment.questions[i - 1]?.section && (
+                  <p className="text-[11px] font-bold uppercase tracking-wide text-brand-600 mb-2">{q.section}</p>
+                )}
                 <div className="flex items-start gap-2 mb-3">
                   <span className={`text-xs font-bold flex-shrink-0 mt-0.5 ${answered ? 'text-emerald-600' : 'text-brand-600'}`}>
                     {i + 1}.

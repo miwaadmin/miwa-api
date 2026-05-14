@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import { useParams, Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { API_BASE, apiFetch, apiUpload } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
@@ -746,10 +746,15 @@ const SOUL_COLORS = ['#6366F1', '#7C3AED', '#0D9488', '#D97706', '#DC2626', '#25
 const TEMPLATE_LABELS = {
   'phq-9': 'PHQ-9', 'gad-7': 'GAD-7', 'pcl-5': 'PCL-5', 'cssrs': 'C-SSRS',
   'asq': 'ASQ', 'asrs': 'ASRS', 'audit': 'AUDIT',
+  'self-care': 'Self-Care',
   'ras': 'RAS', 'das-4': 'DAS-4', 'score-15': 'SCORE-15', 'fad-gf': 'FAD-GF',
 }
-const INDIVIDUAL_TEMPLATES = ['phq-9', 'gad-7', 'pcl-5', 'cssrs', 'asq', 'asrs', 'audit']
+const INDIVIDUAL_TEMPLATES = ['phq-9', 'gad-7', 'pcl-5', 'cssrs', 'asq', 'asrs', 'audit', 'self-care']
 const RELATIONAL_TEMPLATES = ['ras', 'das-4', 'score-15', 'fad-gf']
+
+function numericAssessmentValue(value) {
+  return Number.isFinite(value) ? value : null
+}
 
 // Assessment Modal for PatientDetail
 function PatientAssessmentModal({ patient, onClose, onSubmit }) {
@@ -777,8 +782,17 @@ function PatientAssessmentModal({ patient, onClose, onSubmit }) {
   const template = templates[templateType]
   const answeredCount = Object.keys(responses).length
   const totalQuestions = template?.questions.length || 0
-  const totalScore = template
-    ? template.questions.reduce((sum, _, i) => sum + (responses[i]?.value ?? 0), 0) : 0
+  const totalScore = useMemo(() => {
+    if (!template) return 0
+    const values = template.questions
+      .map((_, i) => numericAssessmentValue(responses[i]?.value))
+      .filter(value => value !== null)
+    if (template.scoreAsPercentage) {
+      const max = values.length * 3
+      return max ? `${Math.round((values.reduce((sum, value) => sum + value, 0) / max) * 100)}%` : '0%'
+    }
+    return values.reduce((sum, value) => sum + value, 0)
+  }, [template, responses])
 
   async function handleSubmit() {
     if (!template) return
@@ -898,6 +912,9 @@ function PatientAssessmentModal({ patient, onClose, onSubmit }) {
               )}
               {template.questions.map((q, i) => (
                 <div key={q.id} className={`rounded-xl border p-4 transition-all ${responses[i] !== undefined ? 'border-indigo-200 bg-indigo-50/40' : 'border-gray-200 bg-white'}`}>
+                  {q.section && q.section !== template.questions[i - 1]?.section && (
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-indigo-600 mb-2">{q.section}</p>
+                  )}
                   <p className="text-sm font-medium text-gray-800 mb-3">
                     <span className="text-indigo-400 font-bold mr-2">{i + 1}.</span>{q.text}
                   </p>
@@ -909,7 +926,9 @@ function PatientAssessmentModal({ patient, onClose, onSubmit }) {
                             ? (templateType === 'cssrs' || templateType === 'asq') && opt.value === 1 ? 'bg-red-600 text-white border-red-600' : 'bg-indigo-600 text-white border-indigo-600'
                             : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-300'
                         }`}>
-                        {templateType === 'cssrs' || templateType === 'asq' ? <span className="font-bold">{opt.label}</span> : <><span className="font-bold mr-1">{opt.value}</span>, {opt.label}</>}
+                        {templateType === 'cssrs' || templateType === 'asq'
+                          ? <span className="font-bold">{opt.label}</span>
+                          : <><span className="font-bold mr-1">{opt.value}</span> {opt.label}</>}
                       </button>
                     ))}
                   </div>

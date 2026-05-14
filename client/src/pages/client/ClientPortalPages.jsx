@@ -674,11 +674,14 @@ function AssessmentRunner({ token }) {
             <p className="text-sm text-gray-600">{template.instructions}</p>
             {template.questions.map((q, i) => (
               <section key={q.id} className="rounded-2xl bg-white border border-gray-200 p-4">
+                {q.section && q.section !== template.questions[i - 1]?.section && (
+                  <p className="mb-2 text-[11px] font-bold uppercase tracking-wide text-teal-700">{q.section}</p>
+                )}
                 <p className="text-sm font-semibold text-gray-950">{q.text}</p>
                 <div className="mt-3 grid gap-2">
-                  {template.options.map(opt => (
+                  {(q.options || template.options || []).map(opt => (
                     <button key={opt.value} onClick={() => setResponses(r => r.map((v, idx) => idx === i ? opt.value : v))} className={`rounded-xl border px-3 py-2 text-left text-sm ${responses[i] === opt.value ? 'border-teal-500 bg-teal-50 text-teal-900' : 'border-gray-200 bg-white'}`}>
-                      {opt.label}
+                      {template.scoreAsPercentage && Number.isFinite(opt.value) ? `${opt.value} ${opt.label}` : opt.label}
                     </button>
                   ))}
                 </div>

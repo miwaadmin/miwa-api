@@ -24,6 +24,152 @@ function clientInviteHash(token) {
   return crypto.createHash('sha256').update(String(token || '')).digest('hex');
 }
 
+const SELF_CARE_SECTIONS = [
+  {
+    section: 'Physical Self-Care',
+    prefix: 'selfcare_physical',
+    items: [
+      'Eat regularly (e.g. breakfast, lunch, and dinner)',
+      'Eat healthily',
+      'Exercise',
+      'Get regular medical care for prevention',
+      'Get medical care when needed',
+      'Take time off when sick',
+      'Get massages',
+      'Dance, swim, walk, run, play sports, sing, or do some other fun physical activity',
+      'Take time to be sexual - with myself, with a partner',
+      'Get enough sleep',
+      'Wear clothes I like',
+      'Take vacations',
+      'Other physical self-care',
+    ],
+  },
+  {
+    section: 'Psychological Self-Care',
+    prefix: 'selfcare_psychological',
+    items: [
+      'Take day trips or mini-vacations',
+      'Make time away from telephones, email, and the Internet',
+      'Make time for self-reflection',
+      'Notice my inner experience - listen to my thoughts, beliefs, attitudes, feelings',
+      'Have my own personal psychotherapy',
+      'Write in a journal',
+      'Read literature that is unrelated to work',
+      'Do something at which I am not expert or in charge',
+      'Attend to minimizing stress in my life',
+      'Engage my intelligence in a new area, e.g., go to an art show, sports event, theatre',
+      'Be curious',
+      'Say no to extra responsibilities sometimes',
+      'Other psychological self-care',
+    ],
+  },
+  {
+    section: 'Emotional Self-Care',
+    prefix: 'selfcare_emotional',
+    items: [
+      'Spend time with others whose company I enjoy',
+      'Stay in contact with important people in my life',
+      'Give myself affirmations, praise myself',
+      'Love myself',
+      'Re-read favorite books, re-view favorite movies',
+      'Identify comforting activities, objects, people, places and seek them out',
+      'Allow myself to cry',
+      'Find things that make me laugh',
+      'Express my outrage in social action, letters, donations, marches, protests',
+      'Other emotional self-care',
+    ],
+  },
+  {
+    section: 'Spiritual Self-Care',
+    prefix: 'selfcare_spiritual',
+    items: [
+      'Make time for reflection',
+      'Spend time in nature',
+      'Find a spiritual connection or community',
+      'Be open to inspiration',
+      'Cherish my optimism and hope',
+      'Be aware of non-material aspects of life',
+      'Try at times not to be in charge or the expert',
+      'Be open to not knowing',
+      'Identify what is meaningful to me and notice its place in my life',
+      'Meditate',
+      'Pray',
+      'Sing',
+      'Have experiences of awe',
+      'Contribute to causes in which I believe',
+      'Read inspirational literature or listen to inspirational talks, music',
+      'Other spiritual self-care',
+    ],
+  },
+  {
+    section: 'Relationship Self-Care',
+    prefix: 'selfcare_relationship',
+    items: [
+      'Schedule regular dates with my partner or spouse',
+      'Schedule regular activities with my children',
+      'Make time to see friends',
+      'Call, check on, or see my relatives',
+      'Spend time with my companion animals',
+      'Stay in contact with faraway friends',
+      'Make time to reply to personal emails and letters; send holiday cards',
+      'Allow others to do things for me',
+      'Enlarge my social circle',
+      'Ask for help when I need it',
+      'Share a fear, hope, or secret with someone I trust',
+      'Other relationship self-care',
+    ],
+  },
+  {
+    section: 'Workplace or Professional Self-Care',
+    prefix: 'selfcare_professional',
+    items: [
+      'Take a break during the workday (e.g., lunch)',
+      'Take time to chat with co-workers',
+      'Make quiet time to complete tasks',
+      'Identify projects or tasks that are exciting and rewarding',
+      'Set limits with clients and colleagues',
+      'Balance my caseload so that no one day or part of a day is "too much"',
+      'Arrange work space so it is comfortable and comforting',
+      'Get regular supervision or consultation',
+      'Negotiate for my needs (benefits, pay raise)',
+      'Have a peer support group',
+      '(If relevant) Develop a non-trauma area of professional interest',
+    ],
+  },
+  {
+    section: 'Overall Balance',
+    prefix: 'selfcare_balance',
+    items: [
+      'Strive for balance within my work-life and work day',
+      'Strive for balance among work, family, relationships, play, and rest',
+    ],
+  },
+  {
+    section: 'Other Areas of Self-Care that are Relevant to You',
+    prefix: 'selfcare_other',
+    items: [
+      'Other relevant self-care area 1',
+      'Other relevant self-care area 2',
+      'Other relevant self-care area 3',
+    ],
+  },
+];
+
+function selfCareQuestions() {
+  return SELF_CARE_SECTIONS.flatMap(group => (
+    group.items.map((text, index) => ({
+      id: `${group.prefix}_${index + 1}`,
+      section: group.section,
+      text,
+    }))
+  ));
+}
+
+function numericResponseValue(response) {
+  const value = response?.value;
+  return Number.isFinite(value) ? value : null;
+}
+
 async function sendGenericMiwaEmail(to, { inviteUrl, pendingItem } = {}) {
   if (!to) return false;
   try {
@@ -554,6 +700,35 @@ const TEMPLATES = {
     },
     higherIsBetter: false, // higher FAD-GF = more family dysfunction = worse
   },
+  'self-care': {
+    id: 'self-care',
+    name: 'Self-Care Assessment',
+    description: 'A reflective checklist across physical, psychological, emotional, spiritual, relationship, workplace/professional, and balance domains.',
+    instructions: 'Rate each area according to how well you think you are doing these days. 3 = I do this well or frequently; 2 = I do this OK or occasionally; 1 = I barely or rarely do this; 0 = I never do this; ? = this never occurred to me.',
+    timeEstimate: '8-10 minutes',
+    copyright: 'Adapted from Saakvitne, Pearlman, & Staff of TSI/CAAP (1996), Transforming the Pain; worksheet adapted by Lisa D. Butler, Ph.D.',
+    questions: selfCareQuestions(),
+    options: [
+      { value: 3, label: 'I do this well (e.g., frequently)' },
+      { value: 2, label: 'I do this OK (e.g., occasionally)' },
+      { value: 1, label: 'I barely or rarely do this' },
+      { value: 0, label: 'I never do this' },
+      { value: '?', label: 'This never occurred to me' },
+    ],
+    scoring: {
+      min: 0,
+      max: 100,
+      severityLevels: [
+        { min: 0,  max: 39,  label: 'Low self-care consistency',      color: '#EF4444' },
+        { min: 40, max: 59,  label: 'Developing self-care',           color: '#F97316' },
+        { min: 60, max: 79,  label: 'Moderate self-care consistency', color: '#F59E0B' },
+        { min: 80, max: 100, label: 'Strong self-care consistency',   color: '#10B981' },
+      ],
+      clinicalSignificanceThreshold: 10,
+    },
+    higherIsBetter: true,
+    scoreAsPercentage: true,
+  },
   // ── LAP-MD: Lethality Assessment Program, Maryland Model ──────────────────
   // 11-question intimate partner violence lethality screen. Administered by a
   // clinician or advocate WHILE TALKING with the survivor — not sent via SMS.
@@ -607,7 +782,7 @@ function scoreAssessment(templateType, responses) {
   const template = TEMPLATES[templateType];
   if (!template) throw new Error('Unknown template type');
 
-  const total = responses.reduce((sum, r) => sum + (r.value || 0), 0);
+  const total = responses.reduce((sum, r) => sum + (numericResponseValue(r) ?? 0), 0);
 
   // LAP-MD: categorical rule (not a sum)
   //   Yes to ANY of Q1-Q3 → High-Danger
@@ -649,6 +824,22 @@ function scoreAssessment(templateType, responses) {
       severityColor = '#10B981';
     }
     return { total, severityLevel, severityColor };
+  }
+
+  if (templateType === 'self-care') {
+    const numericValues = responses
+      .map(numericResponseValue)
+      .filter(value => value !== null);
+    const maxPossible = numericValues.length * 3;
+    const percent = maxPossible > 0
+      ? Math.round((numericValues.reduce((sum, value) => sum + value, 0) / maxPossible) * 100)
+      : 0;
+    const level = template.scoring.severityLevels.find(l => percent >= l.min && percent <= l.max);
+    return {
+      total: percent,
+      severityLevel: level?.label || 'Unknown',
+      severityColor: level?.color || '#6B7280',
+    };
   }
 
   const level = template.scoring.severityLevels.find(l => total >= l.min && total <= l.max);

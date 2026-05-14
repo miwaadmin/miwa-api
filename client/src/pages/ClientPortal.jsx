@@ -26,6 +26,7 @@ const ASSESSMENT_LABELS = {
   'gad-7':  'Anxiety screen',
   'pcl-5':  'Post-trauma screen',
   'cssrs':  'Safety screen',
+  'self-care': 'Self-care assessment',
   'ras':    'Recovery self-rating',
   'fad-gf': 'Family functioning',
   'score-15': 'Relationship check',

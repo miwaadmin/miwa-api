@@ -61,6 +61,7 @@ router.get('/assess/:token', async (req, res) => {
       template_type: link.template_type,
       name:          template.name,
       instructions:  template.instructions,
+      timeEstimate:  template.timeEstimate,
       questions:     template.questions,
       options:       template.options,
       expires_at:    link.expires_at,
