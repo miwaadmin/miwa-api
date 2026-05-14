@@ -8,7 +8,7 @@ import PublicFooter from '../components/PublicFooter'
 const PLANS = [
   {
     id: 'trainee',
-    name: 'Trainee / Intern',
+    name: 'Trainee',
     badge: null,
     monthlyPrice: 39,
     annualPrice: 31,
@@ -97,7 +97,7 @@ const COMPETITORS = [
   { feature: 'Proactive deterioration alerts', miwa: true, upheal: false, sp: false, tn: false },
   { feature: 'Drafted outreach', miwa: true, upheal: false, sp: false, tn: false },
   { feature: 'Assessment delivery through secure links', miwa: true, upheal: false, sp: false, tn: false },
-  { feature: 'Pre-licensed pricing', miwa: '$39/mo', upheal: false, sp: false, tn: false },
+  { feature: 'Trainee pricing', miwa: '$39/mo', upheal: false, sp: false, tn: false },
   { feature: 'Voice-first mobile app', miwa: true, upheal: true, sp: true, tn: true },
   { feature: 'Client portal', miwa: true, upheal: true, sp: true, tn: true },
   { feature: 'Client portal invite codes (MIWA-XXXX-XXXX)', miwa: '$69+/mo', upheal: false, sp: false, tn: false },
@@ -311,7 +311,7 @@ export default function Pricing() {
           <Link to="/for-trainees"
             className="px-10 py-4 rounded-xl text-lg font-medium text-gray-700 hover:text-gray-900 transition-all"
             style={{ border: '1px solid rgba(0,0,0,0.15)' }}>
-            I'm pre-licensed →
+            I'm a trainee →
           </Link>
         </div>
       </div>
