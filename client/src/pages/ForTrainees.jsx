@@ -41,7 +41,7 @@ function SupervisionMockup() {
 
 const PRE_LICENSED_TIERS = [
   {
-    name: 'Trainees / interns',
+    name: 'Trainee',
     price: '$39',
     annual: '$31/mo billed annually',
     eligibility: 'MFT trainees, practicum interns, ACSW trainees, and LPCC interns still building supervised hours.',
@@ -57,7 +57,7 @@ const PRE_LICENSED_TIERS = [
     ],
   },
   {
-    name: 'Associates',
+    name: 'Associate',
     price: '$69',
     annual: '$55/mo billed annually',
     eligibility: 'AMFT, ACSW, APCC, and other licensed associates practicing under supervision.',
