@@ -17,9 +17,6 @@ export default function VerifyEmail() {
   const [resendEmail, setResendEmail] = useState('')
   const [resendSent, setResendSent] = useState(false)
 
-  // If they're already signed in, just send them to the dashboard.
-  if (therapist) return <Navigate to="/dashboard" replace />
-
   useEffect(() => {
     let cancelled = false
     if (!token) {
@@ -68,6 +65,10 @@ export default function VerifyEmail() {
     } catch {}
     setResendSent(true)
   }
+
+  // If they're already signed in, just send them to the dashboard. Keep this
+  // after hooks so the verification success render does not change hook order.
+  if (therapist) return <Navigate to="/dashboard" replace />
 
   return (
     <div className="public-page min-h-screen flex items-center justify-center p-4" style={{ background: '#f4f2ff' }}>

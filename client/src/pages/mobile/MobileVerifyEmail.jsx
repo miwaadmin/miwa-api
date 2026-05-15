@@ -23,8 +23,6 @@ export default function MobileVerifyEmail() {
   const [resendSent, setResendSent] = useState(false)
   const [resendLoading, setResendLoading] = useState(false)
 
-  if (therapist) return <Navigate to="/m" replace />
-
   useEffect(() => {
     let cancelled = false
     if (!token) {
@@ -73,6 +71,8 @@ export default function MobileVerifyEmail() {
     } catch {}
     setResendLoading(false)
   }
+
+  if (therapist) return <Navigate to="/m" replace />
 
   return (
     <div

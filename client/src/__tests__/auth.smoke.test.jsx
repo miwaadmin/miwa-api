@@ -6,15 +6,17 @@ import { vi } from 'vitest'
 import Login from '../pages/Login'
 import Register from '../pages/Register'
 import ForgotPassword from '../pages/ForgotPassword'
+import VerifyEmail from '../pages/VerifyEmail'
 import { server } from '../test/server'
 
 const loginMock = vi.fn()
+let authState = {
+  therapist: null,
+  login: loginMock,
+}
 
 vi.mock('../context/AuthContext', () => ({
-  useAuth: () => ({
-    therapist: null,
-    login: loginMock,
-  }),
+  useAuth: () => authState,
 }))
 
 function renderWithRoutes(ui, initialPath = '/') {
@@ -32,6 +34,10 @@ function renderWithRoutes(ui, initialPath = '/') {
 describe('auth smoke tests', () => {
   beforeEach(() => {
     loginMock.mockClear()
+    authState = {
+      therapist: null,
+      login: loginMock,
+    }
   })
 
   it('logs in with entered credentials and navigates to the dashboard', async () => {
@@ -112,6 +118,36 @@ describe('auth smoke tests', () => {
       credential_type: 'licensed',
       credential_number: 'LMFT12345',
     })
+  })
+
+  it('verifies email and can redirect after auth state flips without a hook-order crash', async () => {
+    server.use(
+      http.post('/api/auth/verify-email', () => (
+        HttpResponse.json({
+          token: 'verified-token',
+          therapist: { id: 2, email: 'verified@example.com', credential_type: 'licensed' },
+        })
+      ))
+    )
+
+    const tree = (
+      <MemoryRouter initialEntries={['/verify-email?token=abc123']}>
+        <Routes>
+          <Route path="/verify-email" element={<VerifyEmail />} />
+          <Route path="/dashboard" element={<div>Dashboard reached</div>} />
+        </Routes>
+      </MemoryRouter>
+    )
+    const view = render(tree)
+
+    await screen.findByText('Email verified')
+    expect(loginMock).toHaveBeenCalledWith('verified-token', expect.objectContaining({ email: 'verified@example.com' }))
+
+    authState = {
+      therapist: { id: 2, email: 'verified@example.com', credential_type: 'licensed' },
+      login: loginMock,
+    }
+    expect(() => view.rerender(tree)).not.toThrow()
   })
 
   it('shows a registration error on a failed response', async () => {
