@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { apiFetch } from '../lib/api'
-import { needsWorkspaceModeOnboarding } from '../lib/workspaceMode'
+import { isTraineeCredential, needsWorkspaceModeOnboarding } from '../lib/workspaceMode'
 
 const EHR_OPTIONS = ['Exym', 'Welligent', 'Credible', 'SimplePractice', 'TherapyNotes', 'Other']
 const PROGRAM_OPTIONS = [
@@ -22,8 +22,9 @@ const NOTE_FORMAT_OPTIONS = [
 
 export default function WorkspaceModeOnboarding() {
   const { therapist, refreshTherapist } = useAuth()
+  const canUseAgencyCompanion = isTraineeCredential(therapist)
   const [mode, setMode] = useState(
-    therapist?.credential_type === 'trainee' ? 'agency_companion' : 'private_practice'
+    canUseAgencyCompanion ? 'agency_companion' : 'private_practice'
   )
   const [agencyName, setAgencyName] = useState('')
   const [ehrName, setEhrName] = useState('Exym')
@@ -39,14 +40,14 @@ export default function WorkspaceModeOnboarding() {
 
   if (!needsWorkspaceModeOnboarding(therapist)) return null
 
-  const agencyMode = mode === 'agency_companion'
+  const agencyMode = canUseAgencyCompanion && mode === 'agency_companion'
 
   async function handleContinue() {
     setSaving(true)
     setError('')
     try {
       const payload = {
-        workspace_mode: mode,
+        workspace_mode: agencyMode ? 'agency_companion' : 'private_practice',
         client_record_mode: agencyMode ? 'agency_ehr_companion' : 'miwa_system_of_record',
         agency_name: agencyMode ? agencyName.trim() || null : null,
         agency_ehr_name: agencyMode ? ehrName : null,
@@ -83,18 +84,20 @@ export default function WorkspaceModeOnboarding() {
 
         <div className="p-6 md:p-7 space-y-5">
           <div className="grid md:grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setMode('agency_companion')}
-              className={`text-left rounded-2xl border p-4 transition-colors ${
-                agencyMode ? 'border-brand-500 bg-brand-50' : 'border-gray-200 hover:border-brand-200 hover:bg-gray-50'
-              }`}
-            >
-              <div className="text-sm font-bold text-gray-950">Agency / internship companion</div>
-              <p className="mt-1 text-xs leading-relaxed text-gray-600">
-                For trainees or associates using Miwa alongside Exym, Welligent, Credible, SimplePractice, TherapyNotes, or another required EHR.
-              </p>
-            </button>
+            {canUseAgencyCompanion && (
+              <button
+                type="button"
+                onClick={() => setMode('agency_companion')}
+                className={`text-left rounded-2xl border p-4 transition-colors ${
+                  agencyMode ? 'border-brand-500 bg-brand-50' : 'border-gray-200 hover:border-brand-200 hover:bg-gray-50'
+                }`}
+              >
+                <div className="text-sm font-bold text-gray-950">Agency / internship companion</div>
+                <p className="mt-1 text-xs leading-relaxed text-gray-600">
+                  For trainees or associates using Miwa alongside Exym, Welligent, Credible, SimplePractice, TherapyNotes, or another required EHR.
+                </p>
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setMode('private_practice')}

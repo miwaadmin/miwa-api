@@ -194,6 +194,9 @@ function DashboardRedirect() {
 // critical path without requiring a check inside each trainee page component.
 function TraineeOnboardingGuard({ children }) {
   const { therapist } = useAuth()
+  if (therapist && !isTraineeCredential(therapist)) {
+    return <Navigate to="/dashboard" replace />
+  }
   if (therapist && needsTraineeOnboarding(therapist)) {
     return <Navigate to="/t/welcome" replace />
   }

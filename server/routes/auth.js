@@ -75,6 +75,9 @@ function isConfiguredAdminEmail(email) {
 
 function safeProfile(row) {
   const assistant = normalizeAssistantProfile(row)
+  const credentialType = row.credential_type || 'licensed'
+  const canUseAgencyCompanion = credentialType === 'trainee' || credentialType === 'associate'
+  const workspaceMode = canUseAgencyCompanion ? (row.workspace_mode || null) : 'private_practice'
   return {
     id: row.id,
     email: row.email,
@@ -98,10 +101,10 @@ function safeProfile(row) {
     assistant_memory: assistant.memory,
     assistant_permissions: assistant.permissions,
     preferred_timezone: row.preferred_timezone || 'America/Los_Angeles',
-    workspace_mode: row.workspace_mode || null,
-    client_record_mode: row.client_record_mode || 'miwa_system_of_record',
-    agency_name: row.agency_name || null,
-    agency_ehr_name: row.agency_ehr_name || null,
+    workspace_mode: workspaceMode,
+    client_record_mode: canUseAgencyCompanion ? (row.client_record_mode || 'miwa_system_of_record') : 'miwa_system_of_record',
+    agency_name: canUseAgencyCompanion ? (row.agency_name || null) : null,
+    agency_ehr_name: canUseAgencyCompanion ? (row.agency_ehr_name || null) : null,
     site_policy_status: row.site_policy_status || null,
     agency_ehr_note_format: row.agency_ehr_note_format || null,
     agency_ehr_custom_format: row.agency_ehr_custom_format || null,
@@ -112,7 +115,7 @@ function safeProfile(row) {
     last_seen_at: row.last_seen_at || null,
     created_at: row.created_at,
     // Credential verification
-    credential_type: row.credential_type || 'licensed',
+    credential_type: credentialType,
     credential_number: row.credential_number || null,
     school_email: row.school_email || null,
     school_email_verified: !!row.school_email_verified,
@@ -623,12 +626,22 @@ router.put('/me', requireAuth, async (req, res) => {
     const validRecordModes = new Set(['agency_ehr_companion', 'miwa_system_of_record']);
     const validSitePolicyStatuses = new Set(['allows_phi', 'no_phi_outside_tools', 'not_sure']);
     const validNoteFormats = new Set(['SOAP', 'DAP', 'BIRP', 'GIRP', 'narrative', 'concise_agency_style', 'custom']);
-    const nextWorkspaceMode = workspace_mode !== undefined
+    const credentialLevel = row.credential_type || row.user_role || 'licensed';
+    const canUseAgencyCompanion = credentialLevel === 'trainee' || credentialLevel === 'associate';
+    const requestedWorkspaceMode = workspace_mode !== undefined
       ? (validWorkspaceModes.has(workspace_mode) ? workspace_mode : row.workspace_mode)
       : row.workspace_mode;
-    const nextClientRecordMode = client_record_mode !== undefined
+    const requestedClientRecordMode = client_record_mode !== undefined
       ? (validRecordModes.has(client_record_mode) ? client_record_mode : row.client_record_mode)
       : row.client_record_mode;
+    const nextWorkspaceMode = canUseAgencyCompanion ? requestedWorkspaceMode : 'private_practice';
+    const nextClientRecordMode = canUseAgencyCompanion ? requestedClientRecordMode : 'miwa_system_of_record';
+    const nextAgencyName = canUseAgencyCompanion
+      ? (agency_name !== undefined ? (agency_name || null) : row.agency_name)
+      : null;
+    const nextAgencyEhrName = canUseAgencyCompanion
+      ? (agency_ehr_name !== undefined ? (agency_ehr_name || null) : row.agency_ehr_name)
+      : null;
     const shouldStampWorkspaceMode = workspace_mode !== undefined && workspace_mode && workspace_mode !== row.workspace_mode;
     const sitePolicyAt = site_policy_acknowledged
       ? (row.site_policy_acknowledged_at || new Date().toISOString())
@@ -665,8 +678,8 @@ router.put('/me', requireAuth, async (req, res) => {
       req.body.preferred_timezone !== undefined ? req.body.preferred_timezone : row.preferred_timezone,
       nextWorkspaceMode,
       nextClientRecordMode || 'miwa_system_of_record',
-      agency_name !== undefined ? (agency_name || null) : row.agency_name,
-      agency_ehr_name !== undefined ? (agency_ehr_name || null) : row.agency_ehr_name,
+      nextAgencyName,
+      nextAgencyEhrName,
       site_policy_status !== undefined && validSitePolicyStatuses.has(site_policy_status) ? site_policy_status : row.site_policy_status,
       agency_ehr_note_format !== undefined && validNoteFormats.has(agency_ehr_note_format) ? agency_ehr_note_format : row.agency_ehr_note_format,
       agency_ehr_custom_format !== undefined ? (agency_ehr_custom_format || null) : row.agency_ehr_custom_format,

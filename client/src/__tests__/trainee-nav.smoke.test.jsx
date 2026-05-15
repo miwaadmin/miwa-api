@@ -33,6 +33,7 @@ describe('trainee navigation smoke tests', () => {
       'Hours',
       'Learning',
       'Resources',
+      'Settings',
     ])
     expect(within(nav).queryByText(/drafts/i)).not.toBeInTheDocument()
     expect(within(nav).queryByText(/transition/i)).not.toBeInTheDocument()
