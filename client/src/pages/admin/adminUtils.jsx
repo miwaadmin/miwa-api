@@ -73,6 +73,7 @@ export async function handleDeleteAccount(therapistId, email, { setNotice, setEr
     onDone?.()
   } catch (err) {
     setError?.(err.message)
+    throw err
   }
 }
 

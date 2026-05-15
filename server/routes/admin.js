@@ -106,6 +106,15 @@ function requireReason(req, label = 'admin action') {
   return { ok: true, reason };
 }
 
+async function bestEffortDeleteByColumn(db, table, column, value) {
+  try {
+    await db.run(`DELETE FROM ${table} WHERE ${column} = ?`, value);
+  } catch (err) {
+    // Older local/dev DBs may not have every table. The final therapist delete
+    // still surfaces real FK failures if a live dependency remains.
+  }
+}
+
 async function verifyStripeCatalogItem(stripe, name, envName, value) {
   const type = classifyStripeId(value);
   const item = {
@@ -1063,14 +1072,49 @@ router.delete('/therapists/:id', async (req, res) => {
     // Delete therapist-level data
     await db.run('DELETE FROM patients WHERE therapist_id = ?', therapistId);
     await db.run('DELETE FROM chat_messages WHERE therapist_id = ?', therapistId);
-    await db.run('DELETE FROM admin_notes WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM admin_notes WHERE therapist_id = ? OR author_therapist_id = ?', therapistId, therapistId);
+    await db.run('DELETE FROM event_logs WHERE therapist_id = ?', therapistId);
     await db.run('DELETE FROM credential_verifications WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM email_verification_tokens WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM password_reset_tokens WHERE therapist_id = ?', therapistId);
     await db.run('DELETE FROM therapist_preferences WHERE therapist_id = ?', therapistId);
     await db.run('DELETE FROM research_briefs WHERE therapist_id = ?', therapistId);
     await db.run('DELETE FROM automation_rules WHERE therapist_id = ?', therapistId);
     await db.run('DELETE FROM scheduled_sends WHERE therapist_id = ?', therapistId);
     await db.run('DELETE FROM agent_actions WHERE therapist_id = ?', therapistId);
     await db.run('DELETE FROM agent_reports WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM therapist_self_care_assessments WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM assistant_action_audit WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM assistant_goals WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM assistant_sessions WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM assistant_memories WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM assistant_profiles WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM therapist_contacts WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM therapist_style_profile WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM style_samples WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM cost_events WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM daily_briefings WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM training_trajectories WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM trainee_supervisors WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM practice_hours WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM supervision_items WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM supervisor_feedback WHERE therapist_id = ?', therapistId);
+    await db.run('DELETE FROM trainee_growth_events WHERE therapist_id = ?', therapistId);
+    try { await db.run('DELETE FROM workflow_steps WHERE workflow_id IN (SELECT id FROM workflows WHERE therapist_id = ?)', therapistId); } catch {}
+    try { await db.run('DELETE FROM workflows WHERE therapist_id = ?', therapistId); } catch {}
+    await bestEffortDeleteByColumn(db, 'client_billing_events', 'therapist_id', therapistId);
+    await bestEffortDeleteByColumn(db, 'client_payments', 'therapist_id', therapistId);
+    await bestEffortDeleteByColumn(db, 'client_invoices', 'therapist_id', therapistId);
+    await bestEffortDeleteByColumn(db, 'client_billing_profiles', 'therapist_id', therapistId);
+    await bestEffortDeleteByColumn(db, 'practice_members', 'therapist_id', therapistId);
+    await bestEffortDeleteByColumn(db, 'practice_members', 'invited_by', therapistId);
+    await bestEffortDeleteByColumn(db, 'supervision_links', 'supervisor_id', therapistId);
+    await bestEffortDeleteByColumn(db, 'supervision_links', 'supervisee_id', therapistId);
+    await bestEffortDeleteByColumn(db, 'shared_patients', 'shared_with_id', therapistId);
+    await bestEffortDeleteByColumn(db, 'shared_patients', 'shared_by_id', therapistId);
+    await bestEffortDeleteByColumn(db, 'practice_templates', 'created_by', therapistId);
+    await bestEffortDeleteByColumn(db, 'practice_messages', 'author_id', therapistId);
+    await bestEffortDeleteByColumn(db, 'practices', 'owner_id', therapistId);
     try { await db.run('DELETE FROM conversation_summaries WHERE therapist_id = ?', therapistId); } catch {}
     try { await db.run('DELETE FROM agent_scheduled_tasks WHERE therapist_id = ?', therapistId); } catch {}
     try { await db.run('DELETE FROM background_tasks WHERE therapist_id = ?', therapistId); } catch {}
@@ -1078,7 +1122,6 @@ router.delete('/therapists/:id', async (req, res) => {
     try { await db.run('DELETE FROM practice_insights WHERE therapist_id = ?', therapistId); } catch {}
     try { await db.run('DELETE FROM outreach_rules WHERE therapist_id = ?', therapistId); } catch {}
     try { await db.run('DELETE FROM event_triggers WHERE therapist_id = ?', therapistId); } catch {}
-    try { await db.run('DELETE FROM password_reset_tokens WHERE therapist_id = ?', therapistId); } catch {}
 
     // Finally delete the therapist account
     await db.run('DELETE FROM therapists WHERE id = ?', therapistId);
@@ -1094,7 +1137,8 @@ router.delete('/therapists/:id', async (req, res) => {
 
     res.json({ ok: true, message: `Account ${therapist.email} deleted successfully.` });
   } catch (err) {
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('[admin/delete-account]', err.message);
+    res.status(500).json({ error: 'Account could not be deleted. Related records still need cleanup before removing the account.' });
   }
 });
 
