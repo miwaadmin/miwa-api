@@ -1,0 +1,94 @@
+# Codemagic build configuration for Miwa Care
+#
+# Two workflows, both build the Capacitor-wrapped web app:
+#   ios-capacitor      → unsigned IPA for verifying the iOS build works
+#   android-capacitor  → debug APK for verifying the Android build works
+#
+# Both start unsigned so the first build doesn't need any credentials uploaded
+# to Codemagic. Once these are green, add signing/distribution sections by:
+#   • iOS: upload an Apple App Store Connect API key to Codemagic
+#     (Teams → Integrations → Apple Developer Portal), then add an
+#     `ios_signing` block + `app_store_connect` publishing block here.
+#   • Android: upload a Java keystore to Codemagic
+#     (Teams → Code signing identities → Android keystores), then add an
+#     `android_signing` block + `google_play` publishing block here.
+#
+# Triggering: builds run on demand from the Codemagic UI. Auto-trigger on push
+# is left off intentionally — mobile builds are expensive minute-wise and we
+# don't want every backend commit eating the free tier's 500 min/mo budget.
+
+workflows:
+  ios-capacitor:
+    name: Miwa iOS (Capacitor)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      node: 22
+      npm: 10
+      xcode: latest
+
+    scripts:
+      - name: Install client dependencies
+        script: |
+          cd client
+          npm ci
+
+      - name: Build web assets (Vite)
+        script: |
+          cd client
+          npm run build
+
+      - name: Sync Capacitor iOS project
+        script: |
+          cd client
+          npx cap sync ios
+
+      - name: Build unsigned archive
+        script: |
+          cd client/ios/App
+          xcodebuild \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -archivePath build/App.xcarchive \
+            archive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO
+
+    artifacts:
+      - client/ios/App/build/App.xcarchive
+
+  android-capacitor:
+    name: Miwa Android (Capacitor)
+    instance_type: linux_x2
+    max_build_duration: 60
+    environment:
+      node: 22
+      npm: 10
+      java: 17
+
+    scripts:
+      - name: Install client dependencies
+        script: |
+          cd client
+          npm ci
+
+      - name: Build web assets (Vite)
+        script: |
+          cd client
+          npm run build
+
+      - name: Sync Capacitor Android project
+        script: |
+          cd client
+          npx cap sync android
+
+      - name: Build debug APK
+        script: |
+          cd client/android
+          chmod +x ./gradlew
+          ./gradlew assembleDebug
+
+    artifacts:
+      - client/android/app/build/outputs/**/*.apk
