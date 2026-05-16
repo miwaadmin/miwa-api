@@ -25,6 +25,10 @@ generated_reports/
 # Build output
 client/dist/
 
+# Xcode local user state
+*.xcuserstate
+xcuserdata/
+
 # Logs and local-only deployment files
 logs/
 *.log
