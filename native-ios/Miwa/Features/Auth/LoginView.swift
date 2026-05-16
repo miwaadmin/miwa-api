@@ -30,7 +30,7 @@ struct LoginView: View {
                             VStack(spacing: 6) {
                                 Text("Welcome back")
                                     .font(.system(.largeTitle, design: .rounded, weight: .bold))
-                                    .foregroundStyle(.miwaInk)
+                                    .foregroundStyle(Color.miwaInk)
                                 Text("Sign in to your clinical workspace")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)

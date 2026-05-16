@@ -134,7 +134,7 @@ private struct NextSessionCard: View {
             HStack {
                 Label("Up Next", systemImage: "sparkle")
                     .font(.caption.bold())
-                    .foregroundStyle(.miwaIndigo)
+                    .foregroundStyle(Color.miwaIndigo)
                 Spacer()
                 Text(appointment.timestamp?.formatted(date: .omitted, time: .shortened) ?? "")
                     .font(.subheadline.weight(.semibold))

@@ -73,7 +73,7 @@ private struct PatientRow: View {
                     .fill(Color.miwaIndigo.opacity(0.12))
                 Text(initials)
                     .font(.subheadline.bold())
-                    .foregroundStyle(.miwaIndigo)
+                    .foregroundStyle(Color.miwaIndigo)
             }
             .frame(width: 44, height: 44)
 
