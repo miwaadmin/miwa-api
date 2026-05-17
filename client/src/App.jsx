@@ -57,7 +57,7 @@ import ScrollToTop from './components/ScrollToTop'
 import Resources from './pages/Resources'
 import DashboardResources from './pages/DashboardResources'
 import { isNativeApp } from './lib/api'
-import { isAgencyCompanionMode, needsTraineeOnboarding, needsWorkspaceModeOnboarding } from './lib/workspaceMode'
+import { isAgencyCompanionMode, isTraineeCredential, needsTraineeOnboarding, needsWorkspaceModeOnboarding } from './lib/workspaceMode'
 import {
   TraineeCases,
   TraineeHours,
