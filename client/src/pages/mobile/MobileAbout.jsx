@@ -117,7 +117,7 @@ export default function MobileAbout() {
       {/* Links */}
       <div className="px-6 py-8 flex flex-col gap-2">
         <Link
-          to="/register"
+          to="/m/register"
           className="w-full rounded-xl py-4 text-base font-bold text-white active:opacity-90 text-center shadow-sm"
           style={{ background: 'linear-gradient(135deg, #6047EE, #2dd4bf)' }}
         >

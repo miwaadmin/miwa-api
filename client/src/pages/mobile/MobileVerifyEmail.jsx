@@ -155,7 +155,7 @@ export default function MobileVerifyEmail() {
             </form>
           )}
 
-          <Link to="/login" className="mt-6 text-sm font-semibold text-brand-600 active:text-brand-800 py-3 px-4">
+          <Link to="/m/login" className="mt-6 text-sm font-semibold text-brand-600 active:text-brand-800 py-3 px-4">
             ← Back to sign in
           </Link>
         </>

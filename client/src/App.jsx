@@ -140,7 +140,7 @@ function ProtectedRoute({ children }) {
       </div>
     )
   }
-  if (!therapist) return <Navigate to="/login" replace />
+  if (!therapist) return <Navigate to={isMobileDevice() ? '/m/login' : '/login'} replace />
   return children
 }
 
@@ -148,7 +148,7 @@ function ProtectedRoute({ children }) {
 function PublicRoute({ children }) {
   const { therapist, isLoading } = useAuth()
   if (isLoading) return null
-  if (therapist) return <Navigate to="/dashboard" replace />
+  if (therapist) return <Navigate to={isMobileDevice() ? '/m' : '/dashboard'} replace />
   return children
 }
 
@@ -238,12 +238,17 @@ export default function App() {
             <ScrollToTop />
             <Routes>
               {/* Public / marketing routes — native app skips homepage, goes to login */}
-              <Route path="/" element={isNative() ? <Navigate to="/login" replace /> : <Home />} />
+              <Route path="/" element={isNative() ? <Navigate to="/m/login" replace /> : <Home />} />
               <Route path="/login" element={<PublicRoute>{isMobileDevice() ? <MobileLogin /> : <Login />}</PublicRoute>} />
+              <Route path="/m/login" element={<PublicRoute><MobileLogin /></PublicRoute>} />
               <Route path="/register" element={<PublicRoute>{isMobileDevice() ? <MobileRegister /> : <Register />}</PublicRoute>} />
+              <Route path="/m/register" element={<PublicRoute><MobileRegister /></PublicRoute>} />
               <Route path="/forgot-password" element={<PublicRoute>{isMobileDevice() ? <MobileForgotPassword /> : <ForgotPassword />}</PublicRoute>} />
+              <Route path="/m/forgot-password" element={<PublicRoute><MobileForgotPassword /></PublicRoute>} />
               <Route path="/reset-password" element={isMobileDevice() ? <MobileResetPassword /> : <ResetPassword />} />
+              <Route path="/m/reset-password" element={<MobileResetPassword />} />
               <Route path="/verify-email" element={isMobileDevice() ? <MobileVerifyEmail /> : <VerifyEmail />} />
+              <Route path="/m/verify-email" element={<MobileVerifyEmail />} />
               <Route path="/bootstrap" element={<Bootstrap />} />
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/about" element={isMobileDevice() ? <MobileAbout /> : <About />} />

@@ -182,7 +182,7 @@ export default function MobileSchedule() {
 
   const saveAppointment = async (force = false) => {
     if (!form.patientId) {
-      setError('Add a client before scheduling an appointment.')
+      setError('Choose a client before scheduling an appointment.')
       return
     }
     setSavingNew(true)
@@ -222,9 +222,9 @@ export default function MobileSchedule() {
   }
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="mobile-native-page flex flex-col h-full">
       {/* Day picker (sticky) */}
-      <div className="sticky top-0 z-20 bg-white border-b border-gray-100 px-2 py-3">
+      <div className="mobile-surface sticky top-0 z-20 border-b px-2 py-3">
         <div className="flex items-baseline justify-between px-2 mb-2">
           <h1 className="text-xl font-bold text-gray-900">{dateLabel(selected)}</h1>
           <p className="text-xs text-gray-500">{fullDate(selected)}</p>
@@ -239,7 +239,7 @@ export default function MobileSchedule() {
                 className={`flex-shrink-0 flex flex-col items-center justify-center rounded-xl px-3 py-2 min-w-[56px] transition-all ${
                   active
                     ? 'bg-brand-600 text-white shadow-sm'
-                    : 'bg-gray-50 text-gray-700 active:bg-gray-100'
+                    : 'mobile-muted-surface text-gray-700 active:bg-gray-100'
                 }`}
               >
                 <span className={`text-[10px] font-bold uppercase tracking-wider ${active ? 'text-white/80' : 'text-gray-500'}`}>
@@ -286,7 +286,7 @@ export default function MobileSchedule() {
             </p>
             <button
               onClick={openNewAppointment}
-              className="inline-flex items-center gap-2 rounded-xl bg-brand-600 text-white font-semibold text-sm px-5 py-3 active:bg-brand-700"
+              className="inline-flex min-h-[48px] items-center gap-2 rounded-xl bg-brand-600 px-5 py-3 text-sm font-semibold text-white active:bg-brand-700"
             >
               + Add appointment
             </button>
@@ -322,9 +322,9 @@ export default function MobileSchedule() {
       )}
 
       {showNew && (
-        <div className="fixed inset-0 z-50 flex items-end bg-black/45">
+        <div className="mobile-modal-backdrop fixed inset-0 z-50 flex items-end bg-black/45">
           <div
-            className="w-full max-h-[88vh] overflow-y-auto rounded-t-3xl bg-white px-5 pt-4 shadow-2xl"
+            className="mobile-modal-sheet w-full max-h-[88dvh] overflow-y-auto rounded-t-3xl px-5 pt-4 shadow-2xl"
             style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
           >
             <div className="mb-4 flex items-center justify-between">
@@ -335,16 +335,22 @@ export default function MobileSchedule() {
                 className="h-10 w-10 rounded-full text-gray-500 active:bg-gray-100"
                 aria-label="Close new appointment"
               >
-                x
+                ×
               </button>
             </div>
+
+            {error && (
+              <div className="mb-3 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+                {error}
+              </div>
+            )}
 
             <label className="mb-3 block">
               <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Client</span>
               <select
                 value={form.patientId}
                 onChange={e => setForm(f => ({ ...f, patientId: e.target.value }))}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-base text-gray-900"
+                className="mobile-input"
               >
                 <option value="">Select a client...</option>
                 {patients.map(p => (
@@ -361,7 +367,7 @@ export default function MobileSchedule() {
                     key={type}
                     type="button"
                     onClick={() => setForm(f => ({ ...f, appointmentType: type }))}
-                    className={`rounded-xl border px-3 py-2 text-sm font-semibold capitalize ${
+                    className={`min-h-[44px] rounded-xl border px-3 py-2 text-sm font-semibold capitalize ${
                       form.appointmentType === type ? 'border-brand-600 bg-brand-600 text-white' : 'border-gray-200 text-gray-600'
                     }`}
                   >
@@ -378,7 +384,7 @@ export default function MobileSchedule() {
                   type="time"
                   value={form.startTime}
                   onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-base text-gray-900"
+                  className="mobile-input"
                 />
               </label>
               <label>
@@ -386,7 +392,7 @@ export default function MobileSchedule() {
                 <select
                   value={form.durationMinutes}
                   onChange={e => setForm(f => ({ ...f, durationMinutes: Number(e.target.value) }))}
-                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-base text-gray-900"
+                  className="mobile-input"
                 >
                   {[30, 45, 50, 60, 90].map(min => <option key={min} value={min}>{min}m</option>)}
                 </select>
@@ -399,7 +405,7 @@ export default function MobileSchedule() {
                 value={form.location}
                 onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
                 placeholder="Office, telehealth, etc."
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-base text-gray-900"
+                className="mobile-input"
               />
             </label>
 
@@ -410,7 +416,7 @@ export default function MobileSchedule() {
                 onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
                 placeholder="Pre-session notes, reminders..."
                 rows={3}
-                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-base text-gray-900"
+                className="mobile-input resize-none"
               />
             </label>
 
@@ -418,7 +424,7 @@ export default function MobileSchedule() {
               type="button"
               onClick={() => saveAppointment(false)}
               disabled={savingNew}
-              className="h-12 w-full rounded-xl bg-brand-600 text-sm font-bold text-white disabled:opacity-60"
+              className="mobile-primary-button"
             >
               {savingNew ? 'Scheduling...' : 'Schedule appointment'}
             </button>

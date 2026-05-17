@@ -9,8 +9,10 @@ import './index.css'
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
   const useDark = saved === 'dark' || (saved === 'auto' && prefersDark)
   const usePink = saved === 'pink'
+  const isNative = !!window.Capacitor?.isNativePlatform?.()
   document.documentElement.classList.toggle('dark', useDark)
   document.documentElement.classList.toggle('pink', usePink)
+  document.documentElement.classList.toggle('native-shell', isNative)
 })()
 
 ReactDOM.createRoot(document.getElementById('root')).render(

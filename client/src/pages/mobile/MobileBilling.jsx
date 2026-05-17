@@ -111,7 +111,7 @@ export default function MobileBilling() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Could not start checkout')
-      if (data.url) window.location.href = data.url
+      if (data.url) window.location.assign(data.url)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -128,7 +128,7 @@ export default function MobileBilling() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Could not open billing portal')
-      if (data.url) window.location.href = data.url
+      if (data.url) window.location.assign(data.url)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -136,15 +136,15 @@ export default function MobileBilling() {
     }
   }
 
-  const status = billing?.status || (billing?.is_trial ? 'trial' : (billing?.is_active ? 'active' : 'expired'))
+  const status = billing?.status || billing?.subscription_status || (billing?.is_trial ? 'trial' : (billing?.is_active ? 'active' : 'expired'))
   const statusTone = STATUS_TONES[status] || STATUS_TONES.expired
-  const currentPlanId = billing?.plan || billing?.plan_id
+  const currentPlanId = billing?.plan || billing?.plan_id || billing?.subscription_tier
   const trialDays = billing?.trial_end ? daysUntil(billing.trial_end) : null
 
   return (
-    <div className="flex flex-col h-full bg-gray-50">
+    <div className="mobile-native-page flex flex-col h-full">
       {/* Header */}
-      <div className="px-4 py-3 bg-white border-b border-gray-100 flex items-center justify-between">
+      <div className="mobile-surface px-4 py-3 border-b flex items-center justify-between">
         <h1 className="text-lg font-bold text-gray-900">Billing</h1>
         <button
           onClick={() => navigate('/m/more')}
@@ -168,13 +168,13 @@ export default function MobileBilling() {
 
         {/* Current status card */}
         {loading ? (
-          <div className="rounded-2xl bg-white border border-gray-100 p-5 mb-4 animate-pulse">
+          <div className="mobile-card p-5 mb-4 animate-pulse">
             <div className="h-3 bg-gray-200 rounded w-1/3 mb-3" />
             <div className="h-6 bg-gray-200 rounded w-2/3 mb-2" />
             <div className="h-2 bg-gray-100 rounded w-1/4" />
           </div>
         ) : billing ? (
-          <div className="rounded-2xl bg-white border border-gray-100 p-5 mb-4 shadow-sm">
+          <div className="mobile-card p-5 mb-4">
             <div className="flex items-start justify-between mb-3">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-widest text-gray-500">Your plan</p>
@@ -240,7 +240,7 @@ export default function MobileBilling() {
             return (
               <div
                 key={p.id}
-                className={`rounded-2xl p-5 bg-white transition-all ${current ? 'ring-2 shadow-sm' : 'border border-gray-100'}`}
+                className={`mobile-card p-5 transition-all ${current ? 'ring-2 shadow-sm' : ''}`}
                 style={current ? { borderColor: 'transparent', boxShadow: `0 0 0 2px ${p.color}` } : {}}
               >
                 <div className="flex items-start justify-between mb-1">

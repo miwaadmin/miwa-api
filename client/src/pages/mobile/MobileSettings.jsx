@@ -1,6 +1,6 @@
 /**
  * MobileSettings -- streamlined mobile settings page.
- * Shows only the most important settings; links to desktop for the rest.
+ * Phone-first settings surface for profile and Miwa preferences.
  * Route: /m/settings
  */
 import { useState, useEffect } from 'react'
@@ -122,7 +122,7 @@ export default function MobileSettings() {
     if (logout) logout()
     else {
       try { localStorage.removeItem('miwa_token') } catch {}
-      window.location.href = '/login'
+      window.location.href = '/m/login'
     }
   }
 
@@ -316,13 +316,9 @@ export default function MobileSettings() {
           </button>
         </Section>
 
-        {/* ── More settings link ─────────────────────────────────── */}
-        <button
-          onClick={() => navigate('/m/settings')}
-          className="w-full py-3 text-sm font-medium text-indigo-600 active:text-indigo-800 transition-colors"
-        >
-          More settings &rarr;
-        </button>
+        <p className="px-1 pb-2 text-center text-xs text-gray-400">
+          More account controls are being brought into this mobile settings surface.
+        </p>
       </div>
 
       {/* ── Safe area padding ────────────────────────────────────── */}

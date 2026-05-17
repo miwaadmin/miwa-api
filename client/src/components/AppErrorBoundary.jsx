@@ -97,7 +97,10 @@ export default class AppErrorBoundary extends Component {
                 Reload Miwa
               </button>
               <button
-                onClick={() => window.location.href = '/login'}
+                onClick={() => {
+                  const native = !!window.Capacitor?.isNativePlatform?.()
+                  window.location.href = native ? '/m/login' : '/login'
+                }}
                 className="px-4 py-2 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50"
               >
                 Go to login

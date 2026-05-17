@@ -142,18 +142,17 @@ export default function MobileRecord() {
     if (recordState === RECORDING_STATES.recording) {
       stopRecording()
     } else if (recordState === RECORDING_STATES.idle) {
-      if (sessionType === 'ongoing' && !selectedPatient) {
-        setShowPicker(true)
-        setError('Select a client before recording a session note.')
-        return
-      }
       startRecording()
     }
   }
 
   const generateNote = async () => {
     if (!transcript) return
-    if (sessionType === 'ongoing' && !selectedPatient) return
+    if (sessionType === 'ongoing' && !selectedPatient) {
+      setShowPicker(true)
+      setError('Choose the client this session belongs to before generating the note.')
+      return
+    }
     setGenerating(true)
     setError('')
     try {
@@ -179,32 +178,42 @@ export default function MobileRecord() {
           if (done) break
           fullText += decoder.decode(value, { stream: true })
         }
-        // Parse the last SSE "done" event
-        const lines = fullText.split('\n').filter(l => l.startsWith('data: '))
-        const lastLine = lines[lines.length - 1]
-        if (lastLine) {
-          const parsed = JSON.parse(lastLine.replace('data: ', ''))
-          if (parsed.sections) {
+        const events = fullText
+          .split('\n')
+          .filter(l => l.startsWith('data: '))
+          .map(l => {
+            try { return JSON.parse(l.replace('data: ', '')) } catch { return null }
+          })
+          .filter(Boolean)
+        const parsed = [...events].reverse().find(event => event.done || event.sections)
+        if (parsed?.error || parsed?.message) throw new Error(parsed.message || parsed.error)
+        if (parsed?.sections) {
+          const documentation = parsed.sections.documentation || parsed.sections.intakeNote || ''
+          const clinicalThinking = parsed.sections.clinicalThinking || ''
+          const diagnosis = parsed.sections.diagnosis || ''
+          const treatmentRec = parsed.sections.treatmentRec || ''
+          const supervision = parsed.sections.supervision || ''
             setGeneratedNote({
               sections: {
                 SOAP: {
-                  subjective: parsed.sections.documentation || '',
-                  objective: parsed.sections.clinicalThinking || '',
-                  assessment: parsed.sections.diagnosis || '',
-                  plan: parsed.sections.treatmentRec || parsed.sections.supervision || '',
+                  subjective: documentation,
+                  objective: clinicalThinking,
+                  assessment: diagnosis,
+                  plan: [treatmentRec, supervision].filter(Boolean).join('\n\n'),
                 },
               },
               note: {
-                subjective: parsed.sections.documentation || '',
-                objective: parsed.sections.clinicalThinking || '',
-                assessment: parsed.sections.diagnosis || '',
-                plan: parsed.sections.treatmentRec || parsed.sections.supervision || '',
+                subjective: documentation,
+                objective: clinicalThinking,
+                assessment: diagnosis,
+                plan: [treatmentRec, supervision].filter(Boolean).join('\n\n'),
               },
               transcript,
               _intakeSections: parsed.sections,
             })
             setActiveTab('SOAP')
-          }
+        } else {
+          throw new Error('Intake was transcribed, but Miwa could not shape it into clinical sections yet.')
         }
       } else {
         const res = await apiFetch('/ai/dictate-session', {
@@ -230,7 +239,12 @@ export default function MobileRecord() {
   }
 
   const saveNote = async () => {
-    if (!generatedNote || !selectedPatient) return
+    if (!generatedNote) return
+    if (!selectedPatient) {
+      setShowPicker(true)
+      setError('Choose a client before saving this note.')
+      return
+    }
     setSaving(true)
     setError('')
     try {
@@ -450,7 +464,9 @@ export default function MobileRecord() {
           )}
 
           {!selectedPatient && sessionType === 'ongoing' && recordState === RECORDING_STATES.idle && !transcript && (
-            <p className="text-sm text-gray-400 mt-4">Select a client to start recording</p>
+            <p className="text-sm text-gray-400 mt-4 text-center">
+              Tap to record now. You can choose the client before generating the note.
+            </p>
           )}
 
           {!selectedPatient && sessionType === 'intake' && recordState === RECORDING_STATES.idle && !transcript && (
@@ -481,6 +497,14 @@ export default function MobileRecord() {
                 <p className="text-sm text-gray-700 leading-relaxed">{transcript}</p>
               </div>
               <div className="px-4 py-3 border-t border-gray-100">
+                {sessionType === 'ongoing' && !selectedPatient && (
+                  <button
+                    onClick={() => setShowPicker(true)}
+                    className="mb-2 w-full h-11 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-sm font-semibold active:bg-indigo-100 transition-colors"
+                  >
+                    Choose client
+                  </button>
+                )}
                 <button
                   onClick={generateNote}
                   disabled={generating}

@@ -2,7 +2,7 @@
  * MobileResetPassword, native password-reset completion screen.
  *
  * Consumes the token from the reset email, lets the user pick a new
- * password with show/hide, and kicks them to /login on success.
+ * password with show/hide, and kicks them to /m/login on success.
  */
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
@@ -37,7 +37,7 @@ export default function MobileResetPassword() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Reset failed')
       setSuccess(true)
-      setTimeout(() => navigate('/login'), 2500)
+      setTimeout(() => navigate('/m/login'), 2500)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -59,7 +59,7 @@ export default function MobileResetPassword() {
         </div>
         <h1 className="text-xl font-bold text-gray-900 mb-2">Invalid reset link</h1>
         <p className="text-sm text-gray-500 mb-6 max-w-xs">This link is missing or expired.</p>
-        <Link to="/forgot-password" className="rounded-xl px-6 py-3 text-sm font-bold text-white active:opacity-90 shadow-sm"
+        <Link to="/m/forgot-password" className="rounded-xl px-6 py-3 text-sm font-bold text-white active:opacity-90 shadow-sm"
           style={{ background: 'linear-gradient(135deg, #6047EE, #2dd4bf)' }}>
           Request a new one
         </Link>
@@ -164,7 +164,7 @@ export default function MobileResetPassword() {
             </button>
 
             <p className="text-center text-sm text-gray-500 pt-2">
-              <Link to="/login" className="font-bold text-brand-600 active:text-brand-800">
+              <Link to="/m/login" className="font-bold text-brand-600 active:text-brand-800">
                 ← Back to sign in
               </Link>
             </p>

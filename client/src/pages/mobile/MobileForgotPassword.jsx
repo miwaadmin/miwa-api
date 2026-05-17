@@ -122,7 +122,7 @@ export default function MobileForgotPassword() {
             </button>
 
             <p className="text-center text-sm text-gray-500 pt-2">
-              <Link to="/login" className="font-bold text-brand-600 active:text-brand-800">
+              <Link to="/m/login" className="font-bold text-brand-600 active:text-brand-800">
                 ← Back to sign in
               </Link>
             </p>

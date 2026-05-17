@@ -159,7 +159,7 @@ export default function MobileLogin() {
           <div>
             <label className="flex items-center justify-between text-sm font-semibold text-gray-700 mb-1.5">
               Password
-              <Link to={mode === 'clinician' ? '/forgot-password' : '/client/reset-password'} className="text-xs font-medium text-brand-600 active:text-brand-800">
+              <Link to={mode === 'clinician' ? '/m/forgot-password' : '/client/reset-password'} className="text-xs font-medium text-brand-600 active:text-brand-800">
                 Forgot?
               </Link>
             </label>
@@ -224,7 +224,7 @@ export default function MobileLogin() {
         <div className="max-w-sm mx-auto mt-6 text-center">
           <p className="text-sm text-gray-500">
             New to Miwa?{' '}
-            <Link to={mode === 'clinician' ? '/register' : '/client/join'} className="font-bold text-brand-600 active:text-brand-800">
+            <Link to={mode === 'clinician' ? '/m/register' : '/client/join'} className="font-bold text-brand-600 active:text-brand-800">
               {mode === 'clinician' ? 'Create account' : 'Accept invite'}
             </Link>
           </p>

@@ -139,7 +139,7 @@ export default function MobileRegister() {
         </button>
 
         <Link
-          to="/login"
+          to="/m/login"
           className="mt-2 text-sm text-gray-500 active:text-gray-900 py-3 px-4"
         >
           ← Back to sign in
@@ -243,7 +243,7 @@ export default function MobileRegister() {
 
             <p className="text-center text-sm text-gray-500 pt-2">
               Have an account?{' '}
-              <Link to="/login" className="font-bold text-brand-600 active:text-brand-800">
+              <Link to="/m/login" className="font-bold text-brand-600 active:text-brand-800">
                 Sign in
               </Link>
             </p>

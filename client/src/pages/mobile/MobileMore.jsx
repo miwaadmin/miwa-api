@@ -98,17 +98,10 @@ export default function MobileMore() {
         </div>
       ))}
 
-      {/* Switch to desktop */}
       <div className="px-5 mt-4">
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-gray-200 text-sm text-gray-500 font-medium active:bg-gray-50 transition-colors"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-          </svg>
-          Switch to desktop view
-        </button>
+        <p className="rounded-xl border border-gray-200 bg-white px-4 py-3 text-center text-xs font-medium text-gray-500">
+          Miwa Care mobile is optimized for iPhone workflows. Use the web dashboard only when you need wide-screen exports.
+        </p>
       </div>
     </div>
   )

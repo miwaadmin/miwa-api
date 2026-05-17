@@ -30,6 +30,10 @@ function isCapacitor() {
   return isNativeApp()
 }
 
+function loginPath() {
+  return isCapacitor() ? '/m/login' : '/login'
+}
+
 export async function apiFetch(path, options = {}) {
   const { headers: extraHeaders, ...rest } = options
   const mobile = isCapacitor()
@@ -44,7 +48,7 @@ export async function apiFetch(path, options = {}) {
   })
   if (res.status === 401) {
     if (mobile) try { localStorage.removeItem('miwa_token') } catch {}
-    window.location.href = '/login'
+    window.location.href = loginPath()
     return res
   }
   return res
@@ -60,7 +64,7 @@ export async function apiUpload(path, formData, method = 'POST') {
   })
   if (res.status === 401) {
     if (mobile) try { localStorage.removeItem('miwa_token') } catch {}
-    window.location.href = '/login'
+    window.location.href = loginPath()
   }
   return res
 }

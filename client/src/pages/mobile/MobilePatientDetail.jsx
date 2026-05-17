@@ -423,7 +423,7 @@ function PlanTab({ planGoals, treatmentPlan, patientId, navigate }) {
       <EmptyState
         icon={<path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />}
         title="No treatment plan"
-        subtitle="Create a treatment plan from the desktop view or ask Miwa to generate one."
+        subtitle="Ask Miwa to draft one, or add one from the treatment plan tools."
       />
     )
   }
@@ -593,12 +593,11 @@ function InfoTab({ patient, diagnoses, navigate }) {
         </div>
       )}
 
-      {/* Edit on desktop link */}
       <button
-        onClick={() => navigate(`/patients/${patient.id}`)}
+        onClick={() => navigate('/m/miwa')}
         className="w-full py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-500 active:bg-gray-50 transition-colors"
       >
-        Full profile on desktop &rarr;
+        Ask Miwa about this client
       </button>
     </div>
   )

@@ -356,6 +356,12 @@
   color: var(--mobile-text, #111827);
   overscroll-behavior: none;
 }
+html.native-shell .mobile-app-shell {
+  padding-top: max(env(safe-area-inset-top, 0px), 44px);
+}
+html.native-shell .mobile-popover {
+  top: calc(max(env(safe-area-inset-top, 0px), 44px) + 58px);
+}
 .mobile-app-header {
   min-height: 52px;
   background: var(--mobile-header-bg, rgba(255,255,255,0.96));
@@ -390,6 +396,15 @@
   background: var(--mobile-card-bg, #ffffff);
   box-shadow: var(--mobile-card-shadow, 0 1px 2px rgba(15,23,42,0.04));
 }
+.mobile-surface,
+.mobile-modal-sheet {
+  background: var(--mobile-card-bg, #ffffff);
+  color: var(--mobile-text, #111827);
+  border-color: var(--mobile-border, rgba(229,231,235,0.95));
+}
+.mobile-muted-surface {
+  background: var(--mobile-muted-bg, #f9fafb);
+}
 .mobile-kicker {
   font-size: 11px;
   font-weight: 800;
@@ -423,6 +438,39 @@
 }
 .mobile-primary-button:disabled {
   opacity: 0.6;
+}
+
+@media (max-width: 767px) {
+  .mobile-app-shell .bg-white,
+  .mobile-app-shell .bg-gray-50 {
+    background: var(--mobile-card-bg, #ffffff);
+  }
+  .mobile-app-shell .text-gray-900,
+  .mobile-app-shell .text-gray-800,
+  .mobile-app-shell .text-gray-700 {
+    color: var(--mobile-text, #111827);
+  }
+  .mobile-app-shell .text-gray-600,
+  .mobile-app-shell .text-gray-500,
+  .mobile-app-shell .text-gray-400 {
+    color: var(--mobile-muted, #6b7280);
+  }
+  .mobile-app-shell .border-gray-100,
+  .mobile-app-shell .border-gray-200 {
+    border-color: var(--mobile-border, rgba(229,231,235,0.95));
+  }
+  .mobile-app-shell input,
+  .mobile-app-shell select,
+  .mobile-app-shell textarea {
+    font-size: 16px;
+  }
+  .mobile-app-shell button,
+  .mobile-app-shell a {
+    -webkit-tap-highlight-color: transparent;
+  }
+  .mobile-modal-backdrop {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
 }
 
 .task-inbox-menu {
@@ -476,6 +524,7 @@ html.dark .mobile-native-page {
   --mobile-border: rgba(148,163,184,0.22);
   --mobile-text: #f8fafc;
   --mobile-muted: #aebdd0;
+  --mobile-muted-bg: rgba(15,23,42,0.72);
   --mobile-input-bg: #111827;
   --mobile-primary-bg: #6366f1;
   --mobile-primary-text: #ffffff;
@@ -1003,6 +1052,7 @@ html.pink .mobile-native-page {
   --mobile-border: rgba(227, 227, 227, 0.92);
   --mobile-text: #5f4d56;
   --mobile-muted: #a8969e;
+  --mobile-muted-bg: rgba(255,255,255,0.55);
   --mobile-input-bg: rgba(255,255,255,0.96);
   --mobile-accent: #f49acc;
   --mobile-primary-bg: linear-gradient(135deg, #fab4dd, #f49acc);

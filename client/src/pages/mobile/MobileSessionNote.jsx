@@ -519,7 +519,7 @@ export default function MobileSessionNote() {
         </div>
       )}
 
-      {/* ── Read-only: Show signed info + link to desktop enrichments */}
+      {/* ── Read-only: Show signed info */}
       {!isNew && !isEditable && (
         <div className="px-4 pt-4 space-y-3">
           {signedAt && (
@@ -551,10 +551,10 @@ export default function MobileSessionNote() {
           </div>
 
           <button
-            onClick={() => navigate(`/patients/${patientId}/sessions/${sessionId}`)}
+            onClick={() => navigate(`/m/clients/${patientId}`)}
             className="w-full py-3 rounded-xl border border-gray-200 text-sm font-medium text-gray-500 active:bg-gray-50 transition-colors"
           >
-            View enrichments on desktop &rarr;
+            Back to client workspace
           </button>
         </div>
       )}
