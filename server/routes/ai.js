@@ -568,7 +568,26 @@ async function extractTextFromUpload(file) {
     return result.value;
   }
 
-  throw new Error('Unsupported file type. Please upload PDF, DOCX, or TXT intake forms.');
+  if (['.png', '.jpg', '.jpeg', '.webp', '.heic', '.heif'].includes(ext)) {
+    const mimeType = file.mimetype || (ext === '.png' ? 'image/png' : 'image/jpeg');
+    const dataUrl = `data:${mimeType};base64,${file.buffer.toString('base64')}`;
+    const text = await generateAIResponse([
+      {
+        role: 'user',
+        content: [
+          {
+            type: 'input_text',
+            text: 'Read this photographed clinical intake form or paper note and transcribe the visible text. Preserve headings, checkbox labels, names, dates, diagnoses, medications, risk/safety content, and free-text answers. If a word is unreadable, write [illegible]. Return only the extracted text.',
+          },
+          { type: 'input_image', image_url: dataUrl },
+        ],
+      },
+    ], { maxTokens: 5000 });
+    if (text && text.trim()) return text.trim();
+    throw new Error('Unable to read text from this photo. Try retaking it with better lighting and the page fully in frame.');
+  }
+
+  throw new Error('Unsupported file type. Please upload PDF, DOCX, TXT, or image intake forms.');
 }
 
 // POST /api/ai/intake-import

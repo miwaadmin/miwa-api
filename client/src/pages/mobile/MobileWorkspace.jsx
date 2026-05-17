@@ -9,7 +9,7 @@
  */
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { apiFetch } from '../../lib/api'
+import { apiFetch, apiUpload } from '../../lib/api'
 
 function fmtRelative(iso) {
   if (!iso) return ''
@@ -53,6 +53,7 @@ export default function MobileWorkspace() {
   const navigate = useNavigate()
   const [recent, setRecent] = useState([])
   const [importingBusy, setImportingBusy] = useState(false)
+  const [creatingDemo, setCreatingDemo] = useState(false)
   const [importError, setImportError] = useState('')
 
   const loadRecent = useCallback(async () => {
@@ -76,13 +77,46 @@ export default function MobileWorkspace() {
       const form = new FormData()
       form.append('file', file)
       const isAudio = /^audio\//.test(file.type) || /\.(m4a|mp3|wav|webm)$/i.test(file.name)
-      const endpoint = isAudio ? '/api/ai/audio-import' : '/api/ai/intake-import'
-      const res = await fetch(endpoint, { method: 'POST', credentials: 'include', body: form })
+      const endpoint = isAudio ? '/ai/audio-import' : '/ai/intake-import'
+      const res = await apiUpload(endpoint, form)
       const data = await res.json()
       if (!res.ok) throw new Error(data?.message || data?.error || 'Import failed')
       // Navigate into the new/parsed patient record
       if (data.patient_id) {
         navigate(`/m/clients/${data.patient_id}`)
+      } else if (data.fields || data.draftSections) {
+        const fields = data.fields || {}
+        const sections = data.draftSections || {}
+        const createRes = await apiFetch('/patients', {
+          method: 'POST',
+          body: JSON.stringify({
+            first_name: fields.firstName || null,
+            last_name: fields.lastName || null,
+            display_name: fields.displayName || [fields.firstName, fields.lastName].filter(Boolean).join(' ') || null,
+            client_type: fields.caseType || 'individual',
+            age_range: fields.ageRange || null,
+            gender: fields.gender || null,
+            phone: fields.phone || null,
+            email: fields.email || null,
+            referral_source: fields.referralSource || null,
+            living_situation: fields.livingSituation || null,
+            presenting_concerns: fields.presentingProblem || sections.presentingConcerns || null,
+            notes: sections.clientOverview || null,
+            mental_health_history: fields.mentalHealthHistory || sections.historyContext || null,
+            medical_history: fields.medicalHistory || null,
+            medications: fields.medications || null,
+            substance_use: fields.substanceUse || null,
+            risk_screening: fields.riskScreening || sections.riskAndSafety || null,
+            family_social_history: fields.familySocialHistory || null,
+            mental_status_observations: fields.mentalStatusObservations || sections.clinicalObservations || null,
+            trauma_history: fields.traumaHistory || null,
+            strengths_protective_factors: fields.strengthsProtectiveFactors || sections.strengthsAndGoals || null,
+            treatment_goals: fields.treatmentGoal || null,
+          }),
+        })
+        const created = await createRes.json().catch(() => ({}))
+        if (!createRes.ok) throw new Error(created.error || 'Intake was read, but the client chart could not be created.')
+        navigate(`/m/clients/${created.id}`)
       } else {
         navigate('/m/clients')
       }
@@ -91,6 +125,22 @@ export default function MobileWorkspace() {
     } finally {
       setImportingBusy(false)
       e.target.value = '' // allow re-upload same file
+    }
+  }
+
+  const createDemoPatient = async () => {
+    setCreatingDemo(true); setImportError('')
+    try {
+      const res = await apiFetch('/seed/demo-patient', { method: 'POST', body: JSON.stringify({}) })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Could not create demo patient.')
+      const patientId = data.patient?.id || data.patient_id || data.id
+      if (patientId) navigate(`/m/clients/${patientId}`)
+      else navigate('/m/clients')
+    } catch (err) {
+      setImportError(err.message || 'Could not create demo patient.')
+    } finally {
+      setCreatingDemo(false)
     }
   }
 
@@ -148,6 +198,39 @@ export default function MobileWorkspace() {
             onClick={() => navigate('/m/clients')}
           />
 
+          <label
+            className="w-full rounded-2xl bg-white border border-gray-200 p-5 text-left active:scale-[0.99] transition-all flex items-center gap-4 cursor-pointer"
+            style={{ minHeight: 88 }}
+          >
+            <div
+              className="w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0"
+              style={{ background: '#ec489918' }}
+            >
+              {importingBusy ? (
+                <div className="w-5 h-5 border-2 border-pink-500 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-6 h-6 text-pink-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 8l2-3h4l2 3h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V10a2 2 0 012-2z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 14a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-[15px] font-bold text-gray-900">{importingBusy ? 'Reading photo...' : 'Scan paper intake'}</p>
+              <p className="text-[12px] text-gray-600 leading-relaxed mt-0.5">
+                Take a photo of an intake form, PDF printout, or paper note with the iPhone camera.
+              </p>
+            </div>
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handleIntakeUpload}
+              disabled={importingBusy}
+            />
+          </label>
+
           {/* Intake upload */}
           <label
             className="w-full rounded-2xl bg-white border border-gray-200 p-5 text-left active:scale-[0.99] transition-all flex items-center gap-4 cursor-pointer"
@@ -175,24 +258,28 @@ export default function MobileWorkspace() {
             </div>
             <input
               type="file"
-              accept=".pdf,.docx,.txt,audio/*,.m4a,.mp3,.wav,.webm"
+              accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp,audio/*,.m4a,.mp3,.wav,.webm"
               className="hidden"
               onChange={handleIntakeUpload}
               disabled={importingBusy}
             />
           </label>
 
-          {/* Briefs shortcut */}
           <ActionCard
-            accent="#f59e0b"
+            accent="#0d9488"
             icon={
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
+              creatingDemo ? (
+                <div className="w-5 h-5 border-2 border-teal-500 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428A8 8 0 114.572 8.572 8 8 0 0119.428 15.428z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-5" />
+                </svg>
+              )
             }
-            title="Generate a research brief"
-            desc="Pull fresh peer-reviewed research for your caseload."
-            onClick={() => navigate('/m/briefs')}
+            title={creatingDemo ? 'Creating demo patient...' : 'Create demo patient'}
+            desc="Generate a synthetic client with sessions, scores, notes, alerts, and appointments for testing."
+            onClick={createDemoPatient}
           />
         </div>
 

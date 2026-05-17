@@ -182,22 +182,28 @@ export default function MobileHours() {
               <option key={bucket.id} value={bucket.id}>{bucket.label || bucket.name || bucket.id}</option>
             ))}
           </select>
-          <div className="grid grid-cols-2 gap-3">
-            <input
-              type="date"
-              value={form.date}
-              onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
-              className="mobile-input"
-            />
-            <input
-              type="number"
-              min="0.25"
-              max="24"
-              step="0.25"
-              value={form.hours}
-              onChange={e => setForm(f => ({ ...f, hours: e.target.value }))}
-              className="mobile-input"
-            />
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <label>
+              <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Date</span>
+              <input
+                type="date"
+                value={form.date}
+                onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
+                className="mobile-input"
+              />
+            </label>
+            <label>
+              <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Hours</span>
+              <input
+                type="number"
+                min="0.25"
+                max="24"
+                step="0.25"
+                value={form.hours}
+                onChange={e => setForm(f => ({ ...f, hours: e.target.value }))}
+                className="mobile-input"
+              />
+            </label>
           </div>
           <textarea
             value={form.notes}

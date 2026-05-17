@@ -324,8 +324,8 @@ export default function MobileSchedule() {
       {showNew && (
         <div className="mobile-modal-backdrop fixed inset-0 z-50 flex items-end bg-black/45">
           <div
-            className="mobile-modal-sheet w-full max-h-[88dvh] overflow-y-auto rounded-t-3xl px-5 pt-4 shadow-2xl"
-            style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
+            className="mobile-modal-sheet w-full max-h-[82dvh] overflow-y-auto overscroll-contain rounded-t-3xl px-5 pt-4 shadow-2xl"
+            style={{ paddingBottom: 'max(132px, calc(24px + env(safe-area-inset-bottom, 0px)))' }}
           >
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-bold text-gray-900">New appointment</h2>
@@ -377,7 +377,7 @@ export default function MobileSchedule() {
               </div>
             </div>
 
-            <div className="mb-3 grid grid-cols-2 gap-3">
+            <div className="mb-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
               <label>
                 <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Start</span>
                 <input
