@@ -83,7 +83,9 @@ workflows:
 
       - name: Add certificates to keychain
         script: |
-          keychain add-certificates --certificate-key @file:/tmp/distribution_key.pem
+          # No flags needed — auto-discovers certs downloaded by
+          # fetch-signing-files in the previous step.
+          keychain add-certificates
 
       - name: Apply signing profiles to Xcode project
         script: |
