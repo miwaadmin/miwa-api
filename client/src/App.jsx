@@ -95,6 +95,7 @@ import MobileLibrary from './pages/mobile/MobileLibrary'
 import MobileContacts from './pages/mobile/MobileContacts'
 import MobileBriefs from './pages/mobile/MobileBriefs'
 import MobileWorkspace from './pages/mobile/MobileWorkspace'
+import MobileHours from './pages/mobile/MobileHours'
 import {
   ClientAcceptInvite,
   ClientAppointments,
@@ -292,7 +293,7 @@ export default function App() {
                 <Route path="clients/:id/session/:sessionId" element={<MobileSessionNote />} />
                 <Route path="settings" element={<MobileSettings />} />
                 <Route path="schedule" element={<MobileSchedule />} />
-                <Route path="hours" element={<Hours />} />
+                <Route path="hours" element={<MobileHours />} />
                 <Route path="consult" element={<MobileConsult />} />
                 <Route path="outcomes" element={<MobileOutcomes />} />
                 <Route path="billing" element={<MobileBilling />} />

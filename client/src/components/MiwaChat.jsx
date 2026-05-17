@@ -331,7 +331,7 @@ const PAGE_ACTIONS = {
 // Floating Miwa is always the agent, action-first, concise.
 // Deep clinical analysis lives on the Consult page (/consult).
 
-export default function MiwaChat() {
+export default function MiwaChat({ bridgeOnly = false }) {
   const { therapist } = useAuth()
   const agencyMode = isAgencyCompanionMode(therapist)
   const location = useLocation()
@@ -1750,6 +1750,8 @@ When you're done, I'll save this as your profile and refer back to it in every c
   }, [])
 
   const firstName = therapist?.first_name || therapist?.full_name?.split(' ')[0] || 'there'
+
+  if (bridgeOnly) return null
 
   return (
     <>

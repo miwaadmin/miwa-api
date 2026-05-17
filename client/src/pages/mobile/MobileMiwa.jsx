@@ -26,6 +26,8 @@ export default function MobileMiwa() {
   const [streaming, setStreaming] = useState(false)
   const [streamingText, setStreamingText] = useState('')
   const [listening, setListening] = useState(false)
+  const [liveMode, setLiveMode] = useState('')
+  const [liveStatus, setLiveStatus] = useState('')
   const [error, setError] = useState('')
 
   const messagesEndRef = useRef(null)
@@ -41,6 +43,27 @@ export default function MobileMiwa() {
   // Focus input on mount
   useEffect(() => {
     setTimeout(() => textareaRef.current?.focus(), 200)
+  }, [])
+
+  useEffect(() => {
+    const handleLiveStatus = (event) => setLiveStatus(event.detail?.status || '')
+    const handleLiveMessage = (event) => {
+      const msg = event.detail?.message
+      if (!msg?.content) return
+      setMessages(m => [...m, { id: msg.id || Date.now(), role: msg.role || 'assistant', content: msg.content }])
+    }
+    const handleLiveStopped = () => {
+      setLiveMode('')
+      setLiveStatus('')
+    }
+    window.addEventListener('miwa-live-embedded-status', handleLiveStatus)
+    window.addEventListener('miwa-live-embedded-message', handleLiveMessage)
+    window.addEventListener('miwa-live-embedded-stopped', handleLiveStopped)
+    return () => {
+      window.removeEventListener('miwa-live-embedded-status', handleLiveStatus)
+      window.removeEventListener('miwa-live-embedded-message', handleLiveMessage)
+      window.removeEventListener('miwa-live-embedded-stopped', handleLiveStopped)
+    }
   }, [])
 
   const sendMessage = useCallback(async (text) => {
@@ -208,10 +231,50 @@ export default function MobileMiwa() {
     }
   }
 
+  const toggleLiveMode = (mode) => {
+    if (liveMode === mode) {
+      window.dispatchEvent(new CustomEvent('miwa-live-stop'))
+      setLiveMode('')
+      setLiveStatus('')
+      return
+    }
+    setError('')
+    setLiveMode(mode)
+    setLiveStatus(mode === 'dictation' ? 'Starting live dictation...' : mode === 'translate' ? 'Starting clinical translation...' : 'Starting Miwa Live...')
+    window.dispatchEvent(new CustomEvent('miwa-live-start-embedded', { detail: { mode } }))
+  }
+
   return (
     <div className="flex flex-col h-full bg-gray-50">
       {/* ── Messages area ──────────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-4 pt-3 pb-2">
+        <div className="mb-3 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+          {[
+            ['conversation', 'Live'],
+            ['dictation', 'Dictate'],
+            ['translate', 'Translate'],
+          ].map(([mode, label]) => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => toggleLiveMode(mode)}
+              className={`min-h-[40px] shrink-0 rounded-full border px-4 text-sm font-bold transition-colors ${
+                liveMode === mode
+                  ? 'border-teal-400 bg-teal-500 text-white shadow-sm'
+                  : 'border-gray-200 bg-white text-gray-700 active:bg-gray-100'
+              }`}
+            >
+              {liveMode === mode ? `Stop ${label}` : label}
+            </button>
+          ))}
+        </div>
+
+        {liveStatus && (
+          <div className="mb-3 rounded-2xl border border-teal-200 bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-800">
+            {liveStatus}
+          </div>
+        )}
+
         {/* Quick action pills (shown when no messages) */}
         {messages.length === 0 && !streaming && (
           <div className="flex flex-col items-center justify-center h-full -mt-8">

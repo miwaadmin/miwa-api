@@ -4,7 +4,7 @@
  * Bottom tab bar with 5 tabs, compact header, full-height content.
  */
 import { useState, useEffect } from 'react'
-import { Outlet, NavLink, useNavigate } from 'react-router-dom'
+import { Outlet, NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { therapistInitials } from '../lib/avatar'
 import { apiFetch } from '../lib/api'
@@ -14,6 +14,7 @@ import MiwaChat from './MiwaChat'
 export default function MobileLayout() {
   const { therapist, logout } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
   const [alerts, setAlerts] = useState([])
   const [showAlerts, setShowAlerts] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
@@ -36,7 +37,7 @@ export default function MobileLayout() {
   }
 
   return (
-    <div className="mobile-app-shell flex flex-col bg-white overflow-hidden">
+    <div className="mobile-app-shell flex flex-col overflow-hidden" data-mobile-route={location.pathname}>
       {/* ── Compact top header ─────────────────────────────────────── */}
       <header className="mobile-app-header flex items-center justify-between px-4 bg-white border-b border-gray-100 shrink-0 z-30">
         {/* Logo */}
@@ -74,7 +75,7 @@ export default function MobileLayout() {
             {showAlerts && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowAlerts(false)} />
-                <div className="absolute right-0 top-12 z-50 w-80 max-h-80 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col">
+                <div className="mobile-popover fixed right-3 z-50 w-80 max-h-80 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col">
                   <div className="px-4 py-2.5 border-b border-gray-100 bg-white">
                     <h3 className="text-sm font-semibold text-gray-900">
                       {alerts.length === 0 ? 'No alerts' : `${alerts.length} Alert${alerts.length !== 1 ? 's' : ''}`}
@@ -123,7 +124,7 @@ export default function MobileLayout() {
             {showProfile && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowProfile(false)} />
-                <div className="absolute right-0 top-12 z-50 w-52 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
+                <div className="mobile-popover fixed right-3 z-50 w-52 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-100">
                     <p className="text-sm font-semibold text-gray-900 truncate">{therapist?.full_name || 'Clinician'}</p>
                     <p className="text-[11px] text-gray-500 truncate">{therapist?.email}</p>
@@ -148,7 +149,7 @@ export default function MobileLayout() {
       </header>
 
       {/* ── Content area ───────────────────────────────────────────── */}
-      <main className="mobile-app-main flex-1 overflow-y-auto min-h-0">
+      <main className="mobile-app-main mobile-safe-scroll flex-1 overflow-y-auto min-h-0">
         <Outlet />
       </main>
 
@@ -189,7 +190,7 @@ export default function MobileLayout() {
         <TabLink to="/m/more" icon={TabIcons.more} label="More" />
       </nav>
 
-      <MiwaChat />
+      <MiwaChat bridgeOnly />
     </div>
   )
 }
