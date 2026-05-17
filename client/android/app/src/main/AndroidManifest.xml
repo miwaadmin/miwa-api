@@ -38,4 +38,31 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- Miwa Live voice: microphone capture via Web MediaRecorder / WebRTC -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+
+    <!-- Document / intake photo capture -->
+    <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- File picker: Android 13+ granular media permissions (API 33+) -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+
+    <!-- File picker: legacy storage access (API ≤ 32 / ≤ 29) -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
+        android:maxSdkVersion="32" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"
+        android:maxSdkVersion="29" />
+
+    <!-- Local notifications (Android 13+ requires explicit consent, API 33+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Haptic feedback -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!-- Camera is optional; app works without it (file picker is primary upload path) -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
 </manifest>
