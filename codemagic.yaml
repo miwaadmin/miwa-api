@@ -59,7 +59,19 @@ workflows:
         script: |
           keychain initialize
 
-      - name: Fetch or create signing files
+      - name: Create fresh distribution certificate
+        script: |
+          # Generates a brand-new distribution cert + private key pair via
+          # the App Store Connect API and saves them locally. Required
+          # because the existing Xcode-Cloud-era cert has no recoverable
+          # private key. If this fails with "Maximum number of certificates
+          # exceeded", revoke the old cert in Apple Developer Portal →
+          # Certificates and retry.
+          app-store-connect certificates create \
+            --type IOS_DISTRIBUTION \
+            --save
+
+      - name: Fetch or create signing profiles
         script: |
           app-store-connect fetch-signing-files \
             "$BUNDLE_ID" \
