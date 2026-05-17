@@ -99,6 +99,17 @@ export default function MobileSchedule() {
   const navigate = useNavigate()
   const [selected, setSelected] = useState(() => new Date())
   const [appointments, setAppointments] = useState([])
+  const [patients, setPatients] = useState([])
+  const [showNew, setShowNew] = useState(false)
+  const [savingNew, setSavingNew] = useState(false)
+  const [form, setForm] = useState(() => ({
+    patientId: '',
+    appointmentType: 'individual',
+    startTime: '09:00',
+    durationMinutes: 50,
+    location: '',
+    notes: '',
+  }))
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -138,11 +149,77 @@ export default function MobileSchedule() {
 
   useEffect(() => { load(selected) }, [selected, load])
 
+  useEffect(() => {
+    apiFetch('/patients')
+      .then(r => r.ok ? r.json() : [])
+      .then(data => setPatients(Array.isArray(data) ? data : []))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('new') === '1') {
+      setShowNew(true)
+    }
+  }, [])
+
   const sorted = [...appointments].sort((a, b) => {
     const at = new Date(a.scheduled_start || 0).getTime()
     const bt = new Date(b.scheduled_start || 0).getTime()
     return at - bt
   })
+
+  const openNewAppointment = () => {
+    setForm(prev => ({ ...prev, patientId: patients[0]?.id ? String(patients[0].id) : prev.patientId }))
+    setShowNew(true)
+  }
+
+  const closeNewAppointment = () => {
+    setShowNew(false)
+    if (new URLSearchParams(window.location.search).get('new') === '1') {
+      window.history.replaceState(null, '', '/m/schedule')
+    }
+  }
+
+  const saveAppointment = async (force = false) => {
+    if (!form.patientId) {
+      setError('Add a client before scheduling an appointment.')
+      return
+    }
+    setSavingNew(true)
+    setError('')
+    try {
+      const [hh, mm] = form.startTime.split(':').map(Number)
+      const start = new Date(selected)
+      start.setHours(hh || 0, mm || 0, 0, 0)
+      const end = new Date(start.getTime() + Number(form.durationMinutes || 50) * 60 * 1000)
+      const res = await apiFetch('/agent/appointments', {
+        method: 'POST',
+        body: JSON.stringify({
+          patientId: Number(form.patientId),
+          appointmentType: form.appointmentType,
+          scheduledStart: start.toISOString(),
+          scheduledEnd: end.toISOString(),
+          durationMinutes: Number(form.durationMinutes || 50),
+          location: form.location || null,
+          notes: form.notes || null,
+          force,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.status === 409 && !force) {
+        const proceed = window.confirm('This overlaps another appointment. Schedule it anyway?')
+        if (proceed) return saveAppointment(true)
+        return
+      }
+      if (!res.ok) throw new Error(data.error || 'Could not schedule appointment')
+      closeNewAppointment()
+      await load(selected)
+    } catch (err) {
+      setError(err.message || 'Could not schedule appointment')
+    } finally {
+      setSavingNew(false)
+    }
+  }
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -208,7 +285,7 @@ export default function MobileSchedule() {
                 : 'No appointments scheduled for this day.'}
             </p>
             <button
-              onClick={() => navigate('/m/schedule?new=1')}
+              onClick={openNewAppointment}
               className="inline-flex items-center gap-2 rounded-xl bg-brand-600 text-white font-semibold text-sm px-5 py-3 active:bg-brand-700"
             >
               + Add appointment
@@ -230,7 +307,7 @@ export default function MobileSchedule() {
       {/* FAB */}
       {sorted.length > 0 && (
         <button
-          onClick={() => navigate('/m/schedule?new=1')}
+          onClick={openNewAppointment}
           className="fixed right-4 z-30 w-14 h-14 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-transform"
           style={{
             bottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',
@@ -242,6 +319,111 @@ export default function MobileSchedule() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
         </button>
+      )}
+
+      {showNew && (
+        <div className="fixed inset-0 z-50 flex items-end bg-black/45">
+          <div
+            className="w-full max-h-[88vh] overflow-y-auto rounded-t-3xl bg-white px-5 pt-4 shadow-2xl"
+            style={{ paddingBottom: 'max(24px, env(safe-area-inset-bottom, 24px))' }}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-gray-900">New appointment</h2>
+              <button
+                type="button"
+                onClick={closeNewAppointment}
+                className="h-10 w-10 rounded-full text-gray-500 active:bg-gray-100"
+                aria-label="Close new appointment"
+              >
+                x
+              </button>
+            </div>
+
+            <label className="mb-3 block">
+              <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Client</span>
+              <select
+                value={form.patientId}
+                onChange={e => setForm(f => ({ ...f, patientId: e.target.value }))}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-base text-gray-900"
+              >
+                <option value="">Select a client...</option>
+                {patients.map(p => (
+                  <option key={p.id} value={p.id}>{p.display_name || p.client_id || `Client ${p.id}`}</option>
+                ))}
+              </select>
+            </label>
+
+            <div className="mb-3">
+              <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Session type</span>
+              <div className="flex flex-wrap gap-2">
+                {['individual', 'couple', 'family', 'group', 'phone', 'intake', 'crisis'].map(type => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => setForm(f => ({ ...f, appointmentType: type }))}
+                    className={`rounded-xl border px-3 py-2 text-sm font-semibold capitalize ${
+                      form.appointmentType === type ? 'border-brand-600 bg-brand-600 text-white' : 'border-gray-200 text-gray-600'
+                    }`}
+                  >
+                    {type}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mb-3 grid grid-cols-2 gap-3">
+              <label>
+                <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Start</span>
+                <input
+                  type="time"
+                  value={form.startTime}
+                  onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-base text-gray-900"
+                />
+              </label>
+              <label>
+                <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Duration</span>
+                <select
+                  value={form.durationMinutes}
+                  onChange={e => setForm(f => ({ ...f, durationMinutes: Number(e.target.value) }))}
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-base text-gray-900"
+                >
+                  {[30, 45, 50, 60, 90].map(min => <option key={min} value={min}>{min}m</option>)}
+                </select>
+              </label>
+            </div>
+
+            <label className="mb-3 block">
+              <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Location</span>
+              <input
+                value={form.location}
+                onChange={e => setForm(f => ({ ...f, location: e.target.value }))}
+                placeholder="Office, telehealth, etc."
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-base text-gray-900"
+              />
+            </label>
+
+            <label className="mb-4 block">
+              <span className="mb-1 block text-xs font-bold uppercase tracking-wide text-gray-500">Notes</span>
+              <textarea
+                value={form.notes}
+                onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                placeholder="Pre-session notes, reminders..."
+                rows={3}
+                className="w-full rounded-xl border border-gray-200 bg-white px-3 py-3 text-base text-gray-900"
+              />
+            </label>
+
+            <button
+              type="button"
+              onClick={() => saveAppointment(false)}
+              disabled={savingNew}
+              className="h-12 w-full rounded-xl bg-brand-600 text-sm font-bold text-white disabled:opacity-60"
+            >
+              {savingNew ? 'Scheduling...' : 'Schedule appointment'}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   )

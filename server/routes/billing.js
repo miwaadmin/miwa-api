@@ -664,6 +664,9 @@ async function createSubscriptionCheckoutSession(req, res) {
     const stripe = getStripe();
     const db = getAsyncDb();
     const { plan } = req.body;
+    const returnTo = typeof req.body?.returnTo === 'string' && req.body.returnTo.startsWith('/')
+      ? req.body.returnTo
+      : '/settings';
 
     if (!SELF_SERVE_CHECKOUT_PLANS.includes(plan)) {
       return res.status(400).json({ error: `Invalid plan. Choose one of: ${SELF_SERVE_CHECKOUT_PLANS.join(', ')}.` });
@@ -690,8 +693,8 @@ async function createSubscriptionCheckoutSession(req, res) {
       mode: 'subscription',
       customer: customerId,
       line_items: [{ price: priceVal, quantity: 1 }],
-      success_url: `${appUrl}/settings?subscribed=1`,
-      cancel_url: `${appUrl}/settings?canceled=1`,
+      success_url: `${appUrl}${returnTo}?subscribed=1`,
+      cancel_url: `${appUrl}${returnTo}?canceled=1`,
       subscription_data: {
         metadata: { therapist_id: String(req.therapist.id), plan },
       },
@@ -713,6 +716,9 @@ router.post('/portal', requireAuth, async (req, res) => {
     const db = getAsyncDb();
     const row = await db.get('SELECT stripe_customer_id FROM therapists WHERE id = ?', req.therapist.id);
     const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    const returnTo = typeof req.body?.returnTo === 'string' && req.body.returnTo.startsWith('/')
+      ? req.body.returnTo
+      : '/settings';
     const stripe = getStripe();
     if (!row?.stripe_customer_id) {
       return res.status(400).json({ error: 'No active subscription found.' });
@@ -720,7 +726,7 @@ router.post('/portal', requireAuth, async (req, res) => {
 
     const portal = await stripe.billingPortal.sessions.create({
       customer: row.stripe_customer_id,
-      return_url: `${appUrl}/settings`,
+      return_url: `${appUrl}${returnTo}`,
     });
 
     res.json({ url: portal.url });

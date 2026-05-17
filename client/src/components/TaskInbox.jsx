@@ -331,7 +331,7 @@ export default function TaskInbox({ onOpenDetail }) {
       {open && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-10 z-50 w-[380px] max-h-[520px] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col">
+          <div className="task-inbox-menu absolute right-0 top-10 z-50 w-[380px] max-h-[520px] bg-white rounded-2xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col">
             <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-semibold text-gray-900">Tasks</h3>

@@ -369,6 +369,10 @@
   border-top: 1px solid rgba(148,163,184,0.12);
 }
 
+.task-inbox-menu {
+  max-width: min(380px, calc(100vw - 24px));
+}
+
 @media (max-width: 767px) {
   .app-shell {
     height: 100dvh;
@@ -377,6 +381,14 @@
   }
   .app-main {
     padding-bottom: calc(7rem + env(safe-area-inset-bottom, 0px));
+  }
+  .task-inbox-menu {
+    position: fixed !important;
+    top: calc(env(safe-area-inset-top, 0px) + 58px) !important;
+    left: 12px !important;
+    right: 12px !important;
+    width: auto !important;
+    max-height: min(70vh, 520px) !important;
   }
 }
 

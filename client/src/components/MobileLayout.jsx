@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import { therapistInitials } from '../lib/avatar'
 import { apiFetch } from '../lib/api'
 import TaskInbox from './TaskInbox'
+import MiwaChat from './MiwaChat'
 
 export default function MobileLayout() {
   const { therapist, logout } = useAuth()
@@ -187,6 +188,8 @@ export default function MobileLayout() {
         <TabLink to="/m/miwa" icon={TabIcons.miwa} label="Miwa" />
         <TabLink to="/m/more" icon={TabIcons.more} label="More" />
       </nav>
+
+      <MiwaChat />
     </div>
   )
 }

@@ -14,7 +14,7 @@ const menuSections = [
     label: 'Clinical',
     items: [
       { to: '/m/outcomes', label: 'Outcomes', desc: 'Assessment tracking & scores', icon: ChartIcon },
-      { to: '/m/briefs',   label: 'Session Briefs', desc: 'Pre-session briefs', icon: DocIcon },
+      { to: '/m/briefs',   label: 'Research Briefs', desc: 'Clinical research summaries', icon: DocIcon },
       { to: '/m/schedule', label: 'Schedule', desc: 'Day agenda', icon: CalendarIcon },
       { to: '/m/consult',  label: 'Consult', desc: 'Clinical thought partner', icon: ConsultIcon },
     ],

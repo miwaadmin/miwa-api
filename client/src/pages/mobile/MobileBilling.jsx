@@ -107,7 +107,7 @@ export default function MobileBilling() {
       const res = await apiFetch('/billing/create-checkout-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ plan: planId }),
+        body: JSON.stringify({ plan: planId, returnTo: '/m/billing' }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Could not start checkout')
@@ -122,7 +122,10 @@ export default function MobileBilling() {
   const handlePortal = async () => {
     setPortalLoading(true); setError('')
     try {
-      const res = await apiFetch('/billing/portal', { method: 'POST' })
+      const res = await apiFetch('/billing/portal', {
+        method: 'POST',
+        body: JSON.stringify({ returnTo: '/m/billing' }),
+      })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Could not open billing portal')
       if (data.url) window.location.href = data.url

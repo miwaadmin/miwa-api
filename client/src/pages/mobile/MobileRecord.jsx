@@ -142,6 +142,11 @@ export default function MobileRecord() {
     if (recordState === RECORDING_STATES.recording) {
       stopRecording()
     } else if (recordState === RECORDING_STATES.idle) {
+      if (sessionType === 'ongoing' && !selectedPatient) {
+        setShowPicker(true)
+        setError('Select a client before recording a session note.')
+        return
+      }
       startRecording()
     }
   }
@@ -159,7 +164,7 @@ export default function MobileRecord() {
           body: JSON.stringify({
             sessionType: 'intake',
             presentingProblem: transcript,
-            caseType: selectedPatient.case_type || 'individual',
+            caseType: selectedPatient?.case_type || selectedPatient?.client_type || 'individual',
             noteFormat: 'SOAP',
             therapeuticOrientation: 'Integrative / Other',
             verbosity: 'standard',
@@ -188,6 +193,12 @@ export default function MobileRecord() {
                   assessment: parsed.sections.diagnosis || '',
                   plan: parsed.sections.treatmentRec || parsed.sections.supervision || '',
                 },
+              },
+              note: {
+                subjective: parsed.sections.documentation || '',
+                objective: parsed.sections.clinicalThinking || '',
+                assessment: parsed.sections.diagnosis || '',
+                plan: parsed.sections.treatmentRec || parsed.sections.supervision || '',
               },
               transcript,
               _intakeSections: parsed.sections,
@@ -405,14 +416,14 @@ export default function MobileRecord() {
           {!transcript && !generatedNote && (
             <button
               onClick={handleMicPress}
-              disabled={isProcessing || (sessionType === 'ongoing' && !selectedPatient)}
+              disabled={isProcessing}
               className={`relative w-[120px] h-[120px] rounded-full flex items-center justify-center transition-all duration-300 ${
                 isRecording
                   ? 'bg-red-500 shadow-[0_0_40px_rgba(239,68,68,0.4)] scale-110'
-                  : isProcessing
+                : isProcessing
                   ? 'bg-gray-200 cursor-not-allowed'
-                  : !selectedPatient
-                  ? 'bg-gray-200 cursor-not-allowed'
+                : sessionType === 'ongoing' && !selectedPatient
+                  ? 'bg-gray-200 active:scale-95'
                   : 'bg-gradient-to-br from-indigo-500 to-emerald-500 shadow-xl active:scale-95'
               }`}
             >
