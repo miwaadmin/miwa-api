@@ -21,12 +21,11 @@
       "backgroundColor": "#0d1117"
     },
     "Camera": {
-      "presentationStyle": "fullscreen"
+      "permissions": ["camera", "photos"]
     },
     "LocalNotifications": {
       "smallIcon": "ic_stat_icon_config_sample",
-      "iconColor": "#5b8cf5",
-      "sound": "beep.wav"
+      "iconColor": "#0d1117"
     }
   }
 }
