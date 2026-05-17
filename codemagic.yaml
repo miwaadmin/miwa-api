@@ -4,10 +4,13 @@
 # Codemagic). Keep this file focused on iOS so the free-tier Mac minutes
 # (500/mo) aren't wasted on duplicate Android builds.
 #
-# Signing is wired to the "Codemagic CI" App Store Connect API key integration
-# (Teams → Integrations → Developer Portal). The key auto-fetches/creates
-# distribution certificates and provisioning profiles for bundle ID
-# care.miwa.app, builds a signed IPA, and uploads it to TestFlight on success.
+# Signing uses the "Codemagic CI" App Store Connect API key integration
+# (Teams → Integrations → Developer Portal). The build explicitly calls
+# `app-store-connect fetch-signing-files --create` which creates the
+# distribution certificate and App Store provisioning profile if they
+# don't already exist for bundle ID care.miwa.app. Then it imports them
+# into the keychain, applies them to the Xcode project, builds a signed
+# IPA, and uploads to TestFlight on success.
 #
 # Triggering: builds run on demand from the Codemagic UI. Auto-trigger on push
 # is intentionally off — iOS Mac-minute builds are expensive against the free
@@ -26,9 +29,10 @@ workflows:
       node: 22
       npm: 10
       xcode: latest
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: care.miwa.app
+      vars:
+        BUNDLE_ID: "care.miwa.app"
+        XCODE_PROJECT: "App.xcodeproj"
+        XCODE_SCHEME: "App"
 
     scripts:
       - name: Install client dependencies
@@ -51,7 +55,22 @@ workflows:
           cd client/ios/App
           agvtool new-version -all "$BUILD_NUMBER"
 
-      - name: Fetch provisioning profiles + certs
+      - name: Initialize keychain
+        script: |
+          keychain initialize
+
+      - name: Fetch or create signing files
+        script: |
+          app-store-connect fetch-signing-files \
+            "$BUNDLE_ID" \
+            --type IOS_APP_STORE \
+            --create
+
+      - name: Add certificates to keychain
+        script: |
+          keychain add-certificates
+
+      - name: Apply signing profiles to Xcode project
         script: |
           cd client/ios/App
           xcode-project use-profiles
@@ -60,8 +79,8 @@ workflows:
         script: |
           cd client/ios/App
           xcode-project build-ipa \
-            --project "App.xcodeproj" \
-            --scheme "App"
+            --project "$XCODE_PROJECT" \
+            --scheme "$XCODE_SCHEME"
 
     artifacts:
       - build/ios/ipa/*.ipa
