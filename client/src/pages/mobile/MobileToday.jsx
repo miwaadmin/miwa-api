@@ -260,7 +260,7 @@ export default function MobileToday() {
           <h2 className="text-sm font-semibold text-gray-900">Today's Schedule</h2>
           <button
             type="button"
-            onClick={() => navigate('/schedule?new=1')}
+            onClick={() => navigate('/m/schedule?new=1')}
             className="flex items-center gap-1 text-xs font-semibold text-indigo-600 active:text-indigo-700 px-2 py-1 rounded-lg active:bg-indigo-50"
             aria-label="Schedule a new appointment"
           >
@@ -273,7 +273,7 @@ export default function MobileToday() {
         {appointments.length === 0 ? (
           <button
             type="button"
-            onClick={() => navigate('/schedule?new=1')}
+            onClick={() => navigate('/m/schedule?new=1')}
             className="w-full rounded-2xl border border-gray-200 bg-white px-4 py-8 text-center active:bg-gray-50 transition-colors"
           >
             <svg className="w-8 h-8 text-gray-300 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -288,7 +288,7 @@ export default function MobileToday() {
               <div
                 key={appt.id || i}
                 className="flex items-center gap-3 px-4 py-3 active:bg-gray-50 transition-colors"
-                onClick={() => appt.patient_id && navigate(`/patients/${appt.patient_id}`)}
+                onClick={() => appt.patient_id && navigate(`/m/clients/${appt.patient_id}`)}
               >
                 <div className="text-center shrink-0 w-12">
                   <p className="text-sm font-semibold text-gray-900">{formatTime(appt.start_time || appt.date)}</p>

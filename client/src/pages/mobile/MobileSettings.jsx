@@ -183,7 +183,7 @@ export default function MobileSettings() {
                 <p className="text-xs text-gray-500 truncate">{email}</p>
               </div>
               <button
-                onClick={() => navigate('/settings')}
+                onClick={() => navigate('/m/settings')}
                 className="text-xs font-semibold text-indigo-600 active:text-indigo-800 min-w-[44px] min-h-[44px] flex items-center justify-center"
               >
                 Edit
@@ -318,7 +318,7 @@ export default function MobileSettings() {
 
         {/* ── More settings link ─────────────────────────────────── */}
         <button
-          onClick={() => navigate('/settings')}
+          onClick={() => navigate('/m/settings')}
           className="w-full py-3 text-sm font-medium text-indigo-600 active:text-indigo-800 transition-colors"
         >
           More settings &rarr;

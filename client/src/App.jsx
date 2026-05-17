@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation, useParams } from 'react-router-dom'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { AdminAuthProvider, useAdminAuth } from './context/AdminAuthContext'
 import { ClientAuthProvider } from './context/ClientAuthContext'
@@ -189,6 +189,29 @@ function DashboardRedirect() {
   return <MobileDashboardRedirect />
 }
 
+function MobileAwareRoute({ mobileTo, children }) {
+  const location = useLocation()
+  if (isMobileDevice()) {
+    return <Navigate to={`${mobileTo}${location.search || ''}`} replace />
+  }
+  return children
+}
+
+function MobileAwarePatientRoute({ children }) {
+  const { id } = useParams()
+  if (isMobileDevice()) return <Navigate to={`/m/clients/${id}`} replace />
+  return children
+}
+
+function MobileAwareSessionRoute({ children }) {
+  const { id, sessionId } = useParams()
+  if (isMobileDevice()) {
+    const suffix = sessionId ? `/${sessionId}` : '/new'
+    return <Navigate to={`/m/clients/${id}/session${suffix}`} replace />
+  }
+  return children
+}
+
 // Wraps every /t/* page (except /t/welcome itself) and routes any trainee with
 // an incomplete onboarding wizard into /t/welcome. Keeps the wizard on the
 // critical path without requiring a check inside each trainee page component.
@@ -269,6 +292,7 @@ export default function App() {
                 <Route path="clients/:id/session/:sessionId" element={<MobileSessionNote />} />
                 <Route path="settings" element={<MobileSettings />} />
                 <Route path="schedule" element={<MobileSchedule />} />
+                <Route path="hours" element={<Hours />} />
                 <Route path="consult" element={<MobileConsult />} />
                 <Route path="outcomes" element={<MobileOutcomes />} />
                 <Route path="billing" element={<MobileBilling />} />
@@ -303,23 +327,23 @@ export default function App() {
                     clinicians get at /library (DashboardResources), wrapped in
                     the standard Layout for consistent chrome. */}
                 <Route path="/t/resources" element={<TraineeOnboardingGuard><DashboardResources /></TraineeOnboardingGuard>} />
-                <Route path="/workspace" element={<Workspace />} />
-                <Route path="/patients" element={<Patients />} />
-                <Route path="/patients/:id" element={<PatientDetail />} />
-                <Route path="/patients/:id/sessions/new" element={<SessionNote />} />
-                <Route path="/patients/:id/sessions/:sessionId" element={<SessionNote />} />
-                <Route path="/consult" element={<Supervisor />} />
-                <Route path="/briefs" element={<Briefs />} />
+                <Route path="/workspace" element={<MobileAwareRoute mobileTo="/m/workspace"><Workspace /></MobileAwareRoute>} />
+                <Route path="/patients" element={<MobileAwareRoute mobileTo="/m/clients"><Patients /></MobileAwareRoute>} />
+                <Route path="/patients/:id" element={<MobileAwarePatientRoute><PatientDetail /></MobileAwarePatientRoute>} />
+                <Route path="/patients/:id/sessions/new" element={<MobileAwareSessionRoute><SessionNote /></MobileAwareSessionRoute>} />
+                <Route path="/patients/:id/sessions/:sessionId" element={<MobileAwareSessionRoute><SessionNote /></MobileAwareSessionRoute>} />
+                <Route path="/consult" element={<MobileAwareRoute mobileTo="/m/consult"><Supervisor /></MobileAwareRoute>} />
+                <Route path="/briefs" element={<MobileAwareRoute mobileTo="/m/briefs"><Briefs /></MobileAwareRoute>} />
                 <Route path="/inbox" element={<Inbox />} />
-                <Route path="/library" element={<DashboardResources />} />
-                <Route path="/contacts" element={<Contacts />} />
-                <Route path="/billing" element={<Billing />} />
-                <Route path="/settings" element={<Settings />} />
-                <Route path="/outcomes" element={<Outcomes />} />
+                <Route path="/library" element={<MobileAwareRoute mobileTo="/m/library"><DashboardResources /></MobileAwareRoute>} />
+                <Route path="/contacts" element={<MobileAwareRoute mobileTo="/m/contacts"><Contacts /></MobileAwareRoute>} />
+                <Route path="/billing" element={<MobileAwareRoute mobileTo="/m/billing"><Billing /></MobileAwareRoute>} />
+                <Route path="/settings" element={<MobileAwareRoute mobileTo="/m/settings"><Settings /></MobileAwareRoute>} />
+                <Route path="/outcomes" element={<MobileAwareRoute mobileTo="/m/outcomes"><Outcomes /></MobileAwareRoute>} />
                 <Route path="/calendar" element={<Navigate to="/schedule" replace />} />
-                <Route path="/schedule" element={<Schedule />} />
-                <Route path="/hours" element={<Hours />} />
-                <Route path="/unsigned" element={<UnsignedSessions />} />
+                <Route path="/schedule" element={<MobileAwareRoute mobileTo="/m/schedule"><Schedule /></MobileAwareRoute>} />
+                <Route path="/hours" element={<MobileAwareRoute mobileTo="/m/hours"><Hours /></MobileAwareRoute>} />
+                <Route path="/unsigned" element={<MobileAwareRoute mobileTo="/m/unsigned"><UnsignedSessions /></MobileAwareRoute>} />
                 <Route path="/tasks/:id" element={<TaskDetail />} />
                 {/* Practice routes removed — separate product */}
               </Route>

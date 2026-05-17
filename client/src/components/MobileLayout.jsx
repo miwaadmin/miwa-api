@@ -35,9 +35,9 @@ export default function MobileLayout() {
   }
 
   return (
-    <div className="flex flex-col h-screen bg-white overflow-hidden">
+    <div className="mobile-app-shell flex flex-col bg-white overflow-hidden">
       {/* ── Compact top header ─────────────────────────────────────── */}
-      <header className="flex items-center justify-between px-4 h-12 bg-white border-b border-gray-100 shrink-0 z-30">
+      <header className="mobile-app-header flex items-center justify-between px-4 bg-white border-b border-gray-100 shrink-0 z-30">
         {/* Logo */}
         <div className="flex items-center gap-2">
           <div
@@ -73,7 +73,7 @@ export default function MobileLayout() {
             {showAlerts && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowAlerts(false)} />
-                <div className="absolute right-0 top-10 z-50 w-80 max-h-80 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col">
+                <div className="absolute right-0 top-12 z-50 w-80 max-h-80 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden flex flex-col">
                   <div className="px-4 py-2.5 border-b border-gray-100 bg-white">
                     <h3 className="text-sm font-semibold text-gray-900">
                       {alerts.length === 0 ? 'No alerts' : `${alerts.length} Alert${alerts.length !== 1 ? 's' : ''}`}
@@ -122,13 +122,13 @@ export default function MobileLayout() {
             {showProfile && (
               <>
                 <div className="fixed inset-0 z-40" onClick={() => setShowProfile(false)} />
-                <div className="absolute right-0 top-10 z-50 w-52 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
+                <div className="absolute right-0 top-12 z-50 w-52 bg-white rounded-xl shadow-2xl border border-gray-200 overflow-hidden">
                   <div className="px-4 py-3 border-b border-gray-100">
                     <p className="text-sm font-semibold text-gray-900 truncate">{therapist?.full_name || 'Clinician'}</p>
                     <p className="text-[11px] text-gray-500 truncate">{therapist?.email}</p>
                   </div>
                   <button
-                    onClick={() => { setShowProfile(false); navigate('/settings') }}
+                    onClick={() => { setShowProfile(false); navigate('/m/settings') }}
                     className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 transition-colors"
                   >
                     Settings
@@ -147,14 +147,13 @@ export default function MobileLayout() {
       </header>
 
       {/* ── Content area ───────────────────────────────────────────── */}
-      <main className="flex-1 overflow-y-auto min-h-0">
+      <main className="mobile-app-main flex-1 overflow-y-auto min-h-0">
         <Outlet />
       </main>
 
       {/* ── Bottom tab bar ─────────────────────────────────────────── */}
       <nav
-        className="shrink-0 flex items-end justify-around bg-gray-900 z-30"
-        style={{ minHeight: 72, paddingBottom: 'max(12px, env(safe-area-inset-bottom, 12px))' }}
+        className="mobile-tabbar shrink-0 flex items-end justify-around bg-gray-900 z-30"
       >
         <TabLink to="/m" end icon={TabIcons.today} label="Today" />
         <TabLink to="/m/clients" icon={TabIcons.clients} label="Clients" />

@@ -22,7 +22,7 @@ const menuSections = [
   {
     label: 'Practice',
     items: [
-      { to: '/hours',       label: 'Hours',     desc: 'Practicum & BBS hour tracking', icon: ClockIcon, hoursOnly: true },
+      { to: '/m/hours',     label: 'Hours',     desc: 'Practicum & BBS hour tracking', icon: ClockIcon, hoursOnly: true },
       { to: '/m/billing',   label: 'Billing',   desc: 'Plan & payments', icon: BillingIcon },
       { to: '/m/library',   label: 'Resources', desc: 'Clinical tools & worksheets', icon: ResourceIcon },
       { to: '/m/contacts',  label: 'Contacts',  desc: 'Trusted referral network', icon: ContactsIcon },

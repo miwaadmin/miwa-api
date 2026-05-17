@@ -208,7 +208,7 @@ export default function MobileSchedule() {
                 : 'No appointments scheduled for this day.'}
             </p>
             <button
-              onClick={() => navigate('/schedule?new=1')}
+              onClick={() => navigate('/m/schedule?new=1')}
               className="inline-flex items-center gap-2 rounded-xl bg-brand-600 text-white font-semibold text-sm px-5 py-3 active:bg-brand-700"
             >
               + Add appointment
@@ -230,7 +230,7 @@ export default function MobileSchedule() {
       {/* FAB */}
       {sorted.length > 0 && (
         <button
-          onClick={() => navigate('/schedule?new=1')}
+          onClick={() => navigate('/m/schedule?new=1')}
           className="fixed right-4 z-30 w-14 h-14 rounded-full flex items-center justify-center shadow-xl active:scale-95 transition-transform"
           style={{
             bottom: 'calc(96px + env(safe-area-inset-bottom, 0px))',

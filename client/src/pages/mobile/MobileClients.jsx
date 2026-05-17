@@ -124,7 +124,7 @@ export default function MobileClients() {
               return (
                 <button
                   key={patient.id}
-                  onClick={() => navigate(`/patients/${patient.id}`)}
+                  onClick={() => navigate(`/m/clients/${patient.id}`)}
                   className="w-full flex items-center gap-3 px-4 py-3.5 active:bg-gray-50 transition-colors text-left"
                 >
                   {/* Avatar */}
