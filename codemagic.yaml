@@ -97,7 +97,9 @@ workflows:
           cd client/ios/App
           xcode-project build-ipa \
             --project "$XCODE_PROJECT" \
-            --scheme "$XCODE_SCHEME"
+            --scheme "$XCODE_SCHEME" \
+            --archive-directory "$CM_BUILD_DIR/build/ios/xcarchive" \
+            --ipa-directory "$CM_BUILD_DIR/build/ios/ipa"
 
     artifacts:
       - build/ios/ipa/*.ipa
