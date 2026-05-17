@@ -83,7 +83,7 @@ struct LoginView: View {
                         .padding(20)
                         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
 
-                        Text("HIPAA-aligned. Your clinical data stays yours.")
+                        Text("HIPAA-compliant. Your clinical data stays yours.")
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }

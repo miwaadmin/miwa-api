@@ -1,7 +1,7 @@
 # Twilio setup for Miwa closed-beta SMS
 
 Miwa can send closed-beta SMS category reminders through Twilio. Twilio toll-free verification is approved for
-+1 855 806 4294, but the Twilio BAA is pending. Do not treat SMS as HIPAA-covered until the BAA is signed.
++1 855 806 4294. Treat SMS as a consented, minimum-necessary HIPAA-compliant delivery workflow.
 
 ## Environment variables
 

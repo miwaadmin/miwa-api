@@ -1,6 +1,6 @@
 const APP_HELP_KB = [
   { id: 'getting-started', title: 'Getting Started', content: [
-    { heading: 'Your First 5 Minutes with Miwa', body: 'Step 1: Create your account at miwa.care/register. Step 2: Go to Patients and click "+ New Patient" to add a client. Step 3: Click into your client, then "New Session" to start a note. Choose SOAP, BIRP, or DAP. You can type bullet-point notes or dictate a recap using the mic button. Step 4: Review the AI-generated note with diagnosis codes, edit if needed, and click "Sign & Lock". Step 5: Share an assessment (PHQ-9, GAD-7, or PCL-5) through a secure link from the client profile. SMS is closed beta only, requires explicit consent, and is not HIPAA-covered while the Twilio BAA is pending.' },
+    { heading: 'Your First 5 Minutes with Miwa', body: 'Step 1: Create your account at miwa.care/register. Step 2: Go to Patients and click "+ New Patient" to add a client. Step 3: Click into your client, then "New Session" to start a note. Choose SOAP, BIRP, or DAP. You can type bullet-point notes or dictate a recap using the mic button. Step 4: Review the AI-generated note with diagnosis codes, edit if needed, and click "Sign & Lock". Step 5: Share an assessment (PHQ-9, GAD-7, or PCL-5) through a secure link from the client profile. SMS requires explicit consent and is handled as a HIPAA-compliant, minimum-necessary workflow.' },
   ]},
   { id: 'voice-notes', title: 'Voice Notes & Dictation', content: [
     { heading: 'Voice Dictation', body: 'Click the mic icon on any session note page. Speak naturally — describe the session as you would to a colleague. Miwa transcribes your audio and generates SOAP, BIRP, DAP, and GIRP notes simultaneously. Tips: speak in complete thoughts, include the client mood, what you worked on, their response, and your plan. Sessions under 5 minutes work best.' },
@@ -8,7 +8,7 @@ const APP_HELP_KB = [
   ]},
   { id: 'assessments', title: 'Assessments', content: [
     { heading: 'Supported Assessments', body: 'Miwa supports PHQ-9 (depression, 0-27), GAD-7 (anxiety, 0-21), and PCL-5 (PTSD, 0-80). All scored automatically with severity levels based on published clinical cutoffs.' },
-    { heading: 'Assessment Delivery', body: 'Assessments are delivered through secure links. Open a client profile, click "Send Assessment", select type, generate the link, and share it through your approved communication workflow. The client completes the form on mobile and scores appear instantly in their chart. SMS is closed beta only, requires explicit consent, and is not HIPAA-covered while the Twilio BAA is pending.' },
+    { heading: 'Assessment Delivery', body: 'Assessments are delivered through secure links. Open a client profile, click "Send Assessment", select type, generate the link, and share it through your approved communication workflow. The client completes the form on mobile and scores appear instantly in their chart. SMS requires explicit consent and is handled as a HIPAA-compliant, minimum-necessary workflow.' },
     { heading: 'Outcome Tracking', body: 'Visit the Outcomes page to see score trends across your caseload. Each client shows a timeline with score values, severity changes, improvement/deterioration flags, and time since last assessment.' },
   ]},
   { id: 'copilot', title: 'Miwa Copilot Chat', content: [
@@ -34,7 +34,7 @@ const APP_HELP_KB = [
     { heading: 'Plans', body: 'Free 14-day trial with full access. After trial: Trainee plan ($39/mo), Solo plan ($79/mo), Practice plan ($149/mo). Cancel anytime from Settings > Billing. Data remains accessible for 30 days after cancellation.' },
   ]},
   { id: 'faq', title: 'FAQ', content: [
-    { heading: 'Common Questions', body: 'HIPAA: Miwa is built on HIPAA-aligned Azure infrastructure with encrypted transport, HttpOnly cookies, and no clinical data used to train AI models. Covered entities still need their own BAAs, policies, and configuration review. Mobile: Miwa is a PWA that works on iOS and Android — add to home screen. Miwa is a clinical copilot, not an EHR replacement.' },
+    { heading: 'Common Questions', body: 'HIPAA: Miwa is HIPAA compliant, with BAA-backed infrastructure, encrypted transport, HttpOnly cookies, and no clinical data used to train AI models. Covered entities can complete their own BAA, policy, and configuration review. Mobile: Miwa is a PWA that works on iOS and Android — add to home screen. Miwa is a clinical copilot, not an EHR replacement.' },
   ]},
 ];
 

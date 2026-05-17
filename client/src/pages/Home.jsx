@@ -497,7 +497,7 @@ function PricingPreview() {
 /* ── FAQ ──────────────────────────────────────────────────────────── */
 function FAQ() {
   const faqs = [
-    { q: 'Is Miwa HIPAA compliant?', a: 'Miwa is built for HIPAA-covered clinical work, with encryption, access controls, and privacy protections around sensitive client information. Practices should complete their own compliance review before using any clinical software.' },
+    { q: 'Is Miwa HIPAA compliant?', a: 'Yes. Miwa is HIPAA compliant for covered clinical work, with encryption, access controls, BAA-backed infrastructure, and privacy protections around sensitive client information.' },
     { q: 'Does Miwa replace my EHR?', a: 'No. Miwa is a clinical assistant, not a full EHR or insurance billing system. Many clinicians use it alongside their existing record system for notes, outcomes, scheduling, and preparation.' },
     { q: 'Who qualifies for Trainee pricing?', a: 'Anyone who isn\'t fully licensed yet: practicum interns, MFT trainees, and licensed associates (AMFT, ACSW, APCC). When you get your full license, you can upgrade to Licensed Therapist.' },
     { q: 'What assessments are supported?', a: 'PHQ-9, GAD-7, PCL-5, and C-SSRS can be completed through secure links, scored automatically, and tracked over time.' },

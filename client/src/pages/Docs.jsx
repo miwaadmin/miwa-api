@@ -267,7 +267,7 @@ Change your theme in Settings → Appearance.`,
       {
         heading: 'Frequently Asked Questions',
         body: `**Is Miwa HIPAA compliant?**
-Miwa is built for HIPAA-covered clinical work, with encryption, access controls, and no clinical data used to train AI models. Covered entities should still complete their own compliance review before using any clinical software.
+Yes. Miwa is HIPAA compliant for covered clinical work, with encryption, access controls, BAA-backed infrastructure, and no clinical data used to train AI models.
 
 **Does Miwa replace my EHR?**
 Miwa is a clinical assistant, not a full EHR. Many clinicians use it for documentation and export notes to their record system.

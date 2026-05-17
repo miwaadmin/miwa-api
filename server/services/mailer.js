@@ -4,7 +4,7 @@
  * Provider selection (checked in order, first one configured wins):
  *   1. Gmail API via HTTPS     (preferred HIPAA-covered path under Google Workspace BAA)
  *   2. Gmail/Workspace SMTP    (HIPAA-covered fallback where outbound SMTP is allowed)
- *   3. Resend REST API         (legacy fallback — NOT HIPAA-compliant without BAA)
+ *   3. Resend REST API         (legacy fallback for non-PHI messages only)
  *   4. Console log             (dev fallback when nothing is configured)
  *
  * ⚠️  Anything touching patient PHI (assessment links with patient names,
@@ -21,7 +21,7 @@
  *   SMTP_USER                     Gmail/Workspace address
  *   SMTP_PASS                     Google App Password
  *   FROM_EMAIL                    default: "Miwa <noreply@miwa.care>"
- *   RESEND_API_KEY                legacy fallback (non-BAA)
+ *   RESEND_API_KEY                legacy fallback for non-PHI messages only
  *   APP_BASE_URL                  default: https://miwa.care
  */
 const https = require('https');
@@ -314,14 +314,14 @@ function resolveName(firstName, fullName) {
  * Send email. Provider resolution:
  *   1. Gmail API via HTTPS  (preferred, HIPAA-covered)
  *   2. Gmail/Workspace SMTP (HIPAA-covered fallback)
- *   3. Resend REST API      (legacy — NOT HIPAA-compliant without BAA)
+ *   3. Resend REST API      (legacy fallback for non-PHI messages only)
  *   4. Console log          (dev)
  */
 async function sendMail({ to, subject, html, text, attachments }) {
   // ─── Path 1: Gmail API (HTTPS) ───────────────────────────────────────────
   // This is the production path. HIPAA-covered via the Google Workspace BAA.
   // Works through HTTPS on port 443. Failures throw loudly rather than
-  // falling back to a non-BAA provider.
+  // falling back to a provider that is not approved for PHI.
   if (GOOGLE_SERVICE_ACCOUNT_JSON && GMAIL_IMPERSONATE_USER) {
     try {
       return await sendViaGmailApi({ to, subject, html, text, attachments });
@@ -349,12 +349,12 @@ async function sendMail({ to, subject, html, text, attachments }) {
     } catch (err) {
       // Propagate so callers can report failure upstream; do NOT silently
       // fall back to Resend for a PHI-containing message, because that would
-      // route PHI through a non-BAA vendor.
+      // route PHI through a vendor path that is not approved for PHI.
       throw new Error(`SMTP send failed: ${err.message}`);
     }
   }
 
-  // Legacy fallback: Resend REST API (NOT BAA-covered — not safe for PHI)
+  // Legacy fallback: Resend REST API for non-PHI messages only.
   if (RESEND_API_KEY) {
     if (isProduction() && !legacyResendAllowed()) {
       throw new Error('No HIPAA-covered email provider configured for production.');

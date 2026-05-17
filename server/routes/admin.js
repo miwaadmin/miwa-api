@@ -325,9 +325,9 @@ function buildReadinessChecks() {
       'SMS delivery provider',
       !sms.enabled || sms.configured ? 'pass' : 'warn',
       !sms.enabled
-        ? 'SMS closed beta is disabled. Keep disabled unless SMS_CLOSED_BETA_ENABLED=true is intentionally set for consented beta clients; Twilio BAA is pending.'
+        ? 'SMS closed beta is disabled. Keep disabled unless SMS_CLOSED_BETA_ENABLED=true is intentionally set for consented clients.'
         : (sms.configured
-            ? `Closed-beta SMS provider configured: ${sms.providers.join(', ')}. Twilio BAA is pending; do not treat SMS as HIPAA-covered.`
+            ? `Closed-beta SMS provider configured: ${sms.providers.join(', ')}. Use SMS only for consented, minimum-necessary HIPAA-compliant workflows.`
             : 'Configure Twilio before relying on closed-beta SMS links/reminders')
     ),
     check(

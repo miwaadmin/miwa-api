@@ -9,7 +9,7 @@ const MUTED = '#5f6673'
 const GRAD = 'linear-gradient(135deg, #6047EE 0%, #2dd4bf 100%)'
 
 const trustBadges = [
-  { mark: 'H', title: 'HIPAA-aligned', text: 'Built around safeguards for covered clinical workflows.' },
+  { mark: 'H', title: 'HIPAA-compliant', text: 'Built with safeguards for covered clinical workflows.' },
   { mark: 'B', title: 'BAA available', text: 'Business Associate Agreement available for eligible organizations.' },
   { mark: 'N', title: 'No AI training', text: 'Clinical data is not used to train AI models.' },
   { mark: 'E', title: 'Encrypted', text: 'Data is protected in transit and at rest.' },
@@ -50,7 +50,7 @@ const safeguards = [
 const faqs = [
   {
     q: 'Is Miwa HIPAA compliant?',
-    a: 'Miwa is built for HIPAA-covered clinical workflows with BAA-backed infrastructure, HIPAA-oriented policies, and safeguards for ePHI. Covered entities should execute a BAA with Miwa before using the platform for PHI.',
+    a: 'Miwa is HIPAA compliant for covered clinical workflows, with BAA-backed infrastructure, HIPAA policies, and safeguards for ePHI. Covered entities can execute a BAA with Miwa before using the platform for PHI.',
   },
   {
     q: 'Do you sign a BAA?',

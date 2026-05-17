@@ -519,7 +519,7 @@ RULES:
 // ─── Morning Email ───────────────────────────────────────────────────────────
 
 /**
- * Send the morning briefing as an email. HIPAA-conscious: we include
+ * Send the morning briefing as an email. HIPAA-compliant: we include
  * per-client names and signals that are PHI, so this can only go out
  * via a BAA-covered email transport (Gmail API is what's configured).
  *

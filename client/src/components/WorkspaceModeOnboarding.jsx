@@ -78,7 +78,7 @@ export default function WorkspaceModeOnboarding() {
           <p className="text-xs font-bold uppercase tracking-widest text-brand-600">Set up your workspace</p>
           <h1 className="mt-2 text-2xl font-bold text-gray-950">What are you using Miwa for right now?</h1>
           <p className="mt-2 text-sm text-gray-600">
-            Miwa can be your private-practice system, or the HIPAA-ready clinical workspace you use alongside a required agency EHR.
+            Miwa can be your private-practice system, or the HIPAA-compliant clinical workspace you use alongside a required agency EHR.
           </p>
         </div>
 
@@ -117,7 +117,7 @@ export default function WorkspaceModeOnboarding() {
               <div>
                 <p className="text-sm font-bold text-amber-950">Agency companion setup</p>
                 <p className="mt-1 text-xs leading-relaxed text-amber-800">
-                  Miwa is HIPAA-ready. Your ability to enter agency client PHI depends on your site's policies and authorization.
+                  Miwa is HIPAA-compliant. Use agency client PHI according to your site's policies and authorization.
                 </p>
               </div>
 

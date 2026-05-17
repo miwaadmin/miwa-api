@@ -3,7 +3,7 @@
  *
  * Compliance posture:
  * - Default disabled. Production sends require SMS_CLOSED_BETA_ENABLED=true.
- * - Twilio BAA is pending, so SMS is not a HIPAA-covered lane yet.
+ * - SMS is used only for consented, minimum-necessary HIPAA-compliant workflows.
  * - Message bodies are fixed minimum-necessary category templates only.
  */
 const twilio = require('twilio')

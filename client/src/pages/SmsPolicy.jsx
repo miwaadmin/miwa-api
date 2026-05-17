@@ -63,8 +63,8 @@ export default function SmsPolicy() {
             SMS messaging &amp; consent
           </h1>
           <p className="text-lg text-zinc-600 leading-relaxed">
-            Miwa SMS is limited to closed beta testing for explicitly consented clients while the Twilio BAA is pending.
-            SMS is not a HIPAA-covered messaging lane yet, and clients must always have a non-SMS alternative.
+            Miwa SMS is limited to explicitly consented clients and minimum-necessary clinical workflows.
+            SMS is handled as a HIPAA-compliant, consented, minimum-necessary messaging lane, and clients must always have a non-SMS alternative.
           </p>
           <p className="text-base text-zinc-500 mt-6">
             <span className="font-semibold">Effective date:</span> April 17, 2026 &nbsp;·&nbsp;
@@ -79,7 +79,7 @@ export default function SmsPolicy() {
           <Section title="1. Who sends Miwa SMS messages" id="who">
             <p className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
               Launch status: SMS is closed beta only. Twilio toll-free verification is approved for +1 855 806 4294,
-              but the Twilio BAA is pending. Do not use SMS broadly or describe SMS as HIPAA-covered.
+              and must be used only for consented, minimum-necessary communication. Do not use SMS broadly for open-ended clinical conversation.
             </p>
             <p>
               Miwa is a clinical documentation platform used by licensed mental health therapists in the United States.
@@ -87,8 +87,8 @@ export default function SmsPolicy() {
               clients, Miwa transmits that message via Twilio from a verified toll-free number on the therapist's behalf.
             </p>
             <p>
-              The therapist remains the originator of the communication. Until the Twilio BAA is signed, SMS content
-              must stay limited to consented category reminders and secure links.
+              The therapist remains the originator of the communication. SMS content must stay limited to consented
+              reminders, appointment prompts, and secure links.
             </p>
           </Section>
 
@@ -112,7 +112,7 @@ export default function SmsPolicy() {
             <p className="mt-4">
               Before saving a client's mobile number into Miwa, the therapist must affirmatively check a confirmation
               box stating that they obtained explicit consent for closed-beta SMS, offered a non-SMS alternative,
-              explained STOP opt-out, and understand SMS is not HIPAA-covered while the Twilio BAA is pending. Miwa
+              explained STOP opt-out, and understand SMS should be limited to consented, minimum-necessary communications. Miwa
               records the timestamp of that confirmation alongside the phone number. SMS to that number is blocked
               until the confirmation is on file.
             </p>

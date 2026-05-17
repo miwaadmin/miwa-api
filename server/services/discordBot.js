@@ -93,7 +93,7 @@ const WELCOME_MESSAGE = [
   '',
   '**📌 Two ground rules**',
   '',
-  '**1. No PHI, ever.** Don\'t share patient names, identifying details, or session content here. This is a regular Discord server — not a HIPAA-covered space. Use anonymized vignettes if you need to ask clinical questions.',
+  '**1. No PHI, ever.** Don\'t share patient names, identifying details, or session content here. This community Discord is not approved for PHI. Use anonymized vignettes if you need to ask clinical questions.',
   '',
   '**2. Be useful.** Bug reports get fixed. Feature requests get prioritized. Tell me what\'s working and what isn\'t.',
   '',

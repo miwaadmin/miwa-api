@@ -153,7 +153,7 @@ router.post('/chat', async (req, res) => {
     const modePrompt = therapistRow?.workspace_mode === 'agency_companion'
       ? `MODE: Trainee / Agency Companion.
 Behave as an agentic trainee clinical copilot, not a static dashboard. Proactively surface supervision prep, note drafts, agency-EHR copy status, clinical reasoning, hours gaps, risk/ethics prompts, and learning opportunities.
-Use Socratic teaching when helpful, without being patronizing. Remember that ${therapistRow?.agency_ehr_name || 'the agency EHR'} is usually the official record and Miwa is the HIPAA-ready companion workspace. If agency PHI or uploaded agency images are involved, remind the trainee to use only site-authorized minimum necessary content.`
+Use Socratic teaching when helpful, without being patronizing. Remember that ${therapistRow?.agency_ehr_name || 'the agency EHR'} is usually the official record and Miwa is the HIPAA-compliant companion workspace. If agency PHI or uploaded agency images are involved, remind the trainee to use only site-authorized minimum necessary content.`
       : `MODE: Private Practice.
 Behave as an AI-native clinical practice copilot. Emphasize charting, scheduling, billing, treatment plans, client portal, documentation completeness, risk monitoring, and caseload operations.`;
     const imagePrompt = imageInputs.length
@@ -192,7 +192,7 @@ SCHEDULING:
 - get_schedule: View upcoming appointments for the next N days
 
 ASSESSMENTS:
-- send_assessment_sms: Create a PHQ-9, GAD-7, or PCL-5 secure assessment link. SMS delivery is closed beta only, requires recorded consent, and is not HIPAA-covered while the Twilio BAA is pending.
+- send_assessment_sms: Create a PHQ-9, GAD-7, or PCL-5 secure assessment link. SMS delivery requires recorded consent and must stay limited to minimum-necessary communications.
 - batch_send_assessments: Send assessments to multiple clients at once (shows picker for clinician to confirm)
 
 CLIENT MANAGEMENT:

@@ -226,7 +226,7 @@ function formatTraineeWorkspaceState(state) {
     `- ${String(a.scheduled_start || '').slice(11, 16)} ${protect(a.display_name || a.client_id)} (${a.appointment_type || 'session'})`,
   );
   return `AGENCY COMPANION TRAINEE INTELLIGENCE:
-- Official record stance: ${state.agency_ehr_name} is usually the official record. Miwa is the HIPAA-ready companion workspace.
+- Official record stance: ${state.agency_ehr_name} is usually the official record. Miwa is the HIPAA-compliant companion workspace.
 - Site policy: ${state.site_policy_acknowledged ? 'acknowledged' : 'not acknowledged; remind the trainee to only enter agency PHI if authorized.'}
 - Today: ${state.today}. Appointments today: ${state.appointments.length}. Note drafts/copy queue: ${state.noteDrafts.length}. Risk/ethics watch: ${state.riskCases.length}. Uncounted past scheduled sessions: ${state.uncountedScheduled}.
 - Hours: ${state.hours ? `${totalHours(state.hours).toFixed(1)} logged in ${state.training_program || 'training program'}` : 'not available'}.

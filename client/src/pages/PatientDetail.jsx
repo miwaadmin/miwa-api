@@ -1281,7 +1281,7 @@ function CheckinSendModal({ patient, onClose }) {
             <>
               <div className={`rounded-xl p-3 text-xs ${hasPhone ? 'bg-teal-50 text-teal-800 border border-teal-100' : 'bg-amber-50 text-amber-800 border border-amber-100'}`}>
                 {hasPhone
-                  ? `Miwa will create a secure check-in link for ${patient.phone}. SMS sending is closed beta only, requires recorded client consent, and remains non-HIPAA-covered while the Twilio BAA is pending.`
+                  ? `Miwa will create a secure check-in link for ${patient.phone}. SMS sending is HIPAA-compliant for consented, minimum-necessary delivery workflows.`
                   : 'A check-in link will be generated. Copy and share it through your approved client communication process.'}
               </div>
 
@@ -2745,7 +2745,7 @@ export default function PatientDetail() {
             </svg>
             Export Notes
           </button>
-          <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 text-brand-700 border border-brand-100 px-3 py-1 text-xs font-semibold">HIPAA-aligned</span>
+          <span className="inline-flex items-center gap-1 rounded-full bg-brand-50 text-brand-700 border border-brand-100 px-3 py-1 text-xs font-semibold">HIPAA-compliant</span>
         </div>
       </div>
 
@@ -3350,7 +3350,7 @@ export default function PatientDetail() {
                   />
                   <span className="text-xs text-gray-700 leading-relaxed">
                     I have obtained this client's explicit consent to receive closed-beta SMS messages from Miwa for assessments,
-                    check-ins, portal messages, and appointment updates. I offered a non-SMS alternative, explained STOP opt-out, and understand SMS is not HIPAA-covered while the Twilio BAA is pending.
+                    check-ins, portal messages, and appointment updates. I offered a non-SMS alternative, explained STOP opt-out, and understand SMS should be limited to consented, minimum-necessary communications.
                     {' '}<a href="/sms-policy" target="_blank" rel="noopener noreferrer" className="font-semibold text-brand-600 hover:underline">Learn more</a>
                   </span>
                 </label>

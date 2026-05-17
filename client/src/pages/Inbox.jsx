@@ -154,7 +154,7 @@ export default function Inbox() {
         <div className="mt-5 rounded-2xl border border-teal-100 bg-teal-50 px-4 py-3 text-sm text-teal-900 dark:border-teal-400/20 dark:bg-teal-500/10 dark:text-teal-100">
           <p className="font-semibold">How this works with SMS</p>
           <p className="mt-1 text-xs leading-relaxed text-teal-800 dark:text-teal-100/80">
-            SMS is best for prompts and notifications, like "you have a message" or "complete this check-in." The inbox is the HIPAA-safe clinical thread where the actual conversation, replies, risk review, and follow-up history live.
+            SMS is best for prompts and notifications, like "you have a message" or "complete this check-in." The inbox is the HIPAA-compliant clinical thread where the actual conversation, replies, risk review, and follow-up history live.
           </p>
         </div>
 

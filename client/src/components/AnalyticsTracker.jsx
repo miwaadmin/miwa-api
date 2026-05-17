@@ -13,7 +13,7 @@ import { useLocation } from 'react-router-dom'
  * intentionally NOT tracked because their URLs can contain identifiers
  * that could be linked back to PHI (e.g., /patients/17, /assess/{token},
  * /portal/{token}, /m/clients/3). Never tracking them is the only
- * defensible posture for a HIPAA-adjacent healthcare product.
+ * defensible posture for a HIPAA-compliant healthcare product.
  *
  * When adding a new public route, add its path to PUBLIC_PATHS below.
  */

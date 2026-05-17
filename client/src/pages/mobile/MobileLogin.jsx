@@ -234,7 +234,7 @@ export default function MobileLogin() {
       {/* Footer */}
       <div className="flex-shrink-0 px-6 pt-4 pb-8 text-center">
         <p className="text-[11px] text-gray-400">
-          HIPAA-aligned · Your clinical data stays yours
+          HIPAA-compliant · Your clinical data stays yours
         </p>
       </div>
     </div>

@@ -89,7 +89,7 @@ const AGENT_TOOLS = [
     type: 'function',
     function: {
       name: 'send_assessment_sms',
-      description: 'Create a PHQ-9, GAD-7, or PCL-5 secure assessment link for a client. SMS delivery is closed beta only, requires recorded consent, and is not HIPAA-covered while the Twilio BAA is pending.',
+      description: 'Create a PHQ-9, GAD-7, or PCL-5 secure assessment link for a client. SMS delivery requires recorded consent and must stay limited to minimum-necessary communications.',
       parameters: {
         type: 'object',
         properties: {
