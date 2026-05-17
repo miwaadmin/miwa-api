@@ -59,28 +59,31 @@ workflows:
         script: |
           keychain initialize
 
-      - name: Create fresh distribution certificate
+      - name: Generate fresh private key for distribution certificate
         script: |
-          # Generates a brand-new distribution cert + private key pair via
-          # the App Store Connect API and saves them locally. Required
-          # because the existing Xcode-Cloud-era cert has no recoverable
-          # private key. If this fails with "Maximum number of certificates
-          # exceeded", revoke the old cert in Apple Developer Portal →
-          # Certificates and retry.
-          app-store-connect certificates create \
-            --type IOS_DISTRIBUTION \
-            --save
+          # The App Store Connect API needs a private key passed in for both
+          # cert creation and profile creation. We generate a fresh 2048-bit
+          # RSA key on the build VM and reuse it across the signing steps.
+          # This key never leaves the VM and is regenerated every build.
+          openssl genrsa -out /tmp/distribution_key.pem 2048
 
-      - name: Fetch or create signing profiles
+      - name: Fetch or create signing files
         script: |
+          # --create will create a fresh distribution cert using the provided
+          # private key if no matching cert exists, then create the
+          # App Store provisioning profile for $BUNDLE_ID. If this fails
+          # with "Maximum number of certificates exceeded", revoke the old
+          # Xcode-Cloud-era cert in Apple Developer Portal → Certificates
+          # and retry.
           app-store-connect fetch-signing-files \
             "$BUNDLE_ID" \
             --type IOS_APP_STORE \
-            --create
+            --create \
+            --certificate-key @file:/tmp/distribution_key.pem
 
       - name: Add certificates to keychain
         script: |
-          keychain add-certificates
+          keychain add-certificates --certificate-key @file:/tmp/distribution_key.pem
 
       - name: Apply signing profiles to Xcode project
         script: |
