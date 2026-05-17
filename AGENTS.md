@@ -173,6 +173,38 @@ change is clearly experimental / scratch work. When in doubt, push.
     small amber "Sample" badge in the patient list and pickers. The
     seeder lives in the `POST /api/onboarding/sample-case` route.
 
+## Android permissions
+
+Declared in `client/android/app/src/main/AndroidManifest.xml`. Do not
+remove or narrow these without a product reason.
+
+| Permission | Why |
+|---|---|
+| `INTERNET` | Core API calls |
+| `RECORD_AUDIO` | Miwa Live voice (`getUserMedia` / WebRTC in MiwaChat.jsx) |
+| `MODIFY_AUDIO_SETTINGS` | Audio routing for voice sessions |
+| `CAMERA` | Document / intake photo capture |
+| `READ_MEDIA_IMAGES` | Android 13+ image picker (API ≥ 33) |
+| `READ_MEDIA_VIDEO` | Android 13+ video picker (API ≥ 33) |
+| `READ_EXTERNAL_STORAGE` maxSdk=32 | Pre-Android-13 file read |
+| `WRITE_EXTERNAL_STORAGE` maxSdk=29 | Pre-Android-10 file write |
+| `POST_NOTIFICATIONS` | Local notification consent (API ≥ 33) |
+| `VIBRATE` | Haptic feedback |
+
+Camera is declared with `android:required="false"` so the app installs
+on devices without a rear camera.
+
+Capacitor plugins that back these permissions (all at v8.x, matching
+`@capacitor/core`):
+- `@capacitor/camera` — photo/video capture
+- `@capacitor/filesystem` — read/write files in app sandbox
+- `@capacitor/haptics` — vibration / haptic impact
+- `@capacitor/local-notifications` — scheduled local alerts
+- `@capacitor/preferences` — key-value storage (replaces Storage)
+
+`@capacitor/push-notifications` is **Phase 2** (Firebase/FCM) — do not
+install it until Phase 2 is scoped.
+
 ## Frontend tests
 
 - Run `npm run test:client` for the Vitest + React Testing Library
