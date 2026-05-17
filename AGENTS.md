@@ -239,8 +239,13 @@ install it until Phase 2 is scoped.
   Add a matching `NS*UsageDescription` whenever a new Capacitor plugin
   touches a sensitive API or Apple will reject the upload with
   ITMS-90683.
-- **TestFlight export compliance:** First build prompts for "Missing
-  Compliance" — answer Yes / exempt under 5D992.c (standard HTTPS only).
+- **TestFlight export compliance:** `ITSAppUsesNonExemptEncryption =
+  false` is set in Info.plist so builds skip the "Missing Compliance"
+  prompt automatically. This is the correct declaration for a Capacitor
+  webview that uses only iOS-provided HTTPS — the app itself ships no
+  cryptography. If a future feature ever bundles its own crypto
+  (e.g. client-side AES, custom signing), flip this to `true` and
+  fill out the App Encryption Documentation flow in App Store Connect.
 
 ## Frontend tests
 
