@@ -4,13 +4,10 @@
 # Codemagic). Keep this file focused on iOS so the free-tier Mac minutes
 # (500/mo) aren't wasted on duplicate Android builds.
 #
-# The workflow starts unsigned so the first build doesn't need any credentials
-# uploaded to Codemagic. Once this is green, add signing and TestFlight
-# distribution by:
-#   • Uploading an Apple App Store Connect API key
-#     (Teams → Integrations → Apple Developer Portal)
-#   • Adding an `ios_signing` block + `app_store_connect` publishing block
-#     to this workflow.
+# Signing is wired to the "Codemagic CI" App Store Connect API key integration
+# (Teams → Integrations → Developer Portal). The key auto-fetches/creates
+# distribution certificates and provisioning profiles for bundle ID
+# care.miwa.app, builds a signed IPA, and uploads it to TestFlight on success.
 #
 # Triggering: builds run on demand from the Codemagic UI. Auto-trigger on push
 # is intentionally off — iOS Mac-minute builds are expensive against the free
@@ -21,10 +18,17 @@ workflows:
     name: Miwa iOS (Capacitor)
     instance_type: mac_mini_m2
     max_build_duration: 60
+
+    integrations:
+      app_store_connect: Codemagic CI
+
     environment:
       node: 22
       npm: 10
       xcode: latest
+      ios_signing:
+        distribution_type: app_store
+        bundle_identifier: care.miwa.app
 
     scripts:
       - name: Install client dependencies
@@ -42,18 +46,28 @@ workflows:
           cd client
           npx cap sync ios
 
-      - name: Build unsigned archive
+      - name: Set TestFlight-unique build number
         script: |
           cd client/ios/App
-          xcodebuild \
-            -project App.xcodeproj \
-            -scheme App \
-            -configuration Release \
-            -sdk iphoneos \
-            -archivePath build/App.xcarchive \
-            archive \
-            CODE_SIGNING_ALLOWED=NO \
-            CODE_SIGNING_REQUIRED=NO
+          agvtool new-version -all "$BUILD_NUMBER"
+
+      - name: Fetch provisioning profiles + certs
+        script: |
+          cd client/ios/App
+          xcode-project use-profiles
+
+      - name: Build signed IPA
+        script: |
+          cd client/ios/App
+          xcode-project build-ipa \
+            --project "App.xcodeproj" \
+            --scheme "App"
 
     artifacts:
-      - client/ios/App/build/App.xcarchive
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+
+    publishing:
+      app_store_connect:
+        auth: integration
+        submit_to_testflight: true
