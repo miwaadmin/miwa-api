@@ -205,6 +205,43 @@ Capacitor plugins that back these permissions (all at v8.x, matching
 `@capacitor/push-notifications` is **Phase 2** (Firebase/FCM) — do not
 install it until Phase 2 is scoped.
 
+## iOS build pipeline (Codemagic → TestFlight)
+
+- **Workflow:** `ios-capacitor` defined in `codemagic.yaml` at the repo root.
+  Runs on Codemagic's `mac_mini_m2` instance, on demand from the Codemagic
+  UI (auto-trigger on push is intentionally off to preserve the free-tier
+  500 Mac-minutes/month).
+- **iOS bundle ID:** `care.miwa.app` (set in
+  `client/ios/App/App.xcodeproj/project.pbxproj`). This is **different**
+  from the Android bundle ID `app.miwacare` and from
+  `client/capacitor.config.json#appId` (which stays `app.miwacare` so
+  `cap sync android` doesn't break the Play Store build). Do not change
+  either ID.
+- **App Store Connect app record:** "Miwa Care", Apple ID `6770142945`,
+  SKU `care.miwa.app`.
+- **Signing:** Uses the "Codemagic CI" App Store Connect API key
+  integration. Each build generates a fresh RSA private key at
+  `/tmp/distribution_key.pem` and calls
+  `app-store-connect fetch-signing-files --create` to mint a new
+  distribution certificate + App Store profile. Apple caps distribution
+  certs at 2 — when builds fail with "Maximum number of certificates
+  exceeded", revoke old distribution certs at
+  developer.apple.com/account/resources/certificates/list and retry.
+  (Long-term fix: upload a permanent `.p12` to Codemagic → Code Signing
+  Identities and reuse it across builds.)
+- **Build numbering:** `agvtool new-version -all "$BUILD_NUMBER"` sets a
+  TestFlight-unique build number per run; marketing version comes from
+  `MARKETING_VERSION` in the Xcode project.
+- **Info.plist purpose strings** live in `client/ios/App/App/Info.plist`.
+  Currently declared: `NSCameraUsageDescription`,
+  `NSMicrophoneUsageDescription`, `NSPhotoLibraryUsageDescription`,
+  `NSPhotoLibraryAddUsageDescription`, `NSDocumentsFolderUsageDescription`.
+  Add a matching `NS*UsageDescription` whenever a new Capacitor plugin
+  touches a sensitive API or Apple will reject the upload with
+  ITMS-90683.
+- **TestFlight export compliance:** First build prompts for "Missing
+  Compliance" — answer Yes / exempt under 5D992.c (standard HTTPS only).
+
 ## Frontend tests
 
 - Run `npm run test:client` for the Vitest + React Testing Library

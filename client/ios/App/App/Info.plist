@@ -24,6 +24,16 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Miwa Care uses the camera to capture photos of intake forms, documents, and clinical artifacts you attach to a client's chart.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Miwa Care uses the microphone for live voice consultation with the AI assistant and for dictating clinical notes.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Miwa Care needs access to your photo library so you can attach photos to clinical notes and intake forms.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Miwa Care saves exported notes, treatment plans, and other documents to your photo library when you choose to download them.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Miwa Care needs access to your documents folder so you can upload PDFs, intake forms, and other clinical files.</string>
 	<key>UILaunchStoryboardName</key>
 	<string>LaunchScreen</string>
 	<key>UIMainStoryboardFile</key>
