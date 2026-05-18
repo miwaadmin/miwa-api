@@ -232,7 +232,7 @@ function pageSurface(pathname) {
   if (pathname.match(/^\/patients\/\d+/)) return { surface: 'patient_detail', label: 'Client chart' }
   if (pathname === '/workspace' || pathname.includes('/sessions/')) return { surface: 'workspace', label: 'Workspace' }
   if (pathname === '/inbox') return { surface: 'inbox', label: 'Inbox' }
-  if (pathname === '/briefs') return { surface: 'briefs', label: 'Briefs' }
+  if (pathname === '/brief' || pathname === '/briefs') return { surface: 'briefs', label: 'Brief' }
   if (pathname === '/outcomes') return { surface: 'outcomes', label: 'Outcomes' }
   if (pathname === '/billing') return { surface: 'billing', label: 'Billing' }
   if (pathname === '/contacts') return { surface: 'contacts', label: 'Contacts' }

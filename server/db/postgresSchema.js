@@ -234,6 +234,19 @@ async function applyPostgresSchema(db) {
   } catch (err) {
     console.warn(`[postgres-schema] skipped Stripe webhook event index: ${err.message}`);
   }
+
+  try {
+    await db.run(`
+      CREATE INDEX IF NOT EXISTS idx_session_note_drafts_therapist
+      ON session_note_drafts (therapist_id, updated_at)
+    `);
+    await db.run(`
+      CREATE INDEX IF NOT EXISTS idx_session_note_drafts_patient
+      ON session_note_drafts (patient_id, updated_at)
+    `);
+  } catch (err) {
+    console.warn(`[postgres-schema] skipped session note draft index: ${err.message}`);
+  }
 }
 
 module.exports = {

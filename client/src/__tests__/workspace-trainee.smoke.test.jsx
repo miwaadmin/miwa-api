@@ -1,6 +1,5 @@
-import { screen } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { http, HttpResponse } from 'msw'
-import { vi } from 'vitest'
 import Workspace from '../pages/Workspace'
 import { renderWithProviders } from '../test/renderWithProviders'
 import { server } from '../test/server'
@@ -35,6 +34,7 @@ describe('trainee Workspace smoke tests', () => {
 
     server.use(
       http.get('/api/patients', () => HttpResponse.json([])),
+      http.get('/api/session-note-drafts/:draftKey', () => HttpResponse.json({ error: 'Draft not found' }, { status: 404 })),
       http.get('/api/sessions/unsigned', () => HttpResponse.json({
         sessions: [
           {
@@ -83,7 +83,7 @@ describe('trainee Workspace smoke tests', () => {
     renderWithProviders(<Workspace />, { route: '/t/workspace' })
 
     expect(await screen.findByTestId('workspace-draft-restored-banner')).toHaveTextContent(/draft restored/i)
-    expect(screen.getByText(/last saved locally/i)).toBeInTheDocument()
+    expect(screen.getByTestId('workspace-save-status')).toHaveTextContent(/saved offline/i)
     expect(screen.getByDisplayValue('Restored bullet notes from local storage.')).toBeInTheDocument()
     expect(screen.getByText(/agency EHR remains the system of record/i)).toBeInTheDocument()
     expect(screen.queryByText(/send sms/i)).not.toBeInTheDocument()
@@ -94,4 +94,26 @@ describe('trainee Workspace smoke tests', () => {
     expect(screen.queryByText('Your recent notes')).not.toBeInTheDocument()
     expect(screen.queryByText('Draft Client')).not.toBeInTheDocument()
   })
+
+  it('shows a cloud-saved autosave state after Workspace sync succeeds', async () => {
+    server.use(
+      http.get('/api/patients', () => HttpResponse.json([{ id: 44, display_name: 'Cloud Client', client_id: 'CL-44' }])),
+      http.get('/api/session-note-drafts/:draftKey', () => HttpResponse.json({ error: 'Draft not found' }, { status: 404 })),
+      http.put('/api/session-note-drafts/:draftKey', () => HttpResponse.json({
+        saved_at: '2026-05-18T17:30:00.000Z',
+      })),
+    )
+
+    renderWithProviders(<Workspace />, { route: '/t/workspace' })
+
+    fireEvent.click(screen.getByRole('button', { name: /ongoing session/i }))
+    fireEvent.change(await screen.findByPlaceholderText(/Enter session notes as bullets/i), {
+      target: { value: 'Client practiced grounding skills.' },
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId('workspace-save-status')).toHaveTextContent(/^Saved /i)
+      expect(screen.getByTestId('workspace-save-status')).not.toHaveTextContent(/offline/i)
+    }, { timeout: 7000 })
+  }, 10000)
 })

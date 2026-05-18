@@ -83,8 +83,8 @@ const navItems = [
     ),
   },
   {
-    to: '/briefs',
-    label: 'Briefs',
+    to: '/brief',
+    label: 'Brief',
     activeColor: 'text-amber-300',
     icon: (
       <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -242,12 +242,13 @@ export default function Sidebar() {
   //   1. Dashboard
   //   2. Session Workspace
   //   3. Consult
-  //   4. Supervision
-  //   5. Cases
-  //   6. Hours
-  //   7. Learning
-  //   8. Resources
-  //   9. Settings
+  //   4. Brief
+  //   5. Supervision
+  //   6. Cases
+  //   7. Hours
+  //   8. Learning
+  //   9. Resources
+  //   10. Settings
   const traineeNavItems = [
     {
       to: '/t/dashboard',
@@ -267,6 +268,12 @@ export default function Sidebar() {
       label: 'Consult',
       activeColor: 'text-orange-300',
       icon: navItems.find(i => i.to === '/consult')?.icon,
+    },
+    {
+      to: '/brief',
+      label: 'Brief',
+      activeColor: 'text-amber-300',
+      icon: navItems.find(i => i.to === '/brief')?.icon,
     },
     {
       to: '/t/supervision',
@@ -301,7 +308,7 @@ export default function Sidebar() {
       to: '/t/learning',
       label: 'Learning',
       activeColor: 'text-emerald-300',
-      icon: navItems.find(i => i.to === '/briefs')?.icon,
+      icon: navItems.find(i => i.to === '/brief')?.icon,
     },
     {
       to: '/t/resources',
@@ -350,6 +357,12 @@ export default function Sidebar() {
       label: 'Consult',
       activeColor: 'text-teal-300',
       icon: navItems.find(i => i.to === '/consult')?.icon,
+    },
+    {
+      to: '/brief',
+      label: 'Brief',
+      activeColor: 'text-amber-300',
+      icon: navItems.find(i => i.to === '/brief')?.icon,
     },
     {
       to: '/outcomes',

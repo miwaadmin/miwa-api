@@ -146,7 +146,7 @@ export default function AssociateDashboard() {
               <p className="text-sm text-gray-600">{state.stats.appointmentsToday} session{state.stats.appointmentsToday === 1 ? '' : 's'} on deck today.</p>
               <div className="flex flex-wrap gap-2">
                 <Link to="/workspace" className="rounded-xl bg-brand-600 px-3 py-2 text-xs font-bold text-white">Start note</Link>
-                <Link to="/briefs" className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700">View brief</Link>
+                <Link to="/brief" className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-bold text-gray-700">View brief</Link>
               </div>
             </div>
           ) : (

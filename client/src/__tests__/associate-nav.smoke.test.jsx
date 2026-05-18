@@ -32,6 +32,7 @@ describe('associate navigation smoke tests', () => {
       'Clients',
       'Schedule',
       'Consult',
+      'Brief',
       'Outcomes',
       'Apps',
       'Portal',

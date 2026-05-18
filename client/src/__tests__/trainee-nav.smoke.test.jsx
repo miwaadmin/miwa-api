@@ -28,6 +28,7 @@ describe('trainee navigation smoke tests', () => {
       'Dashboard',
       'Session Workspace',
       'Consult',
+      'Brief',
       'Supervision',
       'Cases',
       'Apps',

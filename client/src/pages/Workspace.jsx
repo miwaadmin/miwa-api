@@ -265,6 +265,37 @@ function clearWorkspaceDraft(key) {
   try { window.localStorage.removeItem(key) } catch {}
 }
 
+function draftApiPath(key) {
+  return `/session-note-drafts/${encodeURIComponent(key)}`
+}
+
+async function loadCloudWorkspaceDraft(key) {
+  if (!key) return null
+  const res = await apiFetch(draftApiPath(key))
+  if (res.status === 404) return null
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || 'Unable to load cloud draft')
+  return data
+}
+
+async function saveCloudWorkspaceDraft(key, payload, patientId) {
+  const res = await apiFetch(draftApiPath(key), {
+    method: 'PUT',
+    body: JSON.stringify({
+      patient_id: patientId || null,
+      draft: payload,
+    }),
+  })
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data.error || 'Unable to save cloud draft')
+  return data
+}
+
+async function clearCloudWorkspaceDraft(key) {
+  if (!key) return
+  await apiFetch(draftApiPath(key), { method: 'DELETE' })
+}
+
 function extractIcdCodes(text) {
   if (!text) return []
   return [...text.matchAll(/\b([A-Z]\d{2}\.?\d*[A-Z0-9]*)\b/g)]
@@ -515,6 +546,7 @@ export default function Workspace() {
   const [draftKey, setDraftKey] = useState(initialDraftKey)
   const [draftRestored, setDraftRestored] = useState(!!draft)
   const [lastSavedAt, setLastSavedAt] = useState(draft?.savedAt ? new Date(draft.savedAt) : null)
+  const [saveLocation, setSaveLocation] = useState(draft ? 'offline' : null)
   const [patients, setPatients] = useState([])
   const [linkedPatientId, setLinkedPatientId] = useState('')
   const [newClientId, setNewClientId] = useState('')
@@ -548,6 +580,7 @@ export default function Workspace() {
   const [uploadedAudioName, setUploadedAudioName] = useState('')
   const [uploadedAudioTranscript, setUploadedAudioTranscript] = useState('')
   const [audioDiarization, setAudioDiarization] = useState(null)
+  const autosaveInFlightRef = useRef(false)
 
   // Workspace drafts can include PHI; we accept that risk for the local
   // working copy. localStorage autosave is scoped per therapist + linked
@@ -564,10 +597,10 @@ export default function Workspace() {
   }, [])
 
   useEffect(() => {
-    if (!draft && !sessionTypeTouched && patients.length === 0 && sessionType === 'ongoing') {
+    if (!draftRestored && !sessionTypeTouched && patients.length === 0 && sessionType === 'ongoing') {
       setSessionType('intake')
     }
-  }, [draft, patients.length, sessionType, sessionTypeTouched])
+  }, [draftRestored, patients.length, sessionType, sessionTypeTouched])
 
   // ── Autosave ─────────────────────────────────────────────────────────────
   // When the linked patient changes, swap the draft slot. Don't restore from
@@ -579,6 +612,54 @@ export default function Workspace() {
     if (nextKey !== draftKey) setDraftKey(nextKey)
   }, [therapist?.id, linkedPatientId, draftKey])
 
+  useEffect(() => {
+    let cancelled = false
+
+    async function hydrateDraft() {
+      const localDraft = loadWorkspaceDraft(draftKey)
+      try {
+        const cloud = await loadCloudWorkspaceDraft(draftKey)
+        if (cancelled) return
+        if (!cloud?.draft) {
+          if (localDraft) {
+            setForm(localDraft.form || createEmptyWorkspaceForm())
+            setSessionType(localDraft.sessionType || 'ongoing')
+            setSessionTypeTouched(Boolean(localDraft.sessionType))
+            setOutput(localDraft.output || null)
+            setEditableOutput(localDraft.editableOutput || null)
+            setActiveTab(localDraft.activeTab || 'documentation')
+            if (localDraft.linkedPatientId !== undefined) setLinkedPatientId(localDraft.linkedPatientId || '')
+            if (localDraft.newClientId !== undefined) setNewClientId(localDraft.newClientId || '')
+            setDraftRestored(true)
+            setLastSavedAt(localDraft.savedAt ? new Date(localDraft.savedAt) : null)
+            setSaveLocation('offline')
+          }
+          return
+        }
+        const nextDraft = cloud.draft
+        setForm(nextDraft.form || createEmptyWorkspaceForm())
+        setSessionType(nextDraft.sessionType || 'ongoing')
+        setSessionTypeTouched(Boolean(nextDraft.sessionType))
+        setOutput(nextDraft.output || null)
+        setEditableOutput(nextDraft.editableOutput || null)
+        setActiveTab(nextDraft.activeTab || 'documentation')
+        if (nextDraft.linkedPatientId !== undefined) setLinkedPatientId(nextDraft.linkedPatientId || '')
+        if (nextDraft.newClientId !== undefined) setNewClientId(nextDraft.newClientId || '')
+        setDraftRestored(true)
+        setLastSavedAt(new Date(cloud.saved_at || nextDraft.savedAt || Date.now()))
+        setSaveLocation('cloud')
+      } catch {
+        if (cancelled || !localDraft) return
+        setDraftRestored(true)
+        setLastSavedAt(localDraft.savedAt ? new Date(localDraft.savedAt) : null)
+        setSaveLocation('offline')
+      }
+    }
+
+    hydrateDraft()
+    return () => { cancelled = true }
+  }, [draftKey])
+
   // Tick autosave every 5 seconds, but only after the user has actually
   // typed something. The first tick after page load sees empty form state
   // and skips so we don't blow away a previously saved draft with empties.
@@ -586,21 +667,55 @@ export default function Workspace() {
   useEffect(() => { formRef.current = form }, [form])
   const sessionTypeRef = useRef(sessionType)
   useEffect(() => { sessionTypeRef.current = sessionType }, [sessionType])
+  const outputRef = useRef(output)
+  useEffect(() => { outputRef.current = output }, [output])
+  const editableOutputRef = useRef(editableOutput)
+  useEffect(() => { editableOutputRef.current = editableOutput }, [editableOutput])
+  const activeTabRef = useRef(activeTab)
+  useEffect(() => { activeTabRef.current = activeTab }, [activeTab])
+  const linkedPatientIdRef = useRef(linkedPatientId)
+  useEffect(() => { linkedPatientIdRef.current = linkedPatientId }, [linkedPatientId])
+  const newClientIdRef = useRef(newClientId)
+  useEffect(() => { newClientIdRef.current = newClientId }, [newClientId])
 
   useEffect(() => {
-    const id = setInterval(() => {
+    let cancelled = false
+    const id = setInterval(async () => {
+      if (autosaveInFlightRef.current) return
       const snapshot = formRef.current
       const nonEmpty = Object.values(snapshot || {}).some(v => typeof v === 'string' ? v.trim() : (Array.isArray(v) ? v.length > 0 : !!v))
+        || !!outputRef.current
+        || !!editableOutputRef.current
       if (!nonEmpty) return
       const payload = {
         form: snapshot,
         sessionType: sessionTypeRef.current,
+        output: outputRef.current,
+        editableOutput: editableOutputRef.current,
+        activeTab: activeTabRef.current,
+        linkedPatientId: linkedPatientIdRef.current || '',
+        newClientId: newClientIdRef.current || '',
         savedAt: new Date().toISOString(),
       }
       saveWorkspaceDraft(draftKey, payload)
-      setLastSavedAt(new Date(payload.savedAt))
+      autosaveInFlightRef.current = true
+      try {
+        const saved = await saveCloudWorkspaceDraft(draftKey, payload, linkedPatientIdRef.current)
+        if (cancelled) return
+        setLastSavedAt(new Date(saved.saved_at || payload.savedAt))
+        setSaveLocation('cloud')
+      } catch {
+        if (cancelled) return
+        setLastSavedAt(new Date(payload.savedAt))
+        setSaveLocation('offline')
+      } finally {
+        autosaveInFlightRef.current = false
+      }
     }, 5000)
-    return () => clearInterval(id)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
   }, [draftKey])
 
   useEffect(() => () => {
@@ -853,6 +968,14 @@ export default function Workspace() {
     }
   }
 
+  const clearDraftEverywhere = () => {
+    clearWorkspaceDraft(draftKey)
+    clearCloudWorkspaceDraft(draftKey).catch(() => {})
+    setDraftRestored(false)
+    setLastSavedAt(null)
+    setSaveLocation(null)
+  }
+
   const handleIntakeImport = async (e) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -914,9 +1037,7 @@ export default function Workspace() {
   }
 
   const resetWorkspaceComposer = (nextType = 'ongoing') => {
-    clearWorkspaceDraft(draftKey)
-    setDraftRestored(false)
-    setLastSavedAt(null)
+    clearDraftEverywhere()
     setSessionType(nextType)
     setSessionTypeTouched(true)
     setForm(createEmptyWorkspaceForm())
@@ -1334,9 +1455,7 @@ export default function Workspace() {
       const savedSession = await sessionRes.json()
       if (!sessionRes.ok) throw new Error(savedSession.error || 'Failed to save the linked session note')
 
-      clearWorkspaceDraft(draftKey)
-      setDraftRestored(false)
-      setLastSavedAt(null)
+      clearDraftEverywhere()
       setSaveNotice(linkedPatientId
         ? 'Session note, analysis, and planning were linked to the selected client.'
         : 'New client created from this intake and the generated session content was linked automatically.')
@@ -1396,17 +1515,15 @@ export default function Workspace() {
             Draft restored from your last session.
             {lastSavedAt && (
               <span className="text-xs text-emerald-700 ml-1">
-                (saved {lastSavedAt.toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })})
+                ({saveLocation === 'cloud' ? 'saved' : 'saved offline'} {lastSavedAt.toLocaleString(undefined, { hour: 'numeric', minute: '2-digit', month: 'short', day: 'numeric' })})
               </span>
             )}
           </p>
           <button
             type="button"
             onClick={() => {
-              clearWorkspaceDraft(draftKey)
+              clearDraftEverywhere()
               setForm(createEmptyWorkspaceForm())
-              setDraftRestored(false)
-              setLastSavedAt(null)
             }}
             className="text-xs font-semibold text-emerald-800 hover:text-emerald-900 underline"
           >
@@ -1429,8 +1546,19 @@ export default function Workspace() {
                   : `Enter session notes and get a polished ${form.noteFormat} progress note, clinical thinking, diagnosis support, and supervision guidance.`)}
           </p>
           {lastSavedAt && (
-            <p className="text-[11px] text-gray-400 mt-1">
-              Last saved locally at {lastSavedAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+            <p
+              data-testid="workspace-save-status"
+              className={`mt-1 inline-flex items-center gap-1.5 text-[11px] ${saveLocation === 'offline' ? 'text-amber-600' : 'text-emerald-600'}`}
+            >
+              {saveLocation === 'cloud' ? (
+                <svg aria-hidden="true" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 18a4 4 0 0 1 .6-7.96A5.5 5.5 0 0 1 18.22 8.4 4.75 4.75 0 0 1 18.75 18H7Z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="m9 14 2 2 4-5" />
+                </svg>
+              ) : (
+                <span aria-hidden="true" className="h-2 w-2 rounded-full bg-amber-400" />
+              )}
+              {saveLocation === 'cloud' ? 'Saved' : 'Saved offline'} {lastSavedAt.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
             </p>
           )}
         </div>
@@ -1440,10 +1568,9 @@ export default function Workspace() {
               type="button"
               onClick={() => {
                 setForm(createEmptyWorkspaceForm())
-                clearWorkspaceDraft(draftKey)
-                setResult(null)
-                setDraftRestored(false)
-                setLastSavedAt(null)
+                setOutput(null)
+                setEditableOutput(null)
+                clearDraftEverywhere()
               }}
               className="px-4 py-2 rounded-xl text-sm font-semibold text-white bg-gray-800 hover:bg-gray-900 transition-colors whitespace-nowrap"
             >
@@ -1454,10 +1581,9 @@ export default function Workspace() {
               onClick={() => {
                 if (confirm('Clear all workspace fields? This cannot be undone.')) {
                   setForm(createEmptyWorkspaceForm())
-                  clearWorkspaceDraft(draftKey)
-                  setResult(null)
-                  setDraftRestored(false)
-                  setLastSavedAt(null)
+                  setOutput(null)
+                  setEditableOutput(null)
+                  clearDraftEverywhere()
                 }
               }}
               className="px-3 py-2 rounded-xl text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition-colors whitespace-nowrap"
