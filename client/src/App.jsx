@@ -43,6 +43,7 @@ import PublicNetwork from './pages/PublicNetwork'
 import CheckinForm from './pages/CheckinForm'
 import ClientPortal from './pages/ClientPortal'
 import Briefs from './pages/Briefs'
+import Brief from './pages/Brief'
 import Contacts from './pages/Contacts'
 import Inbox from './pages/Inbox'
 import FeaturesPage from './pages/FeaturesPage'
@@ -388,6 +389,7 @@ export default function App() {
                 <Route path="/patients/:id/sessions/new" element={<MobileAwareSessionRoute><SessionNote /></MobileAwareSessionRoute>} />
                 <Route path="/patients/:id/sessions/:sessionId" element={<MobileAwareSessionRoute><SessionNote /></MobileAwareSessionRoute>} />
                 <Route path="/consult" element={<MobileAwareRoute mobileTo="/m/consult"><Supervisor /></MobileAwareRoute>} />
+                <Route path="/brief" element={<MobileAwareRoute mobileTo="/m/briefs"><Brief /></MobileAwareRoute>} />
                 <Route path="/briefs" element={<MobileAwareRoute mobileTo="/m/briefs"><Briefs /></MobileAwareRoute>} />
                 <Route path="/inbox" element={<Inbox />} />
                 <Route path="/library" element={<MobileAwareRoute mobileTo="/m/library"><DashboardResources /></MobileAwareRoute>} />
