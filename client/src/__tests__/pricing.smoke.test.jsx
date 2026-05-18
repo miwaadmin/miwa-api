@@ -34,7 +34,7 @@ describe('pricing smoke tests', () => {
     const user = userEvent.setup()
     renderWithProviders(<Pricing />, { route: '/pricing' })
 
-    const traineeInfo = screen.getByRole('link', { name: /i'm a trainee/i })
+    const traineeInfo = screen.getByRole('link', { name: /i'm pre-licensed/i })
     expect(traineeInfo).toHaveAttribute('href', '/for-trainees')
 
     await user.click(traineeInfo)

@@ -78,7 +78,7 @@ const navItems = [
     activeColor: 'text-teal-300',
     icon: (
       <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M7 8h10M7 12h6m-8 7l3.2-2.4A2 2 0 019.4 16H17a4 4 0 004-4V8a4 4 0 00-4-4H7a4 4 0 00-4 4v4a4 4 0 004 4h.2L5 19z" />
       </svg>
     ),
   },
@@ -271,7 +271,12 @@ export default function Sidebar() {
       to: '/t/supervision',
       label: 'Supervision',
       activeColor: 'text-violet-300',
-      icon: navItems.find(i => i.to === '/consult')?.icon,
+      icon: (
+        <svg className="w-[18px] h-[18px]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 6h6m-7 4h8m-7 4h5M9 3h6a2 2 0 012 2h1a2 2 0 012 2v12a2 2 0 01-2 2H6a2 2 0 01-2-2V7a2 2 0 012-2h1a2 2 0 012-2z" />
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M8.5 18l1.5 1.5 3.5-4" />
+        </svg>
+      ),
     },
     {
       to: '/t/cases',

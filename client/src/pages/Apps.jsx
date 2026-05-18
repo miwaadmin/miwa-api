@@ -175,10 +175,17 @@ export default function Apps() {
           {APP_CATALOG.map((app) => {
             const active = selectedApp === app.id
             return (
-              <button
+              <div
                 key={app.id}
-                type="button"
+                role="button"
+                tabIndex={0}
                 onClick={() => setSelectedApp(app.id)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    setSelectedApp(app.id)
+                  }
+                }}
                 className={`w-full text-left card overflow-hidden transition-all ${
                   active ? 'ring-2 ring-teal-400 ring-offset-2' : 'hover:-translate-y-0.5'
                 }`}
@@ -214,8 +221,32 @@ export default function Apps() {
                       </span>
                     ))}
                   </div>
+
+                  {active && (
+                    <div className="mt-5 rounded-xl border border-teal-100 bg-teal-50/70 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-bold text-teal-700 uppercase tracking-[0.16em]">Launch</p>
+                        <p className="text-sm text-gray-700 mt-1">
+                          {selectedPatient
+                            ? `Open for ${clientLabel(selectedPatient)} and save to that client profile.`
+                            : 'Choose a client to continue.'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          launch()
+                        }}
+                        disabled={!selectedPatientId}
+                        className="btn-primary justify-center sm:min-w-[180px]"
+                      >
+                        Open {app.name}
+                      </button>
+                    </div>
+                  )}
                 </div>
-              </button>
+              </div>
             )
           })}
 
@@ -237,32 +268,13 @@ export default function Apps() {
               <Link to="/patients" className="mt-4 btn-primary text-xs">Open Patients</Link>
             </div>
           ) : (
-            <>
-              <ClientPicker
-                patients={patients}
-                query={query}
-                setQuery={setQuery}
-                selectedId={selectedPatientId}
-                setSelectedId={setSelectedPatientId}
-              />
-              <div className="card p-5">
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-[0.16em]">Launch</p>
-                <h2 className="text-base font-bold text-gray-900 mt-1">{selected.name}</h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  {selectedPatient
-                    ? `This will open ${selected.name} for ${clientLabel(selectedPatient)} and save to that client profile.`
-                    : 'Choose a client to continue.'}
-                </p>
-                <button
-                  type="button"
-                  onClick={launch}
-                  disabled={!selectedPatientId}
-                  className="mt-4 btn-primary w-full justify-center"
-                >
-                  Open {selected.name}
-                </button>
-              </div>
-            </>
+            <ClientPicker
+              patients={patients}
+              query={query}
+              setQuery={setQuery}
+              selectedId={selectedPatientId}
+              setSelectedId={setSelectedPatientId}
+            />
           )}
         </aside>
       </div>

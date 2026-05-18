@@ -23,37 +23,90 @@ const RELATIONSHIP_TYPES = [
 
 const QUALITY_OPTIONS = [
   ['unknown', 'Unknown'],
+  ['plain', 'Plain / normal'],
   ['supportive', 'Supportive'],
   ['close', 'Close'],
+  ['very_close', 'Best friends / very close'],
+  ['harmony', 'Harmony'],
+  ['friendship', 'Friendship'],
+  ['love', 'Love'],
+  ['in_love', 'In love'],
+  ['spiritual', 'Emotional / spiritual connection'],
+  ['indifferent', 'Indifferent / apathetic'],
   ['distant', 'Distant'],
+  ['poor', 'Poor'],
   ['conflict', 'Conflict'],
+  ['discord', 'Discord'],
+  ['distrust', 'Distrust'],
   ['hostile', 'Hostile'],
+  ['hate', 'Hate'],
   ['controlling', 'Controlling'],
+  ['manipulative', 'Manipulative'],
   ['jealous', 'Jealous'],
   ['cutoff', 'Cutoff'],
+  ['cutoff_repaired', 'Cutoff repaired'],
   ['fused', 'Fused'],
   ['close_hostile', 'Close-hostile'],
+  ['distant_hostile', 'Distant-hostile'],
   ['fused_hostile', 'Fused-hostile'],
   ['abusive', 'Abusive'],
+  ['physical_abuse', 'Physical abuse'],
+  ['emotional_abuse', 'Emotional abuse'],
+  ['sexual_abuse', 'Sexual abuse'],
+  ['neglect', 'Neglect'],
   ['violence', 'Violence'],
+  ['distant_violence', 'Distant-violence'],
+  ['close_violence', 'Close-violence'],
+  ['fused_violence', 'Fused-violence'],
+  ['focused_on', 'Focused on'],
+  ['focused_negative', 'Focused on negatively'],
+  ['never_met', 'Never met'],
+  ['fan', 'Fan / admirer'],
+  ['limerence', 'Limerence'],
 ]
 
 const CLINICAL_MARKERS = [
   { value: 'identified-client', label: 'Identified client', group: 'Role', color: '#f59e0b', fill: '#fef3c7' },
   { value: 'protective', label: 'Protective/support', group: 'Strengths', color: '#0d9488', fill: '#ccfbf1' },
-  { value: 'risk', label: 'Current risk/safety', group: 'Risk', color: '#dc2626', fill: '#fee2e2' },
-  { value: 'ipv', label: 'IPV / coercive control', group: 'Risk', color: '#b91c1c', fill: '#fecaca' },
-  { value: 'trauma', label: 'Trauma history', group: 'Risk', color: '#e11d48', fill: '#ffe4e6' },
-  { value: 'substance-use', label: 'Substance use', group: 'Behavioral health', color: '#f97316', fill: '#ffedd5' },
-  { value: 'alcohol-use', label: 'Alcohol use', group: 'Behavioral health', color: '#d97706', fill: '#fef3c7' },
-  { value: 'mental-health', label: 'Mental health', group: 'Behavioral health', color: '#2563eb', fill: '#dbeafe' },
-  { value: 'depression', label: 'Depression', group: 'Behavioral health', color: '#4f46e5', fill: '#e0e7ff' },
-  { value: 'anxiety', label: 'Anxiety', group: 'Behavioral health', color: '#0284c7', fill: '#e0f2fe' },
-  { value: 'neurodevelopmental', label: 'Neurodevelopmental', group: 'Behavioral health', color: '#7c3aed', fill: '#ede9fe' },
-  { value: 'medical', label: 'Medical condition', group: 'Health', color: '#16a34a', fill: '#dcfce7' },
-  { value: 'chronic-illness', label: 'Chronic illness', group: 'Health', color: '#059669', fill: '#d1fae5' },
-  { value: 'grief-loss', label: 'Grief/loss', group: 'Context', color: '#64748b', fill: '#f1f5f9' },
-  { value: 'legal-system', label: 'Legal/system involvement', group: 'Context', color: '#9333ea', fill: '#f3e8ff' },
+  { value: 'current-risk', label: 'Current risk/safety', group: 'Risk', color: '#dc2626', fill: '#fee2e2' },
+  { value: 'risk', label: 'Risk pattern', group: 'Risk', color: '#f43f5e', fill: '#ffe4e6' },
+  { value: 'ipv', label: 'IPV / coercive control', group: 'Risk', color: '#7f1d1d', fill: '#fecaca' },
+  { value: 'trauma', label: 'Trauma history', group: 'Risk', color: '#be185d', fill: '#fce7f3' },
+  { value: 'physical-illness', label: 'Physical or mental illness', group: 'Conditions', color: '#2563eb', fill: '#dbeafe' },
+  { value: 'serious-illness-substance', label: 'Serious illness + substance abuse', group: 'Conditions', color: '#4338ca', fill: '#e0e7ff' },
+  { value: 'recovery-illness', label: 'Recovery from illness', group: 'Conditions', color: '#14b8a6', fill: '#ccfbf1' },
+  { value: 'recovery-substance', label: 'Recovery from alcohol/drug abuse', group: 'Conditions', color: '#22c55e', fill: '#dcfce7' },
+  { value: 'recovery-combined', label: 'Recovery from illness + substance abuse', group: 'Conditions', color: '#84cc16', fill: '#ecfccb' },
+  { value: 'recovery-with-illness', label: 'Recovery from substance, illness present', group: 'Conditions', color: '#0f766e', fill: '#ccfbf1' },
+  { value: 'recovery-with-substance', label: 'Recovery from illness, substance issue present', group: 'Conditions', color: '#a3e635', fill: '#f7fee7' },
+  { value: 'substance-use', label: 'Drug abuse / substance use', group: 'Addictions', color: '#f97316', fill: '#ffedd5' },
+  { value: 'suspected-substance', label: 'Suspected alcohol/drug abuse', group: 'Addictions', color: '#fb923c', fill: '#fed7aa' },
+  { value: 'alcohol-use', label: 'Alcoholism / alcohol use', group: 'Addictions', color: '#b45309', fill: '#fef3c7' },
+  { value: 'gambling', label: 'Gambling addiction', group: 'Addictions', color: '#ca8a04', fill: '#fef9c3' },
+  { value: 'mental-health', label: 'Mental health', group: 'Behavioral health', color: '#1d4ed8', fill: '#dbeafe' },
+  { value: 'depression', label: 'Depression', group: 'Behavioral health', color: '#6d28d9', fill: '#ede9fe' },
+  { value: 'anxiety', label: 'Anxiety', group: 'Behavioral health', color: '#0891b2', fill: '#cffafe' },
+  { value: 'autism', label: 'Autism', group: 'Behavioral health', color: '#7c3aed', fill: '#ede9fe' },
+  { value: 'neurodevelopmental', label: 'Neurodevelopmental', group: 'Behavioral health', color: '#9333ea', fill: '#f3e8ff' },
+  { value: 'obesity', label: 'Obesity', group: 'Medical', color: '#65a30d', fill: '#ecfccb' },
+  { value: 'cancer', label: 'Cancer', group: 'Medical', color: '#64748b', fill: '#f1f5f9' },
+  { value: 'heart-disease', label: 'Heart disease', group: 'Medical', color: '#ef4444', fill: '#fee2e2' },
+  { value: 'hypertension', label: 'Hypertension / high blood pressure', group: 'Medical', color: '#991b1b', fill: '#fee2e2' },
+  { value: 'hiv-aids', label: 'HIV / AIDS', group: 'Medical', color: '#e11d48', fill: '#ffe4e6' },
+  { value: 'std', label: 'Sexually transmitted disease', group: 'Medical', color: '#db2777', fill: '#fce7f3' },
+  { value: 'hepatitis', label: 'Hepatitis', group: 'Medical', color: '#facc15', fill: '#fef9c3' },
+  { value: 'diabetes', label: 'Diabetes', group: 'Medical', color: '#0ea5e9', fill: '#e0f2fe' },
+  { value: 'arthritis', label: 'Arthritis', group: 'Medical', color: '#94a3b8', fill: '#f8fafc' },
+  { value: 'alzheimers', label: "Alzheimer's disease", group: 'Medical', color: '#475569', fill: '#e2e8f0' },
+  { value: 'medical', label: 'Other medical condition', group: 'Medical', color: '#16a34a', fill: '#dcfce7' },
+  { value: 'chronic-illness', label: 'Chronic illness', group: 'Medical', color: '#15803d', fill: '#bbf7d0' },
+  { value: 'adopted-child', label: 'Adopted child', group: 'Family context', color: '#0f766e', fill: '#ccfbf1' },
+  { value: 'foster-child', label: 'Foster child', group: 'Family context', color: '#0369a1', fill: '#e0f2fe' },
+  { value: 'pregnancy', label: 'Pregnancy', group: 'Family context', color: '#ec4899', fill: '#fce7f3' },
+  { value: 'miscarriage', label: 'Miscarriage', group: 'Family context', color: '#71717a', fill: '#f4f4f5' },
+  { value: 'abortion', label: 'Abortion', group: 'Family context', color: '#52525b', fill: '#e4e4e7' },
+  { value: 'grief-loss', label: 'Grief/loss', group: 'Context', color: '#334155', fill: '#e2e8f0' },
+  { value: 'legal-system', label: 'Legal/system involvement', group: 'Context', color: '#a855f7', fill: '#f3e8ff' },
   { value: 'sample', label: 'Sample/training', group: 'Context', color: '#eab308', fill: '#fef9c3' },
 ]
 
@@ -90,34 +143,138 @@ function escapeHtml(value) {
 
 function relationshipStroke(relationship) {
   const color = {
+    plain: '#111827',
     supportive: '#059669',
     close: '#0f766e',
+    very_close: '#047857',
+    harmony: '#16a34a',
+    friendship: '#10b981',
+    love: '#e11d48',
+    in_love: '#be123c',
+    spiritual: '#7c3aed',
+    indifferent: '#94a3b8',
     distant: '#64748b',
+    poor: '#475569',
     conflict: '#dc2626',
+    discord: '#ef4444',
+    distrust: '#92400e',
     hostile: '#b91c1c',
+    hate: '#7f1d1d',
     controlling: '#ea580c',
+    manipulative: '#c2410c',
     jealous: '#a16207',
     cutoff: '#7f1d1d',
+    cutoff_repaired: '#0f766e',
     fused: '#7c3aed',
     close_hostile: '#be123c',
+    distant_hostile: '#9f1239',
     fused_hostile: '#9333ea',
     abusive: '#b91c1c',
+    physical_abuse: '#991b1b',
+    emotional_abuse: '#be185d',
+    sexual_abuse: '#86198f',
+    neglect: '#78350f',
     violence: '#991b1b',
+    distant_violence: '#7f1d1d',
+    close_violence: '#b91c1c',
+    fused_violence: '#581c87',
+    focused_on: '#2563eb',
+    focused_negative: '#dc2626',
+    never_met: '#9ca3af',
+    fan: '#0d9488',
+    limerence: '#db2777',
     unknown: '#334155',
   }[relationship.quality || 'unknown']
   const dash = {
+    indifferent: '2 7',
     distant: '7 7',
+    poor: '7 7',
     conflict: '6 4',
+    discord: '6 4',
+    distrust: '12 5',
     hostile: '10 3 3 3',
     controlling: '3 3',
+    manipulative: '3 3',
     jealous: '12 4 2 4',
     cutoff: '3 8',
+    cutoff_repaired: '10 4 2 4',
     close_hostile: '2 3',
+    distant_hostile: '8 5 2 5',
     fused_hostile: '8 2 2 2',
+    distant_violence: '8 5',
+    focused_negative: '4 3',
+    never_met: '2 6',
     violence: '',
     former_partner: '9 5',
   }[relationship.quality] || (relationship.type === 'former_partner' ? '9 5' : '')
   return { color, dash }
+}
+
+function personX(person) {
+  return Number(person?.x) || 0
+}
+
+function personY(person) {
+  return Number(person?.y) || 0
+}
+
+function topEdge(person) {
+  return personY(person) - (person?.gender === 'unknown' ? 27 : 23)
+}
+
+function bottomEdge(person) {
+  return personY(person) + (person?.gender === 'unknown' ? 27 : 23)
+}
+
+function buildFamilyLayout(relationships, peopleById) {
+  const parentChild = relationships.filter((rel) => rel.type === 'parent_child')
+  const parentChildIds = new Set()
+  const renderedIds = new Set()
+  const childToParents = new Map()
+  const parentChildByPair = new Map()
+
+  parentChild.forEach((rel) => {
+    if (!peopleById.has(rel.from) || !peopleById.has(rel.to)) return
+    const parents = childToParents.get(rel.to) || new Set()
+    parents.add(rel.from)
+    childToParents.set(rel.to, parents)
+    parentChildByPair.set(`${rel.from}:${rel.to}`, rel)
+    parentChildIds.add(rel.id)
+  })
+
+  const branches = relationships
+    .filter((rel) => rel.type === 'partner' || rel.type === 'former_partner')
+    .map((partnerRel) => {
+      const parentA = peopleById.get(partnerRel.from)
+      const parentB = peopleById.get(partnerRel.to)
+      if (!parentA || !parentB) return null
+
+      const children = []
+      childToParents.forEach((parents, childId) => {
+        if (parents.has(partnerRel.from) && parents.has(partnerRel.to)) {
+          const child = peopleById.get(childId)
+          if (child) children.push(child)
+        }
+      })
+      children.sort((a, b) => personX(a) - personX(b))
+
+      renderedIds.add(partnerRel.id)
+      children.forEach((child) => {
+        const first = parentChildByPair.get(`${partnerRel.from}:${child.id}`)
+        const second = parentChildByPair.get(`${partnerRel.to}:${child.id}`)
+        if (first) renderedIds.add(first.id)
+        if (second) renderedIds.add(second.id)
+      })
+
+      return { partnerRel, parentA, parentB, children }
+    })
+    .filter(Boolean)
+
+  const looseParentChild = parentChild.filter((rel) => !renderedIds.has(rel.id))
+  const sibling = relationships.filter((rel) => rel.type === 'sibling')
+  sibling.forEach((rel) => renderedIds.add(rel.id))
+
+  return { branches, looseParentChild, sibling, renderedIds, parentChildIds }
 }
 
 function PersonSymbol({ person, selected, onPointerDown, onClick }) {
@@ -204,6 +361,7 @@ export default function Genogram() {
     map.people.forEach((person) => out.set(person.id, person))
     return out
   }, [map.people])
+  const familyLayout = useMemo(() => buildFamilyLayout(map.relationships, peopleById), [map.relationships, peopleById])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -258,6 +416,153 @@ export default function Genogram() {
     setMap((current) => ({ ...current, people: [...current.people, next] }))
     setSelectedId(next.id)
     setMode('select')
+  }
+
+  function addFamilyUnit() {
+    const baseX = 430 + (map.people.length % 2) * 260
+    const baseY = 175 + Math.floor(map.people.length / 6) * 230
+    const parentA = {
+      id: uid('person'),
+      name: '',
+      role: 'parent',
+      gender: 'male',
+      age: '',
+      birthYear: '',
+      x: baseX - 95,
+      y: baseY,
+      tags: [],
+      notes: '',
+    }
+    const parentB = {
+      id: uid('person'),
+      name: '',
+      role: 'parent',
+      gender: 'female',
+      age: '',
+      birthYear: '',
+      x: baseX + 95,
+      y: baseY,
+      tags: [],
+      notes: '',
+    }
+    const child = {
+      id: uid('person'),
+      name: '',
+      role: 'child',
+      gender: 'unknown',
+      age: '',
+      birthYear: '',
+      x: baseX,
+      y: baseY + 155,
+      tags: [],
+      notes: '',
+    }
+    const relationships = [
+      { id: uid('relationship'), from: parentA.id, to: parentB.id, type: 'partner', quality: 'plain', label: '', notes: '' },
+      { id: uid('relationship'), from: parentA.id, to: child.id, type: 'parent_child', quality: 'plain', label: '', notes: '' },
+      { id: uid('relationship'), from: parentB.id, to: child.id, type: 'parent_child', quality: 'plain', label: '', notes: '' },
+    ]
+    setMap((current) => ({
+      ...current,
+      people: [...current.people, parentA, parentB, child],
+      relationships: [...current.relationships, ...relationships],
+    }))
+    setSelectedId(child.id)
+    setMode('select')
+  }
+
+  function addParentsForSelected() {
+    if (!selectedPerson) return
+    const x = personX(selectedPerson)
+    const y = personY(selectedPerson)
+    const parentA = {
+      id: uid('person'),
+      name: '',
+      role: 'parent',
+      gender: 'male',
+      age: '',
+      birthYear: '',
+      x: x - 95,
+      y: y - 155,
+      tags: [],
+      notes: '',
+    }
+    const parentB = {
+      id: uid('person'),
+      name: '',
+      role: 'parent',
+      gender: 'female',
+      age: '',
+      birthYear: '',
+      x: x + 95,
+      y: y - 155,
+      tags: [],
+      notes: '',
+    }
+    const relationships = [
+      { id: uid('relationship'), from: parentA.id, to: parentB.id, type: 'partner', quality: 'plain', label: '', notes: '' },
+      { id: uid('relationship'), from: parentA.id, to: selectedPerson.id, type: 'parent_child', quality: 'plain', label: '', notes: '' },
+      { id: uid('relationship'), from: parentB.id, to: selectedPerson.id, type: 'parent_child', quality: 'plain', label: '', notes: '' },
+    ]
+    setMap((current) => ({
+      ...current,
+      people: [...current.people, parentA, parentB],
+      relationships: [...current.relationships, ...relationships],
+    }))
+    setSelectedId(parentA.id)
+  }
+
+  function addChildForSelected() {
+    if (!selectedPerson) return
+    const child = {
+      id: uid('person'),
+      name: '',
+      role: 'child',
+      gender: 'unknown',
+      age: '',
+      birthYear: '',
+      x: personX(selectedPerson),
+      y: personY(selectedPerson) + 155,
+      tags: [],
+      notes: '',
+    }
+    const relationship = { id: uid('relationship'), from: selectedPerson.id, to: child.id, type: 'parent_child', quality: 'plain', label: '', notes: '' }
+    setMap((current) => ({
+      ...current,
+      people: [...current.people, child],
+      relationships: [...current.relationships, relationship],
+    }))
+    setSelectedId(child.id)
+  }
+
+  function addChildToSelectedCouple() {
+    if (!selectedRelationship || !['partner', 'former_partner'].includes(selectedRelationship.type)) return
+    const parentA = peopleById.get(selectedRelationship.from)
+    const parentB = peopleById.get(selectedRelationship.to)
+    if (!parentA || !parentB) return
+    const existingChildren = familyLayout.branches.find((branch) => branch.partnerRel.id === selectedRelationship.id)?.children || []
+    const child = {
+      id: uid('person'),
+      name: '',
+      role: 'child',
+      gender: 'unknown',
+      age: '',
+      birthYear: '',
+      x: (personX(parentA) + personX(parentB)) / 2 + existingChildren.length * 70,
+      y: Math.max(personY(parentA), personY(parentB)) + 155,
+      tags: [],
+      notes: '',
+    }
+    const relationships = [
+      { id: uid('relationship'), from: parentA.id, to: child.id, type: 'parent_child', quality: 'plain', label: '', notes: '' },
+      { id: uid('relationship'), from: parentB.id, to: child.id, type: 'parent_child', quality: 'plain', label: '', notes: '' },
+    ]
+    setMap((current) => ({
+      ...current,
+      people: [...current.people, child],
+      relationships: [...current.relationships, ...relationships],
+    }))
+    setSelectedId(child.id)
   }
 
   function addAnnotation() {
@@ -521,16 +826,25 @@ export default function Genogram() {
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Tools</p>
             <div className="grid grid-cols-5 gap-2">
               <ToolbarButton active={mode === 'select'} onClick={() => setMode('select')} title="Select and move">
-                <span className="text-sm font-bold">↖</span>
+                <span className="text-sm font-bold">S</span>
               </ToolbarButton>
               <ToolbarButton active={mode === 'relationship'} onClick={() => setMode('relationship')} title="Connect two people">
-                <span className="text-sm font-bold">⟷</span>
+                <span className="text-sm font-bold">L</span>
               </ToolbarButton>
               <ToolbarButton onClick={() => addPerson('client')} title="Add identified client">
-                <span className="text-sm font-bold">□</span>
+                <span className="text-sm font-bold">IC</span>
               </ToolbarButton>
               <ToolbarButton onClick={() => addPerson('other')} title="Add person">
-                <span className="text-sm font-bold">○</span>
+                <span className="text-sm font-bold">P</span>
+              </ToolbarButton>
+              <ToolbarButton onClick={addFamilyUnit} title="Add parent couple with child">
+                <span className="text-[11px] font-bold">FAM</span>
+              </ToolbarButton>
+              <ToolbarButton onClick={addParentsForSelected} title="Add two parents above selected person">
+                <span className="text-[11px] font-bold">PAR</span>
+              </ToolbarButton>
+              <ToolbarButton onClick={addChildForSelected} title="Add child below selected person">
+                <span className="text-[11px] font-bold">CH</span>
               </ToolbarButton>
               <ToolbarButton onClick={addAnnotation} title="Add note">
                 <span className="text-sm font-bold">T</span>
@@ -641,9 +955,106 @@ export default function Genogram() {
                 <path d="M 38 0 L 0 0 0 38" fill="none" stroke="#e5e7eb" strokeWidth="1" />
               </pattern>
             </defs>
+            <rect width="1200" height="760" fill="#ffffff" />
             <rect width="1200" height="760" fill="url(#grid)" />
 
+            {familyLayout.branches.map(({ partnerRel, parentA, parentB, children }) => {
+              const stroke = relationshipStroke(partnerRel)
+              const parentLineY = Math.max(bottomEdge(parentA), bottomEdge(parentB)) + 24
+              const childLineY = children.length > 0
+                ? Math.min(...children.map((child) => topEdge(child))) - 28
+                : parentLineY
+              const midX = (personX(parentA) + personX(parentB)) / 2
+              const childXs = children.map((child) => personX(child))
+              const childMinX = childXs.length ? Math.min(...childXs) : midX
+              const childMaxX = childXs.length ? Math.max(...childXs) : midX
+              return (
+                <g key={partnerRel.id} onClick={(event) => { event.stopPropagation(); setSelectedId(partnerRel.id) }} className="cursor-pointer">
+                  <path
+                    d={`M ${personX(parentA)} ${bottomEdge(parentA)} V ${parentLineY} H ${personX(parentB)} V ${bottomEdge(parentB)}`}
+                    fill="none"
+                    stroke={stroke.color}
+                    strokeWidth={selectedId === partnerRel.id ? 5 : 3}
+                    strokeDasharray={stroke.dash}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  {children.length > 0 && (
+                    <>
+                      <path
+                        d={`M ${midX} ${parentLineY} V ${childLineY} M ${childMinX} ${childLineY} H ${childMaxX}`}
+                        fill="none"
+                        stroke="#111827"
+                        strokeWidth="3"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
+                      {children.map((child) => (
+                        <path
+                          key={`${partnerRel.id}-${child.id}`}
+                          d={`M ${personX(child)} ${childLineY} V ${topEdge(child)}`}
+                          fill="none"
+                          stroke="#111827"
+                          strokeWidth="3"
+                          strokeLinecap="round"
+                        />
+                      ))}
+                    </>
+                  )}
+                  {(partnerRel.label || partnerRel.quality !== 'plain') && (
+                    <text x={midX} y={parentLineY - 8} textAnchor="middle" className="fill-gray-700 text-[12px] font-semibold">
+                      {partnerRel.label || partnerRel.quality}
+                    </text>
+                  )}
+                </g>
+              )
+            })}
+
+            {familyLayout.looseParentChild.map((relationship) => {
+              const from = peopleById.get(relationship.from)
+              const to = peopleById.get(relationship.to)
+              if (!from || !to) return null
+              const midY = (bottomEdge(from) + topEdge(to)) / 2
+              return (
+                <g key={relationship.id} onClick={(event) => { event.stopPropagation(); setSelectedId(relationship.id) }} className="cursor-pointer">
+                  <path
+                    d={`M ${personX(from)} ${bottomEdge(from)} V ${midY} H ${personX(to)} V ${topEdge(to)}`}
+                    fill="none"
+                    stroke="#111827"
+                    strokeWidth={selectedId === relationship.id ? 5 : 3}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                  {relationship.label && (
+                    <text x={(personX(from) + personX(to)) / 2} y={midY - 8} textAnchor="middle" className="fill-gray-700 text-[12px] font-semibold">
+                      {relationship.label}
+                    </text>
+                  )}
+                </g>
+              )
+            })}
+
+            {familyLayout.sibling.map((relationship) => {
+              const from = peopleById.get(relationship.from)
+              const to = peopleById.get(relationship.to)
+              if (!from || !to) return null
+              const y = Math.min(topEdge(from), topEdge(to)) - 24
+              return (
+                <g key={relationship.id} onClick={(event) => { event.stopPropagation(); setSelectedId(relationship.id) }} className="cursor-pointer">
+                  <path
+                    d={`M ${personX(from)} ${topEdge(from)} V ${y} H ${personX(to)} V ${topEdge(to)}`}
+                    fill="none"
+                    stroke="#111827"
+                    strokeWidth={selectedId === relationship.id ? 5 : 3}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </g>
+              )
+            })}
+
             {map.relationships.map((relationship) => {
+              if (familyLayout.renderedIds.has(relationship.id) || familyLayout.parentChildIds.has(relationship.id)) return null
               const from = peopleById.get(relationship.from)
               const to = peopleById.get(relationship.to)
               if (!from || !to) return null
@@ -758,6 +1169,14 @@ export default function Genogram() {
                   <label className="label text-xs">Notes</label>
                   <textarea className="textarea min-h-[90px] text-sm" value={selectedPerson.notes || ''} onChange={(e) => updatePerson(selectedPerson.id, { notes: e.target.value })} />
                 </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" className="btn-secondary justify-center text-xs" onClick={addParentsForSelected}>
+                    Add parents
+                  </button>
+                  <button type="button" className="btn-secondary justify-center text-xs" onClick={addChildForSelected}>
+                    Add child
+                  </button>
+                </div>
               </div>
             ) : selectedRelationship ? (
               <div className="space-y-3">
@@ -775,6 +1194,11 @@ export default function Genogram() {
                 </div>
                 <input className="input py-2 text-sm" placeholder="Label" value={selectedRelationship.label || ''} onChange={(e) => updateRelationship(selectedRelationship.id, { label: e.target.value })} />
                 <textarea className="textarea min-h-[90px] text-sm" placeholder="Relationship notes" value={selectedRelationship.notes || ''} onChange={(e) => updateRelationship(selectedRelationship.id, { notes: e.target.value })} />
+                {['partner', 'former_partner'].includes(selectedRelationship.type) && (
+                  <button type="button" className="btn-secondary w-full justify-center text-xs" onClick={addChildToSelectedCouple}>
+                    Add child to this couple
+                  </button>
+                )}
               </div>
             ) : (
               <p className="text-sm text-gray-500">Select a person or relationship to edit details. Use the connect tool to add emotional or family lines.</p>

@@ -30,6 +30,7 @@ describe('trainee navigation smoke tests', () => {
       'Consult',
       'Supervision',
       'Cases',
+      'Apps',
       'Hours',
       'Learning',
       'Resources',
