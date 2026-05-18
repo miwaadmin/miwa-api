@@ -177,19 +177,72 @@ function normalizeOngoingAudioFields(fields = {}) {
   };
 }
 
-async function buildOngoingSessionDraftFromTranscript(transcript, therapistId) {
+function parseRelationalMembers(value) {
+  if (Array.isArray(value)) return value.map(String).map(s => s.trim()).filter(Boolean);
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value);
+    if (Array.isArray(parsed)) return parsed.map(String).map(s => s.trim()).filter(Boolean);
+  } catch {}
+  return String(value)
+    .split(/\r?\n|,/)
+    .map(s => s.trim())
+    .filter(Boolean);
+}
+
+function relationalCaseType(value) {
+  const type = String(value || '').toLowerCase();
+  if (type === 'couple' || type === 'family' || type === 'group') return type;
+  return '';
+}
+
+function relationalContextBlock({ caseType, members, patientContext } = {}) {
+  const type = relationalCaseType(caseType);
+  const memberList = parseRelationalMembers(members);
+  const lines = [];
+  if (patientContext) lines.push(`Existing chart context:\n${patientContext}`);
+  if (type) lines.push(`Relational case type: ${type}`);
+  if (memberList.length) lines.push(`Named participants / family members: ${memberList.join('; ')}`);
+  return lines.join('\n');
+}
+
+function relationalDocumentationRules({ caseType, members } = {}) {
+  const type = relationalCaseType(caseType);
+  const memberList = parseRelationalMembers(members);
+  if (!type && memberList.length < 2) return '';
+  const participantPhrase = memberList.length
+    ? `Use these participant labels when supported by the source: ${memberList.join('; ')}.`
+    : 'Identify each participant by role/label when supported by the source.';
+  return `
+
+RELATIONAL / MULTI-PERSON DOCUMENTATION RULES:
+- This is a ${type || 'relational'} case, not a single-client case. These rules apply to couples, families, and groups. Do not default to "client" as though only one person attended.
+- ${participantPhrase}
+- Separate the therapist/clinician voice from participant voices. Therapist questions, reflections, observations, and interventions belong in intervention/objective sections, not as participant self-report.
+- Document the family/couple system, dyads, coalitions, alliances, boundaries, loyalty conflicts, parent-child dynamics, and subsystem strain when supported.
+- When summarizing speech or self-report, attribute it to the correct participant or role when the transcript/source supports it (e.g., "Partner A stated...", "mother reported...", "adolescent stated...", "stepfather described..."). If the speaker is unclear, write "one partner reported," "a parent reported," or "a family member reported" rather than inventing identity.
+- For recordings/transcripts, preserve explicit speaker labels when present (Therapist, clinician, partner names, parent/child roles). Infer speaker identity only from explicit names, roles, turn-taking cues, or clinician labels. Do not guess from voice, age, gender, or stereotypes.
+- Include a brief participant/system map in the documentation when clinically relevant, so downstream genogram drafting can identify people and relationships.
+- Avoid individual-only phrasing such as "the client reports" unless referring to the identified client specifically. Prefer "the couple described," "the family reports," "both partners reported," or named member labels.`;
+}
+
+async function buildOngoingSessionDraftFromTranscript(transcript, therapistId, relationalContext = {}) {
+  const relationalBlock = relationalContextBlock(relationalContext);
+  const relationalRules = relationalDocumentationRules(relationalContext);
   const prompt = `Extract the clinical content from this session transcript into the exact workspace fields below. Do not summarize everything into one field. Put each fact in the most clinically appropriate field. Use professional clinical language and complete sentences. Do not invent information.
+${relationalBlock ? `\n${relationalBlock}\n` : ''}
 
 Field guidance:
 - presentingProblem: brief presenting concern only if clearly stated.
 - treatmentGoal: treatment goal or therapeutic aim only if clearly stated.
-- sessionNotes: concise source-note summary of session themes, not the full transcript.
+- sessionNotes: concise source-note summary of session themes, not the full transcript. For relational cases, include participant names/roles and relationship dynamics supported by the transcript.
 - ongoingSituation: current presentation, symptoms, stressors, session focus, and medical necessity.
 - ongoingInterventions: clinician interventions, modality, psychoeducation, skills practice, safety planning, questions, reframes, validation, or clinical rationale.
-- ongoingResponse: client engagement, affective/behavioral response, insight, resistance, regulation, progress, or barriers.
+- ongoingResponse: client/family/couple engagement, affective/behavioral response, insight, resistance, regulation, progress, or barriers.
 - ongoingRiskSafety: SI/HI/self-harm/substance/DV/abuse/safety concerns, protective factors, or state that risk was not assessed in the transcript if absent.
 - ongoingFunctioningMedicalNecessity: impairment across home, school/work, relationships, ADLs, symptom impact, and why treatment is indicated.
 - ongoingPlanHomework: plan, homework, next session focus, referrals, coordination, follow-up, or empty string if not discussed.
+${relationalRules}
 
 Return ONLY valid JSON with these exact keys:
 {
@@ -211,7 +264,7 @@ ${transcript}`;
   const styleHints = await getStyleHintsForPrompt(therapistId);
   const raw = await callAI(
     MODELS.AZURE_MAIN,
-    'You are a clinical documentation assistant that extracts transcribed psychotherapy session content into structured workspace fields. Keep PHI only inside the returned clinical fields. Never add facts not supported by the transcript.' + styleHints,
+    'You are a clinical documentation assistant that extracts transcribed psychotherapy session content into structured workspace fields. Keep PHI only inside the returned clinical fields. Never add facts not supported by the transcript. For family/couple/group sessions, preserve participant attribution and systemic relationship dynamics instead of flattening everyone into a single client.' + styleHints,
     prompt,
     2200,
     { therapistId, kind: 'audio_import_ongoing_parse' }
@@ -642,7 +695,10 @@ router.post('/audio-import', upload.single('file'), async (req, res) => {
 
     let workspaceFields = normalizeOngoingAudioFields();
     try {
-      workspaceFields = await buildOngoingSessionDraftFromTranscript(transcript, req.therapist.id);
+      workspaceFields = await buildOngoingSessionDraftFromTranscript(transcript, req.therapist.id, {
+        caseType: req.body?.caseType,
+        members: req.body?.members,
+      });
     } catch (parseErr) {
       console.error('[audio-import] ongoing parse failed:', parseErr.message);
     }
@@ -781,6 +837,13 @@ router.post('/dictate-session', upload.single('audio'), async (req, res) => {
 
     const transcript = scrubText(rawTranscript);
     const verbosity = req.body?.verbosity || 'standard';
+    const relationalContext = {
+      caseType: req.body?.caseType,
+      members: req.body?.members,
+      patientContext: req.body?.patientContext,
+    };
+    const relationalBlock = relationalContextBlock(relationalContext);
+    const relationalRules = relationalDocumentationRules(relationalContext);
 
     const verbosityRule = {
       concise: 'VERBOSITY: CONCISE — Each field 1-2 sentences MAX. Use clinical shorthand and abbreviations (Pt, Dx, Tx, SI, HI, c/o, w/, r/t). No filler. Write in complete sentences and paragraph form, not bullets.',
@@ -791,6 +854,7 @@ router.post('/dictate-session', upload.single('audio'), async (req, res) => {
     const dictateSystemPrompt = `You are a clinical documentation assistant for licensed therapists. Parse a verbal session summary or transcript into chart-ready progress notes in SOAP, BIRP, DAP, GIRP, and DMH_SIR formats.
 
 ${verbosityRule}
+${relationalRules}
 
 CRITICAL GUIDELINES:
 
@@ -798,14 +862,14 @@ CRITICAL GUIDELINES:
    Analyze the transcript carefully for OBSERVABLE behavioral indicators:
    - Speech: rate (rapid/slow/normal), volume (soft/loud), coherence, pressured speech, latency
    - Affect: congruent/incongruent with mood, range (full/restricted/flat/blunted/labile), tearfulness
-   - Mood: as stated by client AND as observed (anxious, depressed, irritable, euthymic, elevated)
+   - Mood: as stated by participant(s) AND as observed (anxious, depressed, irritable, euthymic, elevated)
    - Thought process: linear/goal-directed, tangential, circumstantial, disorganized, perseverative
    - Thought content: suicidal ideation (SI), homicidal ideation (HI), delusions, obsessions — note presence or DENIAL
    - Engagement: cooperative, guarded, resistant, avoidant, forthcoming, defensive
    - Insight: good/fair/poor — does client recognize their patterns?
    - Judgment: intact/impaired — are they making reasonable decisions?
    - Behavioral cues from transcript: topic avoidance, emotional shifts, crying, anger, shutting down
-   - If the clinician mentions any observations (e.g., "client was tearful", "seemed agitated"), include them verbatim.
+   - If the clinician mentions any observations (e.g., "partner was tearful", "mother seemed agitated"), include them verbatim with the participant label when available.
    - Mark anything you inferred from speech patterns with [observed from transcript] so clinician can verify.
 
 2. Write CONCISE clinical notes — NOT transcript summaries. Each field 2-5 sentences max.
@@ -813,7 +877,7 @@ CRITICAL GUIDELINES:
 Return ONLY valid JSON — no markdown, no explanation:
 {
   "SOAP": {
-    "subjective": "Client self-report in their own words: presenting concerns, mood, symptoms, stressors. What the client SAYS. 2-4 sentences.",
+    "subjective": "Participant self-report in their own words: presenting concerns, mood, symptoms, stressors. Attribute statements to the correct participant/role when known. 2-4 sentences.",
     "objective": "Clinician observations and behavioral data: affect, mood, speech, thought process, engagement, insight, judgment, and any behavioral indicators noted during session. Include mental status observations. 3-5 sentences.",
     "assessment": "Clinical formulation: diagnostic impressions, progress toward treatment goals, risk assessment, clinical conceptualization. 2-4 sentences.",
     "plan": "Treatment plan updates: interventions for next session, homework assigned, referrals, safety planning if needed, follow-up timeline."
@@ -821,11 +885,11 @@ Return ONLY valid JSON — no markdown, no explanation:
   "BIRP": {
     "behavior": "Observable client behaviors and presentation: affect, mood, behavioral patterns discussed, interpersonal dynamics observed, symptoms manifested during session. 3-5 sentences.",
     "intervention": "Therapeutic interventions applied: specific techniques (CBT, MI, DBT skills, etc.), psychoeducation provided, topics explored, therapeutic stance. 2-4 sentences.",
-    "response": "Client's response to interventions: engagement level, emotional reactions, insight demonstrated, resistance noted, breakthroughs or setbacks. 2-4 sentences.",
+    "response": "Participant/couple/family response to interventions: engagement level, emotional reactions, insight demonstrated, resistance noted, breakthroughs or setbacks. 2-4 sentences.",
     "plan": "Next steps: continued interventions, homework, session frequency, referrals, safety considerations."
   },
   "DAP": {
-    "data": "Combined objective and subjective data: what client reported AND what clinician observed. Include behavioral observations, affect, mood, speech patterns, engagement level alongside client's self-report. 4-6 sentences.",
+    "data": "Combined objective and subjective data: what participant(s) reported AND what clinician observed. Include behavioral observations, affect, mood, speech patterns, engagement level alongside attributed self-report. 4-6 sentences.",
     "assessment": "Clinical interpretation: progress toward goals, diagnostic considerations, risk level, treatment effectiveness. 2-4 sentences.",
     "plan": "Treatment plan updates: next session focus, homework, referrals, safety planning."
   },
@@ -838,7 +902,7 @@ Return ONLY valid JSON — no markdown, no explanation:
   "DMH_SIR": {
     "situation": "Situation / Presentation: client's presentation, symptoms, stressors, clinical focus, and why the session was medically necessary today. 3-5 sentences.",
     "interventions": "Interventions Used: specific clinician interventions, modality, skills practice, psychoeducation, safety planning, linkage/collateral work, and clinical rationale. 3-5 sentences.",
-    "response": "Client Response: engagement, affective/behavioral response, insight, resistance, regulation, skill use, progress, or barriers. 2-4 sentences.",
+    "response": "Participant/Couple/Family Response: engagement, affective/behavioral response, insight, resistance, regulation, skill use, progress, or barriers. 2-4 sentences.",
     "risk_safety": "Risk / Safety Update: SI/HI/self-harm/substance/DV/abuse updates, protective factors, safety plan changes, crisis resources, or rationale if no acute risk was indicated. 2-4 sentences.",
     "functioning_medical_necessity": "Functioning / Medical Necessity: symptom impact and functional impairment across home, work/school, relationships, ADLs, level-of-care rationale, and why ongoing treatment remains indicated. 2-4 sentences.",
     "plan_homework": "Plan / Homework / Next Steps: next session focus, homework, referrals, assessments, coordination, frequency, and follow-up plan. 2-4 sentences."
@@ -850,6 +914,7 @@ Rules:
 - CONCISE but CLINICALLY RICH. Quality over brevity.
 - For Objective/Behavior sections: ALWAYS include affect, mood, thought process, engagement, and insight even if you have to infer from speech patterns. Mark inferences.
 - Extract ONLY what is stated or reasonably observable. Do not fabricate symptoms not mentioned.
+- For couples/families/groups, keep participant voices distinct from the therapist's voice and from each other.
 - Use professional clinical language. Abbreviations OK (Pt, Dx, Tx, SI, HI, MSE).
 - If risk-relevant content is present (SI, HI, self-harm, DV), ALWAYS document it in assessment + plan.
 - Empty string "" if a section truly has no relevant content.
@@ -865,7 +930,7 @@ Rules:
     const rawDictate = await callAI(
       MODELS.AZURE_MAIN,
       dictateSystemPrompt + styleHints,
-      `Session transcript/summary:\n${transcript}`,
+      `${relationalBlock ? `${relationalBlock}\n\n` : ''}Session transcript/summary:\n${transcript}`,
       3000,
       { therapistId: req.therapist.id, kind: 'dictate_session' }
     );
@@ -1607,7 +1672,7 @@ router.post('/workspace', async (req, res) => {
     const _b2 = scrubObject(req.body);
     const {
       sessionType,
-      caseType, noteFormat, therapeuticOrientation,
+      caseType, members, noteFormat, therapeuticOrientation,
       presentingProblem, treatmentGoal, sessionNotes,
       ongoingSituation, ongoingInterventions, ongoingResponse,
       ongoingRiskSafety, ongoingFunctioningMedicalNecessity, ongoingPlanHomework,
@@ -1636,6 +1701,10 @@ router.post('/workspace', async (req, res) => {
     const userRole = req.therapist.user_role || 'licensed';
     const isTrainee = userRole === 'trainee';
     const isIntake = sessionType === 'intake';
+    const memberList = parseRelationalMembers(members);
+    const memberLine = memberList.length ? memberList.join('; ') : '(not provided)';
+    const relationalContext = { caseType, members };
+    const relationalRules = relationalDocumentationRules(relationalContext);
     const intakeAddonsList = Array.isArray(intakeAddons)
       ? intakeAddons
       : String(intakeAddons || '').split(',').map(item => item.trim()).filter(Boolean);
@@ -1667,6 +1736,7 @@ ${isIntake
 
 **Intake Information:**
 - Case Type: ${caseType || 'Individual'}
+- Participants / Members: ${memberLine}
 - Therapeutic Orientation: ${therapeuticOrientation || 'Integrative'}
 - Clinician Role: ${isTrainee ? 'Trainee / Pre-Licensed' : 'Licensed Clinician'}
 - Intake Depth: ${intakeLevel || 'standard'}
@@ -1723,6 +1793,8 @@ ${isIntake
 - Emergency Contacts / Availability: ${emergencyContactsAvailability || '(not provided)'}
 - Child / Youth Detail: ${childYouthDetail || '(not provided)'}
 - Initial Treatment Goals: ${treatmentGoal || '(not provided)'}
+
+${relationalRules}
 
 Return exactly five sections using these markers (do not change the markers):
 
@@ -1795,6 +1867,7 @@ Formatting rules for ALL sections:
 
 **Session Context:**
 - Case Type: ${caseType || 'Individual'}
+- Participants / Members: ${memberLine}
 - Note Format: ${noteFormat || 'SOAP'}
 - Therapeutic Orientation: ${therapeuticOrientation || 'Integrative'}
 - Clinician Role: ${isTrainee ? 'Trainee / Pre-Licensed' : 'Licensed Clinician'}
@@ -1808,6 +1881,8 @@ Formatting rules for ALL sections:
 - DMH/SIR Plan / Homework / Next Steps: ${ongoingPlanHomework || '(not provided)'}
 - Session Notes / Bullet Points:
 ${sessionNotes || '(not provided)'}
+
+${relationalRules}
 
 Return exactly four sections using these markers (do not change the markers):
 

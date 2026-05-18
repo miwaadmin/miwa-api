@@ -10,7 +10,17 @@ import { renderClinical } from '../lib/renderClinical'
 import { isAgencyCompanionMode } from '../lib/workspaceMode'
 
 // ── Dictation Panel ─────────────────────────────────────────────────────────
-function DictationPanel({ onApply, onClose }) {
+function parsePatientMembers(value) {
+  if (Array.isArray(value)) return value.map(String).map(v => v.trim()).filter(Boolean)
+  if (!value) return []
+  try {
+    const parsed = JSON.parse(value)
+    if (Array.isArray(parsed)) return parsed.map(String).map(v => v.trim()).filter(Boolean)
+  } catch {}
+  return String(value).split(/\r?\n|,/).map(v => v.trim()).filter(Boolean)
+}
+
+function DictationPanel({ onApply, onClose, patientContext = '', caseType = 'individual', members = [] }) {
   const [phase, setPhase] = useState('idle') // idle | recording | processing | done | error
   const [errorMsg, setErrorMsg] = useState('')
   const [transcript, setTranscript] = useState('')
@@ -44,6 +54,9 @@ function DictationPanel({ onApply, onClose }) {
           const blob = new Blob(chunksRef.current, { type: mimeType })
           const fd = new FormData()
           fd.append('audio', blob, 'dictation.webm')
+          fd.append('patientContext', patientContext)
+          fd.append('caseType', caseType || 'individual')
+          fd.append('members', JSON.stringify(members || []))
           const API = API_BASE
           const res = await fetch(`${API}/ai/dictate-session`, {
             method: 'POST',
@@ -104,7 +117,7 @@ function DictationPanel({ onApply, onClose }) {
       {phase === 'idle' && (
         <div className="text-center py-4">
           <p className="text-xs text-gray-500 mb-4">
-            Briefly describe what happened in the session, the client's mood, what you worked on, how they responded, and your next steps.
+            Briefly describe what happened in the session, who was present, what each participant shared, what you worked on, how they responded, and your next steps.
           </p>
           <button
             onClick={startRecording}
@@ -794,8 +807,18 @@ export default function SessionNote() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  const patientMembers = parsePatientMembers(patient?.members)
+  const patientCaseType = patient?.case_type || patient?.client_type || 'individual'
   const patientContext = patient
-    ? `Client ID: ${patient.client_id}\nAge: ${patient.age || 'N/A'}\nGender: ${patient.gender || 'N/A'}\nPresenting Concerns: ${patient.presenting_concerns || 'N/A'}\nCurrent Diagnoses: ${patient.diagnoses || 'N/A'}`
+    ? [
+        `Client ID: ${patient.client_id}`,
+        `Case Type: ${patientCaseType}`,
+        patientMembers.length ? `Participants / Members: ${patientMembers.join('; ')}` : '',
+        `Age: ${patient.age || 'N/A'}`,
+        `Gender: ${patient.gender || 'N/A'}`,
+        `Presenting Concerns: ${patient.presenting_concerns || 'N/A'}`,
+        `Current Diagnoses: ${patient.diagnoses || 'N/A'}`,
+      ].filter(Boolean).join('\n')
     : ''
 
   const setField = (key, value) => {
@@ -1378,6 +1401,9 @@ export default function SessionNote() {
                 <DictationPanel
                   onApply={handleDictationApply}
                   onClose={() => setShowDictation(false)}
+                  patientContext={patientContext}
+                  caseType={patientCaseType}
+                  members={patientMembers}
                 />
               </div>
             )}

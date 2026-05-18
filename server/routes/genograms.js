@@ -22,6 +22,16 @@ function safeJsonParse(value, fallback) {
   }
 }
 
+function parseMembers(value) {
+  const parsed = safeJsonParse(value, null);
+  const source = Array.isArray(parsed) ? parsed : (Array.isArray(value) ? value : []);
+  if (source.length) return source.map(String).map((item) => item.trim()).filter(Boolean);
+  return String(value || '')
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
 function normalizeMap(value) {
   const map = value && typeof value === 'object' ? value : {};
   return {
@@ -59,9 +69,11 @@ async function getGenogram(db, patientId, therapistId) {
 }
 
 function familyText(patient, sessions) {
+  const members = parseMembers(patient.members);
   const chunks = [
-    `Client: ${patient.display_name || patient.client_id || ''}`,
+    `Identified client/system: ${patient.display_name || patient.client_id || ''}`,
     `Case type: ${patient.case_type || patient.client_type || ''}`,
+    `Members/participants: ${members.join('; ')}`,
     `Age/gender: ${[patient.age || patient.age_range, patient.gender].filter(Boolean).join(', ')}`,
     `Presenting concerns: ${patient.presenting_concerns || ''}`,
     `Family/social history: ${patient.family_social_history || ''}`,
@@ -84,25 +96,55 @@ function familyText(patient, sessions) {
 
 function fallbackDraft(patient) {
   const displayName = patient.display_name || patient.client_id || 'Client';
-  const person = {
-    id: `person-${Date.now()}`,
-    name: displayName,
-    role: 'client',
-    gender: String(patient.gender || '').toLowerCase().includes('female') ? 'female'
-      : String(patient.gender || '').toLowerCase().includes('male') ? 'male'
-        : 'unknown',
-    birthYear: '',
-    age: patient.age || patient.age_range || '',
-    x: 420,
-    y: 330,
-    tags: ['identified-client'],
-    notes: patient.presenting_concerns || '',
+  const members = parseMembers(patient.members);
+  const caseType = String(patient.case_type || patient.client_type || '').toLowerCase();
+  const guessRole = (label, index) => {
+    const text = String(label || '').toLowerCase();
+    if (text.includes('step')) return 'other';
+    if (text.includes('mother') || text.includes('mom')) return 'mother';
+    if (text.includes('father') || text.includes('dad')) return 'father';
+    if (text.includes('parent') || text.includes('caregiver')) return 'other';
+    if (text.includes('child') || text.includes('adolescent') || text.includes('teen')) return 'child';
+    if (text.includes('partner') || caseType === 'couple') return 'partner';
+    return index === 0 ? 'client' : 'other';
   };
+  const baseId = Date.now();
+  const people = members.length > 1
+    ? members.map((member, index) => ({
+        id: `person-${baseId}-${index}`,
+        name: member,
+        role: guessRole(member, index),
+        gender: 'unknown',
+        birthYear: '',
+        age: index === 0 ? (patient.age || patient.age_range || '') : '',
+        x: 300 + (index % 3) * 160,
+        y: caseType === 'family' && /child|adolescent|teen/i.test(member) ? 450 : 330,
+        tags: index === 0 ? ['identified-client'] : [],
+        notes: index === 0 ? (patient.presenting_concerns || '') : '',
+      }))
+    : [{
+        id: `person-${baseId}`,
+        name: displayName,
+        role: 'client',
+        gender: String(patient.gender || '').toLowerCase().includes('female') ? 'female'
+          : String(patient.gender || '').toLowerCase().includes('male') ? 'male'
+            : 'unknown',
+        birthYear: '',
+        age: patient.age || patient.age_range || '',
+        x: 420,
+        y: 330,
+        tags: ['identified-client'],
+        notes: patient.presenting_concerns || '',
+      }];
   return {
-    map: { ...DEFAULT_MAP, people: [person] },
-    clinicalSummary: 'Started a family map from the client chart. Add family members and relationship lines as the clinical picture develops.',
+    map: { ...DEFAULT_MAP, people },
+    clinicalSummary: members.length > 1
+      ? 'Started a relational map from the saved participant list. Add relationship lines and clinical details as the case develops.'
+      : 'Started a family map from the client chart. Add family members and relationship lines as the clinical picture develops.',
     insights: [
-      'Only chart-level data was available, so Miwa created a starter map centered on the client.',
+      members.length > 1
+        ? 'Saved participant/member labels were available, so Miwa created starter nodes for the relational system.'
+        : 'Only chart-level data was available, so Miwa created a starter map centered on the client.',
       patient.family_social_history ? 'Family/social history is present in the chart and may contain useful genogram details.' : 'No structured family/social history was found yet.',
     ],
   };
@@ -273,6 +315,7 @@ Return only valid JSON:
 
 Rules:
 - Use only facts supported by the text. Do not invent names, diagnoses, abuse, or trauma.
+- Prioritize saved Members/participants and participant-attributed session notes when creating people and relationships.
 - Use "unknown" when a person is mentioned but details are missing.
 - Put the identified client near x=420 y=330; parents above; children below; partners beside; siblings nearby.
 - Relationship quality should stay "unknown" unless clearly supported.

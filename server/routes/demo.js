@@ -355,6 +355,59 @@ const SESSION_THEMES = [
   },
 ];
 
+function relationalSessionTheme(archetype, clientType, baseTheme, sessionIndex, membersJson) {
+  if (clientType !== 'couple' && clientType !== 'family') return baseTheme;
+  let members = [];
+  try {
+    members = JSON.parse(membersJson || '[]');
+  } catch {}
+  const first = members[0] || (clientType === 'couple' ? 'Partner A' : 'Parent/caregiver');
+  const second = members[1] || (clientType === 'couple' ? 'Partner B' : 'Second caregiver');
+  const child = members.find((member) => /child|adolescent|teen/i.test(member)) || members[2] || 'adolescent child';
+
+  if (clientType === 'couple') {
+    const infidelity = /infidelity|trust/i.test(`${archetype.label} ${archetype.presenting_concerns}`);
+    const themes = [
+      {
+        subjective: infidelity
+          ? `Both partners attended. ${first} described ongoing hurt and hypervigilance after the breach of trust, while ${second} reported shame and difficulty tolerating repeated questions. The couple identified escalation around phone transparency and reassurance seeking.`
+          : `Both partners attended. ${first} reported feeling unheard during conflict, while ${second} described withdrawing to avoid making arguments worse. The couple identified a pursue-withdraw pattern that intensifies around household responsibilities and emotional bids.`,
+        objective: `Both partners were engaged but showed different regulation patterns. ${first} became tearful when describing impact, and ${second} used quieter speech and looked down during conflict discussion. Therapist slowed the exchange, reflected the cycle, and redirected partners to speak from primary emotion rather than blame.`,
+        assessment: `Couple distress is maintained by a reactive interactional cycle rather than one partner's individual symptoms alone. Both partners demonstrated capacity for insight when the cycle was named, though repair remains fragile.`,
+        plan: 'Continue couples work focused on cycle de-escalation, speaker-listener structure, and repair attempts between sessions. Assign a brief daily check-in using one feeling word and one concrete request.',
+      },
+      {
+        subjective: `The couple reported one successful pause during an argument this week. ${first} noticed the urge to pursue reassurance, and ${second} reported making an effort to stay physically present rather than leaving the room. Both partners described the change as small but meaningful.`,
+        objective: 'Partners sat closer than prior session and were able to reflect each other with coaching. Therapist reinforced the interruption of the escalation sequence and practiced a structured repair conversation in session.',
+        assessment: 'The couple is beginning to externalize the negative cycle and practice more regulated communication. Progress is present, though stress still quickly activates defensive positions.',
+        plan: 'Practice the repair script twice before next session. Track moments when each partner notices the cycle starting and what helped slow it down.',
+      },
+    ];
+    return themes[sessionIndex % themes.length];
+  }
+
+  const blended = /blended|step/i.test(`${archetype.label} ${archetype.presenting_concerns} ${archetype.treatment_goals}`);
+  const themes = [
+    {
+      subjective: blended
+        ? `Family members described ongoing tension in the blended household. ${first} reported feeling caught between supporting ${second} and protecting ${child}, while ${second} described uncertainty about authority as a stepparent. ${child} was described as testing limits and expressing loyalty concerns related to the non-residential parent.`
+        : `The family reported repeated conflict around household expectations and follow-through. ${first} described feeling overwhelmed by parenting demands, while ${second} described feeling excluded from decision-making. ${child} was described as reacting with withdrawal or irritability during limit-setting.`,
+      objective: `Family members showed a pattern of speaking over one another when discussing rules. Therapist slowed the conversation, mapped the parent/child and caregiver subsystems, and redirected members to identify each person's concern before problem-solving.`,
+      assessment: blended
+        ? 'Family stress appears connected to role ambiguity, loyalty conflicts, and a still-forming stepparent-stepchild relationship. The parent-stepparent subsystem needs strengthening before consistent household norms can hold.'
+        : 'Family distress is maintained by unclear roles, inconsistent follow-through, and escalating parent-child interaction patterns. Members were able to identify the cycle with support.',
+      plan: 'Continue family systems work focused on role clarity, caregiver alignment, and developmentally appropriate expectations. Assign a brief family meeting with one agreed household norm and one repair statement.',
+    },
+    {
+      subjective: `${first} reported a small improvement after using a calmer tone during a rules discussion. ${second} described feeling more supported when expectations were named ahead of time. ${child} was reported to remain guarded but less reactive during one family conversation.`,
+      objective: 'Family members demonstrated improved turn-taking with clinician structure. Therapist reinforced caregiver alignment, validated loyalty binds, and practiced a short repair conversation between caregiver and child roles.',
+      assessment: 'The family is showing early movement toward clearer boundaries and less reactive communication. Progress remains vulnerable when members interpret limits as rejection or control.',
+      plan: 'Review the family meeting outcome next session. Continue strengthening caregiver subsystem and supporting child/adolescent voice without placing them in the middle of adult conflict.',
+    },
+  ];
+  return themes[sessionIndex % themes.length];
+}
+
 // ── Main route ────────────────────────────────────────────────────────────────
 
 router.post('/demo-patient', requireAuth, async (req, res) => {
@@ -534,7 +587,7 @@ router.post('/demo-patient', requireAuth, async (req, res) => {
     for (let i = 0; i < numSessions; i++) {
       const daysAgo  = sessionDaysAgo[i];
       const sessDate = dateOffsetDays(today, -daysAgo);
-      const theme    = SESSION_THEMES[i % SESSION_THEMES.length];
+      const theme    = relationalSessionTheme(archetype, clientType, SESSION_THEMES[i % SESSION_THEMES.length], i, members);
 
       // Build notes_json using the same field keys the frontend expects (subjective/objective/assessment/plan)
       let notesJson = null;

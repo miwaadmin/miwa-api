@@ -122,8 +122,8 @@ function renderClinicalDocument(text) {
 
 const CLIENT_TYPE_DEFAULT_MEMBERS = {
   individual: [],
-  couple: ['Soul-1', 'Soul-2'],
-  family: ['Soul-1', 'Soul-2', 'Soul-3'],
+  couple: ['Partner A', 'Partner B'],
+  family: ['Parent / caregiver', 'Parent / stepparent', 'Child / adolescent'],
   group: [],
 }
 
@@ -731,6 +731,8 @@ export default function Workspace() {
     const formData = new FormData()
     formData.append('file', blob, fallbackName)
     formData.append('mode', sessionType)
+    formData.append('caseType', form.caseType || 'individual')
+    formData.append('members', JSON.stringify(form.members || []))
     const res = await apiUpload('/ai/audio-import', formData)
     const data = await res.json()
     if (!res.ok) throw new Error(data.message || data.error || 'Failed to import audio')
@@ -852,6 +854,8 @@ export default function Workspace() {
       const formData = new FormData()
       formData.append('file', file)
       formData.append('mode', sessionType)
+      formData.append('caseType', form.caseType || 'individual')
+      formData.append('members', JSON.stringify(form.members || []))
       const res = await apiUpload('/ai/audio-import', formData)
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || data.error || 'Failed to import audio')
@@ -1788,11 +1792,14 @@ export default function Workspace() {
               )}
             </div>
 
-            {/* Soul management, visible when case type is couple or family */}
+            {/* Participant management, visible when case type is couple or family */}
             {(form.caseType === 'couple' || form.caseType === 'family') && (
               <div className="rounded-xl border border-violet-100 bg-violet-50/40 p-3 space-y-2">
                 <p className="text-xs font-semibold text-violet-700 uppercase tracking-wide">
-                  {form.caseType === 'couple' ? 'Partners' : 'Family Members'} (Souls)
+                  {form.caseType === 'couple' ? 'Partners' : 'Family members'} / roles
+                </p>
+                <p className="text-xs text-violet-700/80">
+                  Name each person or role so Miwa can preserve who said what in notes and genograms.
                 </p>
                 <div className="space-y-1.5">
                   {(form.members || []).map((soul, idx) => (
@@ -1806,7 +1813,7 @@ export default function Workspace() {
                           updated[idx] = e.target.value
                           set('members', updated)
                         }}
-                        placeholder={`Soul-${idx + 1}`}
+                        placeholder={form.caseType === 'couple' ? `Partner ${idx + 1}` : `Member ${idx + 1} - role`}
                       />
                       <button
                         type="button"
@@ -1823,13 +1830,13 @@ export default function Workspace() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => set('members', [...(form.members || []), `Soul-${(form.members || []).length + 1}`])}
+                  onClick={() => set('members', [...(form.members || []), form.caseType === 'couple' ? `Partner ${(form.members || []).length + 1}` : `Member ${(form.members || []).length + 1} - role`])}
                   className="text-xs text-violet-600 hover:text-violet-800 font-medium flex items-center gap-1"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                   </svg>
-                  Add member
+                  Add participant
                 </button>
               </div>
             )}

@@ -62,3 +62,40 @@ test('demo patient generator creates a comprehensive caseload entry', async (t) 
     assert.ok(foundCssrs, 'expected at least one of 15 demos to have C-SSRS (SI-flagged archetype)');
   });
 });
+
+test('demo relational cases preserve participant/system language in notes', async (t) => {
+  await startTestServer();
+  t.after(stopTestServer);
+
+  const { cookie } = await bootstrapAdminAndLogin({
+    email: 'relational-demo@miwa.test',
+  });
+
+  const family = await api('POST', '/api/seed/demo-patient', { archetype: 'family_blended' }, cookie);
+  assert.equal(family.status, 200, `family demo create failed: ${JSON.stringify(family.body)}`);
+
+  const familyPatient = await api('GET', `/api/patients/${family.body.patient_id}`, null, cookie);
+  assert.equal(familyPatient.status, 200);
+  assert.equal(familyPatient.body.client_type, 'family');
+  assert.ok(JSON.parse(familyPatient.body.members).length >= 3);
+
+  const familySessions = await api('GET', `/api/patients/${family.body.patient_id}/sessions`, null, cookie);
+  assert.equal(familySessions.status, 200);
+  const familyText = familySessions.body.map((session) => [session.subjective, session.objective, session.assessment].join(' ')).join(' ');
+  assert.match(familyText, /family members|stepparent|adolescent|parent-stepparent/i);
+  assert.doesNotMatch(familyText, /^Client reports/);
+
+  const couple = await api('POST', '/api/seed/demo-patient', { archetype: 'couple_communication' }, cookie);
+  assert.equal(couple.status, 200, `couple demo create failed: ${JSON.stringify(couple.body)}`);
+
+  const couplePatient = await api('GET', `/api/patients/${couple.body.patient_id}`, null, cookie);
+  assert.equal(couplePatient.status, 200);
+  assert.equal(couplePatient.body.client_type, 'couple');
+  assert.equal(JSON.parse(couplePatient.body.members).length, 2);
+
+  const coupleSessions = await api('GET', `/api/patients/${couple.body.patient_id}/sessions`, null, cookie);
+  assert.equal(coupleSessions.status, 200);
+  const coupleText = coupleSessions.body.map((session) => [session.subjective, session.objective, session.assessment].join(' ')).join(' ');
+  assert.match(coupleText, /both partners|couple|partner/i);
+  assert.doesNotMatch(coupleText, /^Client reports/);
+});
