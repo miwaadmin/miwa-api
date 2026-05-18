@@ -49,6 +49,15 @@ function CardShell({ action, accent, children }) {
 
 function go(path) {
   if (!path) return
+  const onMobile = window.location.pathname.startsWith('/m')
+  if (onMobile && path === '/schedule') {
+    window.location.href = '/m/schedule'
+    return
+  }
+  if (onMobile && path.startsWith('/patients/')) {
+    window.location.href = path.replace('/patients/', '/m/clients/')
+    return
+  }
   window.location.href = path
 }
 

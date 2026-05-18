@@ -8,6 +8,18 @@ import { useAuth } from '../../context/AuthContext'
 import { apiFetch } from '../../lib/api'
 import { renderClinical } from '../../lib/renderClinical'
 
+function apptStart(appt) {
+  return appt?.scheduled_start || appt?.start_time || appt?.date || appt?.scheduledStart || ''
+}
+
+function apptType(appt) {
+  return appt?.appointment_type || appt?.type || appt?.appointmentType || ''
+}
+
+function apptName(appt) {
+  return appt?.display_name || appt?.client_display_name || appt?.client_name || appt?.patient_name || appt?.client_id || 'Client'
+}
+
 function formatTime(dateStr) {
   if (!dateStr) return ''
   try {
@@ -72,7 +84,10 @@ export default function MobileToday() {
 
       if (apptRes.status === 'fulfilled' && apptRes.value.ok) {
         const data = await apptRes.value.json()
-        const today = (Array.isArray(data) ? data : []).filter(a => isToday(a.start_time || a.date))
+        const today = (Array.isArray(data) ? data : [])
+          .filter(a => a.status !== 'cancelled')
+          .filter(a => isToday(apptStart(a)))
+          .sort((a, b) => new Date(apptStart(a)).getTime() - new Date(apptStart(b)).getTime())
         setAppointments(today)
       }
 
@@ -107,7 +122,7 @@ export default function MobileToday() {
 
   // Find next/current session (within 2 hours)
   const nextSession = appointments.find(a =>
-    isWithinHours(a.start_time || a.date, 2) && a.status !== 'completed' && a.status !== 'cancelled'
+    isWithinHours(apptStart(a), 2) && a.status !== 'completed' && a.status !== 'cancelled'
   ) || appointments.find(a => a.status !== 'completed' && a.status !== 'cancelled')
 
   if (loading) {
@@ -135,7 +150,7 @@ export default function MobileToday() {
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
               <span className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">
-                {isWithinHours(nextSession.start_time || nextSession.date, 0.5) ? 'Now' : 'Up Next'}
+                {isWithinHours(apptStart(nextSession), 0.5) ? 'Now' : 'Up Next'}
               </span>
             </div>
           </div>
@@ -143,11 +158,11 @@ export default function MobileToday() {
             <div className="flex items-center justify-between mb-2">
               <div>
                 <h3 className="text-base font-semibold text-gray-900">
-                  {nextSession.client_name || nextSession.patient_name || 'Client'}
+                  {apptName(nextSession)}
                 </h3>
                 <p className="text-sm text-gray-500">
-                  {formatTime(nextSession.start_time || nextSession.date)}
-                  {nextSession.type && ` \u00b7 ${nextSession.type}`}
+                  {formatTime(apptStart(nextSession))}
+                  {apptType(nextSession) && ` \u00b7 ${apptType(nextSession)}`}
                 </p>
               </div>
               {nextSession.checkin_status && (
@@ -291,14 +306,14 @@ export default function MobileToday() {
                 onClick={() => appt.patient_id && navigate(`/m/clients/${appt.patient_id}`)}
               >
                 <div className="text-center shrink-0 w-12">
-                  <p className="text-sm font-semibold text-gray-900">{formatTime(appt.start_time || appt.date)}</p>
+                  <p className="text-sm font-semibold text-gray-900">{formatTime(apptStart(appt))}</p>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">
-                    {appt.client_name || appt.patient_name || 'Client'}
+                    {apptName(appt)}
                   </p>
-                  {appt.type && (
-                    <p className="text-xs text-gray-500 truncate">{appt.type}</p>
+                  {apptType(appt) && (
+                    <p className="text-xs text-gray-500 truncate">{apptType(appt)}</p>
                   )}
                 </div>
                 <StatusBadge status={appt.status || appt.checkin_status} />

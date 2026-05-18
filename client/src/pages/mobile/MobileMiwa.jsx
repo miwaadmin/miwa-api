@@ -7,6 +7,8 @@ import { useNavigate } from 'react-router-dom'
 import { apiFetch, apiUpload } from '../../lib/api'
 import { useAuth } from '../../context/AuthContext'
 import { renderClinical } from '../../lib/renderClinical'
+import AssistantActionCard from '../../components/AssistantActionCards'
+import { normalizeAssistantAction } from '../../lib/assistantActions'
 
 const QUICK_ACTIONS = [
   { label: 'Check in client', message: 'Check in my next client' },
@@ -104,6 +106,35 @@ export default function MobileMiwa() {
             if (data.text) {
               accumulated += data.text
               setStreamingText(accumulated)
+            }
+            if (data.type === 'assistant_action' && data.action) {
+              const action = normalizeAssistantAction(data.action)
+              setMessages(m => [...m, {
+                id: action.id || Date.now() + Math.random(),
+                role: 'assistant_action',
+                action,
+              }])
+            }
+            if (data.type === 'approval_required') {
+              if (accumulated.trim()) {
+                setMessages(m => [...m, { id: Date.now() + 1, role: 'assistant', content: accumulated }])
+                accumulated = ''
+                setStreamingText('')
+              }
+              const action = normalizeAssistantAction({
+                kind: 'schedule_picker',
+                title: data.title || 'Confirm appointment',
+                summary: data.preview || '',
+                payload: {
+                  actionId: data.actionId,
+                  patientId: data.patientId,
+                  clientId: data.patientCode,
+                  clientName: data.patientCode,
+                  ...(data.appointment || {}),
+                },
+                meta: { actionId: data.actionId },
+              })
+              setMessages(m => [...m, { id: action.id || Date.now() + Math.random(), role: 'assistant_action', action }])
             }
             if (data.type === 'done' || data.done) {
               if (accumulated.trim()) {
@@ -231,6 +262,32 @@ export default function MobileMiwa() {
     }
   }
 
+  const confirmAssistantAction = useCallback(async (action) => {
+    const actionId = action?.payload?.actionId || action?.meta?.actionId
+    if (!actionId) return
+    setError('')
+    try {
+      const res = await apiFetch('/agent/confirm', {
+        method: 'POST',
+        body: JSON.stringify({ actionId, approved: true }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Could not confirm action')
+      if (data.appointment) {
+        window.dispatchEvent(new CustomEvent('miwa:appointment_created', { detail: data.appointment }))
+      }
+      setMessages(m => [...m, {
+        id: Date.now(),
+        role: 'assistant',
+        content: data.appointment
+          ? `Scheduled, ${data.appointment.display_name || data.appointment.client_id || 'client'} · ${data.appointment.scheduled_start ? new Date(data.appointment.scheduled_start).toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'time TBD'} · ${data.appointment.appointment_type || 'session'}`
+          : 'Done.',
+      }])
+    } catch (err) {
+      setError(err.message || 'Could not confirm action')
+    }
+  }, [])
+
   const toggleLiveMode = (mode) => {
     if (liveMode === mode) {
       window.dispatchEvent(new CustomEvent('miwa-live-stop'))
@@ -319,29 +376,38 @@ export default function MobileMiwa() {
         )}
 
         {/* Message bubbles */}
-        {messages.map(msg => (
-          <div
-            key={msg.id}
-            className={`mb-3 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
-          >
+        {messages.map(msg => {
+          if (msg.role === 'assistant_action' && msg.action) {
+            return (
+              <div key={msg.id} className="mb-3">
+                <AssistantActionCard action={msg.action} onConfirmAction={confirmAssistantAction} />
+              </div>
+            )
+          }
+          return (
             <div
-              className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
-                msg.role === 'user'
-                  ? 'bg-indigo-600 text-white rounded-br-md'
-                  : 'bg-white border border-gray-200 text-gray-800 rounded-bl-md shadow-sm'
-              }`}
+              key={msg.id}
+              className={`mb-3 flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
-              {msg.role === 'user' ? (
-                <p className="text-sm leading-relaxed">{msg.content}</p>
-              ) : (
-                <div
-                  className="text-sm leading-relaxed prose-mobile"
-                  dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
-                />
-              )}
+              <div
+                className={`max-w-[85%] rounded-2xl px-4 py-2.5 ${
+                  msg.role === 'user'
+                    ? 'bg-indigo-600 text-white rounded-br-md'
+                    : 'bg-white border border-gray-200 text-gray-800 rounded-bl-md shadow-sm'
+                }`}
+              >
+                {msg.role === 'user' ? (
+                  <p className="text-sm leading-relaxed">{msg.content}</p>
+                ) : (
+                  <div
+                    className="text-sm leading-relaxed prose-mobile"
+                    dangerouslySetInnerHTML={{ __html: renderMarkdown(msg.content) }}
+                  />
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          )
+        })}
 
         {/* Streaming bubble */}
         {streaming && (

@@ -38,11 +38,40 @@ function fullDate(d) {
   return d.toLocaleDateString('en-US', { month: 'long', day: 'numeric' })
 }
 
+function monthLabel(d) {
+  return d.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+}
+
 function ymd(d) {
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const dd = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${dd}`
+}
+
+function addDays(d, days) {
+  const next = new Date(d)
+  next.setDate(d.getDate() + days)
+  return next
+}
+
+function startOfWeek(d) {
+  const next = new Date(d)
+  next.setHours(0, 0, 0, 0)
+  next.setDate(next.getDate() - next.getDay())
+  return next
+}
+
+function startOfMonth(d) {
+  return new Date(d.getFullYear(), d.getMonth(), 1)
+}
+
+function daysInMonth(d) {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()
+}
+
+function apptStart(appt) {
+  return appt?.scheduled_start || appt?.start_time || appt?.date || appt?.scheduledStart || ''
 }
 
 function typeTheme(type) {
@@ -99,8 +128,10 @@ export default function MobileSchedule() {
   const navigate = useNavigate()
   const [selected, setSelected] = useState(() => new Date())
   const [appointments, setAppointments] = useState([])
+  const [allAppointments, setAllAppointments] = useState([])
   const [patients, setPatients] = useState([])
   const [showNew, setShowNew] = useState(false)
+  const [viewMode, setViewMode] = useState('day')
   const [savingNew, setSavingNew] = useState(false)
   const [form, setForm] = useState(() => ({
     patientId: '',
@@ -128,26 +159,34 @@ export default function MobileSchedule() {
     setError('')
     try {
       const dateStr = ymd(date)
-      const r = await apiFetch(`/patients/appointments?date=${dateStr}`)
-      if (!r.ok) {
-        // Fallback to no-filter endpoint then filter client-side
-        const fallback = await apiFetch('/patients/appointments')
-        const all = await fallback.json().catch(() => [])
-        const list = Array.isArray(all) ? all : []
-        setAppointments(list.filter(a => (a.scheduled_start || '').startsWith(dateStr)))
-      } else {
-        const data = await r.json()
-        setAppointments(Array.isArray(data) ? data : (data?.appointments || []))
-      }
+      const r = await apiFetch('/agent/appointments')
+      const data = await r.json().catch(() => [])
+      if (!r.ok) throw new Error(data.error || 'Could not load appointments')
+      const list = (Array.isArray(data) ? data : [])
+        .filter(a => a.status !== 'cancelled')
+        .sort((a, b) => new Date(apptStart(a)).getTime() - new Date(apptStart(b)).getTime())
+      setAllAppointments(list)
+      setAppointments(list.filter(a => ymd(new Date(apptStart(a))) === dateStr))
     } catch (err) {
       setError(err.message)
       setAppointments([])
+      setAllAppointments([])
     } finally {
       setLoading(false)
     }
   }, [])
 
   useEffect(() => { load(selected) }, [selected, load])
+
+  useEffect(() => {
+    const handler = () => load(selected)
+    window.addEventListener('miwa:appointment_created', handler)
+    window.addEventListener('focus', handler)
+    return () => {
+      window.removeEventListener('miwa:appointment_created', handler)
+      window.removeEventListener('focus', handler)
+    }
+  }, [selected, load])
 
   useEffect(() => {
     apiFetch('/patients')
@@ -163,12 +202,37 @@ export default function MobileSchedule() {
   }, [])
 
   const sorted = [...appointments].sort((a, b) => {
-    const at = new Date(a.scheduled_start || 0).getTime()
-    const bt = new Date(b.scheduled_start || 0).getTime()
+    const at = new Date(apptStart(a) || 0).getTime()
+    const bt = new Date(apptStart(b) || 0).getTime()
     return at - bt
   })
 
-  const openNewAppointment = () => {
+  const weekDays = useMemo(() => {
+    const start = startOfWeek(selected)
+    return Array.from({ length: 7 }, (_, i) => addDays(start, i))
+  }, [selected])
+
+  const monthCells = useMemo(() => {
+    const first = startOfMonth(selected)
+    const cells = Array.from({ length: first.getDay() }, () => null)
+    for (let day = 1; day <= daysInMonth(selected); day++) {
+      cells.push(new Date(selected.getFullYear(), selected.getMonth(), day))
+    }
+    while (cells.length % 7 !== 0) cells.push(null)
+    return cells
+  }, [selected])
+
+  const appointmentsByDay = useMemo(() => {
+    return allAppointments.reduce((map, appt) => {
+      const key = ymd(new Date(apptStart(appt)))
+      if (!map[key]) map[key] = []
+      map[key].push(appt)
+      return map
+    }, {})
+  }, [allAppointments])
+
+  const openNewAppointment = (date = null) => {
+    if (date) setSelected(date)
     setForm(prev => ({ ...prev, patientId: patients[0]?.id ? String(patients[0].id) : prev.patientId }))
     setShowNew(true)
   }
@@ -226,10 +290,24 @@ export default function MobileSchedule() {
       {/* Day picker (sticky) */}
       <div className="mobile-surface sticky top-0 z-20 border-b px-2 py-3">
         <div className="flex items-baseline justify-between px-2 mb-2">
-          <h1 className="text-xl font-bold text-gray-900">{dateLabel(selected)}</h1>
-          <p className="text-xs text-gray-500">{fullDate(selected)}</p>
+          <h1 className="text-xl font-bold text-gray-900">{viewMode === 'month' ? monthLabel(selected) : dateLabel(selected)}</h1>
+          <p className="text-xs text-gray-500">{viewMode === 'week' ? `${fullDate(weekDays[0])} - ${fullDate(weekDays[6])}` : fullDate(selected)}</p>
         </div>
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-1">
+        <div className="mb-3 grid grid-cols-3 gap-1 rounded-xl bg-gray-100 p-1">
+          {['day', 'week', 'month'].map(mode => (
+            <button
+              key={mode}
+              type="button"
+              onClick={() => setViewMode(mode)}
+              className={`min-h-[36px] rounded-lg text-xs font-bold capitalize transition-colors ${
+                viewMode === mode ? 'bg-white text-brand-700 shadow-sm' : 'text-gray-500 active:bg-white/60'
+              }`}
+            >
+              {mode}
+            </button>
+          ))}
+        </div>
+        {viewMode !== 'month' && <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 px-1">
           {dayStrip.map(d => {
             const active = sameDay(d, selected)
             return (
@@ -249,7 +327,7 @@ export default function MobileSchedule() {
               </button>
             )
           })}
-        </div>
+        </div>}
       </div>
 
       {/* List */}
@@ -270,6 +348,92 @@ export default function MobileSchedule() {
         ) : error ? (
           <div className="rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
             Couldn't load schedule. <button onClick={() => load(selected)} className="font-semibold underline ml-1">Retry</button>
+          </div>
+        ) : viewMode === 'week' ? (
+          <div className="space-y-3">
+            {weekDays.map(day => {
+              const key = ymd(day)
+              const dayAppointments = (appointmentsByDay[key] || [])
+                .slice()
+                .sort((a, b) => new Date(apptStart(a)).getTime() - new Date(apptStart(b)).getTime())
+              const active = sameDay(day, selected)
+              return (
+                <section key={key} className={`rounded-2xl border p-3 ${active ? 'border-brand-200 bg-brand-50/50' : 'border-gray-200 bg-white'}`}>
+                  <button
+                    type="button"
+                    onClick={() => setSelected(day)}
+                    className="mb-2 flex w-full items-center justify-between text-left"
+                  >
+                    <div>
+                      <p className="text-sm font-bold text-gray-900">{day.toLocaleDateString('en-US', { weekday: 'long' })}</p>
+                      <p className="text-xs text-gray-500">{fullDate(day)}</p>
+                    </div>
+                    <span className="rounded-full bg-gray-100 px-2 py-1 text-[11px] font-bold text-gray-600">
+                      {dayAppointments.length}
+                    </span>
+                  </button>
+                  {dayAppointments.length > 0 ? (
+                    <div className="space-y-2">
+                      {dayAppointments.map(a => (
+                        <AppointmentCard key={a.id} appt={a} onOpen={() => navigate(`/m/clients/${a.patient_id}`)} />
+                      ))}
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => openNewAppointment(day)}
+                      className="w-full rounded-xl border border-dashed border-gray-200 px-3 py-3 text-xs font-semibold text-gray-500 active:bg-gray-50"
+                    >
+                      + Add appointment
+                    </button>
+                  )}
+                </section>
+              )
+            })}
+          </div>
+        ) : viewMode === 'month' ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-bold uppercase tracking-wide text-gray-400">
+              {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => <div key={day}>{day}</div>)}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {monthCells.map((day, index) => {
+                if (!day) return <div key={`empty-${index}`} className="aspect-square" />
+                const key = ymd(day)
+                const count = (appointmentsByDay[key] || []).length
+                const active = sameDay(day, selected)
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setSelected(day)}
+                    className={`aspect-square rounded-2xl border text-center transition-colors ${
+                      active ? 'border-brand-500 bg-brand-600 text-white' : count ? 'border-brand-100 bg-brand-50 text-gray-900' : 'border-gray-100 bg-white text-gray-600'
+                    }`}
+                  >
+                    <span className="block text-sm font-bold">{day.getDate()}</span>
+                    {count > 0 && (
+                      <span className={`mx-auto mt-1 block h-1.5 w-1.5 rounded-full ${active ? 'bg-white' : 'bg-brand-500'}`} />
+                    )}
+                  </button>
+                )
+              })}
+            </div>
+            <div className="border-t border-gray-100 pt-3">
+              <div className="mb-2 flex items-center justify-between">
+                <p className="text-sm font-bold text-gray-900">{dateLabel(selected)} appointments</p>
+                <button type="button" onClick={openNewAppointment} className="text-xs font-bold text-brand-600">+ Add</button>
+              </div>
+              {sorted.length > 0 ? (
+                <div className="space-y-2">
+                  {sorted.map(a => (
+                    <AppointmentCard key={a.id} appt={a} onOpen={() => navigate(`/m/clients/${a.patient_id}`)} />
+                  ))}
+                </div>
+              ) : (
+                <p className="rounded-xl border border-dashed border-gray-200 px-3 py-4 text-center text-sm text-gray-500">No appointments on this date.</p>
+              )}
+            </div>
           </div>
         ) : sorted.length === 0 ? (
           <div className="text-center pt-10">
