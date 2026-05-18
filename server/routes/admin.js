@@ -784,17 +784,27 @@ router.patch('/therapists/:id', async (req, res) => {
       subscription_tier,
       trial_limit,
       is_admin,
+      credential_type,
     } = req.body;
+
+    const nextCredentialType = credential_type !== undefined
+      ? String(credential_type || '').trim()
+      : therapist.credential_type;
+    if (credential_type !== undefined && !['trainee', 'associate', 'licensed'].includes(nextCredentialType)) {
+      return res.status(400).json({ error: 'Invalid credential type.' });
+    }
 
     await db.run(
       `UPDATE therapists
-       SET account_status = ?, subscription_status = ?, subscription_tier = ?, trial_limit = ?, is_admin = ?
+       SET account_status = ?, subscription_status = ?, subscription_tier = ?, trial_limit = ?, is_admin = ?, credential_type = ?, user_role = ?
        WHERE id = ?`,
       account_status ?? therapist.account_status ?? 'active',
       subscription_status ?? therapist.subscription_status ?? 'trial',
       subscription_tier !== undefined ? (subscription_tier || null) : therapist.subscription_tier,
       trial_limit !== undefined ? Number(trial_limit) : (therapist.trial_limit || 10),
       is_admin !== undefined ? (is_admin ? 1 : 0) : (therapist.is_admin || 0),
+      nextCredentialType,
+      nextCredentialType,
       req.params.id,
     );
     await persistIfNeeded();
@@ -803,7 +813,7 @@ router.patch('/therapists/:id', async (req, res) => {
       eventType: 'admin.account_update',
       status: 'success',
       message: 'Admin updated therapist account settings',
-      meta: { actorId: req.therapist.id, account_status, subscription_status, subscription_tier, trial_limit, is_admin },
+      meta: { actorId: req.therapist.id, account_status, subscription_status, subscription_tier, trial_limit, is_admin, credential_type },
     });
 
     const updated = (await fetchTherapists(db, 'WHERE t.id = ?', [req.params.id]))[0];

@@ -13,6 +13,10 @@ const rateLimit = require('express-rate-limit');
 const { getAsyncDb, initAsyncDb, persistIfNeeded } = require('./db/asyncDb');
 const requireAuth = require('./middleware/auth');
 const { phiAuditLog } = require('./middleware/auditLog');
+const {
+  logCredentialTierChange,
+  validateSelfServiceCredentialChange,
+} = require('./services/credentialTier');
 
 // ── Validate required env vars at startup ────────────────────────────────────
 if (!process.env.JWT_SECRET) {
@@ -276,11 +280,10 @@ app.post('/api/settings', requireAuth, async (req, res) => {
       await db.run('UPDATE therapists SET user_role = ? WHERE id = ?', value, req.therapist.id);
     }
     if (key === 'credential_type' || key === 'account_stage') {
-      const next = String(value || '').trim();
-      const validStages = new Set(['trainee', 'associate', 'licensed']);
-      if (!validStages.has(next)) {
-        return res.status(400).json({ error: 'Invalid account stage.' });
-      }
+      const validation = await validateSelfServiceCredentialChange(db, req.therapist.id, value);
+      if (!validation.ok) return res.status(validation.status).json(validation.body);
+      const next = validation.next;
+      const current = validation.current;
 
       const now = new Date().toISOString();
       if (next === 'licensed' || next === 'associate') {
@@ -308,6 +311,15 @@ app.post('/api/settings', requireAuth, async (req, res) => {
             WHERE id = ?`,
           next, next, now, req.therapist.id
         );
+      }
+      if (current !== next) {
+        await logCredentialTierChange(db, {
+          therapistId: req.therapist.id,
+          actorId: req.therapist.id,
+          oldTier: current,
+          newTier: next,
+          source: 'settings',
+        });
       }
     }
     if (key === 'assistant_verbosity') {

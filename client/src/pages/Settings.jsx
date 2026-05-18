@@ -7,6 +7,7 @@ import { therapistInitials } from '../lib/avatar'
 import { COMMON_TIMEZONES } from '../lib/dateUtils'
 import OutreachSettings from '../components/OutreachSettings'
 import { isTraineeCredential } from '../lib/workspaceMode'
+import ConfirmModal from '../components/admin/ConfirmModal'
 
 const API = API_BASE
 
@@ -43,8 +44,11 @@ const ACCOUNT_STAGE_OPTIONS = [
   {
     value: 'trainee',
     label: 'Trainee / practicum',
+    shortLabel: 'Trainee',
+    price: '$39/mo',
     desc: 'For students and interns still practicing under school and site supervision. Keeps Agency Companion, supervision, hours, and Socratic guidance front-and-center.',
     badge: 'Pre-licensed',
+    features: ['Agency Companion workspace', 'Supervision prep', 'Hours tracking'],
     icon: (
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422A12.083 12.083 0 0118.825 17 11.952 11.952 0 0012 20.055 11.952 11.952 0 005.176 17a12.078 12.078 0 01.665-6.479L12 14z" />
@@ -54,8 +58,11 @@ const ACCOUNT_STAGE_OPTIONS = [
   {
     value: 'associate',
     label: 'Associate / registered intern',
+    shortLabel: 'Associate',
+    price: '$69/mo',
     desc: 'For AMFT, ACSW, APCC, and similar pre-licensed clinicians accruing hours. Preserves hour tracking and supervision-aware workflows while feeling less student-oriented.',
     badge: 'Hours tracking',
+    features: ['Client portal invite codes', 'Associate workspace', 'Supervision-aware case tools'],
     icon: (
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -65,8 +72,11 @@ const ACCOUNT_STAGE_OPTIONS = [
   {
     value: 'licensed',
     label: 'Licensed clinician',
+    shortLabel: 'Licensed',
+    price: '$129/mo',
     desc: 'For LMFT, LCSW, LPCC, psychologists, and other independently licensed clinicians. Unlocks private-practice mode and licensed-only client invite workflows.',
     badge: 'Private practice',
+    features: ['Private-practice workspace', 'Client portal invite codes', 'Direct client payment tools'],
     icon: (
       <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" />
@@ -293,6 +303,7 @@ export default function Settings() {
   const { therapist, refreshTherapist } = useAuth()
 
   const [userRole, setUserRole] = useState('licensed')
+  const [upgradeTier, setUpgradeTier] = useState(null)
   const [referralCode, setReferralCode] = useState('')
   const [codeCopied, setCodeCopied] = useState(false)
   const [telehealthUrl, setTelehealthUrl] = useState('')
@@ -414,7 +425,25 @@ export default function Settings() {
     }
   }
 
-  const handleSaveRole = () => saveSetting('account_stage', userRole)
+  const handleUpgradeTier = async () => {
+    if (!upgradeTier) return
+    setSaving(true)
+    setError('')
+    try {
+      const res = await apiFetch('/billing/upgrade', {
+        method: 'POST',
+        body: JSON.stringify({ plan: upgradeTier.value, returnTo: '/settings' }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Could not open billing upgrade.')
+      if (data.url) window.location.assign(data.url)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+      setUpgradeTier(null)
+    }
+  }
 
   const handleSaveAssistantPrefs = async () => {
     setSaving(true)
@@ -652,6 +681,15 @@ export default function Settings() {
         </div>
       </div>
 
+      <ConfirmModal
+        isOpen={!!upgradeTier}
+        onClose={() => setUpgradeTier(null)}
+        onConfirm={handleUpgradeTier}
+        title={`Upgrade to ${upgradeTier?.shortLabel || 'Associate'}`}
+        body="Upgrading to Associate ($69/mo) starts a 14-day trial and unlocks: client portal invite codes, Associate workspace, and supervision-aware case tools. After trial, your card is charged unless you cancel."
+        variant="primary"
+      />
+
       <div className="card p-6">
         <div className="flex items-start gap-3 mb-5">
           <div className="w-9 h-9 rounded-lg bg-brand-50 flex items-center justify-center flex-shrink-0">
@@ -823,23 +861,19 @@ export default function Settings() {
         </div>
 
         <div className="space-y-2">
-          {ACCOUNT_STAGE_OPTIONS.map(opt => (
-            <label
+          {ACCOUNT_STAGE_OPTIONS.map(opt => {
+            const current = userRole === opt.value
+            const canUpgrade = userRole === 'trainee' && opt.value === 'associate'
+            const supportOnly = !current && !canUpgrade
+            return (
+            <div
               key={opt.value}
-              className={`flex items-start gap-3 rounded-xl border p-4 cursor-pointer transition-colors ${
+              className={`flex items-start gap-3 rounded-xl border p-4 transition-colors ${
                 userRole === opt.value
                   ? 'border-brand-300 bg-brand-50'
                   : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50/80'
               }`}
             >
-              <input
-                type="radio"
-                name="userRole"
-                value={opt.value}
-                checked={userRole === opt.value}
-                onChange={e => setUserRole(e.target.value)}
-                className="mt-0.5 text-brand-600 focus:ring-brand-500"
-              />
               <div className="flex-1">
                 <div className="flex items-center gap-2">
                   <span className={userRole === opt.value ? 'text-brand-600' : 'text-gray-400'}>{opt.icon}</span>
@@ -849,28 +883,45 @@ export default function Settings() {
                       ? 'bg-white text-brand-700 border border-brand-100'
                       : 'bg-gray-50 text-gray-500 border border-gray-100'
                   }`}>
-                    {opt.badge}
+                    {current ? 'Current' : opt.price}
                   </span>
                 </div>
                 <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{opt.desc}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {opt.features.map(feature => (
+                    <span key={feature} className="text-[11px] rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-gray-600">
+                      {feature}
+                    </span>
+                  ))}
+                </div>
               </div>
-            </label>
-          ))}
+              {canUpgrade && (
+                <button
+                  type="button"
+                  className="btn-primary text-xs whitespace-nowrap"
+                  onClick={() => setUpgradeTier(opt)}
+                  disabled={saving}
+                >
+                  Upgrade to {opt.shortLabel}
+                </button>
+              )}
+              {supportOnly && (
+                <Link to="/settings?feedback=tier" className="btn-secondary text-xs whitespace-nowrap">
+                  Contact support
+                </Link>
+              )}
+            </div>
+            )
+          })}
         </div>
 
         <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-800">
-          <p className="font-semibold">Transition path</p>
+          <p className="font-semibold">Credential tier rules</p>
           <p className="mt-1">
-            Moving trainee to associate to licensed should be a status change on the therapist record, not a new account. Miwa keeps the same therapist id, preserves cases, sessions, documents, hours, supervision history, and assistant memory, then switches the workspace defaults and licensed-only features when the stage becomes licensed.
+            Upgrades are tied to Stripe billing. Associate access starts after Stripe confirms an associate subscription or active trial. Downgrades and licensed-tier changes go through support.
           </p>
         </div>
 
-        <div className="mt-4 flex items-center gap-3">
-          <button onClick={handleSaveRole} disabled={saving} className="btn-primary">
-            {saving ? 'Saving…' : 'Save stage'}
-          </button>
-          {saved === 'account_stage' && <span className="text-sm text-green-600 font-medium">Saved!</span>}
-        </div>
       </div>
 
       <div className="card p-6">

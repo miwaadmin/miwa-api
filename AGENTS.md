@@ -69,6 +69,12 @@ change is clearly experimental / scratch work. When in doubt, push.
 - Active plans: Trainee ($39), Associate ($69), Licensed Therapist
   ($129). Backend `VALID_PLANS` may still include `'group'` for
   legacy/internal use; the UI must not surface it.
+- **Credential tier rules.** Users cannot self-edit `credential_type` as
+  a permissions switch. Trainee -> associate requires an active Stripe
+  associate subscription or active associate trial. Self-service
+  downgrades are blocked, and licensed-tier changes go through support
+  or admin override. Stripe subscription webhooks are the source of
+  truth for automatic tier access changes.
 
 ## Codebase conventions
 

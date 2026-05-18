@@ -141,7 +141,8 @@ test('Stripe webhook handles checkout and subscription lifecycle events', async 
     data: { object: { id: 'sub_lifecycle', customer: 'cus_webhook_lifecycle', status: 'active', metadata: { plan: 'associate' } } },
   });
   assert.equal(updated.status, 200);
-  let therapistRow = await db.get('SELECT subscription_status, subscription_tier, stripe_subscription_id FROM therapists WHERE id = ?', therapist.id);
+  let therapistRow = await db.get('SELECT credential_type, subscription_status, subscription_tier, stripe_subscription_id FROM therapists WHERE id = ?', therapist.id);
+  assert.equal(therapistRow.credential_type, 'associate');
   assert.equal(therapistRow.subscription_status, 'active');
   assert.equal(therapistRow.subscription_tier, 'associate');
   assert.equal(therapistRow.stripe_subscription_id, 'sub_lifecycle');
@@ -152,7 +153,8 @@ test('Stripe webhook handles checkout and subscription lifecycle events', async 
     data: { object: { id: 'sub_lifecycle', customer: 'cus_webhook_lifecycle', status: 'canceled', metadata: { plan: 'associate' } } },
   });
   assert.equal(deleted.status, 200);
-  therapistRow = await db.get('SELECT subscription_status, subscription_tier, stripe_subscription_id FROM therapists WHERE id = ?', therapist.id);
+  therapistRow = await db.get('SELECT credential_type, subscription_status, subscription_tier, stripe_subscription_id FROM therapists WHERE id = ?', therapist.id);
+  assert.equal(therapistRow.credential_type, 'trainee');
   assert.equal(therapistRow.subscription_status, 'expired');
   assert.equal(therapistRow.subscription_tier, null);
   assert.equal(therapistRow.stripe_subscription_id, null);

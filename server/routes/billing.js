@@ -4,6 +4,11 @@ const crypto = require('crypto');
 const requireAuth = require('../middleware/auth');
 const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { getUsageSummary } = require('../services/costTracker');
+const {
+  credentialForPlan,
+  logCredentialTierChange,
+  normalizeCredentialTier,
+} = require('../services/credentialTier');
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -349,6 +354,63 @@ async function findTherapistForSubscription(db, subscription) {
   return db.get('SELECT id FROM therapists WHERE id = ?', therapistId);
 }
 
+function stripeTrialEndToIso(subscription) {
+  const seconds = Number(subscription?.trial_end || 0);
+  if (!Number.isFinite(seconds) || seconds <= 0) return null;
+  return new Date(seconds * 1000).toISOString();
+}
+
+async function applySubscriptionCredentialTier(db, therapistId, plan, source) {
+  const nextCredential = credentialForPlan(plan);
+  if (!nextCredential) return;
+  const row = await db.get('SELECT credential_type FROM therapists WHERE id = ?', therapistId);
+  const current = normalizeCredentialTier(row?.credential_type, 'licensed');
+  if (current === nextCredential) return;
+
+  await db.run(
+    `UPDATE therapists
+        SET credential_type = ?,
+            user_role = ?,
+            credential_verified = CASE WHEN ? IN ('associate', 'licensed') THEN 1 ELSE credential_verified END
+      WHERE id = ?`,
+    nextCredential,
+    nextCredential,
+    nextCredential,
+    therapistId,
+  );
+  await logCredentialTierChange(db, {
+    therapistId,
+    actorId: therapistId,
+    oldTier: current,
+    newTier: nextCredential,
+    source,
+  });
+}
+
+async function revertSubscriptionCredentialTier(db, therapistId, source) {
+  const row = await db.get('SELECT credential_type FROM therapists WHERE id = ?', therapistId);
+  const current = normalizeCredentialTier(row?.credential_type, 'licensed');
+  if (current === 'trainee') return;
+
+  await db.run(
+    `UPDATE therapists
+        SET credential_type = 'trainee',
+            user_role = 'trainee',
+            workspace_mode = 'agency_companion',
+            client_record_mode = 'agency_ehr_companion',
+            workspace_mode_selected_at = COALESCE(workspace_mode_selected_at, CURRENT_TIMESTAMP)
+      WHERE id = ?`,
+    therapistId,
+  );
+  await logCredentialTierChange(db, {
+    therapistId,
+    actorId: therapistId,
+    oldTier: current,
+    newTier: 'trainee',
+    source,
+  });
+}
+
 async function handleStripeEvent(db, event) {
   switch (event.type) {
     case 'customer.subscription.created':
@@ -359,12 +421,14 @@ async function handleStripeEvent(db, event) {
 
       const status = sub.status;
       const plan = sub.metadata?.plan || null;
+      const trialEnd = stripeTrialEndToIso(sub);
 
       if (status === 'active' || status === 'trialing') {
         await db.run(
-          'UPDATE therapists SET subscription_status = ?, subscription_tier = ?, stripe_subscription_id = ? WHERE id = ?',
-          'active', plan, sub.id, therapist.id,
+          'UPDATE therapists SET subscription_status = ?, subscription_tier = ?, subscription_trial_end = ?, stripe_subscription_id = ? WHERE id = ?',
+          'active', plan, trialEnd, sub.id, therapist.id,
         );
+        await applySubscriptionCredentialTier(db, therapist.id, plan, `stripe.${event.type}`);
         return { handled: true, therapistId: therapist.id, subscriptionStatus: 'active', plan, type: event.type };
       }
 
@@ -375,9 +439,10 @@ async function handleStripeEvent(db, event) {
 
       if (status === 'canceled' || status === 'unpaid') {
         await db.run(
-          'UPDATE therapists SET subscription_status = ?, subscription_tier = NULL WHERE id = ?',
+          'UPDATE therapists SET subscription_status = ?, subscription_tier = NULL, subscription_trial_end = NULL WHERE id = ?',
           'trial', therapist.id,
         );
+        await revertSubscriptionCredentialTier(db, therapist.id, `stripe.${event.type}`);
         return { handled: true, therapistId: therapist.id, subscriptionStatus: 'trial', plan, type: event.type };
       }
 
@@ -389,9 +454,10 @@ async function handleStripeEvent(db, event) {
       const therapist = await findTherapistForSubscription(db, sub);
       if (!therapist) return { handled: false, reason: 'therapist_not_found', type: event.type };
       await db.run(
-        'UPDATE therapists SET subscription_status = ?, subscription_tier = NULL, stripe_subscription_id = NULL WHERE id = ?',
+        'UPDATE therapists SET subscription_status = ?, subscription_tier = NULL, subscription_trial_end = NULL, stripe_subscription_id = NULL WHERE id = ?',
         'expired', therapist.id,
       );
+      await revertSubscriptionCredentialTier(db, therapist.id, `stripe.${event.type}`);
       return { handled: true, therapistId: therapist.id, subscriptionStatus: 'expired', type: event.type };
     }
 
@@ -697,6 +763,7 @@ async function createSubscriptionCheckoutSession(req, res) {
       cancel_url: `${appUrl}${returnTo}?canceled=1`,
       subscription_data: {
         metadata: { therapist_id: String(req.therapist.id), plan },
+        ...(plan === 'associate' ? { trial_period_days: 14 } : {}),
       },
       allow_promotion_codes: true,
     });
@@ -710,6 +777,59 @@ async function createSubscriptionCheckoutSession(req, res) {
 
 router.post('/create-checkout-session', requireAuth, createSubscriptionCheckoutSession);
 router.post('/checkout', requireAuth, createSubscriptionCheckoutSession);
+
+router.post('/upgrade', requireAuth, async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const plan = String(req.body?.plan || '').trim();
+    const returnTo = typeof req.body?.returnTo === 'string' && req.body.returnTo.startsWith('/')
+      ? req.body.returnTo
+      : '/settings';
+
+    if (!SELF_SERVE_CHECKOUT_PLANS.includes(plan) || plan === 'solo') {
+      return res.status(400).json({ error: 'Choose a valid self-service upgrade plan.' });
+    }
+
+    const row = await db.get(
+      'SELECT stripe_customer_id, stripe_subscription_id FROM therapists WHERE id = ?',
+      req.therapist.id,
+    );
+
+    if (!row?.stripe_customer_id || !row?.stripe_subscription_id) {
+      req.body.returnTo = returnTo;
+      req.body.plan = plan;
+      return createSubscriptionCheckoutSession(req, res);
+    }
+
+    const stripe = getStripe();
+    const appUrl = process.env.APP_URL || 'http://localhost:3000';
+    let portal;
+    try {
+      portal = await stripe.billingPortal.sessions.create({
+        customer: row.stripe_customer_id,
+        return_url: `${appUrl}${returnTo}`,
+        flow_data: {
+          type: 'subscription_update',
+          subscription_update: { subscription: row.stripe_subscription_id },
+          after_completion: {
+            type: 'redirect',
+            redirect: { return_url: `${appUrl}${returnTo}?billing=updated` },
+          },
+        },
+      });
+    } catch (err) {
+      portal = await stripe.billingPortal.sessions.create({
+        customer: row.stripe_customer_id,
+        return_url: `${appUrl}${returnTo}`,
+      });
+    }
+
+    res.json({ url: portal.url });
+  } catch (err) {
+    console.error('[billing] upgrade error:', sanitizeStripeError(err));
+    res.status(500).json({ error: 'Could not open billing upgrade flow.' });
+  }
+});
 
 router.post('/portal', requireAuth, async (req, res) => {
   try {
