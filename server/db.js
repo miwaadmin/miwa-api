@@ -1899,6 +1899,15 @@ function runMigrations() {
     // with a 17-year-old, or a couple session got typed as 'individual').
     // NULL = use the default mapping. See services/practiceHours.js.
     ['practicum_bucket_override', 'TEXT'],
+    // Recurring appointments — the parent series and its instances.
+    //   recurrence_rule:      'WEEKLY' (only rule supported today; null = one-off)
+    //   recurrence_until:     ISO date (yyyy-mm-dd). NULL = indefinite series.
+    //   recurrence_parent_id: appointments.id of the originating appointment
+    //                         for all instances; NULL for the parent itself
+    //                         (the parent also stores recurrence_rule).
+    ['recurrence_rule',      'TEXT'],
+    ['recurrence_until',     'TEXT'],
+    ['recurrence_parent_id', 'INTEGER'],
   ];
   for (const [col, def] of appointmentAdditions) {
     if (!appointmentCols.includes(col)) {

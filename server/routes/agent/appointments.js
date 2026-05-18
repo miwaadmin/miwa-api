@@ -14,6 +14,7 @@ const {
   getAppointmentById,
   findAppointmentConflicts,
   validateAppointmentWithinWorkingHours,
+  expandWeeklyRecurrence,
 } = require('./lib/appointment-ops');
 const { generateClientId } = require('./lib/client-codes');
 
@@ -297,7 +298,7 @@ router.post('/confirm', async (req, res) => {
 router.post('/appointments', async (req, res) => {
   try {
     const db = getAsyncDb();
-    const { patientId, clientCode, appointmentType, scheduledStart, scheduledEnd, durationMinutes, location, notes, syncToGoogle, status, force, newPatient } = req.body || {};
+    const { patientId, clientCode, appointmentType, scheduledStart, scheduledEnd, durationMinutes, location, notes, syncToGoogle, status, force, newPatient, recurrenceRule, recurrenceUntil } = req.body || {};
 
     // Resolve the patient: existing by id/code, OR create a new one inline
     // when the modal sends a newPatient payload (lets the user book an
@@ -392,10 +393,24 @@ router.post('/appointments', async (req, res) => {
       notes,
       syncToGoogle,
       status: status || 'scheduled',
+      recurrenceRule,
+      recurrenceUntil,
     });
 
     await persistIfNeeded();
     let appointment = await db.get('SELECT a.*, p.client_id, p.display_name FROM appointments a JOIN patients p ON p.id = a.patient_id WHERE a.id = ?', insert.lastInsertRowid);
+
+    // If the caller asked for a weekly series, generate the future instances.
+    // Non-fatal: if expansion fails we still return the parent appointment.
+    let recurrenceInstancesCreated = 0;
+    if (recurrenceRule === 'WEEKLY' && appointment) {
+      try {
+        recurrenceInstancesCreated = await expandWeeklyRecurrence(db, req.therapist.id, patient, appointment);
+        await persistIfNeeded();
+      } catch (err) {
+        console.warn('[recurrence] expand failed (non-fatal):', err.message);
+      }
+    }
 
     // Auto-generate a HIPAA-covered Google Meet link when the client's
     // session modality is telehealth (or hybrid). Therapists can also force
@@ -417,7 +432,12 @@ router.post('/appointments', async (req, res) => {
     }
 
     maybeSendTelehealthSms(db, req.therapist.id, patient, meetUrl);
-    return res.status(201).json({ ok: true, appointment, calendarSync: syncMeta });
+    return res.status(201).json({
+      ok: true,
+      appointment,
+      calendarSync: syncMeta,
+      recurrence_instances_created: recurrenceInstancesCreated,
+    });
   } catch (err) {
     sendRouteError(res, err);
   }

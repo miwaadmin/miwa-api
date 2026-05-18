@@ -21,10 +21,13 @@ async function createAppointmentRecord(db, therapistId, patient, payload = {}) {
   const durationMinutes = Number(payload.durationMinutes || 50);
   const dateFields = buildAppointmentDateFields(payload.scheduledStart || null, durationMinutes, payload.scheduledEnd || null);
   const syncMeta = buildAppointmentSyncMeta(payload.syncToGoogle);
+  const recurrenceRule  = payload.recurrenceRule  === 'WEEKLY' ? 'WEEKLY' : null;
+  const recurrenceUntil = payload.recurrenceUntil || null;
+  const recurrenceParentId = Number.isFinite(payload.recurrenceParentId) ? payload.recurrenceParentId : null;
   const insert = await db.insert(
     `INSERT INTO appointments
-      (therapist_id, patient_id, client_code, client_display_name, appointment_type, scheduled_start, scheduled_end, duration_minutes, location, notes, calendar_provider, google_calendar_id, google_event_id, sync_status, sync_error, last_synced_at, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (therapist_id, patient_id, client_code, client_display_name, appointment_type, scheduled_start, scheduled_end, duration_minutes, location, notes, calendar_provider, google_calendar_id, google_event_id, sync_status, sync_error, last_synced_at, status, recurrence_rule, recurrence_until, recurrence_parent_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     therapistId,
     patient.id,
     patient.client_id,
@@ -42,9 +45,69 @@ async function createAppointmentRecord(db, therapistId, patient, payload = {}) {
     syncMeta.sync_error,
     syncMeta.last_synced_at,
     payload.status || 'scheduled',
+    recurrenceRule,
+    recurrenceUntil,
+    recurrenceParentId,
   );
 
   return { insert, syncMeta };
+}
+
+/**
+ * Given a parent appointment that was just created with recurrence_rule='WEEKLY',
+ * generate the child instances. Indefinite series get the next 26 weeks (~6
+ * months) — the UI can re-extend later. Bounded series get all weekly
+ * occurrences from (start + 7 days) through recurrence_until inclusive.
+ *
+ * Children get recurrence_parent_id = parentId. The parent itself keeps
+ * recurrence_rule + recurrence_until so we can identify the series later.
+ *
+ * Returns the number of child rows created.
+ */
+async function expandWeeklyRecurrence(db, therapistId, patient, parentAppointment, payload = {}) {
+  if (!parentAppointment?.scheduled_start) return 0;
+  const startDate = new Date(parentAppointment.scheduled_start);
+  if (Number.isNaN(startDate.getTime())) return 0;
+
+  const untilStr = parentAppointment.recurrence_until || null;
+  let untilDate = null;
+  if (untilStr) {
+    const parsed = new Date(`${untilStr}T23:59:59.999Z`);
+    if (!Number.isNaN(parsed.getTime())) untilDate = parsed;
+  }
+  // Indefinite series: cap at 26 weeks for the initial expansion.
+  const maxIterations = untilDate ? 200 : 26;
+
+  const durationMinutes = parentAppointment.duration_minutes || 50;
+  let created = 0;
+  for (let i = 1; i <= maxIterations; i += 1) {
+    const childStart = new Date(startDate.getTime() + i * 7 * 24 * 60 * 60 * 1000);
+    if (untilDate && childStart > untilDate) break;
+    const childStartISO = childStart.toISOString();
+    const childEndISO = new Date(childStart.getTime() + durationMinutes * 60 * 1000).toISOString();
+    try {
+      await db.insert(
+        `INSERT INTO appointments
+          (therapist_id, patient_id, client_code, client_display_name, appointment_type, scheduled_start, scheduled_end, duration_minutes, location, notes, calendar_provider, sync_status, status, recurrence_rule, recurrence_until, recurrence_parent_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'internal', 'internal', 'scheduled', NULL, NULL, ?)`,
+        therapistId,
+        patient.id,
+        patient.client_id,
+        patient.display_name || patient.client_id,
+        parentAppointment.appointment_type,
+        childStartISO,
+        childEndISO,
+        durationMinutes,
+        parentAppointment.location || null,
+        parentAppointment.notes || null,
+        parentAppointment.id,
+      );
+      created += 1;
+    } catch (err) {
+      console.warn('[recurrence] skipped child insert:', err.message);
+    }
+  }
+  return created;
 }
 
 /**
@@ -292,6 +355,7 @@ function describeDays(days) {
 module.exports = {
   formatAppointmentPreview,
   createAppointmentRecord,
+  expandWeeklyRecurrence,
   generateMeetForAppointment,
   maybeSendTelehealthSms,
   getGoogleCalendarSyncConfig,

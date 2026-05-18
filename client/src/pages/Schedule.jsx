@@ -344,6 +344,10 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
       time: defaultTime || '09:00',
       duration_minutes:'50', location:'', notes:'',
       practicum_bucket_override: '',
+      // Recurring weekly series — most clients have standing weekly slots.
+      // recurrence_until is yyyy-mm-dd; empty = indefinite (server seeds 26 weeks).
+      repeat_weekly: false,
+      recurrence_until: '',
       // New-client fields, only populated when patient_id === '__new__'.
       // The server creates the patient on the fly when these come in.
       new_first_name: '',
@@ -432,6 +436,8 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
             location:        form.location || null,
             notes:            form.notes    || null,
             force: forceFlag,
+            recurrenceRule:  form.repeat_weekly ? 'WEEKLY' : null,
+            recurrenceUntil: form.repeat_weekly && form.recurrence_until ? form.recurrence_until : null,
           }),
         })
       } else {
@@ -758,6 +764,40 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
               placeholder="Pre-session notes, reminders…"
             />
           </div>
+
+          {/* Weekly recurring — only on new appointment (editing a single
+              instance shouldn't silently rewrite the whole series). */}
+          {isNew && (
+            <div className="rounded-xl border border-gray-200 p-3 space-y-2">
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+                <input
+                  type="checkbox"
+                  checked={!!form.repeat_weekly}
+                  onChange={e => set('repeat_weekly', e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+                Repeat weekly
+              </label>
+              {form.repeat_weekly && (
+                <div className="space-y-2">
+                  <label className="block text-xs text-gray-500">
+                    End date <span className="text-gray-400">(optional — leave blank for ongoing; we'll seed 6 months of slots)</span>
+                    <input
+                      type="date"
+                      value={form.recurrence_until}
+                      min={form.date}
+                      onChange={e => set('recurrence_until', e.target.value)}
+                      className="mt-1 w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <p className="text-[11px] text-gray-400 leading-relaxed">
+                    Same day and time each week. You'll be able to cancel just
+                    one session or the whole series later from the appointment.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Practicum hour override, only visible to trainees and associates.
               Lets the user fix Miwa's auto-mapping (e.g. "Individual" was actually
