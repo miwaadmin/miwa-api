@@ -4,7 +4,18 @@ const { getAsyncDb, persistIfNeeded } = require('../db/asyncDb');
 const { TEMPLATES, scoreAssessment } = require('./assessments');
 
 const TEMPLATE_TYPE = 'self-care';
+const QUICK_TEMPLATE_TYPE = 'self-care-quick';
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+// Map the public `version` field to an internal template key. The same DB row
+// can hold either variant; we tag rows with a `version` column ('full' | 'quick')
+// so historic rows continue to read back correctly.
+function templateForVersion(version) {
+  return version === 'quick' ? QUICK_TEMPLATE_TYPE : TEMPLATE_TYPE;
+}
+function normalizeVersion(v) {
+  return v === 'quick' ? 'quick' : 'full';
+}
 
 function parseResponses(raw) {
   if (!Array.isArray(raw)) return null;
@@ -19,6 +30,7 @@ function rowToSelfCare(row) {
   if (!row) return null;
   return {
     id: row.id,
+    version: row.version || 'full',
     total_score: Number(row.total_score) || 0,
     severity_level: row.severity_level,
     severity_color: row.severity_color,
@@ -55,7 +67,7 @@ router.get('/', async (req, res) => {
     const db = getAsyncDb();
     const tid = req.therapist.id;
     const rows = await db.all(
-      `SELECT id, therapist_id, responses, total_score, severity_level, severity_color, created_at
+      `SELECT id, therapist_id, responses, total_score, severity_level, severity_color, version, created_at
          FROM therapist_self_care_assessments
         WHERE therapist_id = ?
         ORDER BY created_at DESC
@@ -66,6 +78,7 @@ router.get('/', async (req, res) => {
     const latest = history[0] || null;
     res.json({
       template: TEMPLATES[TEMPLATE_TYPE],
+      quickTemplate: TEMPLATES[QUICK_TEMPLATE_TYPE],
       latest,
       history,
       weekly: weeklyStatus(latest),
@@ -80,7 +93,9 @@ router.post('/', async (req, res) => {
   try {
     const db = getAsyncDb();
     const tid = req.therapist.id;
-    const template = TEMPLATES[TEMPLATE_TYPE];
+    const version = normalizeVersion(req.body?.version);
+    const templateKey = templateForVersion(version);
+    const template = TEMPLATES[templateKey];
     const responses = parseResponses(req.body?.responses);
     if (!responses) {
       return res.status(400).json({ error: 'responses must be an array' });
@@ -106,21 +121,22 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ error: 'At least one rated self-care item is required' });
     }
 
-    const { total, severityLevel, severityColor } = scoreAssessment(TEMPLATE_TYPE, validResponses);
+    const { total, severityLevel, severityColor } = scoreAssessment(templateKey, validResponses);
     const result = await db.insert(
       `INSERT INTO therapist_self_care_assessments
-         (therapist_id, responses, total_score, severity_level, severity_color)
-       VALUES (?, ?, ?, ?, ?)`,
+         (therapist_id, responses, total_score, severity_level, severity_color, version)
+       VALUES (?, ?, ?, ?, ?, ?)`,
       tid,
       JSON.stringify(validResponses),
       total,
       severityLevel,
       severityColor,
+      version,
     );
     await persistIfNeeded();
 
     const row = await db.get(
-      `SELECT id, therapist_id, responses, total_score, severity_level, severity_color, created_at
+      `SELECT id, therapist_id, responses, total_score, severity_level, severity_color, version, created_at
          FROM therapist_self_care_assessments
         WHERE id = ? AND therapist_id = ?`,
       result.lastInsertRowid,

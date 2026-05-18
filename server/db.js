@@ -1900,6 +1900,14 @@ function runMigrations() {
     }
   }
 
+  // self-care assessment version: 'full' (80-item Saakvitne/Pearlman) or 'quick' (10-item synthesis)
+  try {
+    const selfCareCols = db.exec(`PRAGMA table_info(therapist_self_care_assessments)`)[0]?.values.map(r => r[1]) || [];
+    if (!selfCareCols.includes('version')) {
+      try { db.run(`ALTER TABLE therapist_self_care_assessments ADD COLUMN version TEXT DEFAULT 'full'`); } catch {}
+    }
+  } catch {}
+
   // Create index on proactive_alerts for fast querying
   try {
     db.run('CREATE INDEX IF NOT EXISTS idx_proactive_alerts_therapist_created ON proactive_alerts(therapist_id, created_at)');

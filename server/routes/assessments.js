@@ -165,6 +165,64 @@ function selfCareQuestions() {
   ));
 }
 
+// ── Quick (10-question) self-care variant ─────────────────────────────────────
+// One synthesizing item per category from the full Saakvitne/Pearlman TSI/CAAP
+// inventory, plus a second item for Psychological + Emotional which have the
+// heaviest clinical weight. Same 0-3 + "?" scale, same scoring math (percentage
+// of max possible), same severity bands as the full assessment.
+const SELF_CARE_QUICK_QUESTIONS = [
+  {
+    id: 'selfcare_quick_physical',
+    section: 'Physical Self-Care',
+    text: 'How well are you taking care of your body this week? (sleep, eating, movement, medical care)',
+  },
+  {
+    id: 'selfcare_quick_psychological',
+    section: 'Psychological Self-Care',
+    text: 'Are you making time for self-reflection and stepping away from work / screens?',
+  },
+  {
+    id: 'selfcare_quick_psychological_limits',
+    section: 'Psychological Self-Care',
+    text: 'Are you saying no to extra responsibilities when you need to?',
+  },
+  {
+    id: 'selfcare_quick_emotional',
+    section: 'Emotional Self-Care',
+    text: 'Are you spending time with people whose company you enjoy and letting yourself feel what you feel?',
+  },
+  {
+    id: 'selfcare_quick_emotional_self',
+    section: 'Emotional Self-Care',
+    text: 'Are you being kind to yourself (affirmations, laughter, comforting activities)?',
+  },
+  {
+    id: 'selfcare_quick_spiritual',
+    section: 'Spiritual Self-Care',
+    text: 'Are you tending to what gives your life meaning (nature, prayer, reflection, awe)?',
+  },
+  {
+    id: 'selfcare_quick_relationship',
+    section: 'Relationship Self-Care',
+    text: 'Are you staying connected to partner / family / friends / community?',
+  },
+  {
+    id: 'selfcare_quick_professional',
+    section: 'Workplace or Professional Self-Care',
+    text: 'Are you taking breaks, setting limits with clients, and getting supervision / peer support?',
+  },
+  {
+    id: 'selfcare_quick_balance',
+    section: 'Overall Balance',
+    text: 'Are you striving for balance among work, family, relationships, play, and rest?',
+  },
+  {
+    id: 'selfcare_quick_other',
+    section: 'Other Areas of Self-Care',
+    text: 'Anything else you personally consider self-care that you are tending to right now?',
+  },
+];
+
 function numericResponseValue(response) {
   const value = response?.value;
   return Number.isFinite(value) ? value : null;
@@ -729,6 +787,35 @@ const TEMPLATES = {
     higherIsBetter: true,
     scoreAsPercentage: true,
   },
+  'self-care-quick': {
+    id: 'self-care-quick',
+    name: 'Quick Self-Care Check-in',
+    description: 'A 10-item synthesis of the full self-care assessment, one item per domain. Use weekly to catch drift without sitting through 80 questions.',
+    instructions: 'Rate each area according to how well you are doing this week. 3 = doing well; 2 = doing OK; 1 = barely / rarely; 0 = not at all; ? = never occurred to me.',
+    timeEstimate: '2-3 minutes',
+    copyright: 'Adapted from Saakvitne, Pearlman, & Staff of TSI/CAAP (1996). Quick variant authored for Miwa to enable weekly check-ins.',
+    questions: SELF_CARE_QUICK_QUESTIONS,
+    options: [
+      { value: 3, label: 'I do this well (e.g., frequently)' },
+      { value: 2, label: 'I do this OK (e.g., occasionally)' },
+      { value: 1, label: 'I barely or rarely do this' },
+      { value: 0, label: 'I never do this' },
+      { value: '?', label: 'This never occurred to me' },
+    ],
+    scoring: {
+      min: 0,
+      max: 100,
+      severityLevels: [
+        { min: 0,  max: 39,  label: 'Low self-care consistency',      color: '#EF4444' },
+        { min: 40, max: 59,  label: 'Developing self-care',           color: '#F97316' },
+        { min: 60, max: 79,  label: 'Moderate self-care consistency', color: '#F59E0B' },
+        { min: 80, max: 100, label: 'Strong self-care consistency',   color: '#10B981' },
+      ],
+      clinicalSignificanceThreshold: 10,
+    },
+    higherIsBetter: true,
+    scoreAsPercentage: true,
+  },
   // ── LAP-MD: Lethality Assessment Program, Maryland Model ──────────────────
   // 11-question intimate partner violence lethality screen. Administered by a
   // clinician or advocate WHILE TALKING with the survivor — not sent via SMS.
@@ -826,7 +913,7 @@ function scoreAssessment(templateType, responses) {
     return { total, severityLevel, severityColor };
   }
 
-  if (templateType === 'self-care') {
+  if (templateType === 'self-care' || templateType === 'self-care-quick') {
     const numericValues = responses
       .map(numericResponseValue)
       .filter(value => value !== null);

@@ -27,11 +27,13 @@ function groupQuestions(questions = []) {
 }
 
 export default function ClinicianSelfCareCard({ compact = false }) {
-  const [state, setState] = useState({ loading: true, template: null, latest: null, history: [], weekly: null, error: '' })
+  const [state, setState] = useState({ loading: true, template: null, quickTemplate: null, latest: null, history: [], weekly: null, error: '' })
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [responses, setResponses] = useState({})
   const [formError, setFormError] = useState('')
+  // 'quick' (10-item) is the default; 'full' is the 80-item Saakvitne/Pearlman inventory.
+  const [version, setVersion] = useState('quick')
 
   const load = () => {
     setState(prev => ({ ...prev, loading: true, error: '' }))
@@ -42,6 +44,7 @@ export default function ClinicianSelfCareCard({ compact = false }) {
         setState({
           loading: false,
           template: data.template,
+          quickTemplate: data.quickTemplate || null,
           latest: data.latest || null,
           history: Array.isArray(data.history) ? data.history : [],
           weekly: data.weekly || null,
@@ -55,8 +58,9 @@ export default function ClinicianSelfCareCard({ compact = false }) {
     load()
   }, [])
 
-  const grouped = useMemo(() => groupQuestions(state.template?.questions || []), [state.template])
-  const questions = state.template?.questions || []
+  const activeTemplate = version === 'quick' ? (state.quickTemplate || state.template) : state.template
+  const grouped = useMemo(() => groupQuestions(activeTemplate?.questions || []), [activeTemplate])
+  const questions = activeTemplate?.questions || []
   const answeredCount = Object.keys(responses).length
   const latest = state.latest
   const weekly = state.weekly || {}
@@ -65,6 +69,9 @@ export default function ClinicianSelfCareCard({ compact = false }) {
   const nextDueLabel = weekly.next_due_at ? shortDate(weekly.next_due_at) : 'This week'
 
   const startAssessment = () => {
+    // Default to the same version the clinician used last time, otherwise quick.
+    const initialVersion = latest?.version === 'full' ? 'full' : 'quick'
+    setVersion(initialVersion)
     const startingResponses = {}
     ;(latest?.responses || []).forEach(response => {
       if (response?.id && (Number.isFinite(response.value) || response.value === '?')) {
@@ -88,12 +95,12 @@ export default function ClinicianSelfCareCard({ compact = false }) {
         .filter(question => Object.prototype.hasOwnProperty.call(responses, question.id))
         .map(question => {
           const value = responses[question.id]
-          const option = (state.template?.options || DEFAULT_OPTIONS).find(item => item.value === value)
+          const option = (activeTemplate?.options || DEFAULT_OPTIONS).find(item => item.value === value)
           return { id: question.id, value, label: option?.label }
         })
       const res = await apiFetch('/self-care', {
         method: 'POST',
-        body: JSON.stringify({ responses: payload }),
+        body: JSON.stringify({ responses: payload, version }),
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Unable to save self-care assessment')
@@ -161,8 +168,8 @@ export default function ClinicianSelfCareCard({ compact = false }) {
             <div className="border-b border-gray-100 px-5 py-4 flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-widest text-teal-600">Private clinician check-in</p>
-                <h2 className="mt-1 text-lg font-bold text-gray-950">{state.template?.name || 'Self-Care Assessment'}</h2>
-                <p className="mt-1 text-sm text-gray-500">{answeredCount} of {questions.length} items rated</p>
+                <h2 className="mt-1 text-lg font-bold text-gray-950">{activeTemplate?.name || 'Self-Care Assessment'}</h2>
+                <p className="mt-1 text-sm text-gray-500">{answeredCount} of {questions.length} items rated · {activeTemplate?.timeEstimate || ''}</p>
               </div>
               <button
                 type="button"
@@ -172,6 +179,32 @@ export default function ClinicianSelfCareCard({ compact = false }) {
                 Close
               </button>
             </div>
+            {state.quickTemplate && state.template && (
+              <div className="border-b border-gray-100 px-5 py-3 flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-gray-500">Length:</span>
+                <div className="flex rounded-xl bg-gray-100 p-1">
+                  <button
+                    type="button"
+                    onClick={() => { setVersion('quick'); setResponses({}); setFormError('') }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                      version === 'quick' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Quick check-in · 2-3 min
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setVersion('full'); setResponses({}); setFormError('') }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                      version === 'full' ? 'bg-white text-teal-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+                    }`}
+                  >
+                    Full assessment · 8-10 min
+                  </button>
+                </div>
+                <span className="text-[11px] text-gray-400 ml-auto">{questions.length} item{questions.length === 1 ? '' : 's'}</span>
+              </div>
+            )}
             <div className="max-h-[65vh] overflow-y-auto px-5 py-4 space-y-5">
               {Array.from(grouped.entries()).map(([section, items]) => (
                 <section key={section} className="rounded-2xl border border-gray-100 p-4">
@@ -182,9 +215,9 @@ export default function ClinicianSelfCareCard({ compact = false }) {
                         <p className="text-sm text-gray-700">{question.text}</p>
                         <div
                           className="grid gap-1 rounded-xl bg-gray-50 p-1"
-                          style={{ gridTemplateColumns: `repeat(${(state.template?.options || DEFAULT_OPTIONS).length}, minmax(0, 1fr))` }}
+                          style={{ gridTemplateColumns: `repeat(${(activeTemplate?.options || DEFAULT_OPTIONS).length}, minmax(0, 1fr))` }}
                         >
-                          {(state.template?.options || DEFAULT_OPTIONS).map(option => (
+                          {(activeTemplate?.options || DEFAULT_OPTIONS).map(option => (
                             <button
                               key={`${question.id}-${option.value}`}
                               type="button"

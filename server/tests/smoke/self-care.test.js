@@ -44,4 +44,26 @@ test('clinician self-care weekly check-in', async (t) => {
     assert.equal(after.body.weekly.due, false);
     assert.ok(after.body.weekly.next_due_at);
   });
+
+  await t.test('POST /api/self-care accepts the quick (10-item) variant', async () => {
+    const fresh = await api('GET', '/api/self-care', null, cookie);
+    const quick = fresh.body.quickTemplate;
+    assert.ok(quick, 'response should include quickTemplate');
+    assert.equal(quick.id, 'self-care-quick');
+    assert.equal(quick.questions.length, 10);
+
+    // Rate every quick item at "2" (Doing OK) → 20/30 → ~67%.
+    const responses = quick.questions.map(question => ({
+      id: question.id,
+      value: 2,
+      label: 'I do this OK',
+    }));
+    const submit = await api('POST', '/api/self-care', { version: 'quick', responses }, cookie);
+    assert.equal(submit.status, 201);
+    assert.equal(submit.body.latest.version, 'quick');
+    // Percentage should land in the "Moderate" band (60-79).
+    assert.ok(submit.body.latest.total_score >= 60 && submit.body.latest.total_score <= 79,
+      `expected score in 60-79, got ${submit.body.latest.total_score}`);
+    assert.equal(submit.body.latest.severity_level, 'Moderate self-care consistency');
+  });
 });
