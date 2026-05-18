@@ -24,6 +24,7 @@ const {
   generateAIResponse,
   generateAIResponseWithUsage,
   transcribeAudioBuffer,
+  transcribeAudioBufferWithDiarization,
   getAIConfigStatus,
   isAIServiceError,
   safeAIErrorResponse,
@@ -204,6 +205,32 @@ function relationalContextBlock({ caseType, members, patientContext } = {}) {
   if (type) lines.push(`Relational case type: ${type}`);
   if (memberList.length) lines.push(`Named participants / family members: ${memberList.join('; ')}`);
   return lines.join('\n');
+}
+
+function shouldUseDiarization(body = {}) {
+  if (String(body?.diarize || '').toLowerCase() === 'true') return true;
+  const type = relationalCaseType(body?.caseType);
+  return Boolean(type && type !== 'individual');
+}
+
+function formatDiarizedTranscript(segments = [], speakerLabels = {}) {
+  if (!Array.isArray(segments) || !segments.length) return '';
+  return segments
+    .map((segment) => {
+      const speaker = speakerLabels[segment.speaker] || segment.label || segment.speaker || 'Speaker';
+      return `${speaker}: ${segment.text || ''}`.trim();
+    })
+    .filter(Boolean)
+    .join('\n');
+}
+
+function buildSpeakerLabels(speakers = [], members = []) {
+  const memberList = parseRelationalMembers(members);
+  const labels = {};
+  (speakers || []).forEach((speaker, index) => {
+    labels[speaker.id] = memberList[index] || speaker.label || `Speaker ${index + 1}`;
+  });
+  return labels;
 }
 
 function relationalDocumentationRules({ caseType, members } = {}) {
@@ -586,6 +613,50 @@ async function transcribeAudioUpload(file) {
   return typeof transcription === 'string' ? transcription : (transcription.text || '');
 }
 
+async function transcribeAudioUploadWithOptionalDiarization(file, options = {}) {
+  if (!shouldUseDiarization(options)) {
+    return {
+      transcript: await transcribeAudioUpload(file),
+      diarization: { enabled: false, attempted: false, segments: [], speakers: [], speakerLabels: {} },
+    };
+  }
+
+  try {
+    const diarized = await transcribeAudioBufferWithDiarization(
+      file.buffer,
+      file.originalname || 'recording.webm',
+      file.mimetype || 'application/octet-stream',
+    );
+    const speakerLabels = buildSpeakerLabels(diarized.speakers, options.members);
+    const labeledTranscript = formatDiarizedTranscript(diarized.segments, speakerLabels) || diarized.text;
+    return {
+      transcript: scrubText(labeledTranscript || ''),
+      diarization: {
+        enabled: true,
+        attempted: true,
+        model: diarized.model,
+        segments: diarized.segments,
+        speakers: diarized.speakers,
+        speakerLabels,
+      },
+    };
+  } catch (err) {
+    console.warn('[audio-import] diarization unavailable, falling back to standard transcription:', err?.ai?.error_code || err?.message || err);
+    return {
+      transcript: await transcribeAudioUpload(file),
+      diarization: {
+        enabled: false,
+        attempted: true,
+        fallback: true,
+        error: isAIServiceError(err) ? 'diarization_unavailable' : 'diarization_failed',
+        segments: [],
+        speakers: [],
+        speakerLabels: {},
+      },
+    };
+  }
+}
+
 async function extractTextFromUpload(file) {
   if (!file) throw new Error('No file uploaded');
   const ext = path.extname(file.originalname || '').toLowerCase();
@@ -673,7 +744,11 @@ router.post('/audio-import', upload.single('file'), async (req, res) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'No audio file uploaded' });
     const mode = req.body?.mode === 'intake' ? 'intake' : 'ongoing';
-    const rawTranscript = await transcribeAudioUpload(req.file);
+    const audioResult = await transcribeAudioUploadWithOptionalDiarization(req.file, {
+      ...req.body,
+      diarize: mode === 'ongoing' ? req.body?.diarize : 'false',
+    });
+    const rawTranscript = audioResult.transcript;
 
     if (!rawTranscript.trim()) {
       return res.status(400).json({ error: 'The audio could not be transcribed clearly. Try a cleaner recording or a different file.' });
@@ -689,6 +764,7 @@ router.post('/audio-import', upload.single('file'), async (req, res) => {
       return res.json({
         fileName: req.file.originalname,
         transcript,
+        diarization: audioResult.diarization,
         ...draft,
       });
     }
@@ -706,6 +782,7 @@ router.post('/audio-import', upload.single('file'), async (req, res) => {
     return res.json({
       fileName: req.file.originalname,
       transcript,
+      diarization: audioResult.diarization,
       workspaceFields,
     });
   } catch (err) {
@@ -828,9 +905,12 @@ router.post('/dictate-session', upload.single('audio'), async (req, res) => {
       return res.status(400).json({ error: 'No audio or transcript received.' });
     }
 
-    const rawTranscript = req.file
-      ? await transcribeAudioUpload(req.file)
-      : providedTranscript;
+    let diarization = { enabled: false, attempted: false, segments: [], speakers: [], speakerLabels: {} };
+    const audioResult = req.file
+      ? await transcribeAudioUploadWithOptionalDiarization(req.file, req.body)
+      : null;
+    const rawTranscript = audioResult ? audioResult.transcript : providedTranscript;
+    if (audioResult?.diarization) diarization = audioResult.diarization;
     if (!rawTranscript.trim()) {
       return res.status(400).json({ error: 'Could not transcribe audio. Try speaking more clearly or in a quieter environment.' });
     }
@@ -990,7 +1070,7 @@ Rules:
       console.error('[dictate-session] JSON parse error:', parseErr.message);
     }
 
-    return res.json({ transcript, sections });
+    return res.json({ transcript, diarization, sections });
   } catch (err) {
     console.error('[ai/dictate-session]', err.message);
     sendRouteError(res, err);

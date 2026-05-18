@@ -20,11 +20,16 @@ function parsePatientMembers(value) {
   return String(value).split(/\r?\n|,/).map(v => v.trim()).filter(Boolean)
 }
 
+function shouldDiarizeSession(caseType) {
+  return ['couple', 'family', 'group'].includes(String(caseType || '').toLowerCase())
+}
+
 function DictationPanel({ onApply, onClose, patientContext = '', caseType = 'individual', members = [] }) {
   const [phase, setPhase] = useState('idle') // idle | recording | processing | done | error
   const [errorMsg, setErrorMsg] = useState('')
   const [transcript, setTranscript] = useState('')
   const [sections, setSections] = useState(null)
+  const [diarization, setDiarization] = useState(null)
   const [elapsed, setElapsed] = useState(0)
   const mediaRecorderRef = useRef(null)
   const chunksRef = useRef([])
@@ -57,6 +62,7 @@ function DictationPanel({ onApply, onClose, patientContext = '', caseType = 'ind
           fd.append('patientContext', patientContext)
           fd.append('caseType', caseType || 'individual')
           fd.append('members', JSON.stringify(members || []))
+          fd.append('diarize', shouldDiarizeSession(caseType) ? 'true' : 'false')
           const API = API_BASE
           const res = await fetch(`${API}/ai/dictate-session`, {
             method: 'POST',
@@ -66,6 +72,7 @@ function DictationPanel({ onApply, onClose, patientContext = '', caseType = 'ind
           const data = await res.json()
           if (!res.ok) throw new Error(data.message || data.error || 'Transcription failed')
           setTranscript(data.transcript || '')
+          setDiarization(data.diarization || null)
           setSections(data.sections || null)
           setPhase('done')
         } catch (err) {
@@ -179,6 +186,13 @@ function DictationPanel({ onApply, onClose, patientContext = '', caseType = 'ind
                 {transcript}
               </div>
             </details>
+          )}
+          {diarization?.attempted && (
+            <div className={`rounded-xl border px-4 py-3 text-xs ${diarization.enabled ? 'bg-teal-50 border-teal-200 text-teal-800' : 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+              {diarization.enabled
+                ? 'Speaker separation was used. Review names/roles in the generated fields before signing.'
+                : 'Speaker separation was unavailable, so Miwa used standard transcription.'}
+            </div>
           )}
           <div className="rounded-xl bg-green-50 border border-green-200 px-4 py-3">
             <p className="text-xs font-semibold text-green-800 mb-1">✓ Note fields ready, all formats populated</p>

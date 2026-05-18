@@ -127,6 +127,21 @@ const CLIENT_TYPE_DEFAULT_MEMBERS = {
   group: [],
 }
 
+function shouldRequestDiarization(caseType) {
+  return ['couple', 'family', 'group'].includes(String(caseType || '').toLowerCase())
+}
+
+function formatSpeakerTranscript(segments = [], speakerLabels = {}) {
+  if (!Array.isArray(segments) || !segments.length) return ''
+  return segments
+    .map(segment => {
+      const speaker = speakerLabels[segment.speaker] || segment.speaker || 'Speaker'
+      return `${speaker}: ${segment.text || ''}`.trim()
+    })
+    .filter(Boolean)
+    .join('\n')
+}
+
 function createEmptyWorkspaceForm() {
   return {
     caseType: 'individual',
@@ -532,6 +547,7 @@ export default function Workspace() {
   const [stagedImportedFields, setStagedImportedFields] = useState(null)
   const [uploadedAudioName, setUploadedAudioName] = useState('')
   const [uploadedAudioTranscript, setUploadedAudioTranscript] = useState('')
+  const [audioDiarization, setAudioDiarization] = useState(null)
 
   // Workspace drafts can include PHI; we accept that risk for the local
   // working copy. localStorage autosave is scoped per therapist + linked
@@ -688,6 +704,7 @@ export default function Workspace() {
   const resetAudioState = () => {
     setUploadedAudioName('')
     setUploadedAudioTranscript('')
+    setAudioDiarization(null)
     setRecordingStatus('')
     setRecordingReady(false)
     setRecordingDuration(0)
@@ -696,6 +713,7 @@ export default function Workspace() {
   const applyOngoingAudioFields = (data) => {
     const fields = data.workspaceFields || {}
     const hasStructuredFields = Object.values(fields).some(value => String(value || '').trim())
+    setAudioDiarization(data.diarization || null)
 
     setForm(f => ({
       ...f,
@@ -715,10 +733,27 @@ export default function Workspace() {
     setImportedIntakeName('')
     setImportedIntakeText('')
     setImportMessage(
-      hasStructuredFields
-        ? 'Audio transcribed and sorted into structured session fields. Review each section before generating.'
-        : 'Audio transcribed, but Miwa could not confidently sort it into sections. Review the transcript-based session notes before generating.'
+      data.diarization?.enabled
+        ? 'Audio transcribed with speaker separation. Confirm the speaker labels, then review each generated section.'
+        : data.diarization?.fallback
+          ? 'Audio transcribed, but speaker separation was unavailable. Review the transcript-based session notes before generating.'
+          : hasStructuredFields
+            ? 'Audio transcribed and sorted into structured session fields. Review each section before generating.'
+            : 'Audio transcribed, but Miwa could not confidently sort it into sections. Review the transcript-based session notes before generating.'
     )
+  }
+
+  const updateSpeakerLabel = (speakerId, label) => {
+    setAudioDiarization(prev => {
+      if (!prev) return prev
+      const nextLabels = { ...(prev.speakerLabels || {}), [speakerId]: label }
+      const transcript = formatSpeakerTranscript(prev.segments || [], nextLabels)
+      if (transcript) {
+        setUploadedAudioTranscript(transcript)
+        setForm(f => ({ ...f, sessionNotes: transcript }))
+      }
+      return { ...prev, speakerLabels: nextLabels }
+    })
   }
 
   const discardRecording = () => {
@@ -733,6 +768,7 @@ export default function Workspace() {
     formData.append('mode', sessionType)
     formData.append('caseType', form.caseType || 'individual')
     formData.append('members', JSON.stringify(form.members || []))
+    formData.append('diarize', shouldRequestDiarization(form.caseType) ? 'true' : 'false')
     const res = await apiUpload('/ai/audio-import', formData)
     const data = await res.json()
     if (!res.ok) throw new Error(data.message || data.error || 'Failed to import audio')
@@ -856,6 +892,7 @@ export default function Workspace() {
       formData.append('mode', sessionType)
       formData.append('caseType', form.caseType || 'individual')
       formData.append('members', JSON.stringify(form.members || []))
+      formData.append('diarize', shouldRequestDiarization(form.caseType) ? 'true' : 'false')
       const res = await apiUpload('/ai/audio-import', formData)
       const data = await res.json()
       if (!res.ok) throw new Error(data.message || data.error || 'Failed to import audio')
@@ -1536,6 +1573,34 @@ export default function Workspace() {
                           </p>
                           <button type="button" onClick={discardRecording} className="btn-secondary text-xs">Discard</button>
                         </div>
+                        {audioDiarization?.attempted && (
+                          <div className={`rounded-lg border px-3 py-2 text-xs ${audioDiarization.enabled ? 'border-teal-100 bg-teal-50 text-teal-800' : 'border-amber-200 bg-amber-50 text-amber-800'}`}>
+                            {audioDiarization.enabled
+                              ? 'Speaker separation is ready. Confirm each label before trusting the note.'
+                              : 'Speaker separation was unavailable, so this transcript used standard transcription.'}
+                          </div>
+                        )}
+                        {audioDiarization?.enabled && Array.isArray(audioDiarization.speakers) && audioDiarization.speakers.length > 0 && (
+                          <div className="rounded-lg border border-gray-100 bg-gray-50 p-3 space-y-2">
+                            <p className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Speaker labels</p>
+                            <div className="grid gap-2 sm:grid-cols-2">
+                              {audioDiarization.speakers.map((speaker, index) => (
+                                <label key={speaker.id} className="text-xs text-gray-500">
+                                  {speaker.id}
+                                  <select
+                                    className="input mt-1 text-sm py-1.5"
+                                    value={audioDiarization.speakerLabels?.[speaker.id] || speaker.label || `Speaker ${index + 1}`}
+                                    onChange={e => updateSpeakerLabel(speaker.id, e.target.value)}
+                                  >
+                                    {[`Speaker ${index + 1}`, 'Therapist / clinician', ...(form.members || [])]
+                                      .filter(Boolean)
+                                      .map(option => <option key={option} value={option}>{option}</option>)}
+                                  </select>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         <div className="rounded-lg bg-gray-50 border border-gray-100 p-3 max-h-40 overflow-y-auto whitespace-pre-wrap text-sm text-gray-700">
                           {uploadedAudioTranscript}
                         </div>

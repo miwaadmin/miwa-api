@@ -29,6 +29,7 @@ const ORIGINAL_ENV = {
   OPENAI_PHI_FAST_MODEL: process.env.OPENAI_PHI_FAST_MODEL,
   OPENAI_PHI_TOOL_MODEL: process.env.OPENAI_PHI_TOOL_MODEL,
   OPENAI_PHI_STRUCTURED_MODEL: process.env.OPENAI_PHI_STRUCTURED_MODEL,
+  OPENAI_DIARIZATION_MODEL: process.env.OPENAI_DIARIZATION_MODEL,
   OPENAI_PHI_ZDR_ENABLED: process.env.OPENAI_PHI_ZDR_ENABLED,
   OPENAI_PHI_PROJECT_ID: process.env.OPENAI_PHI_PROJECT_ID,
 };
@@ -270,6 +271,41 @@ describe('Azure OpenAI client error handling', () => {
     assert.deepEqual(seen, [
       ['transcribe', 'transcribe-alt'],
       ['tts', 'speech-alt'],
+    ]);
+  });
+
+  test('OpenAI PHI/ZDR diarization requests diarized_json speaker segments', async () => {
+    process.env.OPENAI_PHI_API_KEY = 'phi-secret-key';
+    process.env.OPENAI_PHI_ZDR_ENABLED = 'true';
+    process.env.OPENAI_DIARIZATION_MODEL = 'gpt-4o-transcribe-diarize';
+
+    const seen = [];
+    aiClient._test.setClient({
+      audio: {
+        transcriptions: {
+          create: async (request) => {
+            seen.push(request);
+            return {
+              segments: [
+                { speaker: 'speaker_0', text: 'Hello there.', start: 0, end: 1.5 },
+                { speaker: 'speaker_1', text: 'I felt ignored.', start: 1.6, end: 3.2 },
+              ],
+            };
+          },
+        },
+      },
+    });
+
+    const result = await aiClient.transcribeAudioBufferWithDiarization(Buffer.from('fake audio'), 'session.webm', 'audio/webm');
+
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].model, 'gpt-4o-transcribe-diarize');
+    assert.equal(seen[0].response_format, 'diarized_json');
+    assert.equal(seen[0].chunking_strategy, 'auto');
+    assert.equal(result.text, 'speaker_0: Hello there.\nspeaker_1: I felt ignored.');
+    assert.deepEqual(result.speakers, [
+      { id: 'speaker_0', label: 'Speaker 1' },
+      { id: 'speaker_1', label: 'Speaker 2' },
     ]);
   });
 

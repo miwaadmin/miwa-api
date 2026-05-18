@@ -6,6 +6,7 @@ const GENERIC_AI_MESSAGE = 'The AI service is temporarily unavailable. Please tr
 const DEFAULT_AZURE_OPENAI_API_VERSION = '2025-04-01-preview';
 const DEFAULT_OPENAI_PHI_MODEL = 'gpt-5.5';
 const DEFAULT_OPENAI_PHI_FAST_MODEL = 'gpt-5.4-mini';
+const DEFAULT_OPENAI_DIARIZATION_MODEL = 'gpt-4o-transcribe-diarize';
 const TRANSCRIPTION_DEPLOYMENT_ENV_NAMES = [
   'AZURE_OPENAI_TRANSCRIPTION_DEPLOYMENT',
   'AZURE_OPENAI_TRANSCRIBE_DEPLOYMENT',
@@ -100,6 +101,10 @@ function getOpenAIToolModel() {
 
 function getOpenAIStructuredModel() {
   return cleanModelName(process.env.OPENAI_PHI_STRUCTURED_MODEL, getOpenAIFastModel());
+}
+
+function getOpenAIDiarizationModel() {
+  return cleanModelName(process.env.OPENAI_DIARIZATION_MODEL, DEFAULT_OPENAI_DIARIZATION_MODEL);
 }
 
 function getDefaultModelForProvider(provider = getTextAIProvider()) {
@@ -234,7 +239,9 @@ function getTTSAIClient() {
 
 // IMPORTANT: PHI may only use BAA-backed, approved providers.
 // Text calls can use Azure OpenAI or OpenAI API with BAA + ZDR enabled.
-// Audio remains on the Azure path unless explicitly reviewed later.
+// Standard audio remains on Azure. Speaker diarization can use the OpenAI
+// PHI/ZDR lane when explicitly requested, because this app needs
+// gpt-4o-transcribe-diarize speaker segments.
 
 function getRequestId(err) {
   return err?.request_id
@@ -342,6 +349,7 @@ function getAIConfigStatus() {
       fastModel: getOpenAIFastModel(),
       toolModel: getOpenAIToolModel(),
       structuredModel: getOpenAIStructuredModel(),
+      diarizationModel: getOpenAIDiarizationModel(),
       projectIdConfigured: Boolean(String(process.env.OPENAI_PHI_PROJECT_ID || '').trim()),
     },
     azureConfigured: Boolean(endpoint && String(process.env.AZURE_OPENAI_KEY || '').trim() && String(process.env.AZURE_OPENAI_DEPLOYMENT || '').trim()),
@@ -372,6 +380,35 @@ function requireAudioDeployment(kind, envNames) {
   }, {
     deployment: null,
   });
+}
+
+function normalizeDiarizationSegment(segment, index) {
+  const speaker = String(segment?.speaker || segment?.speaker_label || segment?.label || `speaker_${index + 1}`).trim();
+  const text = String(segment?.text || '').trim();
+  if (!text) return null;
+  const start = Number.isFinite(Number(segment?.start)) ? Number(segment.start) : null;
+  const end = Number.isFinite(Number(segment?.end)) ? Number(segment.end) : null;
+  return {
+    id: String(segment?.id || `seg-${index + 1}`),
+    speaker,
+    text,
+    start,
+    end,
+  };
+}
+
+function normalizeDiarizedTranscription(result) {
+  const segments = (Array.isArray(result?.segments) ? result.segments : [])
+    .map(normalizeDiarizationSegment)
+    .filter(Boolean);
+  const text = String(result?.text || segments.map((segment) => `${segment.speaker}: ${segment.text}`).join('\n')).trim();
+  const speakerIds = [...new Set(segments.map((segment) => segment.speaker))];
+  return {
+    text,
+    segments,
+    speakers: speakerIds.map((id, index) => ({ id, label: `Speaker ${index + 1}` })),
+    model: getOpenAIDiarizationModel(),
+  };
 }
 
 function normalizeMessageContent(content) {
@@ -537,6 +574,19 @@ async function transcribeAudioBuffer(buffer, filename, mimeType) {
   return typeof result === 'string' ? result.trim() : (result?.text || '').trim();
 }
 
+async function transcribeAudioBufferWithDiarization(buffer, filename, mimeType) {
+  const deployment = getOpenAIDiarizationModel();
+  requireOpenAIConfig({ model: deployment });
+  const audioFile = await toFile(buffer, filename || 'recording.webm', { type: mimeType || 'application/octet-stream' });
+  const result = await runAIRequest(() => getOpenAIClient().audio.transcriptions.create({
+    file: audioFile,
+    model: deployment,
+    response_format: 'diarized_json',
+    chunking_strategy: 'auto',
+  }), { provider: OPENAI_PHI_PROVIDER, deployment });
+  return normalizeDiarizedTranscription(result);
+}
+
 async function generateSpeechBuffer(text, options = {}) {
   const deployment = requireAudioDeployment('tts', TTS_DEPLOYMENT_ENV_NAMES);
   const audio = await runAzureRequest(() => getTTSAIClient().audio.speech.create({
@@ -558,6 +608,7 @@ module.exports = {
   generateAIResponseWithUsage,
   generateAIResponseWithTools,
   transcribeAudioBuffer,
+  transcribeAudioBufferWithDiarization,
   generateSpeechBuffer,
   getAIConfigStatus,
   AIServiceError,
@@ -583,6 +634,8 @@ module.exports = {
     getOpenAIFastModel,
     getOpenAIToolModel,
     getOpenAIStructuredModel,
+    getOpenAIDiarizationModel,
+    normalizeDiarizedTranscription,
     getAzureApiVersion,
     getTextAIProvider,
   },
