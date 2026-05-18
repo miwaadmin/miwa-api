@@ -280,6 +280,35 @@ function createSchema() {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS genograms (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+      therapist_id INTEGER NOT NULL REFERENCES therapists(id) ON DELETE CASCADE,
+      title TEXT,
+      map_json TEXT NOT NULL,
+      clinical_summary TEXT,
+      ai_draft_json TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE(patient_id, therapist_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS genogram_versions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      genogram_id INTEGER NOT NULL REFERENCES genograms(id) ON DELETE CASCADE,
+      patient_id INTEGER NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+      therapist_id INTEGER NOT NULL REFERENCES therapists(id) ON DELETE CASCADE,
+      title TEXT,
+      map_json TEXT NOT NULL,
+      clinical_summary TEXT,
+      change_note TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_genograms_patient
+      ON genograms(patient_id, therapist_id);
+    CREATE INDEX IF NOT EXISTS idx_genogram_versions_genogram
+      ON genogram_versions(genogram_id, created_at);
+
     CREATE TABLE IF NOT EXISTS therapist_self_care_assessments (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       therapist_id INTEGER NOT NULL REFERENCES therapists(id),

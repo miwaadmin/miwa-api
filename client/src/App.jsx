@@ -8,6 +8,7 @@ import AdminLayout from './components/AdminLayout'
 import Dashboard from './pages/Dashboard'
 import Patients from './pages/Patients'
 import PatientDetail from './pages/PatientDetail'
+import Genogram from './pages/Genogram'
 import SessionNote from './pages/SessionNote'
 import Supervisor from './pages/Supervisor'
 import Settings from './pages/Settings'
@@ -336,6 +337,7 @@ export default function App() {
                 <Route path="/workspace" element={<MobileAwareRoute mobileTo="/m/workspace"><Workspace /></MobileAwareRoute>} />
                 <Route path="/patients" element={<MobileAwareRoute mobileTo="/m/clients"><Patients /></MobileAwareRoute>} />
                 <Route path="/patients/:id" element={<MobileAwarePatientRoute><PatientDetail /></MobileAwarePatientRoute>} />
+                <Route path="/patients/:id/genogram" element={<MobileAwareRoute mobileTo="/m/clients"><Genogram /></MobileAwareRoute>} />
                 <Route path="/patients/:id/sessions/new" element={<MobileAwareSessionRoute><SessionNote /></MobileAwareSessionRoute>} />
                 <Route path="/patients/:id/sessions/:sessionId" element={<MobileAwareSessionRoute><SessionNote /></MobileAwareSessionRoute>} />
                 <Route path="/consult" element={<MobileAwareRoute mobileTo="/m/consult"><Supervisor /></MobileAwareRoute>} />

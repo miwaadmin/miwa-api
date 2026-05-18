@@ -2725,6 +2725,16 @@ export default function PatientDetail() {
           <p className="text-sm text-gray-500 mt-1">Clinical Profile, Intake Sources, Session History, and Record Files</p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            to={`/patients/${id}/genogram`}
+            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold bg-teal-50 text-teal-700 hover:bg-teal-100 border border-teal-100 transition-colors"
+            title="Open the clinical family map and genogram workspace"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v4m0 0H8m4 0h4M6 20v-3m0 0a3 3 0 100-6 3 3 0 000 6zm12 3v-3m0 0a3 3 0 100-6 3 3 0 000 6zM6 11V8h12v3" />
+            </svg>
+            Family Map
+          </Link>
           <button
             onClick={() => setShowLetterModal(true)}
             className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 border border-indigo-100 transition-colors"

@@ -187,6 +187,7 @@ app.use('/api/billing', require('./routes/billing'));
 
 // ── Protected routes ─────────────────────────────────────────────────────────
 app.use('/api/admin',                         require('./routes/admin'));
+app.use('/api/patients/:patientId/genogram',  apiLimiter, requireAuth, phiAuditLog, require('./routes/genograms'));
 app.use('/api/patients',                      apiLimiter, requireAuth, phiAuditLog, require('./routes/patients'));
 app.use('/api/patients/:patientId/sessions',  apiLimiter, requireAuth, phiAuditLog, require('./routes/sessions'));
 app.use('/api/patients/:patientId/documents', apiLimiter, requireAuth, phiAuditLog, require('./routes/documents'));
