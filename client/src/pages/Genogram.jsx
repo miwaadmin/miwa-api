@@ -277,6 +277,44 @@ function buildFamilyLayout(relationships, peopleById) {
   return { branches, looseParentChild, sibling, renderedIds, parentChildIds }
 }
 
+function annotationWidth(annotation) {
+  return Math.max(220, Math.min(460, Number(annotation?.width) || 320))
+}
+
+function wrapAnnotationText(text, width) {
+  const maxChars = Math.max(18, Math.floor((width - 28) / 7.2))
+  const words = String(text || 'Clinical note').split(/\s+/).filter(Boolean)
+  const lines = []
+  let current = ''
+
+  words.forEach((word) => {
+    if (word.length > maxChars) {
+      if (current) {
+        lines.push(current)
+        current = ''
+      }
+      for (let i = 0; i < word.length; i += maxChars) lines.push(word.slice(i, i + maxChars))
+      return
+    }
+
+    const next = current ? `${current} ${word}` : word
+    if (next.length > maxChars && current) {
+      lines.push(current)
+      current = word
+    } else {
+      current = next
+    }
+  })
+
+  if (current) lines.push(current)
+  return lines.length ? lines : ['Clinical note']
+}
+
+function annotationHeight(annotation) {
+  const lines = wrapAnnotationText(annotation?.text, annotationWidth(annotation))
+  return Math.max(64, lines.length * 18 + 28)
+}
+
 function PersonSymbol({ person, selected, onPointerDown, onClick }) {
   const isMale = person.gender === 'male'
   const isFemale = person.gender === 'female'
@@ -355,6 +393,7 @@ export default function Genogram() {
 
   const selectedPerson = map.people.find((p) => p.id === selectedId) || null
   const selectedRelationship = map.relationships.find((r) => r.id === selectedId) || null
+  const selectedAnnotation = map.annotations.find((annotation) => annotation.id === selectedId) || null
 
   const peopleById = useMemo(() => {
     const out = new Map()
@@ -397,6 +436,13 @@ export default function Genogram() {
     setMap((current) => ({
       ...current,
       relationships: current.relationships.map((rel) => rel.id === relationshipId ? { ...rel, ...patch } : rel),
+    }))
+  }
+
+  function updateAnnotation(annotationId, patch) {
+    setMap((current) => ({
+      ...current,
+      annotations: current.annotations.map((annotation) => annotation.id === annotationId ? { ...annotation, ...patch } : annotation),
     }))
   }
 
@@ -566,8 +612,10 @@ export default function Genogram() {
   }
 
   function addAnnotation() {
-    const next = { id: uid('annotation'), text: 'Clinical note', x: 180, y: 160 }
+    const next = { id: uid('annotation'), text: 'Clinical note', x: 260, y: 170, width: 320 }
     setMap((current) => ({ ...current, annotations: [...current.annotations, next] }))
+    setSelectedId(next.id)
+    setMode('select')
   }
 
   function removeSelected() {
@@ -624,14 +672,24 @@ export default function Genogram() {
     if (mode !== 'select') return
     event.stopPropagation()
     const point = pointFromEvent(event)
-    setDragging({ id: person.id, dx: point.x - person.x, dy: point.y - person.y })
+    setDragging({ type: 'person', id: person.id, dx: point.x - person.x, dy: point.y - person.y })
     setSelectedId(person.id)
+  }
+
+  function handleAnnotationPointerDown(annotation, event) {
+    if (mode !== 'select') return
+    event.stopPropagation()
+    const point = pointFromEvent(event)
+    setDragging({ type: 'annotation', id: annotation.id, dx: point.x - (Number(annotation.x) || 0), dy: point.y - (Number(annotation.y) || 0) })
+    setSelectedId(annotation.id)
   }
 
   function handlePointerMove(event) {
     if (!dragging) return
     const point = pointFromEvent(event)
-    updatePerson(dragging.id, { x: Math.round(point.x - dragging.dx), y: Math.round(point.y - dragging.dy) })
+    const patch = { x: Math.round(point.x - dragging.dx), y: Math.round(point.y - dragging.dy) }
+    if (dragging.type === 'annotation') updateAnnotation(dragging.id, patch)
+    else updatePerson(dragging.id, patch)
   }
 
   async function save(changeNote = 'Saved family map') {
@@ -1085,12 +1143,40 @@ export default function Genogram() {
               )
             })}
 
-            {map.annotations.map((annotation) => (
-              <g key={annotation.id} transform={`translate(${annotation.x} ${annotation.y})`} onClick={(event) => { event.stopPropagation(); setSelectedId(annotation.id) }}>
-                <rect x="-90" y="-26" width="180" height="52" rx="4" fill="#fef9c3" stroke={selectedId === annotation.id ? '#6047ee' : '#eab308'} strokeWidth="2" />
-                <text x="0" y="4" textAnchor="middle" className="fill-gray-800 text-[13px]">{annotation.text}</text>
-              </g>
-            ))}
+            {map.annotations.map((annotation) => {
+              const width = annotationWidth(annotation)
+              const height = annotationHeight(annotation)
+              const lines = wrapAnnotationText(annotation.text, width)
+              const selected = selectedId === annotation.id
+              return (
+                <g
+                  key={annotation.id}
+                  transform={`translate(${Number(annotation.x) || 0} ${Number(annotation.y) || 0})`}
+                  onPointerDown={(event) => handleAnnotationPointerDown(annotation, event)}
+                  onClick={(event) => { event.stopPropagation(); setSelectedId(annotation.id) }}
+                  className="cursor-grab active:cursor-grabbing"
+                >
+                  <rect
+                    x={-width / 2}
+                    y={-height / 2}
+                    width={width}
+                    height={height}
+                    rx="7"
+                    fill="#fef9c3"
+                    stroke={selected ? '#6047ee' : '#eab308'}
+                    strokeWidth={selected ? 3 : 2}
+                  />
+                  <text x={-width / 2 + 14} y={-height / 2 + 24} className="fill-gray-800 text-[13px] font-medium">
+                    {lines.map((line, index) => (
+                      <tspan key={`${annotation.id}-line-${index}`} x={-width / 2 + 14} dy={index === 0 ? 0 : 18}>
+                        {line}
+                      </tspan>
+                    ))}
+                  </text>
+                  {selected && <rect x={-width / 2 - 6} y={-height / 2 - 6} width={width + 12} height={height + 12} rx="9" fill="none" stroke="#6047ee" strokeDasharray="4 4" />}
+                </g>
+              )
+            })}
 
             {map.people.map((person) => (
               <PersonSymbol
@@ -1199,6 +1285,32 @@ export default function Genogram() {
                     Add child to this couple
                   </button>
                 )}
+              </div>
+            ) : selectedAnnotation ? (
+              <div className="space-y-3">
+                <div>
+                  <label className="label text-xs">Clinical note text</label>
+                  <textarea
+                    className="textarea min-h-[120px] text-sm"
+                    value={selectedAnnotation.text || ''}
+                    onChange={(e) => updateAnnotation(selectedAnnotation.id, { text: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="label text-xs">Note box width</label>
+                  <input
+                    className="input py-2 text-sm"
+                    type="number"
+                    min="220"
+                    max="460"
+                    step="20"
+                    value={annotationWidth(selectedAnnotation)}
+                    onChange={(e) => updateAnnotation(selectedAnnotation.id, { width: Number(e.target.value) || 320 })}
+                  />
+                </div>
+                <p className="text-xs leading-relaxed text-gray-500">
+                  Drag the yellow note box on the map to reposition it. Text wraps inside the box for exports.
+                </p>
               </div>
             ) : (
               <p className="text-sm text-gray-500">Select a person or relationship to edit details. Use the connect tool to add emotional or family lines.</p>
