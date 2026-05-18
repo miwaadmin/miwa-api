@@ -108,13 +108,20 @@ change is clearly experimental / scratch work. When in doubt, push.
   through the migration block in `db.js` AND the destructure + UPDATE
   in `server/routes/patients.js` PUT handler.
 - **Trainee sidebar:** In Agency Companion / trainee mode, the sidebar
-  order is fixed: Dashboard, Session Workspace, Consult, Supervision,
-  Cases, Hours, Learning, Resources. Do not re-add Drafts or Transition;
-  trainee drafting lives inside Session Workspace.
+  order is fixed: Dashboard, Session Workspace, Consult, Brief,
+  Supervision, Cases, Hours, Learning, Resources. Do not re-add Drafts or
+  Transition; trainee drafting lives inside Session Workspace.
 - **Session Workspace status pipeline:** The trainee copy-to-EHR workflow
   uses four steps: draft complete, trainee review, risk/safety check,
   copied to EHR. Surface this pipeline in Workspace list views and editor
   controls rather than rebuilding a separate Drafts page.
+- **Brief:** The dedicated `/brief` page is the current home for
+  therapist research/daily briefs across trainee, associate, and licensed
+  modes. It reads from `GET /api/brief`, shows the current local week
+  (Monday through today), and lazily deletes unsaved `research_briefs`
+  rows older than 7 days. Saved briefs use `saved = 1` and `saved_at`,
+  persist indefinitely, and are managed through
+  `POST /api/brief/:id/save` and `/unsave`.
 - **Relational audio diarization:** Couple, family, and group session
   audio requests speaker diarization through the OpenAI PHI/ZDR lane
   (`OPENAI_PHI_API_KEY`, `OPENAI_PHI_ZDR_ENABLED=true`, optional
