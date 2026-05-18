@@ -1659,6 +1659,29 @@ When you're done, I'll save this as your profile and refer back to it in every c
     }
   }, [liveVoiceStatus])
 
+  // Relay mic mute state to Supervisor when embedded
+  useEffect(() => {
+    if (embeddedModeRef.current) {
+      window.dispatchEvent(new CustomEvent('miwa-live-embedded-mic-state', { detail: { muted: liveMicMuted } }))
+    }
+  }, [liveMicMuted])
+
+  // Relay assistant-speaking state to Supervisor when embedded
+  useEffect(() => {
+    if (embeddedModeRef.current) {
+      window.dispatchEvent(new CustomEvent('miwa-live-embedded-assistant-state', { detail: { speaking: liveAssistantSpeaking } }))
+    }
+  }, [liveAssistantSpeaking])
+
+  // Listen for mute-toggle requests from the embedded Supervisor UI
+  useEffect(() => {
+    const onToggleMute = () => {
+      if (embeddedModeRef.current) toggleLiveMicMute()
+    }
+    window.addEventListener('miwa-live-embedded-toggle-mute', onToggleMute)
+    return () => window.removeEventListener('miwa-live-embedded-toggle-mute', onToggleMute)
+  }, [toggleLiveMicMute])
+
   useEffect(() => {
     const startFromPage = event => {
       const mode = event?.detail?.mode || 'conversation'
