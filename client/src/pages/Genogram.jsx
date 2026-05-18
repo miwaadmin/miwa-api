@@ -1031,7 +1031,12 @@ export default function Genogram() {
 
             {familyLayout.branches.map(({ partnerRel, parentA, parentB, children }) => {
               const stroke = relationshipStroke(partnerRel)
-              const parentLineY = Math.max(bottomEdge(parentA), bottomEdge(parentB)) + 24
+              // Drop the partner line well below the name (y+45) and age (y+61)
+              // labels so they don't sit on top of the connector. Bump clearance
+              // when age/birth year is shown to leave room for an above-line label.
+              const hasAgeRow = !!(parentA?.age || parentA?.birthYear || parentB?.age || parentB?.birthYear)
+              const labelClearance = hasAgeRow ? 64 : 44
+              const parentLineY = Math.max(bottomEdge(parentA), bottomEdge(parentB)) + labelClearance
               const childLineY = children.length > 0
                 ? Math.min(...children.map((child) => topEdge(child))) - 28
                 : parentLineY
