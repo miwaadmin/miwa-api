@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useTour } from '../context/TourContext'
 import { therapistInitials } from '../lib/avatar'
@@ -180,17 +180,19 @@ export default function Header() {
         {/* Therapist avatar + logout */}
         {therapist && (
           <div className="flex items-center gap-2">
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white cursor-pointer overflow-hidden border border-white/40"
+            <Link
+              to="/settings"
+              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold text-white cursor-pointer overflow-hidden border border-white/40 hover:border-white/80 transition-colors"
               style={{ background: therapist?.avatar_url ? '#e5e7eb' : 'linear-gradient(135deg, #5746ed, #0ac5a2)' }}
-              title={therapist.full_name || therapist.email}
+              title={`${therapist.full_name || therapist.email} — open settings`}
+              aria-label="Open settings"
             >
               {therapist?.avatar_url ? (
                 <img src={therapist.avatar_url} alt="Profile" className="w-full h-full object-cover" />
               ) : (
                 initials
               )}
-            </div>
+            </Link>
             <button
               onClick={logout}
               className="text-xs text-gray-400 hover:text-red-500 transition-colors font-medium"
