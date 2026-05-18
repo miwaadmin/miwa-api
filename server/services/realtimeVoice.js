@@ -173,11 +173,17 @@ function sessionForMode({ mode = 'conversation', pageContext = {}, modelOverride
     instructions: clinicalRealtimeInstructions({ mode: normalizedMode, pageContext }),
     audio: {
       input: {
+        transcription: {
+          model: config.transcriptionModel,
+        },
+        noise_reduction: {
+          type: 'near_field',
+        },
         turn_detection: {
           type: 'server_vad',
-          threshold: 0.5,
-          prefix_padding_ms: 500,
-          silence_duration_ms: 2600,
+          threshold: 0.45,
+          prefix_padding_ms: 300,
+          silence_duration_ms: 800,
           create_response: false,
           interrupt_response: false,
         },

@@ -69,8 +69,10 @@ test('conversation mode includes clinical and page context instructions', () => 
   assert.match(session.instructions, /one continuous response/);
   assert.match(session.instructions, /Current Miwa UI context: page=Patients/);
   assert.equal(session.audio.output.voice, getRealtimeConfig(phiRealtimeEnv()).voice);
+  assert.equal(session.audio.input.transcription.model, getRealtimeConfig(phiRealtimeEnv()).transcriptionModel);
+  assert.equal(session.audio.input.noise_reduction.type, 'near_field');
   assert.equal(session.audio.input.turn_detection.type, 'server_vad');
-  assert.equal(session.audio.input.turn_detection.silence_duration_ms, 2600);
+  assert.equal(session.audio.input.turn_detection.silence_duration_ms, 800);
   assert.equal(session.audio.input.turn_detection.create_response, false);
   assert.equal(session.audio.input.turn_detection.interrupt_response, false);
 });
@@ -136,7 +138,9 @@ test('unified realtime call sends SDP and session config from the server', async
   assert.equal(session.type, 'realtime');
   assert.equal(session.model, 'gpt-realtime-2');
   assert.deepEqual(Object.keys(session.audio).sort(), ['input', 'output']);
-  assert.equal(session.audio.input.turn_detection.silence_duration_ms, 2600);
+  assert.equal(session.audio.input.transcription.model, getRealtimeConfig(phiRealtimeEnv()).transcriptionModel);
+  assert.equal(session.audio.input.noise_reduction.type, 'near_field');
+  assert.equal(session.audio.input.turn_detection.silence_duration_ms, 800);
   assert.equal(session.audio.input.turn_detection.create_response, false);
   assert.equal(session.audio.input.turn_detection.interrupt_response, false);
   assert.doesNotMatch(JSON.stringify(session), /OPENAI_PHI_API_KEY|phi-key/);

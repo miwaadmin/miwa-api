@@ -1360,7 +1360,7 @@ When you're done, I'll save this as your profile and refer back to it in every c
     }, delayMs)
   }, [])
 
-  const requestLiveResponse = useCallback((delayMs = 900) => {
+  const requestLiveResponse = useCallback((delayMs = 250) => {
     if (livePendingResponseTimerRef.current) clearTimeout(livePendingResponseTimerRef.current)
     livePendingResponseTimerRef.current = setTimeout(() => {
       livePendingResponseTimerRef.current = null
@@ -1592,7 +1592,14 @@ When you're done, I'll save this as your profile and refer back to it in every c
         startLiveOutputMonitor(event.streams[0])
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: { ideal: 1 },
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      })
       realtimeStreamRef.current = stream
       liveManualMuteRef.current = false
       liveAssistantSpeakingRef.current = false
@@ -1711,7 +1718,14 @@ When you're done, I'll save this as your profile and refer back to it in every c
     if (listening || streaming) return
     stopSpeaking()
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          channelCount: { ideal: 1 },
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      })
       // Find a Whisper-compatible recording format (varies by device/browser)
       const mimeType = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/wav']
         .find(t => MediaRecorder.isTypeSupported(t)) || ''

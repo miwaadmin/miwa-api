@@ -116,6 +116,19 @@ change is clearly experimental / scratch work. When in doubt, push.
   falls back to standard Azure transcription if diarization is unavailable.
   Treat diarized speakers as provisional until the clinician confirms the
   speaker labels in the UI.
+- **Miwa Live realtime voice:** Browser audio starts in
+  `client/src/components/MiwaChat.jsx` with WebRTC `getUserMedia` and mono
+  audio constraints (`channelCount: 1`, echo cancellation, noise suppression,
+  auto gain). The browser sends an SDP offer to
+  `POST /api/agent/realtime/call`; `server/services/realtimeVoice.js` adds the
+  OpenAI PHI/ZDR realtime session config and proxies the SDP to
+  `/v1/realtime/calls`. Conversation mode keeps
+  `turn_detection.create_response=false`, so `audio.input.transcription` must
+  stay enabled; the client waits for
+  `conversation.item.input_audio_transcription.completed` before sending
+  `response.create`. Chrome and Brave both use Chromium WebRTC here; if Brave
+  shields or site mic permissions are strict, users may need to allow the mic
+  for `practice.miwa.care`, but no Brave-specific code path is expected.
 - **Feedback flow:** `POST /api/feedback` accepts `{ category, subject, message, context }`.
   Categories: `bug | feature_request | help | other` (legacy `feature` and `general` still
   accepted from the chat agent). Auth is handled inside the route using combined auth — it
