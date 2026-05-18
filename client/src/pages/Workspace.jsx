@@ -1539,11 +1539,11 @@ export default function Workspace() {
           <p className="text-sm text-gray-500 mt-1">
             {isTrainee
               ? (sessionType === 'intake'
-                  ? 'Draft a biopsychosocial, clinical formulation, diagnostic impressions, and supervision questions. Your agency EHR remains the system of record — copy the polished output back into it when ready.'
-                  : `Draft a polished ${form.noteFormat} progress note, clinical thinking, and supervision questions. Your agency EHR remains the system of record — copy the polished output back into it when ready.`)
+                  ? 'Draft a biopsychosocial, clinical formulation, diagnostic impressions, and supervision questions.'
+                  : `Draft a polished ${form.noteFormat} progress note, clinical thinking, and supervision questions.`)
               : (sessionType === 'intake'
-                  ? 'Complete an intake assessment. Generates a biopsychosocial, clinical formulation, diagnostic impressions, treatment plan, and supervision guidance. Progress notes (SOAP/BIRP/DAP/GIRP/DMH SIR) are for ongoing sessions.'
-                  : `Enter session notes and get a polished ${form.noteFormat} progress note, clinical thinking, diagnosis support, and supervision guidance.`)}
+                  ? 'Complete an intake assessment with formulation, diagnostic impressions, and treatment planning.'
+                  : `Draft a polished ${form.noteFormat} progress note with clinical analysis.`)}
           </p>
           {lastSavedAt && (
             <p
@@ -1609,10 +1609,7 @@ export default function Workspace() {
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div>
               <div className="text-xs font-semibold uppercase tracking-widest text-brand-600">First session path</div>
-              <h2 className="text-sm font-semibold text-gray-900 mt-1">Use this flow to reach your first usable output quickly</h2>
-              <p className="text-sm text-gray-600 mt-1 max-w-3xl">
-                1) Add a client, 2) keep Intake / First Session selected, 3) enter the presenting problem and session material, then generate a note or intake summary.
-              </p>
+              <h2 className="text-sm font-semibold text-gray-900 mt-1">Intake / first session</h2>
             </div>
             <button type="button" onClick={() => setSessionType('intake')} className="btn-primary text-sm">
               Use Intake / First Session
@@ -1658,9 +1655,6 @@ export default function Workspace() {
                 <div className="flex items-start justify-between gap-3 flex-wrap">
                   <div>
                     <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Session audio</p>
-                    <p className="text-sm text-gray-600 mt-1">
-                      Upload a dictated session summary or recording and Miwa will transcribe it into session notes. Direct in-app recording can come next.
-                    </p>
                   </div>
                   <div className="flex gap-2 flex-wrap">
                     <label className={`btn-secondary text-sm ${importingAudio ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
@@ -1746,9 +1740,6 @@ export default function Workspace() {
               <div className="flex items-start justify-between gap-3 flex-wrap">
                 <div>
                   <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Intake source</p>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Start from a blank intake, upload the therapist’s existing intake form, or upload an audio summary that Miwa can transcribe into the intake draft.
-                  </p>
                 </div>
                 <div className="flex gap-2 flex-wrap">
                   <label className={`btn-secondary text-sm ${importingIntake ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
@@ -2185,7 +2176,6 @@ export default function Workspace() {
                     value={form.sessionNotes}
                     onChange={e => set('sessionNotes', e.target.value)}
                   />
-                  <p className="text-xs text-gray-400 mt-1">Use bullets, fragments, or shorthand. Miwa will expand them into clinical language.</p>
                 </div>
                 <div className="space-y-3 pt-2 border-t border-gray-100 dark:border-white/10">
                   <div>

@@ -85,7 +85,7 @@ describe('trainee Workspace smoke tests', () => {
     expect(await screen.findByTestId('workspace-draft-restored-banner')).toHaveTextContent(/draft restored/i)
     expect(screen.getByTestId('workspace-save-status')).toHaveTextContent(/saved offline/i)
     expect(screen.getByDisplayValue('Restored bullet notes from local storage.')).toBeInTheDocument()
-    expect(screen.getByText(/agency EHR remains the system of record/i)).toBeInTheDocument()
+    expect(screen.getByText(/Draft a polished SOAP progress note/i)).toBeInTheDocument()
     expect(screen.queryByText(/send sms/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/share to client portal/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/billing line item/i)).not.toBeInTheDocument()
