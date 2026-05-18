@@ -114,6 +114,15 @@ function createSchema() {
       school_email_verified INTEGER NOT NULL DEFAULT 0,
       tracks_school_hours INTEGER,
       tracks_bbs_hours INTEGER,
+      associate_onboarding_step INTEGER NOT NULL DEFAULT 0,
+      associate_onboarded_at DATETIME,
+      associate_practice_setting TEXT,
+      licensure_board TEXT,
+      licensure_target_date TEXT,
+      weekly_hours_goal REAL,
+      dashboard_focus_json TEXT,
+      supervisor_name TEXT,
+      supervisor_license TEXT,
       last_login_at DATETIME,
       last_seen_at  DATETIME,
       created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
@@ -1393,6 +1402,16 @@ function runMigrations() {
     // same as 1 (show both ladders) for legacy rows.
     ['tracks_school_hours', 'INTEGER'],
     ['tracks_bbs_hours', 'INTEGER'],
+    // Associate Mode onboarding and readiness details.
+    ['associate_onboarding_step', 'INTEGER NOT NULL DEFAULT 0'],
+    ['associate_onboarded_at', 'DATETIME'],
+    ['associate_practice_setting', 'TEXT'],
+    ['licensure_board', 'TEXT'],
+    ['licensure_target_date', 'TEXT'],
+    ['weekly_hours_goal', 'REAL'],
+    ['dashboard_focus_json', 'TEXT'],
+    ['supervisor_name', 'TEXT'],
+    ['supervisor_license', 'TEXT'],
   ];
   for (const [col, def] of subCols) {
     if (!therapistCols.includes(col)) {

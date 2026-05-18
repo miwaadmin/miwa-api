@@ -72,6 +72,7 @@ function formatMoney(cents) {
 
 export default function Billing() {
   const { therapist } = useAuth()
+  const isAssociate = therapist?.credential_type === 'associate'
 
   const [billing, setBilling]               = useState(null)
   const [billingLoading, setBillingLoading] = useState(true)
@@ -435,7 +436,21 @@ export default function Billing() {
               <>
                 {!clientBilling?.eligibility?.eligible ? (
                   <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
-                    {clientBilling?.eligibility?.reason || 'This account is not eligible for direct client billing.'}
+                    <p className="font-semibold">
+                      {clientBilling?.eligibility?.reason || 'This account is not eligible for direct client billing.'}
+                    </p>
+                    {isAssociate && (
+                      <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+                        {[
+                          'Direct client payments require licensed status.',
+                          'You can prepare rates, cancellation policies, and superbill/report workflows.',
+                          'Keep portal, documentation, and export readiness organized before Licensed Mode.',
+                          'Stripe Connect, direct invoice charging, card-on-file, and autopay stay disabled here.',
+                        ].map(item => (
+                          <div key={item} className="rounded-lg border border-amber-200 bg-white/60 px-3 py-2">{item}</div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="grid md:grid-cols-3 gap-3">

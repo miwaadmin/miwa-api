@@ -282,7 +282,7 @@ app.post('/api/settings', requireAuth, async (req, res) => {
       }
 
       const now = new Date().toISOString();
-      if (next === 'licensed') {
+      if (next === 'licensed' || next === 'associate') {
         await db.run(
           `UPDATE therapists
               SET credential_type = ?,

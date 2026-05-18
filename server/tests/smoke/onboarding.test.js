@@ -246,3 +246,58 @@ test('trainee onboarding wizard backend flow', async (t) => {
     assert.equal(r.body.completed, false, 'step 5 must not be marked complete in the 6-screen model');
   });
 });
+
+test('associate onboarding backend flow is separate from trainee onboarding', async (t) => {
+  await startTestServer();
+  t.after(stopTestServer);
+
+  const { cookie, therapist } = await bootstrapAdminAndLogin({
+    email: 'associate-onboarding@miwa.test',
+  });
+  const { getAsyncDb } = require('../../db/asyncDb');
+  const db = getAsyncDb();
+  await db.run("UPDATE therapists SET credential_type = 'associate', user_role = 'associate' WHERE id = ?", therapist.id);
+
+  const traineeState = await api('GET', '/api/onboarding/state', null, cookie);
+  assert.equal(traineeState.status, 200);
+  assert.equal(traineeState.body.credential_type, 'associate');
+  assert.equal(traineeState.body.completed, false, 'legacy trainee state may exist but frontend must not route associates into it');
+
+  const initial = await api('GET', '/api/onboarding/associate/state', null, cookie);
+  assert.equal(initial.status, 200);
+  assert.equal(initial.body.step, 0);
+  assert.equal(initial.body.completed, false);
+
+  const step = await api('PUT', '/api/onboarding/associate/step/3', {
+    practice_setting: 'Private practice under supervision',
+    credential_number: 'AMFT12345',
+    licensure_board: 'CA BBS LMFT',
+    supervisor_name: 'Dr. Supervisor',
+    supervisor_license: 'LMFT99999',
+    weekly_hours_goal: 12,
+    dashboard_focus: ['Notes', 'Portal', 'Apps', 'Hours'],
+  }, cookie);
+  assert.equal(step.status, 200);
+  assert.equal(step.body.step, 3);
+  assert.equal(step.body.data.practice_setting, 'Private practice under supervision');
+  assert.equal(step.body.data.credential_number, 'AMFT12345');
+  assert.deepEqual(step.body.data.dashboard_focus, ['Notes', 'Portal', 'Apps', 'Hours']);
+
+  const complete = await api('POST', '/api/onboarding/associate/complete', {
+    practice_setting: 'Private practice under supervision',
+    licensure_board: 'CA BBS LMFT',
+    weekly_hours_goal: 12,
+  }, cookie);
+  assert.equal(complete.status, 200);
+  assert.equal(complete.body.step, 6);
+  assert.equal(complete.body.completed, true);
+  assert.ok(complete.body.associate_onboarded_at);
+
+  const me = await api('GET', '/api/auth/me', null, cookie);
+  assert.equal(me.status, 200);
+  assert.equal(me.body.credential_type, 'associate');
+  assert.equal(me.body.associate_onboarding_step, 6);
+  assert.ok(me.body.associate_onboarded_at);
+  assert.equal(me.body.workspace_mode, 'private_practice');
+  assert.deepEqual(me.body.dashboard_focus, ['Notes', 'Portal', 'Apps', 'Hours']);
+});

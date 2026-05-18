@@ -2,18 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { apiFetch } from '../lib/api'
 import { patientInitials } from '../lib/avatar'
-
-const APP_CATALOG = [
-  {
-    id: 'genogram',
-    name: 'Genogram',
-    eyebrow: 'Family systems',
-    description: 'Build a clinical family map with structure, emotional relationship lines, notes, life events, and chart-linked exports.',
-    status: 'Available',
-    accent: 'teal',
-    features: ['Saved to client profile', 'AI draft from chart', 'PDF / PNG / SVG export'],
-  },
-]
+import { useAuth } from '../context/AuthContext'
+import { APP_REGISTRY, appLaunchPath } from '../lib/appRegistry'
 
 function AppGlyph() {
   return (
@@ -114,8 +104,9 @@ function ClientPicker({ patients, query, setQuery, selectedId, setSelectedId }) 
 
 export default function Apps() {
   const navigate = useNavigate()
+  const { therapist } = useAuth()
   const [patients, setPatients] = useState([])
-  const [selectedApp, setSelectedApp] = useState('genogram')
+  const [selectedApp, setSelectedApp] = useState(APP_REGISTRY[0]?.id || '')
   const [selectedPatientId, setSelectedPatientId] = useState('')
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
@@ -142,13 +133,12 @@ export default function Apps() {
     return () => { cancelled = true }
   }, [])
 
-  const selected = APP_CATALOG.find((app) => app.id === selectedApp) || APP_CATALOG[0]
+  const selected = APP_REGISTRY.find((app) => app.id === selectedApp) || APP_REGISTRY[0]
   const selectedPatient = patients.find((patient) => Number(patient.id) === Number(selectedPatientId))
 
   function launch() {
-    if (selected.id === 'genogram' && selectedPatientId) {
-      navigate(`/patients/${selectedPatientId}/genogram`)
-    }
+    if (selected.clientLinked && !selectedPatientId) return
+    navigate(appLaunchPath(selected, { patientId: selectedPatientId }))
   }
 
   return (
@@ -172,8 +162,9 @@ export default function Apps() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_360px] gap-5">
         <section className="space-y-4">
-          {APP_CATALOG.map((app) => {
+          {APP_REGISTRY.map((app) => {
             const active = selectedApp === app.id
+            const launchDisabled = active && app.clientLinked && !selectedPatientId
             return (
               <div
                 key={app.id}
@@ -199,12 +190,18 @@ export default function Apps() {
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <p className="text-[11px] font-bold text-teal-700 uppercase tracking-[0.16em]">{app.eyebrow}</p>
+                          <span className="rounded-full bg-gray-50 border border-gray-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-gray-500">
+                            {app.category}
+                          </span>
                           <span className="rounded-full bg-emerald-50 border border-emerald-100 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700">
                             {app.status}
                           </span>
                         </div>
                         <h2 className="text-xl font-bold text-gray-900 mt-1">{app.name}</h2>
                         <p className="text-sm text-gray-600 leading-relaxed mt-2 max-w-2xl">{app.description}</p>
+                        <p className="text-xs text-gray-500 leading-relaxed mt-2 max-w-2xl">
+                          {app.recommendedWhen?.({ credentialType: therapist?.credential_type }) || 'Available to every clinician mode.'}
+                        </p>
                       </div>
                     </div>
                     {active && (
@@ -229,7 +226,7 @@ export default function Apps() {
                         <p className="text-sm text-gray-700 mt-1">
                           {selectedPatient
                             ? `Open for ${clientLabel(selectedPatient)} and save to that client profile.`
-                            : 'Choose a client to continue.'}
+                            : selected.clientLinked ? 'Choose a client to continue.' : 'Open this shared clinical tool.'}
                         </p>
                       </div>
                       <button
@@ -238,7 +235,7 @@ export default function Apps() {
                           event.stopPropagation()
                           launch()
                         }}
-                        disabled={!selectedPatientId}
+                        disabled={launchDisabled}
                         className="btn-primary justify-center sm:min-w-[180px]"
                       >
                         Open {app.name}
@@ -253,7 +250,7 @@ export default function Apps() {
           <div className="rounded-2xl border border-dashed border-gray-200 bg-white/70 p-5">
             <p className="text-sm font-bold text-gray-900">More apps can live here next.</p>
             <p className="text-sm text-gray-500 mt-1">
-              Assessment builders, safety-plan tools, ecomaps, treatment-plan helpers, and trainee learning tools can use the same app launcher pattern.
+              Assessment builders, future ecomaps, treatment-plan helpers, and supervision-aware tools can use this same global app registry.
             </p>
           </div>
         </section>

@@ -229,6 +229,7 @@ Ready to get started. Try asking me something like *"what's on my schedule today
 
 const TRAINEE_TOTAL_STEPS = 6;
 const TRAINEE_COMPLETE_STEP = 7;
+const ASSOCIATE_TOTAL_STEPS = 6;
 
 function parseSkipped(text) {
   if (!text) return [];
@@ -651,6 +652,141 @@ router.post('/sample-case', async (req, res) => {
   } catch (err) {
     console.error('[onboarding] POST /sample-case', err);
     res.status(500).json({ error: 'Could not create sample case' });
+  }
+});
+
+// Associate onboarding flow at /a/welcome. This is separate from the trainee
+// wizard so associates are not routed into trainee-first copy or navigation.
+function normalizeFocus(value) {
+  const allowed = new Set(['Notes', 'Clients', 'Schedule', 'Consult', 'Outcomes', 'Portal', 'Apps', 'Reports', 'Hours']);
+  const raw = Array.isArray(value) ? value : [];
+  return Array.from(new Set(raw.map(item => String(item || '').trim()).filter(item => allowed.has(item))));
+}
+
+function associatePayload(body = {}) {
+  const focus = normalizeFocus(body.dashboard_focus);
+  const weeklyGoal = body.weekly_hours_goal === '' || body.weekly_hours_goal == null
+    ? null
+    : Number(body.weekly_hours_goal);
+  return {
+    associate_practice_setting: String(body.practice_setting || body.associate_practice_setting || '').trim().slice(0, 120) || null,
+    credential_number: String(body.credential_number || '').trim().slice(0, 120) || null,
+    licensure_board: String(body.licensure_board || '').trim().slice(0, 120) || null,
+    licensure_target_date: String(body.licensure_target_date || '').trim().slice(0, 40) || null,
+    weekly_hours_goal: Number.isFinite(weeklyGoal) && weeklyGoal >= 0 ? weeklyGoal : null,
+    dashboard_focus_json: focus.length ? JSON.stringify(focus) : null,
+    supervisor_name: String(body.supervisor_name || '').trim().slice(0, 160) || null,
+    supervisor_license: String(body.supervisor_license || '').trim().slice(0, 120) || null,
+  };
+}
+
+async function loadAssociateState(db, therapistId) {
+  const row = await db.get(
+    `SELECT id, credential_type, associate_onboarding_step, associate_onboarded_at,
+            associate_practice_setting, credential_number, licensure_board,
+            licensure_target_date, weekly_hours_goal, dashboard_focus_json,
+            supervisor_name, supervisor_license
+       FROM therapists WHERE id = ?`,
+    therapistId,
+  );
+  if (!row) return null;
+  return {
+    step: row.associate_onboarding_step || 0,
+    completed: !!row.associate_onboarded_at,
+    associate_onboarded_at: row.associate_onboarded_at || null,
+    credential_type: row.credential_type || 'licensed',
+    data: {
+      practice_setting: row.associate_practice_setting || '',
+      credential_number: row.credential_number || '',
+      licensure_board: row.licensure_board || '',
+      licensure_target_date: row.licensure_target_date || '',
+      weekly_hours_goal: row.weekly_hours_goal == null ? '' : String(row.weekly_hours_goal),
+      dashboard_focus: (() => {
+        try { return row.dashboard_focus_json ? JSON.parse(row.dashboard_focus_json) : [] } catch { return [] }
+      })(),
+      supervisor_name: row.supervisor_name || '',
+      supervisor_license: row.supervisor_license || '',
+    },
+  };
+}
+
+async function saveAssociatePayload(db, therapistId, body, extra = {}) {
+  const payload = associatePayload(body);
+  await db.run(
+    `UPDATE therapists
+        SET associate_practice_setting = COALESCE(?, associate_practice_setting),
+            credential_number = COALESCE(?, credential_number),
+            licensure_board = COALESCE(?, licensure_board),
+            licensure_target_date = COALESCE(?, licensure_target_date),
+            weekly_hours_goal = COALESCE(?, weekly_hours_goal),
+            dashboard_focus_json = COALESCE(?, dashboard_focus_json),
+            supervisor_name = COALESCE(?, supervisor_name),
+            supervisor_license = COALESCE(?, supervisor_license)
+            ${extra.sql || ''}
+      WHERE id = ?`,
+    payload.associate_practice_setting,
+    payload.credential_number,
+    payload.licensure_board,
+    payload.licensure_target_date,
+    payload.weekly_hours_goal,
+    payload.dashboard_focus_json,
+    payload.supervisor_name,
+    payload.supervisor_license,
+    ...(extra.params || []),
+    therapistId,
+  );
+}
+
+router.get('/associate/state', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    const state = await loadAssociateState(db, req.therapist.id);
+    if (!state) return res.status(404).json({ error: 'Therapist not found' });
+    res.json(state);
+  } catch (err) {
+    console.error('[onboarding] GET /associate/state', err);
+    res.status(500).json({ error: 'Could not load associate onboarding state' });
+  }
+});
+
+router.put('/associate/step/:n', async (req, res) => {
+  try {
+    const stepNum = Number(req.params.n);
+    if (!Number.isInteger(stepNum) || stepNum < 1 || stepNum > ASSOCIATE_TOTAL_STEPS) {
+      return res.status(400).json({ error: `step must be 1..${ASSOCIATE_TOTAL_STEPS}` });
+    }
+    const db = getAsyncDb();
+    const existing = await loadAssociateState(db, req.therapist.id);
+    if (!existing) return res.status(404).json({ error: 'Therapist not found' });
+    const nextStep = Math.max(existing.step || 0, stepNum);
+    await saveAssociatePayload(db, req.therapist.id, req.body || {}, {
+      sql: ', associate_onboarding_step = ?',
+      params: [nextStep],
+    });
+    await persistIfNeeded();
+    res.json(await loadAssociateState(db, req.therapist.id));
+  } catch (err) {
+    console.error('[onboarding] PUT /associate/step', err);
+    res.status(500).json({ error: 'Could not save associate onboarding step' });
+  }
+});
+
+router.post('/associate/complete', async (req, res) => {
+  try {
+    const db = getAsyncDb();
+    await saveAssociatePayload(db, req.therapist.id, req.body || {}, {
+      sql: `, associate_onboarding_step = ?,
+              associate_onboarded_at = CURRENT_TIMESTAMP,
+              workspace_mode = COALESCE(workspace_mode, 'private_practice'),
+              client_record_mode = COALESCE(client_record_mode, 'miwa_system_of_record'),
+              workspace_mode_selected_at = COALESCE(workspace_mode_selected_at, CURRENT_TIMESTAMP)`,
+      params: [ASSOCIATE_TOTAL_STEPS],
+    });
+    await persistIfNeeded();
+    res.json(await loadAssociateState(db, req.therapist.id));
+  } catch (err) {
+    console.error('[onboarding] POST /associate/complete', err);
+    res.status(500).json({ error: 'Could not complete associate onboarding' });
   }
 });
 

@@ -133,6 +133,17 @@ function safeProfile(row) {
     onboarding_step: typeof row.onboarding_step === 'number' ? row.onboarding_step : 0,
     onboarded_at: row.onboarded_at || null,
     expected_graduation_year: row.expected_graduation_year || null,
+    associate_onboarding_step: typeof row.associate_onboarding_step === 'number' ? row.associate_onboarding_step : 0,
+    associate_onboarded_at: row.associate_onboarded_at || null,
+    associate_practice_setting: row.associate_practice_setting || null,
+    licensure_board: row.licensure_board || null,
+    licensure_target_date: row.licensure_target_date || null,
+    weekly_hours_goal: row.weekly_hours_goal || null,
+    dashboard_focus: (() => {
+      try { return row.dashboard_focus_json ? JSON.parse(row.dashboard_focus_json) : [] } catch { return [] }
+    })(),
+    supervisor_name: row.supervisor_name || null,
+    supervisor_license: row.supervisor_license || null,
     // Group practice
     practice_id: row.practice_id || null,
     practice_role: row.practice_role || null,

@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { useAuth } from '../context/AuthContext'
 import { apiFetch } from '../lib/api'
 import { COMMUNITY_URL, COMMUNITY_LABEL, HAS_COMMUNITY } from '../lib/community'
-import { isAgencyCompanionMode } from '../lib/workspaceMode'
+import { isAgencyCompanionMode, isAssociateCredential } from '../lib/workspaceMode'
 import FeedbackModal from './FeedbackModal'
 
 const navItems = [
@@ -218,6 +218,7 @@ export default function Sidebar() {
   const cred = therapist?.credential_type || 'licensed'
   const showHours = cred === 'trainee' || cred === 'associate'
   const agencyMode = isAgencyCompanionMode(therapist)
+  const associateMode = isAssociateCredential(therapist)
   const HOURS_ITEM = {
     to: '/hours',
     label: 'Hours',
@@ -315,7 +316,86 @@ export default function Sidebar() {
       icon: navItems.find(i => i.to === '/settings')?.icon,
     },
   ]
-  const renderedNavItems = agencyMode ? traineeNavItems : visibleNavItems
+  const associateNavItems = [
+    {
+      to: '/a/dashboard',
+      label: 'Dashboard',
+      end: true,
+      activeColor: 'text-teal-300',
+      icon: navItems[0].icon,
+    },
+    {
+      to: '/workspace',
+      label: 'Workspace',
+      tourId: 'workspace',
+      activeColor: 'text-violet-300',
+      icon: navItems.find(i => i.to === '/workspace')?.icon,
+    },
+    {
+      to: '/patients',
+      label: 'Clients',
+      tourId: 'patients',
+      activeColor: 'text-sky-300',
+      icon: navItems.find(i => i.to === '/patients')?.icon,
+    },
+    {
+      to: '/schedule',
+      label: 'Schedule',
+      tourId: 'schedule',
+      activeColor: 'text-cyan-300',
+      icon: navItems.find(i => i.to === '/schedule')?.icon,
+    },
+    {
+      to: '/consult',
+      label: 'Consult',
+      activeColor: 'text-teal-300',
+      icon: navItems.find(i => i.to === '/consult')?.icon,
+    },
+    {
+      to: '/outcomes',
+      label: 'Outcomes',
+      tourId: 'outcomes',
+      activeColor: 'text-emerald-300',
+      icon: navItems.find(i => i.to === '/outcomes')?.icon,
+    },
+    {
+      to: '/apps',
+      label: 'Apps',
+      activeColor: 'text-teal-300',
+      icon: navItems.find(i => i.to === '/apps')?.icon,
+    },
+    {
+      to: '/portal',
+      label: 'Portal',
+      activeColor: 'text-indigo-300',
+      icon: navItems.find(i => i.to === '/inbox')?.icon,
+    },
+    {
+      to: '/hours',
+      label: 'Hours',
+      activeColor: 'text-fuchsia-300',
+      icon: HOURS_ITEM.icon,
+    },
+    {
+      to: '/billing',
+      label: 'Billing',
+      activeColor: 'text-emerald-300',
+      icon: navItems.find(i => i.to === '/billing')?.icon,
+    },
+    {
+      to: '/library',
+      label: 'Resources',
+      activeColor: 'text-orange-300',
+      icon: navItems.find(i => i.to === '/library')?.icon,
+    },
+    {
+      to: '/settings',
+      label: 'Settings',
+      activeColor: 'text-gray-300',
+      icon: navItems.find(i => i.to === '/settings')?.icon,
+    },
+  ]
+  const renderedNavItems = agencyMode ? traineeNavItems : associateMode ? associateNavItems : visibleNavItems
 
   return (
     <aside
@@ -341,7 +421,7 @@ export default function Sidebar() {
         <div>
           <div className="text-[17px] font-bold text-white tracking-tight leading-none">Miwa</div>
           <div className="text-[13px] text-indigo-300/80 mt-0.5 font-medium tracking-wider uppercase">
-            {agencyMode ? 'Agency Companion' : 'Therapist Copilot'}
+            {agencyMode ? 'Agency Companion' : associateMode ? 'Associate Mode' : 'Therapist Copilot'}
           </div>
         </div>
       </div>

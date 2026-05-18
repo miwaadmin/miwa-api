@@ -7,6 +7,7 @@ import Layout from './components/Layout'
 import AdminLayout from './components/AdminLayout'
 import Dashboard from './pages/Dashboard'
 import Apps from './pages/Apps'
+import Portal from './pages/Portal'
 import Patients from './pages/Patients'
 import PatientDetail from './pages/PatientDetail'
 import Genogram from './pages/Genogram'
@@ -59,7 +60,7 @@ import ScrollToTop from './components/ScrollToTop'
 import Resources from './pages/Resources'
 import DashboardResources from './pages/DashboardResources'
 import { isNativeApp } from './lib/api'
-import { isAgencyCompanionMode, isTraineeCredential, needsTraineeOnboarding, needsWorkspaceModeOnboarding } from './lib/workspaceMode'
+import { isAgencyCompanionMode, isAssociateCredential, isTraineeCredential, needsAssociateOnboarding, needsTraineeOnboarding, needsWorkspaceModeOnboarding } from './lib/workspaceMode'
 import {
   TraineeCases,
   TraineeHours,
@@ -68,6 +69,8 @@ import {
   TraineeToday,
 } from './pages/trainee/TraineePages'
 import TraineeWelcome from './pages/trainee/TraineeWelcome'
+import AssociateDashboard from './pages/associate/AssociateDashboard'
+import AssociateWelcome from './pages/associate/AssociateWelcome'
 // Practice pages removed — group practice is a separate product (practice.miwa.care)
 
 // Mobile-optimized experience
@@ -180,11 +183,16 @@ function MobileDashboardRedirect() {
 
 function DashboardRedirect() {
   const { therapist } = useAuth()
-  // Trainees and associates with an incomplete onboarding wizard land on
-  // /t/welcome before anything else. This catches both fresh signups and
-  // existing trainees migrating to the new wizard.
+  // Trainees with an incomplete onboarding wizard land on /t/welcome.
+  // Associates use their own supported-independence setup at /a/welcome.
   if (therapist && needsTraineeOnboarding(therapist)) {
     return <Navigate to="/t/welcome" replace />
+  }
+  if (therapist && needsAssociateOnboarding(therapist)) {
+    return <Navigate to="/a/welcome" replace />
+  }
+  if (!isMobileDevice() && therapist && isAssociateCredential(therapist)) {
+    return <Navigate to="/a/dashboard" replace />
   }
   if (!isMobileDevice() && therapist && !needsWorkspaceModeOnboarding(therapist) && isAgencyCompanionMode(therapist)) {
     return <Navigate to="/t/dashboard" replace />
@@ -227,6 +235,36 @@ function TraineeOnboardingGuard({ children }) {
     return <Navigate to="/t/welcome" replace />
   }
   return children
+}
+
+function TraineeWelcomeRoute() {
+  const { therapist } = useAuth()
+  if (therapist && !isTraineeCredential(therapist)) {
+    return <Navigate to="/dashboard" replace />
+  }
+  return <TraineeWelcome />
+}
+
+function AssociateOnboardingGuard({ children }) {
+  const { therapist } = useAuth()
+  if (therapist && !isAssociateCredential(therapist)) {
+    return <Navigate to="/dashboard" replace />
+  }
+  if (therapist && needsAssociateOnboarding(therapist)) {
+    return <Navigate to="/a/welcome" replace />
+  }
+  return children
+}
+
+function AssociateWelcomeRoute() {
+  const { therapist } = useAuth()
+  if (therapist && !isAssociateCredential(therapist)) {
+    return <Navigate to="/dashboard" replace />
+  }
+  if (therapist && !needsAssociateOnboarding(therapist)) {
+    return <Navigate to="/a/dashboard" replace />
+  }
+  return <AssociateWelcome />
 }
 
 export default function App() {
@@ -317,12 +355,18 @@ export default function App() {
                   suppressed for a clean focused experience. */}
               <Route
                 path="/t/welcome"
-                element={<ProtectedRoute><TraineeWelcome /></ProtectedRoute>}
+                element={<ProtectedRoute><TraineeWelcomeRoute /></ProtectedRoute>}
+              />
+              <Route
+                path="/a/welcome"
+                element={<ProtectedRoute><AssociateWelcomeRoute /></ProtectedRoute>}
               />
 
               {/* Protected clinician routes */}
               <Route element={<ProtectedRoute><Layout /></ProtectedRoute>}>
                 <Route path="/dashboard" element={<DashboardRedirect />} />
+                <Route path="/a" element={<Navigate to="/a/dashboard" replace />} />
+                <Route path="/a/dashboard" element={<AssociateOnboardingGuard><AssociateDashboard /></AssociateOnboardingGuard>} />
                 <Route path="/t" element={<Navigate to="/t/dashboard" replace />} />
                 <Route path="/t/dashboard" element={<TraineeOnboardingGuard><TraineeToday /></TraineeOnboardingGuard>} />
                 <Route path="/t/today" element={<Navigate to="/t/dashboard" replace />} />
@@ -337,6 +381,7 @@ export default function App() {
                 <Route path="/t/resources" element={<TraineeOnboardingGuard><DashboardResources /></TraineeOnboardingGuard>} />
                 <Route path="/workspace" element={<MobileAwareRoute mobileTo="/m/workspace"><Workspace /></MobileAwareRoute>} />
                 <Route path="/apps" element={<Apps />} />
+                <Route path="/portal" element={<Portal />} />
                 <Route path="/patients" element={<MobileAwareRoute mobileTo="/m/clients"><Patients /></MobileAwareRoute>} />
                 <Route path="/patients/:id" element={<MobileAwarePatientRoute><PatientDetail /></MobileAwarePatientRoute>} />
                 <Route path="/patients/:id/genogram" element={<MobileAwareRoute mobileTo="/m/clients"><Genogram /></MobileAwareRoute>} />
