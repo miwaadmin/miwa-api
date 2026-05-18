@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import PublicPageShell from '../components/PublicPageShell'
 import PublicNav from '../components/PublicNav'
@@ -8,6 +8,51 @@ import { RESOURCES } from '../lib/resources'
 
 const GRAD = 'linear-gradient(135deg, #6047EE 0%, #2dd4bf 100%)'
 const GRAD_TEXT = { background: GRAD, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }
+
+/* ── Debounce hook (300ms) ─────────────────────────────────────────────── */
+function useDebouncedValue(value, delay = 300) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
+}
+
+/* ── Prominent horizontal search bar ───────────────────────────────────── */
+function ResourceSearchBar({ value, onChange, placeholder = 'Search resources...' }) {
+  return (
+    <div className="relative">
+      <svg
+        className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400"
+        fill="none" viewBox="0 0 24 24" stroke="currentColor"
+        aria-hidden="true"
+      >
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-4.35-4.35M10.5 18a7.5 7.5 0 110-15 7.5 7.5 0 010 15z" />
+      </svg>
+      <input
+        type="search"
+        value={value}
+        onChange={e => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label="Search resources"
+        className="w-full pl-12 pr-12 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 dark:text-gray-100 text-base focus:outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500/60 placeholder:text-gray-400"
+      />
+      {value && (
+        <button
+          type="button"
+          onClick={() => onChange('')}
+          aria-label="Clear search"
+          className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 dark:hover:bg-gray-700 dark:hover:text-gray-100 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      )}
+    </div>
+  )
+}
 
 /* ── Curated resource data (shared with dashboard) ─────────────────────── */
 
@@ -117,6 +162,33 @@ function CategorySection({ category }) {
 /* ── Main page ─────────────────────────────────────────────────────────── */
 export default function Resources() {
   const totalResources = RESOURCES.reduce((sum, cat) => sum + cat.items.length, 0)
+  const [query, setQuery] = useState('')
+  const debouncedQuery = useDebouncedValue(query, 300)
+  const normalizedQuery = debouncedQuery.trim().toLowerCase()
+
+  // Flatten items once for search
+  const allItems = useMemo(() => {
+    const items = []
+    for (const category of RESOURCES) {
+      for (const item of category.items) {
+        items.push({ ...item, categoryId: category.id, categoryName: category.category, color: category.color })
+      }
+    }
+    return items
+  }, [])
+
+  const matches = useMemo(() => {
+    if (!normalizedQuery) return []
+    return allItems.filter(item => {
+      const haystack = [item.name, item.type, item.description, item.source, item.categoryName]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return normalizedQuery.split(/\s+/).every(term => haystack.includes(term))
+    })
+  }, [allItems, normalizedQuery])
+
+  const isSearching = normalizedQuery.length > 0
 
   return (
     <PublicPageShell>
@@ -124,7 +196,7 @@ export default function Resources() {
       <PublicNav />
 
       {/* Hero */}
-      <div className="px-6 pt-32 pb-16 sm:pb-20">
+      <div className="px-6 pt-32 pb-10 sm:pb-12">
         <div className="max-w-3xl mx-auto text-center">
           <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-4">
             Clinical Resources Hub
@@ -135,6 +207,17 @@ export default function Resources() {
           <p className="text-base text-gray-500">
             Assessment tools, treatment protocols, crisis hotlines, and professional development materials, all in one place.
           </p>
+        </div>
+      </div>
+
+      {/* Search bar — full-width, sits directly below the hero */}
+      <div className="px-6 pb-8">
+        <div className="max-w-3xl mx-auto">
+          <ResourceSearchBar
+            value={query}
+            onChange={setQuery}
+            placeholder="Search trauma, housing, PHQ, IPV, child abuse, legal aid..."
+          />
         </div>
       </div>
 
@@ -167,12 +250,32 @@ export default function Resources() {
         </div>
       </div>
 
-      {/* Category sections */}
+      {/* Search results OR full category sections */}
       <div className="px-6 pb-16">
         <div className="max-w-6xl mx-auto space-y-5">
-          {RESOURCES.map(cat => (
-            <CategorySection key={cat.id} category={cat} />
-          ))}
+          {isSearching ? (
+            <div className="rounded-2xl border border-gray-100 bg-white p-5 shadow-sm">
+              <p className="text-sm font-semibold uppercase tracking-wide text-gray-400 mb-4">
+                {matches.length} result{matches.length === 1 ? '' : 's'} for "{debouncedQuery.trim()}"
+              </p>
+              {matches.length === 0 ? (
+                <div className="rounded-xl border border-gray-100 bg-gray-50 px-4 py-10 text-center">
+                  <p className="text-base font-semibold text-gray-700">No resources found</p>
+                  <p className="mt-1 text-sm text-gray-500">Try a broader phrase or browse by category below.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {matches.map(item => (
+                    <ResourceCard key={item.id} item={item} color={item.color} />
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            RESOURCES.map(cat => (
+              <CategorySection key={cat.id} category={cat} />
+            ))
+          )}
         </div>
       </div>
 
