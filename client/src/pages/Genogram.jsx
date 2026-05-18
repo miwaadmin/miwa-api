@@ -27,21 +27,42 @@ const QUALITY_OPTIONS = [
   ['close', 'Close'],
   ['distant', 'Distant'],
   ['conflict', 'Conflict'],
+  ['hostile', 'Hostile'],
+  ['controlling', 'Controlling'],
+  ['jealous', 'Jealous'],
   ['cutoff', 'Cutoff'],
   ['fused', 'Fused'],
+  ['close_hostile', 'Close-hostile'],
+  ['fused_hostile', 'Fused-hostile'],
   ['abusive', 'Abusive'],
+  ['violence', 'Violence'],
 ]
 
-const TAG_OPTIONS = [
-  ['identified-client', 'Identified client'],
-  ['substance-use', 'Substance use'],
-  ['mental-health', 'Mental health'],
-  ['medical', 'Medical'],
-  ['trauma', 'Trauma'],
-  ['protective', 'Protective'],
-  ['risk', 'Risk'],
-  ['sample', 'Sample'],
+const CLINICAL_MARKERS = [
+  { value: 'identified-client', label: 'Identified client', group: 'Role', color: '#f59e0b', fill: '#fef3c7' },
+  { value: 'protective', label: 'Protective/support', group: 'Strengths', color: '#0d9488', fill: '#ccfbf1' },
+  { value: 'risk', label: 'Current risk/safety', group: 'Risk', color: '#dc2626', fill: '#fee2e2' },
+  { value: 'ipv', label: 'IPV / coercive control', group: 'Risk', color: '#b91c1c', fill: '#fecaca' },
+  { value: 'trauma', label: 'Trauma history', group: 'Risk', color: '#e11d48', fill: '#ffe4e6' },
+  { value: 'substance-use', label: 'Substance use', group: 'Behavioral health', color: '#f97316', fill: '#ffedd5' },
+  { value: 'alcohol-use', label: 'Alcohol use', group: 'Behavioral health', color: '#d97706', fill: '#fef3c7' },
+  { value: 'mental-health', label: 'Mental health', group: 'Behavioral health', color: '#2563eb', fill: '#dbeafe' },
+  { value: 'depression', label: 'Depression', group: 'Behavioral health', color: '#4f46e5', fill: '#e0e7ff' },
+  { value: 'anxiety', label: 'Anxiety', group: 'Behavioral health', color: '#0284c7', fill: '#e0f2fe' },
+  { value: 'neurodevelopmental', label: 'Neurodevelopmental', group: 'Behavioral health', color: '#7c3aed', fill: '#ede9fe' },
+  { value: 'medical', label: 'Medical condition', group: 'Health', color: '#16a34a', fill: '#dcfce7' },
+  { value: 'chronic-illness', label: 'Chronic illness', group: 'Health', color: '#059669', fill: '#d1fae5' },
+  { value: 'grief-loss', label: 'Grief/loss', group: 'Context', color: '#64748b', fill: '#f1f5f9' },
+  { value: 'legal-system', label: 'Legal/system involvement', group: 'Context', color: '#9333ea', fill: '#f3e8ff' },
+  { value: 'sample', label: 'Sample/training', group: 'Context', color: '#eab308', fill: '#fef9c3' },
 ]
+
+const TAG_OPTIONS = CLINICAL_MARKERS.map((marker) => [marker.value, marker.label])
+const MARKER_BY_VALUE = Object.fromEntries(CLINICAL_MARKERS.map((marker) => [marker.value, marker]))
+const TAG_GROUPS = CLINICAL_MARKERS.reduce((acc, marker) => {
+  acc[marker.group] = [...(acc[marker.group] || []), marker]
+  return acc
+}, {})
 
 function uid(prefix) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
@@ -73,15 +94,27 @@ function relationshipStroke(relationship) {
     close: '#0f766e',
     distant: '#64748b',
     conflict: '#dc2626',
+    hostile: '#b91c1c',
+    controlling: '#ea580c',
+    jealous: '#a16207',
     cutoff: '#7f1d1d',
     fused: '#7c3aed',
+    close_hostile: '#be123c',
+    fused_hostile: '#9333ea',
     abusive: '#b91c1c',
+    violence: '#991b1b',
     unknown: '#334155',
   }[relationship.quality || 'unknown']
   const dash = {
     distant: '7 7',
     conflict: '6 4',
+    hostile: '10 3 3 3',
+    controlling: '3 3',
+    jealous: '12 4 2 4',
     cutoff: '3 8',
+    close_hostile: '2 3',
+    fused_hostile: '8 2 2 2',
+    violence: '',
     former_partner: '9 5',
   }[relationship.quality] || (relationship.type === 'former_partner' ? '9 5' : '')
   return { color, dash }
@@ -93,7 +126,9 @@ function PersonSymbol({ person, selected, onPointerDown, onClick }) {
   const isClient = (person.tags || []).includes('identified-client')
   const x = Number(person.x) || 0
   const y = Number(person.y) || 0
-  const fill = isClient ? '#fef3c7' : '#ffffff'
+  const markers = (person.tags || []).map((tag) => MARKER_BY_VALUE[tag]).filter(Boolean)
+  const primaryMarker = markers.find((marker) => marker.value !== 'identified-client') || markers[0]
+  const fill = primaryMarker?.fill || (isClient ? '#fef3c7' : '#ffffff')
   const stroke = selected ? '#6047ee' : isClient ? '#d97706' : '#1f2937'
 
   return (
@@ -107,6 +142,13 @@ function PersonSymbol({ person, selected, onPointerDown, onClick }) {
       )}
       {person.deceased && (
         <path d="M-25 -25 L25 25 M25 -25 L-25 25" stroke="#b91c1c" strokeWidth="3" strokeLinecap="round" />
+      )}
+      {markers.length > 0 && (
+        <g transform="translate(-24 -38)">
+          {markers.slice(0, 5).map((marker, index) => (
+            <rect key={marker.value} x={index * 11} y="0" width="8" height="8" rx="1.5" fill={marker.color} stroke="#ffffff" strokeWidth="1" />
+          ))}
+        </g>
       )}
       {selected && <rect x="-32" y="-32" width="64" height="64" rx="6" fill="none" stroke="#6047ee" strokeDasharray="4 4" />}
       <text x="0" y="45" textAnchor="middle" className="fill-gray-900 text-[13px] font-semibold">
@@ -428,8 +470,13 @@ export default function Genogram() {
           <button className="btn-secondary text-xs" onClick={exportSvg}>Export SVG</button>
           <button className="btn-secondary text-xs" onClick={exportPng}>Export PNG</button>
           <button className="btn-secondary text-xs" onClick={exportPdf}>Export PDF</button>
-          <button className="btn-secondary text-xs" onClick={generateDraft} disabled={drafting}>
-            {drafting ? 'Drafting...' : 'Draft from chart'}
+          <button
+            className="btn-secondary text-xs"
+            onClick={generateDraft}
+            disabled={drafting}
+            title="Uses this client's profile fields, family/social history, and recent session notes to create a therapist-reviewable starter map."
+          >
+            {drafting ? 'Drafting...' : 'Draft from chart notes'}
           </button>
           <button className="btn-primary text-xs" onClick={() => save()} disabled={saving}>
             {saving ? 'Saving...' : 'Save map'}
@@ -489,6 +536,9 @@ export default function Genogram() {
                 <span className="text-sm font-bold">T</span>
               </ToolbarButton>
             </div>
+            <p className="mt-3 text-[11px] leading-relaxed text-gray-500">
+              Draft from chart notes reads saved chart fields and recent sessions, then creates a reviewable starter map. Review every person, marker, and relationship before saving.
+            </p>
             {mode === 'relationship' && (
               <p className="mt-3 text-xs text-brand-700 bg-brand-50 border border-brand-100 rounded-lg px-3 py-2">
                 {relationshipStart ? 'Select the second person to connect.' : 'Select the first person to connect.'}
@@ -498,12 +548,53 @@ export default function Genogram() {
 
           <div className="card p-4">
             <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-3">Legend</p>
-            <div className="space-y-2 text-xs text-gray-600">
-              <div className="flex items-center gap-2"><span className="w-5 h-5 border-2 border-gray-800 inline-block" /> Male</div>
-              <div className="flex items-center gap-2"><span className="w-5 h-5 border-2 border-gray-800 rounded-full inline-block" /> Female</div>
-              <div className="flex items-center gap-2"><span className="w-5 h-5 border-2 border-gray-800 rotate-45 inline-block" /> Unknown / other</div>
-              <div className="flex items-center gap-2"><span className="w-8 h-0.5 bg-red-600 inline-block" /> Conflict / risk pattern</div>
-              <div className="flex items-center gap-2"><span className="w-8 h-0.5 bg-emerald-600 inline-block" /> Supportive / close</div>
+            <div className="space-y-4 text-xs text-gray-600">
+              <div>
+                <p className="mb-2 font-bold text-gray-700">Symbols</p>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2"><span className="w-5 h-5 border-2 border-gray-800 inline-block" /> Male</div>
+                  <div className="flex items-center gap-2"><span className="w-5 h-5 border-2 border-gray-800 rounded-full inline-block" /> Female</div>
+                  <div className="flex items-center gap-2"><span className="w-5 h-5 border-2 border-gray-800 rotate-45 inline-block" /> Unknown / other</div>
+                  <div className="flex items-center gap-2">
+                    <span className="w-5 h-5 border-2 border-gray-800 inline-block bg-red-100" />
+                    Color fill = primary clinical marker
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="relative w-5 h-5 border-2 border-gray-800 inline-block">
+                      <span className="absolute -top-2 left-0 w-1.5 h-1.5 bg-blue-600" />
+                      <span className="absolute -top-2 left-2 w-1.5 h-1.5 bg-red-600" />
+                    </span>
+                    Top chips = multiple markers
+                  </div>
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 font-bold text-gray-700">Relationship lines</p>
+                <div className="grid grid-cols-1 gap-2">
+                  {QUALITY_OPTIONS.filter(([value]) => value !== 'unknown').map(([value, label]) => {
+                    const stroke = relationshipStroke({ quality: value })
+                    return (
+                      <div key={value} className="flex items-center gap-2">
+                        <svg width="42" height="10" viewBox="0 0 42 10" aria-hidden="true">
+                          <line x1="2" y1="5" x2="40" y2="5" stroke={stroke.color} strokeWidth="3" strokeDasharray={stroke.dash} strokeLinecap="round" />
+                        </svg>
+                        <span>{label}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 font-bold text-gray-700">Clinical markers</p>
+                <div className="grid grid-cols-1 gap-2">
+                  {CLINICAL_MARKERS.map((marker) => (
+                    <div key={marker.value} className="flex items-center gap-2">
+                      <span className="w-4 h-4 rounded-sm border border-white shadow-sm" style={{ background: marker.color }} />
+                      <span>{marker.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -635,20 +726,31 @@ export default function Genogram() {
                 </label>
                 <div>
                   <p className="label text-xs">Clinical tags</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {TAG_OPTIONS.map(([value, label]) => (
-                      <button
-                        key={value}
-                        type="button"
-                        onClick={() => tagToggle(value)}
-                        className={`rounded-full border px-2 py-1 text-[11px] font-semibold ${
-                          (selectedPerson.tags || []).includes(value)
-                            ? 'bg-brand-600 text-white border-brand-600'
-                            : 'bg-white text-gray-600 border-gray-200'
-                        }`}
-                      >
-                        {label}
-                      </button>
+                  <div className="space-y-3">
+                    {Object.entries(TAG_GROUPS).map(([group, markers]) => (
+                      <div key={group}>
+                        <p className="mb-1.5 text-[10px] font-bold uppercase tracking-wide text-gray-400">{group}</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {markers.map((marker) => {
+                            const active = (selectedPerson.tags || []).includes(marker.value)
+                            return (
+                              <button
+                                key={marker.value}
+                                type="button"
+                                onClick={() => tagToggle(marker.value)}
+                                className={`rounded-full border px-2 py-1 text-[11px] font-semibold transition-colors ${
+                                  active
+                                    ? 'text-white border-transparent'
+                                    : 'bg-white text-gray-600 border-gray-200'
+                                }`}
+                                style={active ? { background: marker.color } : {}}
+                              >
+                                {marker.label}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 </div>

@@ -258,10 +258,10 @@ Return only valid JSON:
   "map": {
     "version": 1,
     "people": [
-      {"id":"p1","name":"","role":"client|mother|father|partner|sibling|child|grandparent|other","gender":"female|male|nonbinary|unknown","age":"","birthYear":"","x":420,"y":320,"tags":[""],"notes":""}
+      {"id":"p1","name":"","role":"client|mother|father|partner|sibling|child|grandparent|other","gender":"female|male|nonbinary|unknown","age":"","birthYear":"","x":420,"y":320,"tags":["identified-client"],"notes":""}
     ],
     "relationships": [
-      {"id":"r1","from":"p1","to":"p2","type":"parent_child|partner|former_partner|sibling|emotional","quality":"close|distant|conflict|cutoff|fused|abusive|supportive|unknown","label":"","notes":""}
+      {"id":"r1","from":"p1","to":"p2","type":"parent_child|partner|former_partner|sibling|emotional","quality":"close|distant|conflict|hostile|controlling|jealous|cutoff|fused|close_hostile|fused_hostile|abusive|violence|supportive|unknown","label":"","notes":""}
     ],
     "annotations": [{"id":"a1","text":"","x":300,"y":260}],
     "events": [{"id":"e1","year":"","label":"","notes":""}],
@@ -276,6 +276,8 @@ Rules:
 - Use "unknown" when a person is mentioned but details are missing.
 - Put the identified client near x=420 y=330; parents above; children below; partners beside; siblings nearby.
 - Relationship quality should stay "unknown" unless clearly supported.
+- Use only these person tags when supported by chart text: identified-client, protective, risk, ipv, trauma, substance-use, alcohol-use, mental-health, depression, anxiety, neurodevelopmental, medical, chronic-illness, grief-loss, legal-system, sample.
+- Add "identified-client" to the client. Add clinical tags only when the chart explicitly supports them.
 - Keep notes concise and clinically neutral.
 
 Chart text:
