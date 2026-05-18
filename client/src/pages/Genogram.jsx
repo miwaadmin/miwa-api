@@ -65,49 +65,56 @@ const QUALITY_OPTIONS = [
   ['limerence', 'Limerence'],
 ]
 
+// Each color is unique across the whole list. Recovery is two markers
+// instead of five overlapping ones — to express "recovery from one, active
+// in the other," select the recovery marker plus the active marker.
 const CLINICAL_MARKERS = [
   { value: 'identified-client', label: 'Identified client', group: 'Role', color: '#f59e0b', fill: '#fef3c7' },
-  { value: 'protective', label: 'Protective/support', group: 'Strengths', color: '#0d9488', fill: '#ccfbf1' },
-  { value: 'current-risk', label: 'Current risk/safety', group: 'Risk', color: '#dc2626', fill: '#fee2e2' },
-  { value: 'risk', label: 'Risk pattern', group: 'Risk', color: '#f43f5e', fill: '#ffe4e6' },
-  { value: 'ipv', label: 'IPV / coercive control', group: 'Risk', color: '#7f1d1d', fill: '#fecaca' },
-  { value: 'trauma', label: 'Trauma history', group: 'Risk', color: '#be185d', fill: '#fce7f3' },
-  { value: 'physical-illness', label: 'Physical or mental illness', group: 'Conditions', color: '#2563eb', fill: '#dbeafe' },
-  { value: 'serious-illness-substance', label: 'Serious illness + substance abuse', group: 'Conditions', color: '#4338ca', fill: '#e0e7ff' },
-  { value: 'recovery-illness', label: 'Recovery from illness', group: 'Conditions', color: '#14b8a6', fill: '#ccfbf1' },
-  { value: 'recovery-substance', label: 'Recovery from alcohol/drug abuse', group: 'Conditions', color: '#22c55e', fill: '#dcfce7' },
-  { value: 'recovery-combined', label: 'Recovery from illness + substance abuse', group: 'Conditions', color: '#84cc16', fill: '#ecfccb' },
-  { value: 'recovery-with-illness', label: 'Recovery from substance, illness present', group: 'Conditions', color: '#0f766e', fill: '#ccfbf1' },
-  { value: 'recovery-with-substance', label: 'Recovery from illness, substance issue present', group: 'Conditions', color: '#a3e635', fill: '#f7fee7' },
-  { value: 'substance-use', label: 'Drug abuse / substance use', group: 'Addictions', color: '#f97316', fill: '#ffedd5' },
-  { value: 'suspected-substance', label: 'Suspected alcohol/drug abuse', group: 'Addictions', color: '#fb923c', fill: '#fed7aa' },
-  { value: 'alcohol-use', label: 'Alcoholism / alcohol use', group: 'Addictions', color: '#b45309', fill: '#fef3c7' },
-  { value: 'gambling', label: 'Gambling addiction', group: 'Addictions', color: '#ca8a04', fill: '#fef9c3' },
-  { value: 'mental-health', label: 'Mental health', group: 'Behavioral health', color: '#1d4ed8', fill: '#dbeafe' },
-  { value: 'depression', label: 'Depression', group: 'Behavioral health', color: '#6d28d9', fill: '#ede9fe' },
-  { value: 'anxiety', label: 'Anxiety', group: 'Behavioral health', color: '#0891b2', fill: '#cffafe' },
-  { value: 'autism', label: 'Autism', group: 'Behavioral health', color: '#7c3aed', fill: '#ede9fe' },
-  { value: 'neurodevelopmental', label: 'Neurodevelopmental', group: 'Behavioral health', color: '#9333ea', fill: '#f3e8ff' },
-  { value: 'obesity', label: 'Obesity', group: 'Medical', color: '#65a30d', fill: '#ecfccb' },
-  { value: 'cancer', label: 'Cancer', group: 'Medical', color: '#64748b', fill: '#f1f5f9' },
-  { value: 'heart-disease', label: 'Heart disease', group: 'Medical', color: '#ef4444', fill: '#fee2e2' },
-  { value: 'hypertension', label: 'Hypertension / high blood pressure', group: 'Medical', color: '#991b1b', fill: '#fee2e2' },
+  { value: 'protective', label: 'Protective / support', group: 'Strengths', color: '#14b8a6', fill: '#ccfbf1' },
+
+  { value: 'current-risk', label: 'Current risk / safety concern', group: 'Risk & trauma', color: '#ef4444', fill: '#fee2e2' },
+  { value: 'risk', label: 'Risk pattern (historical)', group: 'Risk & trauma', color: '#f43f5e', fill: '#ffe4e6' },
+  { value: 'ipv', label: 'IPV / coercive control', group: 'Risk & trauma', color: '#7f1d1d', fill: '#fecaca' },
+  { value: 'trauma', label: 'Trauma history', group: 'Risk & trauma', color: '#be185d', fill: '#fce7f3' },
+
+  { value: 'substance-use', label: 'Active drug / substance use', group: 'Substance & addictions', color: '#f97316', fill: '#ffedd5' },
+  { value: 'alcohol-use', label: 'Active alcohol use', group: 'Substance & addictions', color: '#b45309', fill: '#fef3c7' },
+  { value: 'suspected-substance', label: 'Suspected substance / alcohol use', group: 'Substance & addictions', color: '#fdba74', fill: '#ffedd5' },
+  { value: 'gambling', label: 'Gambling addiction', group: 'Substance & addictions', color: '#eab308', fill: '#fef9c3' },
+  { value: 'recovery-substance', label: 'Recovery from substance use', group: 'Substance & addictions', color: '#84cc16', fill: '#ecfccb' },
+
+  { value: 'mental-health', label: 'Mental health condition (other)', group: 'Mental health', color: '#1d4ed8', fill: '#dbeafe' },
+  { value: 'depression', label: 'Depression', group: 'Mental health', color: '#6d28d9', fill: '#ede9fe' },
+  { value: 'anxiety', label: 'Anxiety', group: 'Mental health', color: '#06b6d4', fill: '#cffafe' },
+
+  { value: 'autism', label: 'Autism', group: 'Neurodevelopmental', color: '#8b5cf6', fill: '#ede9fe' },
+  { value: 'neurodevelopmental', label: 'Other neurodevelopmental', group: 'Neurodevelopmental', color: '#a855f7', fill: '#f3e8ff' },
+
+  { value: 'physical-illness', label: 'Serious physical illness', group: 'Medical', color: '#2563eb', fill: '#dbeafe' },
+  { value: 'serious-illness-substance', label: 'Serious illness with substance use', group: 'Medical', color: '#4338ca', fill: '#e0e7ff' },
+  { value: 'recovery-illness', label: 'Recovery / remission from illness', group: 'Medical', color: '#4ade80', fill: '#dcfce7' },
+  { value: 'chronic-illness', label: 'Chronic illness', group: 'Medical', color: '#15803d', fill: '#bbf7d0' },
+  { value: 'medical', label: 'Other medical condition', group: 'Medical', color: '#16a34a', fill: '#dcfce7' },
+  { value: 'cancer', label: 'Cancer', group: 'Medical', color: '#475569', fill: '#e2e8f0' },
+  { value: 'heart-disease', label: 'Heart disease', group: 'Medical', color: '#dc2626', fill: '#fee2e2' },
+  { value: 'hypertension', label: 'High blood pressure', group: 'Medical', color: '#991b1b', fill: '#fecaca' },
   { value: 'hiv-aids', label: 'HIV / AIDS', group: 'Medical', color: '#e11d48', fill: '#ffe4e6' },
-  { value: 'std', label: 'Sexually transmitted disease', group: 'Medical', color: '#db2777', fill: '#fce7f3' },
+  { value: 'std', label: 'Sexually transmitted infection', group: 'Medical', color: '#db2777', fill: '#fce7f3' },
   { value: 'hepatitis', label: 'Hepatitis', group: 'Medical', color: '#facc15', fill: '#fef9c3' },
   { value: 'diabetes', label: 'Diabetes', group: 'Medical', color: '#0ea5e9', fill: '#e0f2fe' },
-  { value: 'arthritis', label: 'Arthritis', group: 'Medical', color: '#94a3b8', fill: '#f8fafc' },
-  { value: 'alzheimers', label: "Alzheimer's disease", group: 'Medical', color: '#475569', fill: '#e2e8f0' },
-  { value: 'medical', label: 'Other medical condition', group: 'Medical', color: '#16a34a', fill: '#dcfce7' },
-  { value: 'chronic-illness', label: 'Chronic illness', group: 'Medical', color: '#15803d', fill: '#bbf7d0' },
-  { value: 'adopted-child', label: 'Adopted child', group: 'Family context', color: '#0f766e', fill: '#ccfbf1' },
-  { value: 'foster-child', label: 'Foster child', group: 'Family context', color: '#0369a1', fill: '#e0f2fe' },
+  { value: 'arthritis', label: 'Arthritis', group: 'Medical', color: '#94a3b8', fill: '#f1f5f9' },
+  { value: 'alzheimers', label: "Alzheimer's / dementia", group: 'Medical', color: '#57534e', fill: '#e7e5e4' },
+  { value: 'obesity', label: 'Obesity', group: 'Medical', color: '#65a30d', fill: '#ecfccb' },
+
+  { value: 'adopted-child', label: 'Adopted', group: 'Family context', color: '#0f766e', fill: '#ccfbf1' },
+  { value: 'foster-child', label: 'Foster placement', group: 'Family context', color: '#0369a1', fill: '#e0f2fe' },
   { value: 'pregnancy', label: 'Pregnancy', group: 'Family context', color: '#ec4899', fill: '#fce7f3' },
-  { value: 'miscarriage', label: 'Miscarriage', group: 'Family context', color: '#71717a', fill: '#f4f4f5' },
+  { value: 'miscarriage', label: 'Miscarriage', group: 'Family context', color: '#a1a1aa', fill: '#f4f4f5' },
   { value: 'abortion', label: 'Abortion', group: 'Family context', color: '#52525b', fill: '#e4e4e7' },
-  { value: 'grief-loss', label: 'Grief/loss', group: 'Context', color: '#334155', fill: '#e2e8f0' },
-  { value: 'legal-system', label: 'Legal/system involvement', group: 'Context', color: '#a855f7', fill: '#f3e8ff' },
-  { value: 'sample', label: 'Sample/training', group: 'Context', color: '#eab308', fill: '#fef9c3' },
+
+  { value: 'grief-loss', label: 'Grief / loss', group: 'Context', color: '#334155', fill: '#e2e8f0' },
+  { value: 'legal-system', label: 'Legal / system involvement', group: 'Context', color: '#c026d3', fill: '#fae8ff' },
+  { value: 'sample', label: 'Sample / training', group: 'Context', color: '#d4d4d8', fill: '#fafafa' },
 ]
 
 const TAG_OPTIONS = CLINICAL_MARKERS.map((marker) => [marker.value, marker.label])
@@ -141,73 +148,79 @@ function escapeHtml(value) {
     .replace(/'/g, '&#039;')
 }
 
+// Every quality has its own hex (no two qualities share an exact color).
+// Dash patterns add a second visual axis so closely related qualities
+// (e.g. hostile vs hate) are also distinguishable at a glance.
+const RELATIONSHIP_STROKE = {
+  // Positive / warm — greens & teals
+  plain:           { color: '#111827', dash: '' },
+  supportive:      { color: '#10b981', dash: '' },
+  close:           { color: '#059669', dash: '' },
+  very_close:      { color: '#047857', dash: '' },
+  harmony:         { color: '#22c55e', dash: '' },
+  friendship:      { color: '#4ade80', dash: '' },
+  fan:             { color: '#14b8a6', dash: '' },
+  cutoff_repaired: { color: '#16a34a', dash: '10 4 2 4' },
+
+  // Romantic / intimate — reds & pinks
+  love:            { color: '#e11d48', dash: '' },
+  in_love:         { color: '#be123c', dash: '' },
+  limerence:       { color: '#fb7185', dash: '' },
+
+  // Spiritual / enmeshment — purples
+  spiritual:       { color: '#7c3aed', dash: '' },
+  fused:           { color: '#9333ea', dash: '' },
+
+  // Attention — blue / amber
+  focused_on:      { color: '#2563eb', dash: '' },
+  focused_negative:{ color: '#d97706', dash: '4 3' },
+
+  // Cool / distant — grays
+  indifferent:     { color: '#cbd5e1', dash: '2 6' },
+  distant:         { color: '#94a3b8', dash: '7 4' },
+  poor:            { color: '#64748b', dash: '5 5' },
+  never_met:       { color: '#e2e8f0', dash: '2 8' },
+  cutoff:          { color: '#1e293b', dash: '3 8' },
+
+  // Conflict — bright reds (dashed)
+  conflict:        { color: '#dc2626', dash: '6 4' },
+  discord:         { color: '#f87171', dash: '4 4' },
+
+  // Distrust / manipulation — ambers & oranges
+  distrust:        { color: '#92400e', dash: '12 5' },
+  jealous:         { color: '#a16207', dash: '12 4 2 4' },
+  controlling:     { color: '#ea580c', dash: '3 3' },
+  manipulative:    { color: '#c2410c', dash: '4 2 2 2' },
+
+  // Hostile family — distinct deep reds + dashes
+  hostile:         { color: '#b91c1c', dash: '10 3 3 3' },
+  hate:            { color: '#7f1d1d', dash: '8 2 2 2' },
+  close_hostile:   { color: '#f97316', dash: '2 3' },
+  distant_hostile: { color: '#9f1239', dash: '8 5 2 5' },
+  fused_hostile:   { color: '#6b21a8', dash: '6 2 2 2' },
+
+  // Abuse — solid, separate hue per type
+  abusive:         { color: '#9f1239', dash: '' },
+  physical_abuse:  { color: '#7c2d12', dash: '' },
+  emotional_abuse: { color: '#db2777', dash: '' },
+  sexual_abuse:    { color: '#a21caf', dash: '' },
+  neglect:         { color: '#78350f', dash: '' },
+
+  // Violence — dark-red family, distinct hues
+  violence:        { color: '#450a0a', dash: '' },
+  distant_violence:{ color: '#991b1b', dash: '8 5' },
+  close_violence:  { color: '#ef4444', dash: '2 2' },
+  fused_violence:  { color: '#581c87', dash: '6 4' },
+
+  unknown:         { color: '#334155', dash: '' },
+}
+
 function relationshipStroke(relationship) {
-  const color = {
-    plain: '#111827',
-    supportive: '#059669',
-    close: '#0f766e',
-    very_close: '#047857',
-    harmony: '#16a34a',
-    friendship: '#10b981',
-    love: '#e11d48',
-    in_love: '#be123c',
-    spiritual: '#7c3aed',
-    indifferent: '#94a3b8',
-    distant: '#64748b',
-    poor: '#475569',
-    conflict: '#dc2626',
-    discord: '#ef4444',
-    distrust: '#92400e',
-    hostile: '#b91c1c',
-    hate: '#7f1d1d',
-    controlling: '#ea580c',
-    manipulative: '#c2410c',
-    jealous: '#a16207',
-    cutoff: '#7f1d1d',
-    cutoff_repaired: '#0f766e',
-    fused: '#7c3aed',
-    close_hostile: '#be123c',
-    distant_hostile: '#9f1239',
-    fused_hostile: '#9333ea',
-    abusive: '#b91c1c',
-    physical_abuse: '#991b1b',
-    emotional_abuse: '#be185d',
-    sexual_abuse: '#86198f',
-    neglect: '#78350f',
-    violence: '#991b1b',
-    distant_violence: '#7f1d1d',
-    close_violence: '#b91c1c',
-    fused_violence: '#581c87',
-    focused_on: '#2563eb',
-    focused_negative: '#dc2626',
-    never_met: '#9ca3af',
-    fan: '#0d9488',
-    limerence: '#db2777',
-    unknown: '#334155',
-  }[relationship.quality || 'unknown']
-  const dash = {
-    indifferent: '2 7',
-    distant: '7 7',
-    poor: '7 7',
-    conflict: '6 4',
-    discord: '6 4',
-    distrust: '12 5',
-    hostile: '10 3 3 3',
-    controlling: '3 3',
-    manipulative: '3 3',
-    jealous: '12 4 2 4',
-    cutoff: '3 8',
-    cutoff_repaired: '10 4 2 4',
-    close_hostile: '2 3',
-    distant_hostile: '8 5 2 5',
-    fused_hostile: '8 2 2 2',
-    distant_violence: '8 5',
-    focused_negative: '4 3',
-    never_met: '2 6',
-    violence: '',
-    former_partner: '9 5',
-  }[relationship.quality] || (relationship.type === 'former_partner' ? '9 5' : '')
-  return { color, dash }
+  const entry = RELATIONSHIP_STROKE[relationship.quality || 'unknown'] || RELATIONSHIP_STROKE.unknown
+  // Former-partner overrides dash if the quality didn't already set one,
+  // so the canonical "double-slash" partner marker still shows up.
+  const dash = entry.dash || (relationship.type === 'former_partner' ? '9 5' : '')
+  return { color: entry.color, dash }
 }
 
 function personX(person) {
