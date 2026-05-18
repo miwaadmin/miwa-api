@@ -1495,8 +1495,10 @@ export default function Workspace() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* LEFT: Input Form */}
+      {/* Stacked vertical layout: top = client/intake form, middle = AI output tools,
+          bottom = action buttons (Save/Sign/Export) which live inside the output card. */}
+      <div className="flex flex-col gap-6">
+        {/* TOP: Intake / Session Input */}
         <div className="space-y-4">
           {/* Session Type Switcher */}
           <div className="card p-1.5 flex gap-1">
@@ -2593,7 +2595,9 @@ export default function Workspace() {
           </form>
         </div>
 
-        {/* RIGHT: Output */}
+        {/* MIDDLE: AI / Output (note, formulation, supervision, etc.). Action
+            buttons (Copy, Regenerate, Save to chart) sit inside this card so
+            they appear immediately below the generated content on this page. */}
         <div className="space-y-4">
           <div className="card overflow-hidden min-h-[600px] flex flex-col">
             {/* Tab bar */}
