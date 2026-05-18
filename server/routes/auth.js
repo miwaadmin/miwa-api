@@ -124,6 +124,10 @@ function safeProfile(row) {
     email_verified: !!row.email_verified,
     email_verified_at: row.email_verified_at || null,
     telehealth_url: row.telehealth_url || null,
+    working_hours: (() => {
+      try { return row.working_hours_json ? JSON.parse(row.working_hours_json) : null; }
+      catch { return null; }
+    })(),
     // Trainee onboarding wizard state — see /api/onboarding routes and
     // client/src/pages/trainee/TraineeWelcome.jsx.
     onboarding_step: typeof row.onboarding_step === 'number' ? row.onboarding_step : 0,
@@ -579,6 +583,7 @@ router.put('/me', requireAuth, async (req, res) => {
       agency_ehr_custom_format,
       training_program,
       site_policy_acknowledged,
+      working_hours,
     } = req.body;
     const row = await db.get('SELECT * FROM therapists WHERE id = ?', req.therapist.id);
     if (!row) return res.status(404).json({ error: 'Account not found.' });
@@ -650,12 +655,33 @@ router.put('/me', requireAuth, async (req, res) => {
       ? new Date().toISOString()
       : row.workspace_mode_selected_at;
 
+    // Normalize and validate working_hours. Shape: {start, end, days}.
+    // start/end are 24h HH:MM strings; days is a 0-6 weekday array (0=Sun).
+    // Passing null clears working hours (any time allowed). Anything malformed
+    // is ignored — fall back to existing value rather than rejecting the
+    // entire settings update.
+    let nextWorkingHoursJson = row.working_hours_json || null;
+    if (working_hours !== undefined) {
+      if (working_hours === null) {
+        nextWorkingHoursJson = null;
+      } else if (typeof working_hours === 'object') {
+        const start = typeof working_hours.start === 'string' && /^\d{2}:\d{2}$/.test(working_hours.start) ? working_hours.start : null;
+        const end   = typeof working_hours.end   === 'string' && /^\d{2}:\d{2}$/.test(working_hours.end)   ? working_hours.end   : null;
+        const days  = Array.isArray(working_hours.days)
+          ? Array.from(new Set(working_hours.days.map(d => Number(d)).filter(d => Number.isInteger(d) && d >= 0 && d <= 6))).sort()
+          : null;
+        if (start && end && days && days.length > 0 && start < end) {
+          nextWorkingHoursJson = JSON.stringify({ start, end, days });
+        }
+      }
+    }
+
     await db.run(
       `UPDATE therapists
        SET full_name = ?, first_name = ?, last_name = ?, user_role = ?, api_key = ?, avatar_url = ?, password_hash = ?,
            assistant_action_mode = ?, assistant_tone = ?, assistant_orientation = ?,
            assistant_verbosity = ?, assistant_memory = ?, assistant_permissions_json = ?,
-           telehealth_url = ?, preferred_timezone = ?,
+           telehealth_url = ?, preferred_timezone = ?, working_hours_json = ?,
            workspace_mode = ?, client_record_mode = ?, agency_name = ?, agency_ehr_name = ?,
            site_policy_status = ?, agency_ehr_note_format = ?, agency_ehr_custom_format = ?,
            training_program = ?, site_policy_acknowledged_at = ?,
@@ -676,6 +702,7 @@ router.put('/me', requireAuth, async (req, res) => {
       updatedAssistant.assistant_permissions_json,
       telehealth_url !== undefined ? (telehealth_url || null) : row.telehealth_url,
       req.body.preferred_timezone !== undefined ? req.body.preferred_timezone : row.preferred_timezone,
+      nextWorkingHoursJson,
       nextWorkspaceMode,
       nextClientRecordMode || 'miwa_system_of_record',
       nextAgencyName,

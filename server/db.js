@@ -1575,6 +1575,12 @@ function runMigrations() {
   if (!therapistCols.includes('soul_markdown')) {
     try { db.run('ALTER TABLE therapists ADD COLUMN soul_markdown TEXT'); } catch {}
   }
+  // Working hours — JSON like {"start":"08:00","end":"19:00","days":[1,2,3,4,5]}
+  // (days are 0=Sun..6=Sat). NULL = unset → no validation, scheduling allowed
+  // any time. Used by /api/agent/appointments to refuse 3am bookings.
+  if (!therapistCols.includes('working_hours_json')) {
+    try { db.run('ALTER TABLE therapists ADD COLUMN working_hours_json TEXT'); } catch {}
+  }
 
   // Treatment plan revision history — HIPAA/liability record of every change
   // to a treatment plan or its goals. Append-only; never overwritten.

@@ -318,6 +318,10 @@ export default function Settings() {
   const [editingName, setEditingName] = useState(false)
   const [avatarPreview, setAvatarPreview] = useState('')
   const [preferredTimezone, setPreferredTimezone] = useState('America/Los_Angeles')
+  // Working hours — used to refuse appointments outside business hours.
+  // Defaults to Mon-Fri 8am-7pm if the therapist hasn't set anything yet.
+  const [workingHours, setWorkingHours] = useState({ start: '08:00', end: '19:00', days: [1,2,3,4,5] })
+  const [workingHoursEnabled, setWorkingHoursEnabled] = useState(true)
 
   // Soul profile state
   const [soulPrefs, setSoulPrefs] = useState([])
@@ -347,6 +351,18 @@ export default function Settings() {
     setAvatarPreview(therapist?.avatar_url || '')
     setTelehealthUrl(therapist?.telehealth_url || '')
     setPreferredTimezone(therapist?.preferred_timezone || 'America/Los_Angeles')
+    if (therapist?.working_hours && typeof therapist.working_hours === 'object') {
+      const wh = therapist.working_hours
+      setWorkingHours({
+        start: typeof wh.start === 'string' ? wh.start : '08:00',
+        end:   typeof wh.end   === 'string' ? wh.end   : '19:00',
+        days:  Array.isArray(wh.days) ? wh.days : [1,2,3,4,5],
+      })
+      setWorkingHoursEnabled(true)
+    } else {
+      // No saved working hours → off; the form pre-populates a sensible default.
+      setWorkingHoursEnabled(false)
+    }
   }, [therapist])
 
   const loadSoulPrefs = async () => {
@@ -466,6 +482,36 @@ export default function Settings() {
       if (!res.ok) throw new Error(data.error || 'Failed to save telehealth URL')
       refreshTherapist(data.therapist, data.token)
       setSaved('telehealth')
+      setTimeout(() => setSaved(''), 2500)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleSaveWorkingHours = async () => {
+    setSaving(true)
+    setError('')
+    try {
+      const payload = workingHoursEnabled
+        ? {
+            start: workingHours.start,
+            end: workingHours.end,
+            days: Array.isArray(workingHours.days) ? [...workingHours.days].sort((a,b)=>a-b) : [],
+          }
+        : null
+      if (payload && (!payload.start || !payload.end || !payload.days.length || payload.start >= payload.end)) {
+        throw new Error('Pick at least one day and a start time earlier than the end time.')
+      }
+      const res = await apiFetch('/auth/me', {
+        method: 'PUT',
+        body: JSON.stringify({ working_hours: payload }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Failed to save working hours')
+      refreshTherapist(data.therapist, data.token)
+      setSaved('working_hours')
       setTimeout(() => setSaved(''), 2500)
     } catch (err) {
       setError(err.message)
@@ -898,6 +944,105 @@ export default function Settings() {
             }`}
           >
             {saved === 'timezone' ? '✓ Saved' : saving ? 'Saving…' : 'Save timezone'}
+          </button>
+        </div>
+      </div>
+
+      {/* Working hours — controls scheduling validation. When enabled,
+          appointments cannot be created outside the window without forcing. */}
+      <div className="card p-6">
+        <div className="flex items-start gap-3 mb-5">
+          <div className="w-9 h-9 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+            <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+          </div>
+          <div>
+            <h2 className="text-sm font-semibold text-gray-900">Working hours</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              When set, Miwa refuses appointments outside these hours (so demo
+              clients and accidental 3am bookings don't slip through). You can
+              still force an off-hours session when you really need one.
+            </p>
+          </div>
+        </div>
+
+        <div className="space-y-3">
+          <label className="flex items-center gap-2 text-sm text-gray-700">
+            <input
+              type="checkbox"
+              checked={workingHoursEnabled}
+              onChange={e => setWorkingHoursEnabled(e.target.checked)}
+              className="h-4 w-4 rounded border-gray-300"
+            />
+            Enforce working hours for new appointments
+          </label>
+
+          <div className={`grid grid-cols-2 gap-3 ${workingHoursEnabled ? '' : 'opacity-50 pointer-events-none'}`}>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Start time</span>
+              <input
+                type="time"
+                value={workingHours.start}
+                onChange={e => setWorkingHours(wh => ({ ...wh, start: e.target.value }))}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">End time</span>
+              <input
+                type="time"
+                value={workingHours.end}
+                onChange={e => setWorkingHours(wh => ({ ...wh, end: e.target.value }))}
+                className="mt-1 w-full rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              />
+            </label>
+          </div>
+
+          <div className={workingHoursEnabled ? '' : 'opacity-50 pointer-events-none'}>
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Working days</span>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {[
+                { d: 0, label: 'Sun' },
+                { d: 1, label: 'Mon' },
+                { d: 2, label: 'Tue' },
+                { d: 3, label: 'Wed' },
+                { d: 4, label: 'Thu' },
+                { d: 5, label: 'Fri' },
+                { d: 6, label: 'Sat' },
+              ].map(({ d, label }) => {
+                const active = workingHours.days.includes(d)
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setWorkingHours(wh => ({
+                      ...wh,
+                      days: active ? wh.days.filter(x => x !== d) : [...wh.days, d].sort((a,b)=>a-b),
+                    }))}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${
+                      active
+                        ? 'bg-blue-600 text-white border-blue-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+
+          <button
+            onClick={handleSaveWorkingHours}
+            disabled={saving}
+            className={`w-full py-2 rounded-xl text-sm font-semibold transition-colors ${
+              saved === 'working_hours'
+                ? 'bg-emerald-100 text-emerald-700'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+          >
+            {saved === 'working_hours' ? '✓ Saved' : saving ? 'Saving…' : 'Save working hours'}
           </button>
         </div>
       </div>

@@ -224,6 +224,71 @@ async function findAppointmentConflicts(db, therapistId, scheduledStart, schedul
   }));
 }
 
+/**
+ * Validate a proposed appointment start against the therapist's saved
+ * working hours. Returns `{ ok: true }` when allowed, otherwise
+ * `{ ok: false, error, code, working_hours }` ready for a 400 response.
+ *
+ * Behavior:
+ *  - When the therapist has no working_hours_json set, allow any time.
+ *  - When set, the proposed start's local weekday (in the therapist's
+ *    preferred_timezone) must be in `days`, and the local HH:MM must be
+ *    between `start` (inclusive) and `end` (exclusive).
+ *  - Malformed working_hours_json fails-open (no restriction).
+ */
+async function validateAppointmentWithinWorkingHours(db, therapistId, scheduledStart) {
+  if (!scheduledStart) return { ok: true };
+  const therapist = await db.get(
+    'SELECT working_hours_json, preferred_timezone FROM therapists WHERE id = ?',
+    therapistId,
+  );
+  if (!therapist?.working_hours_json) return { ok: true };
+  let working;
+  try { working = JSON.parse(therapist.working_hours_json); } catch { return { ok: true }; }
+  if (!working || typeof working !== 'object') return { ok: true };
+  const { start, end, days } = working;
+  if (!start || !end || !Array.isArray(days) || days.length === 0) return { ok: true };
+
+  const tz = therapist.preferred_timezone || 'America/Los_Angeles';
+  const startDate = new Date(scheduledStart);
+  if (Number.isNaN(startDate.getTime())) return { ok: true };
+
+  // Resolve weekday + HH:MM in the therapist's local timezone.
+  let weekday;
+  let hhmm;
+  try {
+    const wdLabel = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: tz }).format(startDate);
+    weekday = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].indexOf(wdLabel);
+    const timeFmt = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: tz });
+    hhmm = timeFmt.format(startDate);
+  } catch {
+    return { ok: true };
+  }
+
+  if (!days.includes(weekday)) {
+    return {
+      ok: false,
+      error: `That day is outside your working hours (${describeDays(days)}, ${start}–${end}). Update working hours in Settings or pick another day.`,
+      code: 'OUTSIDE_WORKING_HOURS',
+      working_hours: working,
+    };
+  }
+  if (hhmm < start || hhmm >= end) {
+    return {
+      ok: false,
+      error: `That time is outside your working hours (${start}–${end}). Update working hours in Settings or pick another time.`,
+      code: 'OUTSIDE_WORKING_HOURS',
+      working_hours: working,
+    };
+  }
+  return { ok: true };
+}
+
+function describeDays(days) {
+  const names = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+  return days.slice().sort().map(d => names[d]).join('/');
+}
+
 module.exports = {
   formatAppointmentPreview,
   createAppointmentRecord,
@@ -234,4 +299,5 @@ module.exports = {
   buildAppointmentDateFields,
   getAppointmentById,
   findAppointmentConflicts,
+  validateAppointmentWithinWorkingHours,
 };

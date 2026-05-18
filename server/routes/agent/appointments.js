@@ -13,6 +13,7 @@ const {
   buildAppointmentDateFields,
   getAppointmentById,
   findAppointmentConflicts,
+  validateAppointmentWithinWorkingHours,
 } = require('./lib/appointment-ops');
 const { generateClientId } = require('./lib/client-codes');
 
@@ -145,6 +146,14 @@ router.patch('/appointments/:id', async (req, res) => {
       || (scheduled_end !== undefined && scheduled_end !== existing.scheduled_end)
       || (duration_minutes !== undefined && duration_minutes !== existing.duration_minutes);
     if (timeChanged && !force) {
+      const whCheck = await validateAppointmentWithinWorkingHours(
+        db,
+        req.therapist.id,
+        scheduled_start ?? existing.scheduled_start,
+      );
+      if (!whCheck.ok) {
+        return res.status(400).json({ error: whCheck.error, code: whCheck.code, working_hours: whCheck.working_hours });
+      }
       const conflicts = await findAppointmentConflicts(
         db,
         req.therapist.id,
@@ -344,6 +353,15 @@ router.post('/appointments', async (req, res) => {
 
     if (!patient) return res.status(404).json({ error: 'Patient not found' });
     if (!scheduledStart && !scheduledEnd) return res.status(400).json({ error: 'scheduledStart or scheduledEnd is required' });
+
+    // Working-hours guard. `force: true` bypasses (e.g. an emergency
+    // off-hours session the clinician deliberately schedules).
+    if (!force) {
+      const whCheck = await validateAppointmentWithinWorkingHours(db, req.therapist.id, scheduledStart);
+      if (!whCheck.ok) {
+        return res.status(400).json({ error: whCheck.error, code: whCheck.code, working_hours: whCheck.working_hours });
+      }
+    }
 
     // Block accidental double-booking unless the caller explicitly opts in
     // via `force: true` (e.g. a couple/family session legitimately needs two
