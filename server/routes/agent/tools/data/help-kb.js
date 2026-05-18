@@ -31,7 +31,7 @@ const APP_HELP_KB = [
     { heading: 'Themes', body: 'Three themes available: Default (light purple gradient), Dark (navy/slate), and Pink (warm pink). Change in Settings > Appearance.' },
   ]},
   { id: 'billing', title: 'Billing & Subscription', content: [
-    { heading: 'Plans', body: 'Free 14-day trial with full access. After trial: Trainee plan ($39/mo), Solo plan ($79/mo), Practice plan ($149/mo). Cancel anytime from Settings > Billing. Data remains accessible for 30 days after cancellation.' },
+    { heading: 'Plans', body: 'Free 14-day trial with full access. After trial: Trainee plan ($39/mo), Associate plan ($69/mo), and Licensed Therapist plan ($129/mo). Cancel anytime from Settings > Billing. Data remains accessible for 30 days after cancellation.' },
   ]},
   { id: 'faq', title: 'FAQ', content: [
     { heading: 'Common Questions', body: 'HIPAA: Miwa is HIPAA compliant, with BAA-backed infrastructure, encrypted transport, HttpOnly cookies, and no clinical data used to train AI models. Covered entities can complete their own BAA, policy, and configuration review. Mobile: Miwa is a PWA that works on iOS and Android — add to home screen. Miwa is a clinical copilot, not an EHR replacement.' },

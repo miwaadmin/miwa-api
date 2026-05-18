@@ -105,7 +105,7 @@ function FeatureCardIcon({ type }) {
 const NAV_LINKS = [
   { to: '/features',      label: 'Features' },
   { to: '/pricing',       label: 'Pricing' },
-  { to: '/for-trainees',  label: 'Trainees' },
+  { to: '/for-trainees',  label: 'Pre-Licensed' },
   { to: '/about',         label: 'About' },
 ]
 
@@ -371,7 +371,7 @@ function Hero() {
             See how it works →
           </Link>
         </div>
-        <p className="text-sm text-gray-500">14-day free trial · No credit card required · Trainee pricing starting at $39/mo</p>
+        <p className="text-sm text-gray-500">14-day free trial · No credit card required · Trainee plans from $39/mo and Associate plans from $69/mo</p>
       </div>
 
       {/* BIG product mockup, the hero visual */}
@@ -393,7 +393,7 @@ function Hero() {
           <span>·</span>
           <span>Privacy-minded design</span>
           <span>·</span>
-          <span>Trainee pricing for interns &amp; associates</span>
+          <span>Separate trainee and associate pricing</span>
         </div>
       </div>
     </section>
@@ -446,8 +446,9 @@ function FeatureRow({ tag, title, gradWord, desc, items, accent, reversed, mocku
 /* ── Pricing Preview ──────────────────────────────────────────────── */
 function PricingPreview() {
   const tiers = [
-    { name: 'Trainee', price: '$39', per: '/mo', desc: 'MFT trainees and practicum interns. The full AI copilot at a price that fits a trainee salary.', cta: 'Start free trial', href: '/register', highlight: false },
-    { name: 'Licensed Therapist', price: '$129', per: '/mo', desc: 'The full AI copilot: pre-session briefs, treatment plan tracking, risk monitoring, letter generation, and morning caseload briefings.', cta: 'Start free trial', href: '/register', highlight: true },
+    { name: 'Trainee', price: '$39', per: '/mo', desc: 'MFT trainees and practicum interns. Full AI notes, briefs, risk monitor, assessments, and supervision prep.', cta: 'Start free trial', href: '/register?tier=trainee', highlight: false },
+    { name: 'Associate', price: '$69', per: '/mo', desc: 'AMFT, ACSW, and APCC clinicians. Adds proactive alerts, batch assessments, portal invite codes, reports, and priority support.', cta: 'Start free trial', href: '/register?tier=associate', highlight: true },
+    { name: 'Licensed Therapist', price: '$129', per: '/mo', desc: 'Everything in Associate, plus no verification, full practice intelligence, document intake parsing, and advanced exports.', cta: 'Start free trial', href: '/register?tier=licensed', highlight: false },
     { name: 'Group Practice', price: '', per: '', desc: 'Coming soon. Join the waitlist for multi-clinician pricing.', cta: 'Join waitlist', href: '/for-practices', highlight: false },
   ]
   return (
@@ -463,7 +464,7 @@ function PricingPreview() {
           </div>
           <Link to="/pricing" className="text-sm text-gray-600 hover:text-gray-900 transition-colors font-medium">Compare all plans →</Link>
         </div>
-        <div className="grid md:grid-cols-3 gap-6">
+        <div className="grid md:grid-cols-2 xl:grid-cols-4 gap-6">
           {tiers.map((t, i) => (
             <div key={i} className={`rounded-2xl p-7 flex flex-col ${t.highlight ? 'text-white' : 'bg-white'}`}
               style={t.highlight
@@ -499,7 +500,7 @@ function FAQ() {
   const faqs = [
     { q: 'Is Miwa HIPAA compliant?', a: 'Yes. Miwa is HIPAA compliant for covered clinical work, with encryption, access controls, BAA-backed infrastructure, and privacy protections around sensitive client information.' },
     { q: 'Does Miwa replace my EHR?', a: 'No. Miwa is a clinical assistant, not a full EHR or insurance billing system. Many clinicians use it alongside their existing record system for notes, outcomes, scheduling, and preparation.' },
-    { q: 'Who qualifies for Trainee pricing?', a: 'Anyone who isn\'t fully licensed yet: practicum interns, MFT trainees, and licensed associates (AMFT, ACSW, APCC). When you get your full license, you can upgrade to Licensed Therapist.' },
+    { q: 'Who qualifies for pre-licensed pricing?', a: 'Trainee pricing is for practicum interns and MFT trainees at $39/mo. Associate pricing is for AMFT, ACSW, APCC, and similar registered associates at $69/mo. When you get your full license, you can upgrade to Licensed Therapist.' },
     { q: 'What assessments are supported?', a: 'PHQ-9, GAD-7, PCL-5, and C-SSRS can be completed through secure links, scored automatically, and tracked over time.' },
     { q: 'Can I use Miwa on mobile?', a: 'Yes. Miwa is a PWA installable on iOS and Android. Voice dictation works on mobile.' },
   ]
@@ -556,7 +557,7 @@ function FinalCTA() {
           <Link to="/for-trainees"
             className="px-10 py-4 rounded-xl text-lg font-medium text-gray-700 hover:text-gray-900 transition-all"
             style={{ border: '1px solid rgba(0,0,0,0.15)' }}>
-            I'm a trainee →
+            I'm pre-licensed →
           </Link>
         </div>
       </div>

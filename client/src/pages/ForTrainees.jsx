@@ -81,7 +81,7 @@ export default function ForTrainees() {
         <h1 className="text-5xl md:text-6xl font-extrabold text-gray-900 mb-6 leading-[1.05] tracking-tight">
           The full AI copilot.<br />
           <span style={{ background: 'linear-gradient(135deg, #059669, #34d399)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-            Trainee pricing.
+            Pre-licensed pricing.
           </span>
         </h1>
         <p className="text-gray-700 text-xl max-w-2xl mx-auto mb-4 leading-relaxed">

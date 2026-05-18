@@ -8,6 +8,7 @@ const PLANS = [
     name: 'Trainee / Intern',
     price: '$39',
     period: '/mo',
+    annual: '$31/mo billed annually',
     badge: null,
     color: '#6366f1',
     desc: 'MFT Trainee, ACSW Trainee, LPCC Intern. Full access with supervisor verification.',
@@ -24,6 +25,7 @@ const PLANS = [
     name: 'Associate',
     price: '$69',
     period: '/mo',
+    annual: '$55/mo billed annually',
     badge: 'Most popular',
     color: '#0d9488',
     desc: 'AMFT, ACSW, APCC, licensed associate. Full access at associate pricing.',
@@ -31,6 +33,7 @@ const PLANS = [
       'Everything in Trainee',
       'Proactive caseload alerts',
       'Batch assessment sender',
+      'Client portal invite codes',
       'Court, insurance & supervision reports',
       'Priority support',
     ],
@@ -40,6 +43,7 @@ const PLANS = [
     name: 'Licensed Therapist',
     price: '$129',
     period: '/mo',
+    annual: '$103/mo billed annually',
     badge: null,
     color: '#7c3aed',
     desc: 'LMFT, LCSW, LPCC, fully licensed. Full access, no verification needed.',
@@ -48,6 +52,7 @@ const PLANS = [
       'No verification required',
       'Document intake parsing (AI)',
       'Appointment scheduling via Miwa',
+      'Practice intelligence dashboard',
       'Export to PDF',
     ],
   },
@@ -653,6 +658,9 @@ export default function Billing() {
                         <div className="text-right">
                           <span className="text-2xl font-extrabold text-gray-900">{plan.price}</span>
                           <span className="text-xs text-gray-400">{plan.period}</span>
+                          {plan.annual && (
+                            <p className="text-xs mt-0.5 font-medium" style={{ color: plan.color }}>{plan.annual}</p>
+                          )}
                           {plan.perSeat && (
                             <p className="text-xs mt-0.5 font-medium" style={{ color: plan.color }}>+$39/mo per seat</p>
                           )}

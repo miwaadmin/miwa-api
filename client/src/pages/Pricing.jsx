@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MiwaLogo } from '../components/Sidebar'
 import PublicPageShell from '../components/PublicPageShell'
@@ -97,7 +96,7 @@ const COMPETITORS = [
   { feature: 'Proactive deterioration alerts', miwa: true, upheal: false, sp: false, tn: false },
   { feature: 'Drafted outreach', miwa: true, upheal: false, sp: false, tn: false },
   { feature: 'Assessment delivery through secure links', miwa: true, upheal: false, sp: false, tn: false },
-  { feature: 'Trainee pricing', miwa: '$39/mo', upheal: false, sp: false, tn: false },
+  { feature: 'Pre-licensed pricing', miwa: '$39 trainee / $69 associate', upheal: false, sp: false, tn: false },
   { feature: 'Voice-first mobile app', miwa: true, upheal: true, sp: true, tn: true },
   { feature: 'Client portal', miwa: true, upheal: true, sp: true, tn: true },
   { feature: 'Client portal invite codes (MIWA-XXXX-XXXX)', miwa: '$69+/mo', upheal: false, sp: false, tn: false },
@@ -128,8 +127,6 @@ function Cell({ val }) {
 }
 
 export default function Pricing() {
-  const [annual, setAnnual] = useState(false)
-
   return (
     <PublicPageShell>
 
@@ -188,9 +185,9 @@ export default function Pricing() {
                       Min. 3 clinicians included · +$39/mo each after
                     </p>
                   )}
-                  {false && (
+                  {plan.annualPrice && (
                     <p className="text-sm mt-0.5 text-emerald-600 font-medium">
-                      Placeholder
+                      ${plan.annualPrice}/mo billed annually
                     </p>
                   )}
                 </div>
@@ -311,7 +308,7 @@ export default function Pricing() {
           <Link to="/for-trainees"
             className="px-10 py-4 rounded-xl text-lg font-medium text-gray-700 hover:text-gray-900 transition-all"
             style={{ border: '1px solid rgba(0,0,0,0.15)' }}>
-            I'm a trainee →
+            I'm pre-licensed →
           </Link>
         </div>
       </div>

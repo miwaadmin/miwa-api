@@ -281,8 +281,8 @@ Yes. Miwa is a progressive web app (PWA) that works on iOS and Android. You can 
 **How do I cancel?**
 You can cancel anytime from Settings → Billing. Your data remains accessible for 30 days after cancellation.
 
-**Who qualifies for Trainee pricing?**
-Anyone who isn't fully licensed: practicum interns, MFT trainees, and licensed associates (AMFT, ACSW, APCC). Full access at $39/mo.`,
+**Who qualifies for pre-licensed pricing?**
+Trainee pricing is for practicum interns and MFT trainees at $39/mo. Associate pricing is for AMFT, ACSW, APCC, and similar registered associates at $69/mo. Both include a 14-day free trial.`,
       },
     ],
   },

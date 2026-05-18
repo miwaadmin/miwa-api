@@ -18,7 +18,7 @@ function Nav() {
       </Link>
       <div className="hidden md:flex items-center gap-6 text-base text-white/55">
         <Link to="/features" className="hover:text-white transition-colors">Features</Link>
-        <Link to="/for-trainees" className="hover:text-white transition-colors">Trainees</Link>
+        <Link to="/for-trainees" className="hover:text-white transition-colors">Pre-Licensed</Link>
         <Link to="/for-practices" className="hover:text-white transition-colors">Practices</Link>
         <Link to="/pricing" className="hover:text-white transition-colors">Pricing</Link>
       </div>

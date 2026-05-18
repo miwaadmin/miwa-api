@@ -19,6 +19,7 @@ const PLANS = [
     name: 'Trainee / Intern',
     price: '$39',
     period: '/mo',
+    annual: '$31/mo billed annually',
     color: '#6366f1',
     desc: 'MFT Trainee, ACSW Trainee, LPCC Intern. Full access with supervisor verification.',
     features: [
@@ -34,12 +35,15 @@ const PLANS = [
     name: 'Associate',
     price: '$69',
     period: '/mo',
+    annual: '$55/mo billed annually',
     badge: 'Most popular',
     color: '#0d9488',
     desc: 'AMFT, ACSW, APCC. Full access at associate pricing.',
     features: [
       'Everything in Trainee',
       'Proactive caseload alerts',
+      'Batch assessment sender',
+      'Client portal invite codes',
       'Letter generator (ESA, 504, etc.)',
       'Attorney + insurance pre-auth',
       'Priority support',
@@ -50,12 +54,14 @@ const PLANS = [
     name: 'Licensed Therapist',
     price: '$129',
     period: '/mo',
+    annual: '$103/mo billed annually',
     color: '#7c3aed',
     desc: 'LMFT, LCSW, LPCC. No verification required.',
     features: [
       'Everything in Associate',
       'All multi-step workflows',
       'Document intake parsing',
+      'Practice intelligence dashboard',
       'Scheduling via Miwa',
       'Export to PDF',
     ],
@@ -253,6 +259,7 @@ export default function MobileBilling() {
                   <div className="text-right flex-shrink-0">
                     <p className="text-xl font-bold text-gray-900">{p.price}</p>
                     <p className="text-[11px] text-gray-500">{p.period}</p>
+                    {p.annual && <p className="text-[11px] font-medium" style={{ color: p.color }}>{p.annual}</p>}
                   </div>
                 </div>
                 <p className="text-[13px] text-gray-600 mb-3 leading-relaxed">{p.desc}</p>
@@ -287,7 +294,7 @@ export default function MobileBilling() {
         </div>
 
         <p className="text-center text-[11px] text-gray-400 mt-6 max-w-xs mx-auto">
-          Payments are processed by Stripe. Cancel any time. Monthly, no annual lock-in.
+          Payments are processed by Stripe. Cancel any time. Annual rates shown where available.
         </p>
       </div>
     </div>

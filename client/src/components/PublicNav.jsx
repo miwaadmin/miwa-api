@@ -65,7 +65,7 @@ export default function PublicNav() {
         <div className="hidden lg:flex items-center gap-4 xl:gap-5">
           <NavLink to="/features"                current={pathname}>Features</NavLink>
           <NavLink to="/pricing"                 current={pathname}>Pricing</NavLink>
-          <NavLink to="/for-trainees"            current={pathname}>Trainees</NavLink>
+          <NavLink to="/for-trainees"            current={pathname}>Pre-Licensed</NavLink>
           <NavLink to="/for-licensed-clinicians" current={pathname}>Clinicians</NavLink>
           <NavLink to="/resources"               current={pathname}>Resources</NavLink>
           <NavLink to="/privacy-and-compliance"  current={pathname}>Privacy</NavLink>
