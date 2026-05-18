@@ -1261,8 +1261,8 @@ export default function Schedule() {
     }
   }, [])
 
-  const loadData = useCallback(async () => {
-    setLoading(true)
+  const loadData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
     try {
       const [appts, pts] = await Promise.all([
         apiFetch('/agent/appointments').then(r => r.json()),
@@ -1271,7 +1271,7 @@ export default function Schedule() {
       setAppointments(Array.isArray(appts) ? appts.filter(a => a.status !== 'cancelled') : [])
       setPatients(Array.isArray(pts) ? pts : [])
     } catch (_) {}
-    setLoading(false)
+    if (!silent) setLoading(false)
     // Refresh conflicts whenever appointments reload, picks up dupes the
     // user might have created via the agent before the guard existed.
     loadConflicts()
@@ -1280,9 +1280,20 @@ export default function Schedule() {
   useEffect(() => { loadData() }, [loadData])
 
   useEffect(() => {
-    const handler = () => loadData()
+    const handler = () => loadData({ silent: true })
+    const handleVisibility = () => {
+      if (!document.hidden) handler()
+    }
+    const interval = window.setInterval(handler, 30000)
     window.addEventListener('miwa:appointment_created', handler)
-    return () => window.removeEventListener('miwa:appointment_created', handler)
+    window.addEventListener('focus', handler)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('miwa:appointment_created', handler)
+      window.removeEventListener('focus', handler)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
   }, [loadData])
 
   const todayAppts = useMemo(() => {
@@ -1305,6 +1316,7 @@ export default function Schedule() {
         if (Array.isArray(pts)) setPatients(pts)
       }).catch(() => {})
     }
+    window.dispatchEvent(new CustomEvent('miwa:appointment_created', { detail: savedAppt }))
   }
   const handleDelete = id => {
     setAppointments(prev => prev.filter(a => a.id !== id))

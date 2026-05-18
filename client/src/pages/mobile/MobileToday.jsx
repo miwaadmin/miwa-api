@@ -2,7 +2,7 @@
  * MobileToday, the mobile home screen.
  * Shows what matters RIGHT NOW: greeting, next session, today's schedule, alerts.
  */
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../context/AuthContext'
 import { apiFetch } from '../../lib/api'
@@ -69,12 +69,8 @@ export default function MobileToday() {
 
   const firstName = therapist?.full_name?.split(' ')[0] || 'there'
 
-  useEffect(() => {
-    loadData()
-  }, [])
-
-  const loadData = async () => {
-    setLoading(true)
+  const loadData = useCallback(async ({ silent = false } = {}) => {
+    if (!silent) setLoading(true)
     try {
       const [apptRes, briefRes, alertRes] = await Promise.allSettled([
         apiFetch('/agent/appointments'),
@@ -105,8 +101,29 @@ export default function MobileToday() {
         )
       }
     } catch {}
-    setLoading(false)
-  }
+    if (!silent) setLoading(false)
+  }, [])
+
+  useEffect(() => {
+    loadData()
+  }, [loadData])
+
+  useEffect(() => {
+    const handler = () => loadData({ silent: true })
+    const handleVisibility = () => {
+      if (!document.hidden) handler()
+    }
+    const interval = window.setInterval(handler, 30000)
+    window.addEventListener('miwa:appointment_created', handler)
+    window.addEventListener('focus', handler)
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => {
+      window.clearInterval(interval)
+      window.removeEventListener('miwa:appointment_created', handler)
+      window.removeEventListener('focus', handler)
+      document.removeEventListener('visibilitychange', handleVisibility)
+    }
+  }, [loadData])
 
   const handleCheckIn = async (appt, status) => {
     setCheckingIn(appt.id)

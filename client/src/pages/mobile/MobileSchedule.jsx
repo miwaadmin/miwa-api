@@ -154,8 +154,8 @@ export default function MobileSchedule() {
     })
   }, [])
 
-  const load = useCallback(async (date) => {
-    setLoading(true)
+  const load = useCallback(async (date, { silent = false } = {}) => {
+    if (!silent) setLoading(true)
     setError('')
     try {
       const dateStr = ymd(date)
@@ -172,19 +172,26 @@ export default function MobileSchedule() {
       setAppointments([])
       setAllAppointments([])
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }, [])
 
   useEffect(() => { load(selected) }, [selected, load])
 
   useEffect(() => {
-    const handler = () => load(selected)
+    const handler = () => load(selected, { silent: true })
+    const handleVisibility = () => {
+      if (!document.hidden) handler()
+    }
+    const interval = window.setInterval(handler, 30000)
     window.addEventListener('miwa:appointment_created', handler)
     window.addEventListener('focus', handler)
+    document.addEventListener('visibilitychange', handleVisibility)
     return () => {
+      window.clearInterval(interval)
       window.removeEventListener('miwa:appointment_created', handler)
       window.removeEventListener('focus', handler)
+      document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [selected, load])
 
@@ -277,6 +284,9 @@ export default function MobileSchedule() {
       }
       if (!res.ok) throw new Error(data.error || 'Could not schedule appointment')
       closeNewAppointment()
+      if (data.appointment) {
+        window.dispatchEvent(new CustomEvent('miwa:appointment_created', { detail: data.appointment }))
+      }
       await load(selected)
     } catch (err) {
       setError(err.message || 'Could not schedule appointment')
