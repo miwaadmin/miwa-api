@@ -495,6 +495,9 @@ function createSchema() {
       topics_json TEXT,
       local_date TEXT,
       timezone TEXT,
+      saved INTEGER DEFAULT 0,
+      saved_at DATETIME,
+      opened_at DATETIME,
       sent_email INTEGER DEFAULT 0,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
@@ -2010,6 +2013,9 @@ function runMigrations() {
   } catch {}
   if (briefCols.length && !briefCols.includes('saved')) {
     try { db.run('ALTER TABLE research_briefs ADD COLUMN saved INTEGER DEFAULT 0'); } catch {}
+  }
+  if (briefCols.length && !briefCols.includes('saved_at')) {
+    try { db.run('ALTER TABLE research_briefs ADD COLUMN saved_at DATETIME'); } catch {}
   }
   if (briefCols.length && !briefCols.includes('opened_at')) {
     try { db.run('ALTER TABLE research_briefs ADD COLUMN opened_at DATETIME'); } catch {}
