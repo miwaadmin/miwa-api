@@ -866,9 +866,7 @@ export function TraineeSupervision() {
           <div className="flex-1">
             <p className="text-xs font-bold uppercase tracking-widest text-brand-600 dark:text-brand-300">Supervision</p>
             <h1 className="mt-1 text-2xl font-bold text-gray-950 dark:text-white">Supervision workspace</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600 dark:text-slate-300">
-              Use this page before, during, and after meeting with your supervisor. Bring your questions in, mark what was discussed, write down what your supervisor said, then let Miwa organize the follow-up.
-            </p>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-gray-600 dark:text-slate-300">Prep questions, agenda, and follow-up.</p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button onClick={loadAgenda} className="rounded-xl bg-brand-600 px-4 py-2 text-sm font-bold text-white hover:bg-brand-700">
@@ -1011,7 +1009,6 @@ export function TraineeSupervision() {
             {extracted && (
               <div className="mt-4 rounded-xl border border-teal-200 bg-teal-50 p-4 text-sm text-teal-950 dark:border-teal-400/20 dark:bg-teal-400/10 dark:text-teal-100">
                 <p className="font-bold">Follow-up created</p>
-                <p className="mt-1 text-xs leading-5">Miwa organized your supervisor's feedback into action items, learning goals, documentation reminders, and next-session prompts.</p>
               </div>
             )}
           </div>
