@@ -231,30 +231,75 @@ router.delete('/appointments/:id', async (req, res) => {
     const existing = await getAppointmentById(db, req.therapist.id, req.params.id);
     if (!existing) return res.status(404).json({ error: 'Appointment not found' });
 
-    await db.run(
-      `UPDATE appointments SET
-        status = 'cancelled',
-        sync_status = CASE WHEN calendar_provider = 'google' THEN 'cancel_google_sync' ELSE 'cancelled' END,
-        updated_at = CURRENT_TIMESTAMP
-       WHERE id = ? AND therapist_id = ?`,
-      existing.id,
-      req.therapist.id,
-    );
+    // Google-Calendar-style scope:
+    //   'single'    (default) — cancel only this appointment
+    //   'following' — cancel this + every later instance in the series
+    //                 (and the parent if this IS the parent).
+    const scope = String(req.query.scope || req.body?.scope || 'single').toLowerCase();
+    const useFollowing = scope === 'following';
 
-    // Tear down the Meet event + space so we don't leave orphaned calendar
-    // entries or active Meet rooms.
-    if (existing.meet_event_id || existing.meet_space_name) {
-      try {
-        const { deleteMeetEvent } = require('../services/googleMeet');
-        await deleteMeetEvent(existing.meet_event_id, null, existing.meet_space_name);
-      } catch (err) {
-        console.error('[google-meet] cleanup failed:', err.message);
+    const idsToCancel = [existing.id];
+    if (useFollowing) {
+      const seriesParentId = existing.recurrence_parent_id || existing.id;
+      const cutoffStart = existing.scheduled_start;
+      // Collect every series sibling that starts on or after this instance.
+      // We include the originating parent only when it itself sits on/after the
+      // cutoff; otherwise the parent is a "past" anchor we leave alone.
+      const params = [req.therapist.id, seriesParentId, seriesParentId];
+      let sql = `SELECT id, meet_event_id, meet_space_name, scheduled_start FROM appointments
+                  WHERE therapist_id = ?
+                    AND status != 'cancelled'
+                    AND (recurrence_parent_id = ? OR id = ?)`;
+      if (cutoffStart) { sql += ' AND scheduled_start >= ?'; params.push(cutoffStart); }
+      const siblings = await db.all(sql, ...params);
+      for (const sib of siblings) {
+        if (!idsToCancel.includes(sib.id)) idsToCancel.push(sib.id);
+      }
+    }
+
+    for (const id of idsToCancel) {
+      await db.run(
+        `UPDATE appointments SET
+          status = 'cancelled',
+          sync_status = CASE WHEN calendar_provider = 'google' THEN 'cancel_google_sync' ELSE 'cancelled' END,
+          updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND therapist_id = ?`,
+        id,
+        req.therapist.id,
+      );
+    }
+
+    // Tear down Meet events for every cancelled row. Each lookup is cheap and
+    // we already have the meet ids for the originating instance; refetch for
+    // the rest so we can clean up Workspace events.
+    const meetTargets = [existing];
+    if (useFollowing) {
+      const extra = await db.all(
+        `SELECT id, meet_event_id, meet_space_name FROM appointments WHERE id IN (${idsToCancel.map(() => '?').join(',')}) AND therapist_id = ?`,
+        ...idsToCancel,
+        req.therapist.id,
+      );
+      meetTargets.push(...extra.filter(r => r.id !== existing.id));
+    }
+    for (const target of meetTargets) {
+      if (target.meet_event_id || target.meet_space_name) {
+        try {
+          const { deleteMeetEvent } = require('../services/googleMeet');
+          await deleteMeetEvent(target.meet_event_id, null, target.meet_space_name);
+        } catch (err) {
+          console.error('[google-meet] cleanup failed:', err.message);
+        }
       }
     }
 
     const updated = await getAppointmentById(db, req.therapist.id, existing.id);
     await persistIfNeeded();
-    return res.json({ ok: true, appointment: updated });
+    return res.json({
+      ok: true,
+      appointment: updated,
+      scope: useFollowing ? 'following' : 'single',
+      cancelled_ids: idsToCancel,
+    });
   } catch (err) {
     sendRouteError(res, err);
   }

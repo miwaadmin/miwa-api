@@ -494,18 +494,34 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
     }
   }
 
-  const handleDelete = async () => {
-    if (!window.confirm('Cancel this appointment?')) return
+  // True when this appointment is part of a weekly series — either it IS the
+  // parent (recurrence_rule set) or it's a child instance (recurrence_parent_id set).
+  const isRecurring = !!(appt && (appt.recurrence_rule || appt.recurrence_parent_id))
+  const [recurringDeletePrompt, setRecurringDeletePrompt] = useState(false)
+
+  const performDelete = async (scope) => {
     setSaving(true)
     try {
-      const res = await apiFetch(`/agent/appointments/${appt.id}`, { method: 'DELETE' })
+      const url = scope === 'following'
+        ? `/agent/appointments/${appt.id}?scope=following`
+        : `/agent/appointments/${appt.id}`
+      const res = await apiFetch(url, { method: 'DELETE' })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Delete failed')
-      onDelete(appt.id)
+      onDelete(appt.id, { scope: data.scope || scope, cancelled_ids: data.cancelled_ids || [appt.id] })
     } catch (err) {
       setError(err.message)
       setSaving(false)
     }
+  }
+
+  const handleDelete = async () => {
+    if (isRecurring) {
+      setRecurringDeletePrompt(true)
+      return
+    }
+    if (!window.confirm('Cancel this appointment?')) return
+    await performDelete('single')
   }
 
   return (
@@ -968,6 +984,52 @@ function ApptModal({ appt, patients, defaultDate, defaultTime, telehealthUrl, on
           </button>
         </div>
       </div>
+
+      {/* Google-Calendar-style delete-scope prompt for recurring appointments. */}
+      {recurringDeletePrompt && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          style={{ background: 'rgba(15,23,42,0.55)' }}
+          onMouseDown={e => { if (e.target === e.currentTarget && !saving) setRecurringDeletePrompt(false) }}
+        >
+          <div className="w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-gray-100">
+              <h3 className="text-sm font-bold text-gray-900">Cancel recurring session</h3>
+              <p className="text-xs text-gray-500 mt-1">
+                This session is part of a weekly series. What would you like to cancel?
+              </p>
+            </div>
+            <div className="p-4 space-y-2">
+              <button
+                type="button"
+                disabled={saving}
+                onClick={async () => { setRecurringDeletePrompt(false); await performDelete('single') }}
+                className="w-full text-left rounded-xl border border-gray-200 px-4 py-3 hover:border-blue-300 hover:bg-blue-50 disabled:opacity-50"
+              >
+                <div className="text-sm font-semibold text-gray-900">Delete this session only</div>
+                <div className="text-xs text-gray-500">Only the selected date is cancelled.</div>
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={async () => { setRecurringDeletePrompt(false); await performDelete('following') }}
+                className="w-full text-left rounded-xl border border-gray-200 px-4 py-3 hover:border-red-300 hover:bg-red-50 disabled:opacity-50"
+              >
+                <div className="text-sm font-semibold text-gray-900">Delete this and all following sessions</div>
+                <div className="text-xs text-gray-500">Cancels this session plus every future occurrence in the series.</div>
+              </button>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={() => setRecurringDeletePrompt(false)}
+                className="w-full rounded-xl border border-transparent px-4 py-2 text-sm font-semibold text-gray-500 hover:text-gray-700"
+              >
+                Keep this session
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -1358,8 +1420,14 @@ export default function Schedule() {
     }
     window.dispatchEvent(new CustomEvent('miwa:appointment_created', { detail: savedAppt }))
   }
-  const handleDelete = id => {
-    setAppointments(prev => prev.filter(a => a.id !== id))
+  const handleDelete = (id, meta = {}) => {
+    // For recurring "delete this and all following", the server returns the
+    // full id list so we can drop every cancelled instance from the calendar
+    // without waiting for a reload.
+    const cancelledIds = Array.isArray(meta.cancelled_ids) && meta.cancelled_ids.length
+      ? new Set(meta.cancelled_ids)
+      : new Set([id])
+    setAppointments(prev => prev.filter(a => !cancelledIds.has(a.id)))
     setModal(null)
     // A deletion may resolve a conflict, refresh so the pill disappears.
     loadConflicts()
