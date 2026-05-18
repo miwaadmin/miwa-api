@@ -202,6 +202,7 @@ app.use('/api/client-portal',                 apiLimiter, clientPortalEnabled, r
 app.use('/api/contacts',                      apiLimiter, requireAuth, require('./routes/contacts'));
 app.use('/api/digest',                        apiLimiter, requireAuth, require('./routes/emaildigest'));
 app.use('/api/seed',                          apiLimiter, requireAuth, require('./routes/demo'));
+app.use('/api/brief',                         apiLimiter, requireAuth, require('./routes/brief'));
 app.use('/api/research',                      apiLimiter, require('./routes/research'));
 app.use('/api/feedback',                      apiLimiter, require('./routes/feedback'));
 app.use('/api/activity',                      apiLimiter, require('./routes/activity'));
