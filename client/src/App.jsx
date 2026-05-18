@@ -6,6 +6,7 @@ import AppErrorBoundary from './components/AppErrorBoundary'
 import Layout from './components/Layout'
 import AdminLayout from './components/AdminLayout'
 import Dashboard from './pages/Dashboard'
+import Apps from './pages/Apps'
 import Patients from './pages/Patients'
 import PatientDetail from './pages/PatientDetail'
 import Genogram from './pages/Genogram'
@@ -335,6 +336,7 @@ export default function App() {
                     the standard Layout for consistent chrome. */}
                 <Route path="/t/resources" element={<TraineeOnboardingGuard><DashboardResources /></TraineeOnboardingGuard>} />
                 <Route path="/workspace" element={<MobileAwareRoute mobileTo="/m/workspace"><Workspace /></MobileAwareRoute>} />
+                <Route path="/apps" element={<Apps />} />
                 <Route path="/patients" element={<MobileAwareRoute mobileTo="/m/clients"><Patients /></MobileAwareRoute>} />
                 <Route path="/patients/:id" element={<MobileAwarePatientRoute><PatientDetail /></MobileAwarePatientRoute>} />
                 <Route path="/patients/:id/genogram" element={<MobileAwareRoute mobileTo="/m/clients"><Genogram /></MobileAwareRoute>} />

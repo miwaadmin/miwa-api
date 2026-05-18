@@ -14,6 +14,7 @@ const menuSections = [
     label: 'Clinical',
     items: [
       { to: '/m/outcomes', label: 'Outcomes', desc: 'Assessment tracking & scores', icon: ChartIcon },
+      { to: '/apps',       label: 'Apps', desc: 'Genogram and clinical tools', icon: AppsIcon },
       { to: '/m/briefs',   label: 'Research Briefs', desc: 'Clinical research summaries', icon: DocIcon },
       { to: '/m/schedule', label: 'Schedule', desc: 'Day agenda', icon: CalendarIcon },
       { to: '/m/consult',  label: 'Consult', desc: 'Clinical thought partner', icon: ConsultIcon },
@@ -120,6 +121,14 @@ function DocIcon() {
   return (
     <svg className="w-5 h-5 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+  )
+}
+
+function AppsIcon() {
+  return (
+    <svg className="w-5 h-5 text-teal-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 5.5A1.5 1.5 0 015.5 4h4A1.5 1.5 0 0111 5.5v4A1.5 1.5 0 019.5 11h-4A1.5 1.5 0 014 9.5v-4zM13 5.5A1.5 1.5 0 0114.5 4h4A1.5 1.5 0 0120 5.5v4a1.5 1.5 0 01-1.5 1.5h-4A1.5 1.5 0 0113 9.5v-4zM4 14.5A1.5 1.5 0 015.5 13h4a1.5 1.5 0 011.5 1.5v4A1.5 1.5 0 019.5 20h-4A1.5 1.5 0 014 18.5v-4zM13 14.5a1.5 1.5 0 011.5-1.5h4a1.5 1.5 0 011.5 1.5v4a1.5 1.5 0 01-1.5 1.5h-4a1.5 1.5 0 01-1.5-1.5v-4z" />
     </svg>
   )
 }
