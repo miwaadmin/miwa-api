@@ -40,9 +40,8 @@ async function buildChartPacket(db, therapistId, patientId) {
   if (!patient) throw new Error('Patient not found');
 
   const therapist = await db.get(
-    `SELECT id, name, credentials, license_number, license_state,
-            practice_name, practice_address, practice_phone,
-            email, title
+    `SELECT id, full_name, first_name, last_name, email,
+            credential_type, credential_number, agency_name
      FROM therapists
      WHERE id = ?`,
     therapistId
@@ -109,6 +108,22 @@ async function buildChartPacket(db, therapistId, patientId) {
   return { patient, therapist, sessionAgg, recentSessions, latestAssessments, activePlan };
 }
 
+function formatCredentialLabel(therapist = {}) {
+  const credentialType = String(therapist.credential_type || '').toLowerCase();
+  const credentialNumber = therapist.credential_number || '';
+
+  if (credentialType === 'trainee') {
+    return 'MFT Trainee';
+  }
+  if (credentialType === 'associate') {
+    return credentialNumber ? `Associate Clinician, ${credentialNumber}` : 'Associate Clinician';
+  }
+  if (credentialNumber) {
+    return credentialNumber;
+  }
+  return '';
+}
+
 /**
  * Format a concise, labeled text block for the LLM prompt. Avoids raw JSON
  * dumps — the model reasons better against labeled prose.
@@ -171,12 +186,11 @@ function formatChartPacket(p, options = {}) {
   lines.push('');
   lines.push('=== CLINICIAN ===');
   const t = p.therapist;
-  lines.push(`Name: ${t.name || 'Therapist'}${t.credentials ? ', ' + t.credentials : ''}`);
-  if (t.title) lines.push(`Title: ${t.title}`);
-  if (t.license_number) lines.push(`License: ${t.license_number}${t.license_state ? ' (' + t.license_state + ')' : ''}`);
-  if (t.practice_name) lines.push(`Practice: ${t.practice_name}`);
-  if (t.practice_address) lines.push(`Address: ${t.practice_address}`);
-  if (t.practice_phone) lines.push(`Phone: ${t.practice_phone}`);
+  const clinicianName = t.full_name || [t.first_name, t.last_name].filter(Boolean).join(' ') || 'Therapist';
+  const credentialLabel = formatCredentialLabel(t);
+  lines.push(`Name: ${clinicianName}${credentialLabel ? ', ' + credentialLabel : ''}`);
+  if (credentialLabel) lines.push(`Credential/license: ${credentialLabel}`);
+  if (t.agency_name) lines.push(`Practice/site: ${t.agency_name}`);
   if (t.email) lines.push(`Email: ${t.email}`);
 
   return lines.join('\n');
@@ -583,4 +597,8 @@ module.exports = {
   getDocument,
   updateDocument,
   deleteDocument,
+  _test: {
+    formatChartPacket,
+    formatCredentialLabel,
+  },
 };
