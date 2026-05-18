@@ -1071,7 +1071,6 @@ function AssessmentLinkModal({ patient, onClose }) {
           <div className="rounded-xl border border-teal-100 bg-teal-50 p-4 text-sm text-teal-800">
             <p className="font-semibold mb-1">Client assessment link</p>
             <p className="mb-1 text-xs font-semibold">Contact preference: {preferredMethodLabel}.</p>
-            <p>Miwa will save the completed assessment to this patient’s chart automatically when the client submits it.</p>
           </div>
 
           {isRelational && (
@@ -1159,7 +1158,6 @@ function AssessmentLinkModal({ patient, onClose }) {
           </div>
 
           <div className="flex items-center justify-between pt-1">
-            <p className="text-xs text-gray-500">You can keep multiple links active for the same patient.</p>
             <button
               onClick={handleCreateLink}
               disabled={generating}
@@ -2601,9 +2599,6 @@ export default function PatientDetail() {
             <p className="text-sm font-bold">Session in progress</p>
             <p className="text-xs text-white/90 mt-0.5">
               Your Google Meet is open in another tab. When you end the call, come back here to write the session note.
-            </p>
-            <p className="text-[11px] text-white/75 mt-1.5 leading-relaxed">
-              <strong>Tip:</strong> right-click the Meet video → <em>Picture in Picture</em> to float it on top while you take notes here.
             </p>
           </div>
           <div className="flex items-center gap-2 flex-shrink-0">
