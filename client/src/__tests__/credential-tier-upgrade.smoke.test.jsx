@@ -45,6 +45,8 @@ describe('credential tier upgrade settings smoke test', () => {
         expect(body.returnTo).toBe('/settings')
         return HttpResponse.json({ url: 'https://billing.stripe.test/portal' })
       }),
+      http.get('/api/ai/outreach-rules', () => HttpResponse.json([])),
+      http.get('/api/ai/outreach-log', () => HttpResponse.json([])),
     )
   })
 
@@ -64,5 +66,14 @@ describe('credential tier upgrade settings smoke test', () => {
     await waitFor(() => {
       expect(assignMock).toHaveBeenCalledWith('https://billing.stripe.test/portal')
     })
+  })
+
+  it('opens feedback modal for support-only tier changes', async () => {
+    renderWithProviders(<Settings />, { route: '/settings' })
+
+    await userEvent.click(await screen.findByRole('button', { name: /contact support/i }))
+
+    expect(screen.getByRole('dialog', { name: /send feedback/i })).toBeInTheDocument()
+    expect(screen.getByText(/we read every submission/i)).toBeInTheDocument()
   })
 })

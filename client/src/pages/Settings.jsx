@@ -8,6 +8,7 @@ import { COMMON_TIMEZONES } from '../lib/dateUtils'
 import OutreachSettings from '../components/OutreachSettings'
 import { isTraineeCredential } from '../lib/workspaceMode'
 import ConfirmModal from '../components/admin/ConfirmModal'
+import FeedbackModal from '../components/FeedbackModal'
 
 const API = API_BASE
 
@@ -304,6 +305,7 @@ export default function Settings() {
 
   const [userRole, setUserRole] = useState('licensed')
   const [upgradeTier, setUpgradeTier] = useState(null)
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const [referralCode, setReferralCode] = useState('')
   const [codeCopied, setCodeCopied] = useState(false)
   const [telehealthUrl, setTelehealthUrl] = useState('')
@@ -340,6 +342,9 @@ export default function Settings() {
   const [soulExpanded, setSoulExpanded] = useState(false)
 
   useEffect(() => {
+    if (window.location.search.includes('feedback=tier')) {
+      setFeedbackOpen(true)
+    }
     apiFetch('/settings')
       .then(r => r.json())
       .then(data => {
@@ -689,6 +694,7 @@ export default function Settings() {
         body="Upgrading to Associate ($69/mo) starts a 14-day trial and unlocks: client portal invite codes, Associate workspace, and supervision-aware case tools. After trial, your card is charged unless you cancel."
         variant="primary"
       />
+      <FeedbackModal isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
 
       <div className="card p-6">
         <div className="flex items-start gap-3 mb-5">
@@ -906,9 +912,13 @@ export default function Settings() {
                 </button>
               )}
               {supportOnly && (
-                <Link to="/settings?feedback=tier" className="btn-secondary text-xs whitespace-nowrap">
+                <button
+                  type="button"
+                  onClick={() => setFeedbackOpen(true)}
+                  className="btn-secondary text-xs whitespace-nowrap"
+                >
                   Contact support
-                </Link>
+                </button>
               )}
             </div>
             )
