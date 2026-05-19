@@ -3,10 +3,10 @@ const assert = require('node:assert/strict');
 const { startTestServer, stopTestServer, api, bootstrapAdminAndLogin } = require('./_helpers');
 const { getAsyncDb } = require('../../db/asyncDb');
 
-function isoDateDaysFromNow(delta) {
+function localIsoDateDaysFromNow(delta, timezone = 'America/Los_Angeles') {
   const date = new Date();
   date.setUTCDate(date.getUTCDate() + delta);
-  return date.toISOString().slice(0, 10);
+  return date.toLocaleString('sv-SE', { timeZone: timezone }).slice(0, 10);
 }
 
 test('brief list/save/unsave flow and lazy retention sweep', async (t) => {
@@ -23,8 +23,8 @@ test('brief list/save/unsave flow and lazy retention sweep', async (t) => {
     therapist.id,
   );
 
-  const today = isoDateDaysFromNow(0);
-  const old = isoDateDaysFromNow(-10);
+  const today = localIsoDateDaysFromNow(0);
+  const old = localIsoDateDaysFromNow(-10);
   const currentInsert = await db.insert(
     `INSERT INTO research_briefs
        (therapist_id, brief_type, title, content, local_date, timezone, saved, created_at)

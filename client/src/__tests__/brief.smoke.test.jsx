@@ -56,6 +56,16 @@ describe('brief page smoke tests', () => {
           },
         })
       }),
+      http.post('/api/research/generate', () => {
+        thisWeek = [{
+          id: 3,
+          title: 'Generated brief',
+          content: 'Generated content',
+          local_date: '2026-05-19',
+          saved: false,
+        }]
+        return HttpResponse.json({ ok: true })
+      }),
     )
 
     renderWithProviders(<Brief />, { route: '/brief' })
@@ -74,6 +84,9 @@ describe('brief page smoke tests', () => {
     await waitFor(() => {
       expect(screen.queryByText('Saved supervision prompt')).not.toBeInTheDocument()
     })
+
+    await user.click(screen.getByRole('button', { name: /generate brief/i }))
+    expect(await screen.findByText('Generated brief')).toBeInTheDocument()
   })
 
   it('shows Brief in licensed sidebar navigation', async () => {

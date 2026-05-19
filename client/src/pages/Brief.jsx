@@ -66,6 +66,7 @@ export default function Brief() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [busyId, setBusyId] = useState(null)
+  const [generating, setGenerating] = useState(false)
 
   const savedIds = useMemo(() => new Set((data.saved || []).map(brief => brief.id)), [data.saved])
 
@@ -127,6 +128,24 @@ export default function Brief() {
     }
   }
 
+  async function generateBrief() {
+    setGenerating(true)
+    setError('')
+    try {
+      const res = await apiFetch('/research/generate', {
+        method: 'POST',
+        body: JSON.stringify({ type: 'daily' }),
+      })
+      const body = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(body.error || 'Brief generation failed')
+      await loadBriefs()
+    } catch (err) {
+      setError(err.message || 'Could not generate a brief right now.')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
   const thisWeek = data.this_week.map(brief => ({
     ...brief,
     saved: brief.saved || savedIds.has(brief.id),
@@ -135,10 +154,20 @@ export default function Brief() {
   return (
     <div className="min-h-screen bg-slate-50 px-4 py-6 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-5xl space-y-6">
-        <header>
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-600">Brief</p>
-          <h1 className="mt-2 text-3xl font-bold text-gray-950">Your Brief</h1>
-          <p className="mt-2 text-sm text-gray-500">Daily updates Miwa generates for you</p>
+        <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-[0.2em] text-brand-600">Brief</p>
+            <h1 className="mt-2 text-3xl font-bold text-gray-950">Your Brief</h1>
+            <p className="mt-2 text-sm text-gray-500">Daily updates Miwa generates for you</p>
+          </div>
+          <button
+            type="button"
+            onClick={generateBrief}
+            disabled={generating}
+            className="self-start rounded-full bg-brand-600 px-4 py-2 text-sm font-bold text-white shadow-sm hover:bg-brand-700 disabled:opacity-50 sm:self-auto"
+          >
+            {generating ? 'Generating…' : 'Generate brief'}
+          </button>
         </header>
 
         {error && (

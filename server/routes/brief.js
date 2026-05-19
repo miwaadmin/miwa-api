@@ -18,12 +18,9 @@ function parseJson(value, fallback) {
 }
 
 function localDateFor(date, timezone) {
-  return new Intl.DateTimeFormat('en-CA', {
+  return date.toLocaleString('sv-SE', {
     timeZone: timezone || 'America/Los_Angeles',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(date);
+  }).slice(0, 10);
 }
 
 function startOfCurrentWeek(timezone) {
@@ -90,7 +87,10 @@ router.get('/', async (req, res) => {
            (local_date IS NOT NULL AND local_date BETWEEN ? AND ?)
            OR (local_date IS NULL AND created_at >= ?)
          )
-       ORDER BY COALESCE(local_date, created_at) ASC, created_at ASC`,
+       ORDER BY
+         CASE WHEN local_date IS NULL THEN 1 ELSE 0 END ASC,
+         local_date ASC,
+         created_at ASC`,
       therapistId,
       weekStart,
       today,
